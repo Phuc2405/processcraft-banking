@@ -1,0 +1,662 @@
+@import 'tailwindcss';
+
+/* ── Canvas theme ─────────────────────────────────────────────────────────── */
+
+.react-flow {
+  --xy-background-color: #090d16;
+  --xy-edge-stroke: #64748b;
+  --xy-connectionline-stroke: #38bdf8;
+}
+
+/* Light up the handles a wire can legally land on while the learner is dragging one. */
+.react-flow__handle.connectionindicator:hover,
+.react-flow__handle.connectingfrom {
+  box-shadow: 0 0 0 5px rgb(56 189 248 / 0.35);
+}
+.react-flow__handle {
+  cursor: crosshair;
+  transition: box-shadow 120ms;
+}
+
+.react-flow__attribution {
+  background: transparent;
+  opacity: 0.55;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: #060912;
+  color-scheme: dark;
+}
+
+/* ── Workstation animations ───────────────────────────────────────────────── */
+
+@keyframes pc-type {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2.5px);
+  }
+}
+.pc-type-a {
+  animation: pc-type 0.3s ease-in-out infinite;
+}
+.pc-type-b {
+  animation: pc-type 0.3s ease-in-out infinite 0.15s;
+}
+
+@keyframes pc-scan {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(16px);
+  }
+}
+.pc-scan {
+  animation: pc-scan 0.8s linear infinite;
+}
+
+@keyframes pc-fade {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.pc-pulse {
+  animation: pc-fade 1.1s ease-in-out infinite;
+}
+
+@keyframes pc-shake-kf {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-1.2px);
+  }
+  75% {
+    transform: translateX(1.2px);
+  }
+}
+.pc-shake {
+  animation: pc-shake-kf 0.25s linear infinite;
+}
+
+@keyframes pc-glow-kf {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(163 230 53 / 0);
+  }
+  50% {
+    box-shadow: 0 0 22px 2px rgb(163 230 53 / 0.45);
+  }
+}
+.pc-glow {
+  animation: pc-glow-kf 1.2s ease-in-out infinite;
+}
+
+@keyframes pc-progress-kf {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+/* The bar fills over the part of the tick the desk spends working, then holds until the next tick. */
+.pc-progress {
+  animation: pc-progress-kf var(--pc-work, 0.35s) linear forwards;
+}
+
+@keyframes pc-pop-kf {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.pc-pop {
+  animation: pc-pop-kf 160ms ease-out;
+}
+
+@keyframes pc-tap-kf {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(-3px);
+  }
+}
+.pc-card-tap {
+  animation: pc-tap-kf 0.7s ease-in-out infinite;
+}
+
+/* A dashed, marching wire while a token is on it. */
+@keyframes pc-march {
+  to {
+    stroke-dashoffset: -22;
+  }
+}
+.pc-edge-active {
+  stroke-dasharray: 9 5;
+  animation: pc-march 0.5s linear infinite;
+}
+
+/* ── Living simulation ────────────────────────────────────────────────────────
+   Timing comes from custom properties the canvas sets from the playback speed:
+     --pc-tick     one whole tick
+     --pc-work     the desk working on the token (first 35%)
+     --pc-arrive   when the token has crossed the wire and reached the next desk (85%)
+   so every animation below follows the speed selector. */
+
+/* The token at the desk while it is worked on: it arrives, sits there, then lifts off onto the wire. */
+@keyframes pc-worked-kf {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.7);
+  }
+  18% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  82% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.95);
+  }
+}
+.pc-worked {
+  animation: pc-worked-kf var(--pc-work, 0.35s) ease-out both;
+}
+
+/* A token that has finished its trip along a wire and is now waiting at the next desk. */
+@keyframes pc-dock-kf {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.pc-docked {
+  animation: pc-dock-kf 180ms ease-out var(--pc-arrive, 0.75s) both;
+}
+
+/* Busy desk: the avatar gives a small beat of effort and a ring ripples out from it, once per tick. */
+@keyframes pc-avatar-kf {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(1.07) translateY(-1px);
+  }
+  55% {
+    transform: scale(0.98);
+  }
+}
+.pc-avatar-pulse {
+  transform-origin: 50% 80%;
+  animation: pc-avatar-kf var(--pc-work, 0.35s) ease-in-out 2;
+}
+
+@keyframes pc-work-ring-kf {
+  from {
+    opacity: 0.9;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+.pc-work-ring {
+  animation: pc-work-ring-kf var(--pc-tick, 0.9s) ease-out both;
+}
+
+/* Congestion: more transactions in line than the desk can carry. A slight, nervous shake. */
+@keyframes pc-shake-card-kf {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0);
+  }
+  20% {
+    transform: translate(-1.4px, 0.4px) rotate(-0.25deg);
+  }
+  40% {
+    transform: translate(1.2px, -0.4px) rotate(0.2deg);
+  }
+  60% {
+    transform: translate(-1px, 0.3px) rotate(-0.15deg);
+  }
+  80% {
+    transform: translate(1.3px, 0) rotate(0.25deg);
+  }
+}
+.pc-shake-card {
+  animation: pc-shake-card-kf 0.42s linear infinite;
+}
+
+/* Deadlock: the desk freezes over. */
+@keyframes pc-frost-in {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+@keyframes pc-frost-glint {
+  0%,
+  100% {
+    box-shadow: inset 0 0 16px 2px rgb(224 242 254 / 0.55), inset 0 0 0 1.5px rgb(186 230 253 / 0.8);
+  }
+  50% {
+    box-shadow: inset 0 0 26px 5px rgb(240 249 255 / 0.8), inset 0 0 0 1.5px rgb(224 242 254 / 0.95);
+  }
+}
+.pc-frost {
+  background:
+    radial-gradient(120% 90% at 18% 12%, rgb(240 249 255 / 0.62), transparent 58%),
+    linear-gradient(160deg, rgb(186 230 253 / 0.46), rgb(56 189 248 / 0.24) 55%, rgb(224 242 254 / 0.42));
+  box-shadow: inset 0 0 16px 2px rgb(224 242 254 / 0.55), inset 0 0 0 1.5px rgb(186 230 253 / 0.8);
+  backdrop-filter: blur(1.2px) saturate(0.75);
+  animation:
+    pc-frost-in 0.7s ease-out both,
+    pc-frost-glint 3.2s ease-in-out 0.7s infinite;
+}
+
+/* Alarm: the border flashes emergency crimson. A fraud slip keeps flashing; a break the recon desk
+   found flashes four times and then rests as a steady ring. */
+@keyframes pc-alarm-kf {
+  0%,
+  100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 8px rgb(239 68 68 / 0.95));
+  }
+  50% {
+    opacity: 0.2;
+    filter: drop-shadow(0 0 0 rgb(239 68 68 / 0));
+  }
+}
+.pc-alarm-ring {
+  animation: pc-alarm-kf 0.7s ease-in-out infinite;
+}
+.pc-alarm-ring.pc-alarm-once {
+  animation-iteration-count: 4;
+  animation-fill-mode: forwards;
+}
+
+@keyframes pc-siren-kf {
+  0%,
+  100% {
+    transform: scale(1) rotate(-10deg);
+  }
+  50% {
+    transform: scale(1.25) rotate(10deg);
+  }
+}
+.pc-siren {
+  display: inline-flex;
+  animation: pc-siren-kf 0.5s ease-in-out infinite;
+}
+
+/* Dropped transaction: the token falls apart into shredded strips and bits of paper, and a red cross is left behind.
+   Everything is hidden until its own delay (set inline: after the desk has finished working on the token). */
+@keyframes pc-shred-kf {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0);
+  }
+  70% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx, 0), 38px) rotate(var(--rot, 0deg));
+  }
+}
+.pc-shred {
+  opacity: 0;
+  animation: pc-shred-kf 0.95s cubic-bezier(0.4, 0, 0.9, 0.7) forwards;
+}
+
+@keyframes pc-paper-kf {
+  0% {
+    opacity: 0.95;
+    transform: translate(-50%, -50%) translateX(0) rotate(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) translate(var(--px, 0), 44px) rotate(var(--pr, 0deg));
+  }
+}
+.pc-paper {
+  opacity: 0;
+  animation: pc-paper-kf 1.05s ease-in forwards;
+}
+
+@keyframes pc-cross-kf {
+  0% {
+    opacity: 0;
+    transform: scale(0.2) rotate(-40deg);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.25) rotate(6deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+.pc-cross {
+  opacity: 0;
+  animation: pc-cross-kf 0.35s ease-out calc(var(--pc-work, 0.35s) + 0.4s) forwards;
+}
+
+/* People who ask their system for less motion get the same information without anything moving:
+   tokens simply appear where they are going, flashing and shaking are replaced by steady colour. */
+@media (prefers-reduced-motion: reduce) {
+  .pc-type-a,
+  .pc-type-b,
+  .pc-scan,
+  .pc-pulse,
+  .pc-shake,
+  .pc-glow,
+  .pc-progress,
+  .pc-pop,
+  .pc-card-tap,
+  .pc-edge-active,
+  .pc-avatar-pulse,
+  .pc-work-ring,
+  .pc-shake-card,
+  .pc-frost,
+  .pc-alarm-ring,
+  .pc-alarm-ring.pc-alarm-once,
+  .pc-siren,
+  .pc-docked {
+    animation: none;
+  }
+  .pc-progress {
+    width: 100%;
+  }
+  .pc-work-ring,
+  .pc-worked {
+    display: none;
+  }
+  .pc-shred,
+  .pc-paper {
+    display: none;
+  }
+  .pc-cross {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* ── Living Bank ──────────────────────────────────────────────────────────── */
+
+.bk-stage {
+  background-color: #070b14;
+  background-image:
+    radial-gradient(circle at 50% 0%, rgb(56 189 248 / 0.06), transparent 55%),
+    linear-gradient(rgb(30 41 59 / 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(30 41 59 / 0.35) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    36px 36px,
+    36px 36px;
+  border-radius: 20px;
+  transition: filter 800ms ease;
+}
+.bk-stage.bk-night {
+  background-image:
+    radial-gradient(circle at 50% 100%, rgb(251 191 36 / 0.1), transparent 55%),
+    linear-gradient(rgb(30 41 59 / 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(30 41 59 / 0.35) 1px, transparent 1px);
+}
+
+@keyframes bk-congested-kf {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(251 191 36 / 0);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgb(251 191 36 / 0.22);
+  }
+}
+.bk-congested {
+  animation: bk-congested-kf 1.4s ease-in-out infinite;
+}
+
+@keyframes bk-arrival-kf {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.8);
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-14px) scale(1);
+  }
+}
+.bk-arrival {
+  animation: bk-arrival-kf 1.1s ease-out forwards;
+}
+
+/* The ring that marks where the payment is on a lesson diagram. */
+@keyframes bk-ring-kf {
+  0%,
+  100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.bk-ring {
+  animation: bk-ring-kf 1.3s ease-in-out infinite;
+}
+
+@keyframes bk-flow-kf {
+  to {
+    stroke-dashoffset: -28;
+  }
+}
+.bk-flow {
+  animation: bk-flow-kf 0.9s linear infinite;
+}
+
+/* The token waiting at a box, appearing as the travelling copy arrives. */
+@keyframes bk-dock-kf {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.bk-dock {
+  opacity: 0;
+  animation: bk-dock-kf 160ms ease-out 620ms forwards;
+}
+
+.bk-range {
+  height: 18px;
+  cursor: pointer;
+}
+
+/* ── Learn & Explore (the guided tour) ───────────────────────────────────────
+   Everything the process does not use fades to 15% and blurs; what it does use glows in the colour of the process
+   (--tour, set on each element from the lesson's accent). */
+
+.bk-dimmed {
+  opacity: 0.15 !important;
+  filter: blur(1.6px) saturate(0.55);
+  pointer-events: none;
+  transition:
+    opacity 450ms ease,
+    filter 450ms ease;
+}
+
+.bk-spot-lit {
+  border-color: var(--tour, #38bdf8) !important;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--tour, #38bdf8) 55%, transparent),
+    0 0 18px color-mix(in srgb, var(--tour, #38bdf8) 40%, transparent);
+}
+
+@keyframes bk-spot-here-kf {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px var(--tour, #38bdf8),
+      0 0 22px 2px color-mix(in srgb, var(--tour, #38bdf8) 55%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px var(--tour, #38bdf8),
+      0 0 38px 8px color-mix(in srgb, var(--tour, #38bdf8) 70%, transparent);
+  }
+}
+.bk-spot-here > button,
+.bk-spot-here.bk-spot-lit {
+  animation: bk-spot-here-kf 1.6s ease-in-out infinite;
+}
+
+.bk-worker-glow {
+  filter: drop-shadow(0 0 3px var(--tour, #38bdf8));
+}
+
+.bk-tour-path {
+  stroke-linejoin: round;
+}
+.bk-tour-path.bk-flow {
+  stroke-dasharray: 10 8;
+}
+
+@keyframes bk-token-pulse-kf {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--tour, #38bdf8) 70%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 16px color-mix(in srgb, var(--tour, #38bdf8) 0%, transparent);
+  }
+}
+.bk-token-pulse {
+  animation: bk-token-pulse-kf 1.4s ease-out infinite;
+}
+
+@keyframes bk-callout-in-kf {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.bk-callout {
+  animation: bk-callout-in-kf 220ms ease-out both;
+}
+
+/* The one-sentence "what is this" over a desk. */
+.bk-hovertip {
+  opacity: 0;
+  transition: opacity 140ms ease 250ms;
+}
+/* Hover shows it; keyboard focus shows it too, but a mouse click (focus without :focus-visible) does not keep it open, so moving
+   the pointer to another desk never leaves two descriptions on screen. */
+.group:hover > .bk-hovertip,
+.group:has(:focus-visible) > .bk-hovertip {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bk-congested,
+  .bk-ring,
+  .bk-flow,
+  .bk-token-pulse,
+  .bk-callout,
+  .bk-spot-here > button,
+  .bk-spot-here.bk-spot-lit {
+    animation: none;
+  }
+  .bk-dimmed {
+    transition: none;
+  }
+  .bk-hovertip {
+    transition: none;
+  }
+  .bk-arrival {
+    animation: none;
+    opacity: 1;
+  }
+  .bk-dock {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* The inspector drawer's scroll: a visible, styled track so it reads as scrollable, and a scroll that never hands off to the map. */
+.bk-scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #475569 #0f172a;
+  scrollbar-gutter: stable;
+}
+.bk-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+.bk-scroll::-webkit-scrollbar-track {
+  background: #0f172a;
+  border-left: 1px solid #1e293b;
+}
+.bk-scroll::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 9999px;
+  border: 2px solid #0f172a;
+}
+.bk-scroll::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* HUD alert pills: slide in from the right, fade out just before they are removed (3.5 s). */
+@keyframes bk-hud-toast-kf {
+  0% { opacity: 0; transform: translateX(12px); }
+  8% { opacity: 1; transform: none; }
+  88% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.bk-hud-toast {
+  animation: bk-hud-toast-kf 3.5s ease-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bk-hud-toast { animation: none; }
+}

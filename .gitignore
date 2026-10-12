@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.map
+dist-ssr/
+.vite/
+*.tsbuildinfo
+
+# Archives
+*.zip
+
+# Environment files (never commit secrets)
+.env
+.env.local
+.env.*.local
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Vercel
+.vercel
