@@ -36,6 +36,8 @@ export const PRESETS: readonly PresetDef[] = [
 ];
 
 export const presetsFor = (flow: FlowId): PresetDef[] => PRESETS.filter((p) => p.flow === flow);
+/** The preset that shows a guided flow at its clearest, which is what "Simulate this Flow" sends. */
+export const PRIMARY_PRESET: Readonly<Record<FlowId, PresetId>> = { 1: 'pos-20', 2: 'token-45', 3: 'cdm-200', 4: 'eod' };
 export const presetById = (id: string): PresetDef | undefined => PRESETS.find((p) => p.id === id);
 
 /** A fixed moment the virtual card's code is checked against; the dynamic CVV is issued a few seconds before it. */

@@ -8,7 +8,8 @@
 
 import { useStore } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import { isChapterId, levelById, type ChapterId, type LevelId } from '../sim/academyCatalog';
+import { CHAPTER_IDS, isChapterId, levelById, type ChapterId, type LevelId } from '../sim/academyCatalog';
+import { quizFor } from '../sim/academyKnowledge';
 import { browserStorage, type KeyValueStorage } from './persistence';
 
 export const ACADEMY_KEY = 'processcraft:v1:academy';
@@ -16,6 +17,15 @@ export const PANEL_WIDTH = { min: 300, max: 560, initial: 400 } as const;
 export const clampPanelWidth = (px: number): number => (Number.isFinite(px) ? Math.round(Math.min(PANEL_WIDTH.max, Math.max(PANEL_WIDTH.min, px))) : PANEL_WIDTH.initial);
 
 export type LessonSet = Readonly<Record<LevelId, true>>;
+
+/** How a chapter's quiz went: the best and the latest score out of `total`. */
+export interface QuizScore {
+  best: number;
+  last: number;
+  total: number;
+}
+/** Quiz scores by chapter number. */
+export type QuizScores = Readonly<Partial<Record<string, QuizScore>>>;
 
 export interface AcademyState {
   /** 1 to 6. */
@@ -29,23 +39,44 @@ export interface AcademyState {
   startedLessons: LessonSet;
   /** Width of the lesson panel in pixels. */
   panelWidth: number;
+  /** The result of each chapter quiz the learner has taken. */
+  quizScores: QuizScores;
 
   /** Opens a chapter. Its levels show; no level is chosen yet. */
   setChapter(id: ChapterId): void;
   /** Chooses a level, which also opens its chapter. */
   setLevel(id: LevelId): void;
   toggleSplitScreen(): void;
+  /** Opens or closes the lesson panel. */
+  setSplitScreen(open: boolean): void;
   completeLesson(id: LevelId): void;
   setPanelWidth(px: number): void;
+  /** Keeps a chapter quiz result: `last` is always the newest, `best` the highest so far. */
+  recordQuiz(chapter: ChapterId, score: number): void;
 }
 
-type Saved = Pick<AcademyState, 'activeChapterId' | 'activeLevelId' | 'isSplitScreenOpen' | 'completedLessons' | 'startedLessons' | 'panelWidth'>;
+type Saved = Pick<AcademyState, 'activeChapterId' | 'activeLevelId' | 'isSplitScreenOpen' | 'completedLessons' | 'startedLessons' | 'panelWidth' | 'quizScores'>;
 
-const DEFAULTS: Saved = { activeChapterId: 1, activeLevelId: null, isSplitScreenOpen: false, completedLessons: {}, startedLessons: {}, panelWidth: PANEL_WIDTH.initial };
+const DEFAULTS: Saved = { activeChapterId: 1, activeLevelId: null, isSplitScreenOpen: false, completedLessons: {}, startedLessons: {}, panelWidth: PANEL_WIDTH.initial, quizScores: {} };
 
 function readSet(v: unknown): LessonSet {
   const out: Record<LevelId, true> = {};
   if (v && typeof v === 'object') for (const id of Object.keys(v)) if (levelById(id)) out[id] = true;
+  return out;
+}
+
+function readQuizScores(v: unknown): QuizScores {
+  const out: Record<string, QuizScore> = {};
+  if (!v || typeof v !== 'object') return out;
+  for (const chapter of CHAPTER_IDS) {
+    const raw = (v as Record<string, unknown>)[String(chapter)];
+    if (!raw || typeof raw !== 'object') continue;
+    const { best, last, total } = raw as Record<string, unknown>;
+    const max = quizFor(chapter).length;
+    const ok = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0 && n <= max;
+    // A saved score only counts while the quiz still has the same number of questions.
+    if (ok(best) && ok(last) && total === max && best >= last) out[String(chapter)] = { best, last, total: max };
+  }
   return out;
 }
 
@@ -63,6 +94,7 @@ export function loadAcademy(storage: KeyValueStorage | null): Saved {
       completedLessons: readSet(j.completedLessons),
       startedLessons: readSet(j.startedLessons),
       panelWidth: typeof j.panelWidth === 'number' ? clampPanelWidth(j.panelWidth) : PANEL_WIDTH.initial,
+      quizScores: readQuizScores(j.quizScores),
     };
   } catch {
     return { ...DEFAULTS };
@@ -71,7 +103,7 @@ export function loadAcademy(storage: KeyValueStorage | null): Saved {
 
 function saveAcademy(storage: KeyValueStorage | null, s: AcademyState): void {
   try {
-    const saved: Saved = { activeChapterId: s.activeChapterId, activeLevelId: s.activeLevelId, isSplitScreenOpen: s.isSplitScreenOpen, completedLessons: s.completedLessons, startedLessons: s.startedLessons, panelWidth: s.panelWidth };
+    const saved: Saved = { activeChapterId: s.activeChapterId, activeLevelId: s.activeLevelId, isSplitScreenOpen: s.isSplitScreenOpen, completedLessons: s.completedLessons, startedLessons: s.startedLessons, panelWidth: s.panelWidth, quizScores: s.quizScores };
     storage?.setItem(ACADEMY_KEY, JSON.stringify(saved));
   } catch {
     // Remembering progress is a nicety.
@@ -93,9 +125,20 @@ export function createAcademyStore(options: { storage?: KeyValueStorage | null }
       set((s) => ({ activeLevelId: level.id, activeChapterId: level.chapter, startedLessons: s.startedLessons[level.id] ? s.startedLessons : { ...s.startedLessons, [level.id]: true } }));
     },
     toggleSplitScreen: () => set((s) => ({ isSplitScreenOpen: !s.isSplitScreenOpen })),
+    setSplitScreen: (open) => {
+      if (get().isSplitScreenOpen !== open) set({ isSplitScreenOpen: open });
+    },
     completeLesson: (id) => {
       if (!levelById(id) || get().completedLessons[id]) return;
       set((s) => ({ completedLessons: { ...s.completedLessons, [id]: true } }));
+    },
+    recordQuiz: (chapter, score) => {
+      if (!isChapterId(chapter)) return;
+      const total = quizFor(chapter).length;
+      if (!Number.isInteger(score) || score < 0 || score > total) return;
+      const before = get().quizScores[String(chapter)];
+      const best = before && before.total === total ? Math.max(before.best, score) : score;
+      set((s) => ({ quizScores: { ...s.quizScores, [String(chapter)]: { best, last: score, total } } }));
     },
     setPanelWidth: (px) => {
       const panelWidth = clampPanelWidth(px);

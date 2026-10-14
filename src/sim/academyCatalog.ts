@@ -93,6 +93,52 @@ export const ACADEMY_CHAPTERS: readonly AcademyChapter[] = [
   ]),
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Knowledge tracks
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const TRACK_IDS = [1, 2, 3] as const;
+export type TrackId = (typeof TRACK_IDS)[number];
+
+/** A group of chapters that build one body of knowledge, and the concepts it teaches (ids of entries in academyKnowledge.ts). */
+export interface AcademyTrack {
+  id: TrackId;
+  title: string;
+  blurb: string;
+  accent: string;
+  chapters: readonly ChapterId[];
+  concepts: readonly string[];
+}
+
+export const ACADEMY_TRACKS: readonly AcademyTrack[] = [
+  {
+    id: 1,
+    title: 'Foundations',
+    blurb: 'Cards, accounts, the machines customers touch and the codes the bank answers with.',
+    accent: '#a3e635',
+    chapters: [1, 2],
+    concepts: ['card-types', 'casa', 'overdraft', 'stations', 'iso-response-codes', 'ekyc', 'qr-codes', 'virtual-card'],
+  },
+  {
+    id: 2,
+    title: 'Operations',
+    blurb: 'How a card payment is authorised, secured, paid for, reversed and disputed.',
+    accent: '#a78bfa',
+    chapters: [3, 4],
+    concepts: ['four-party', 'auth-capture', 'tokenization', 'three-ds', 'mdr-interchange', 'refund-void', 'chargeback', 'bnpl'],
+  },
+  {
+    id: 3,
+    title: 'Deep Dive',
+    blurb: 'Instant transfers, cash liquidity, message standards, the ledger, and how a bank stays safe and clean.',
+    accent: '#38bdf8',
+    chapters: [5, 6],
+    concepts: ['a2a-instant', 'cdm-liquidity', 'iso-20022', 'double-entry', 'alm', 'nim', 'basel', 'bank-run', 'aml'],
+  },
+];
+
+export const trackOfChapter = (id: ChapterId): AcademyTrack => ACADEMY_TRACKS.find((t) => t.chapters.includes(id)) as AcademyTrack;
+
 export const ACADEMY_LEVELS: readonly AcademyLevel[] = ACADEMY_CHAPTERS.flatMap((c) => c.levels);
 export const LESSON_COUNT = ACADEMY_LEVELS.length;
 

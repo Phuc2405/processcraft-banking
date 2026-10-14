@@ -59,6 +59,57 @@ describe('preset actions from the store', () => {
     expect(store.getState().presetTrace?.record?.status).toBe('APPROVED');
   });
 
+  it('plays a preset on its own when the bank is paused: no live customers walk in, and the clock stops when it is done', () => {
+    const store = make();
+    store.getState().skipTo(WORK_START + 15);
+    const arrivalsBefore = store.getState().view.kpis.arrivals;
+    store.getState().runPreset('pos-20');
+    expect(store.getState().solo).toBe(true);
+    for (let i = 0; i < 40 && store.getState().playing; i++) store.getState().tickBeat();
+    const s = store.getState();
+    expect(s.playing).toBe(false);
+    expect(s.solo).toBe(false);
+    expect(s.presetTrace?.done).toBe(true);
+    expect(s.presetTrace?.record?.status).toBe('APPROVED');
+    // Only the one test payment arrived, and the panel still has it.
+    expect(s.view.kpis.arrivals).toBe(arrivalsBefore + 1);
+    expect(s.selection).toEqual({ kind: 'transaction', id: 'd1-9001' });
+    store.getState().tickBeat();
+    expect(store.getState().view.kpis.arrivals).toBe(arrivalsBefore + 1);
+  });
+
+  it('lets held-back customers in once the bank runs live again', () => {
+    const store = make();
+    store.getState().skipTo(WORK_START + 15);
+    store.getState().runPreset('pos-20');
+    for (let i = 0; i < 40 && store.getState().playing; i++) store.getState().tickBeat();
+    const solo = store.getState().view.kpis.arrivals;
+    store.getState().play();
+    for (let i = 0; i < 12; i++) store.getState().tickBeat();
+    expect(store.getState().view.kpis.arrivals).toBeGreaterThan(solo);
+  });
+
+  it('leaves a bank that is already live running: the preset joins the traffic', () => {
+    const store = make();
+    store.getState().skipTo(WORK_START + 15);
+    store.getState().play();
+    store.getState().runPreset('pos-20');
+    expect(store.getState().solo).toBe(false);
+    for (let i = 0; i < 40 && !store.getState().presetTrace?.done; i++) store.getState().tickBeat();
+    expect(store.getState().playing).toBe(true);
+  });
+
+  it('Pause and Play end a solo run', () => {
+    const store = make();
+    store.getState().skipTo(WORK_START + 15);
+    store.getState().runPreset('pos-20');
+    store.getState().pause();
+    expect(store.getState()).toMatchObject({ playing: false, solo: false });
+    store.getState().runPreset('pos-500');
+    store.getState().play();
+    expect(store.getState()).toMatchObject({ playing: true, solo: false });
+  });
+
   it('forgets the payment when the day is replayed', () => {
     const store = make();
     store.getState().skipTo(WORK_START + 15);

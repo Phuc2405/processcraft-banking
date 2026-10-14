@@ -209,6 +209,8 @@ export class BankSimulation {
   private labels = new Map<string, string>();
   /** Payments the learner sent with a preset action today, by id, so the inspector can follow them along their route. */
   private scripted = new Map<string, Packet>();
+  /** Generated customers kept out of the building during a solo run (see step). */
+  private heldBack: Customer[] = [];
 
   constructor(options: BankSimOptions) {
     this.seed = options.seed;
@@ -288,8 +290,14 @@ export class BankSimulation {
     return true;
   }
 
-  /** Moves the bank forward by one beat. Does nothing once the day is over. */
-  step(): void {
+  /**
+   * Moves the bank forward by one beat. Does nothing once the day is over.
+   *
+   * With `admit: false` (a solo run, used while one preset payment plays out) the day's generated customers who would arrive
+   * this beat are held back instead of walking in. They are let in on the next normal beat, so nobody is lost and a replay of
+   * the day is unchanged.
+   */
+  step(options: { admit?: boolean } = {}): void {
     if (this.dayOver) return;
     const phase = phaseAt(this.minute);
     const bm = beatMinutes(phase);
@@ -305,7 +313,13 @@ export class BankSimulation {
     this.announce(phase, start);
 
     if (phase === 'WORKING') {
-      for (const customer of this.traffic.beats[workingBeatIndex(start)] ?? []) this.admit(customer);
+      const arriving = this.traffic.beats[workingBeatIndex(start)] ?? [];
+      if (options.admit === false) this.heldBack.push(...arriving);
+      else {
+        // Customers held back during a solo run walk in now, as if they had just arrived.
+        const late = this.heldBack.splice(0).map((c) => ({ ...c, minute: start }));
+        for (const customer of [...late, ...arriving]) this.admit(customer);
+      }
     }
     this.releasePhones(start, bm);
     if (phase === 'EOD' && !this.nightStarted) this.startNight(start);
@@ -379,6 +393,7 @@ export class BankSimulation {
     if (!this.dayOver) this.runToEndOfDay();
     this.day++;
     this.scripted.clear();
+    this.heldBack = [];
     // The night team first: whoever worked last night keeps some of their tiredness, whoever had the night off comes back rested.
     const worked = new Map<string, number>();
     for (const id of NIGHT_STATIONS) for (const w of this.stations[id].workers) if (!w.temp) worked.set(w.seed.id, w.fatigue);

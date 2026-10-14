@@ -21,7 +21,7 @@ import type { TermMode } from '../sim/terms';
 import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
 import type { BankView, PacketTrace } from '../sim/types';
-import { presetById, presetCustomer, type PresetId } from '../sim/presets';
+import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
 import { compareDays, type Comparison } from '../sim/whatIf';
@@ -121,6 +121,11 @@ export interface BankState {
   /** The payment the learner last sent with a preset action, and where it is now. */
   presetTxId: string | null;
   presetTrace: PacketTrace | null;
+  /**
+   * True while one preset payment plays out on its own: the clock runs, but the day's generated customers are held back and the
+   * clock stops by itself the moment the payment is done. Pressing Play (Live Customers) or Pause ends it.
+   */
+  solo: boolean;
   /** The node the Academy split view is teaching right now: it pulses on the 2D map and in the 3D office, and the 3D camera goes to it. */
   focusPlace: PlaceId | null;
 
@@ -190,8 +195,14 @@ export interface BankState {
    */
   focusAcademyStep(target: { flow: FlowId | null; place: PlaceId | null }): void;
   clearAcademyFocus(): void;
-  /** One click of a preset action: sends the scripted customer into the bank and follows it in the inspector. */
+  /**
+   * One click of a preset action: sends the scripted customer into the bank and follows it in the inspector. When the bank was
+   * paused, only that payment plays (a solo run) and the clock stops again once it is done; when the bank was already running
+   * live, the payment simply joins the traffic.
+   */
   runPreset(id: PresetId): void;
+  /** Lights a guided flow on the map and plays its main preset payment (the "Simulate this Flow" deep link from the Academy). */
+  triggerGuidedFlow(flow: FlowId): void;
 
   // Walkthrough card
   setWalkCollapsed(collapsed: boolean): void;
@@ -316,7 +327,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
     };
 
     const closeDay = (): void => {
-      set({ playing: false });
+      set({ playing: false, solo: false });
       refresh({ reportOpen: true });
       persist();
     };
@@ -337,10 +348,13 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       });
     };
 
-    const advance = (beats: number): void => {
+    const advance = (beats: number, solo = false): void => {
       const { sim: bank } = get();
-      for (let i = 0; i < beats && !bank.dayOver; i++) bank.step();
+      for (let i = 0; i < beats && !bank.dayOver; i++) bank.step({ admit: !solo });
     };
+    /** Beats a solo run has played, and the most it may play before it stops anyway. */
+    let soloBeats = 0;
+    const SOLO_BEAT_LIMIT = 120;
 
     return {
       sim,
@@ -364,6 +378,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       flow: ui.flow,
       presetTxId: null,
       presetTrace: null,
+      solo: false,
       focusPlace: null,
 
       selection: { kind: 'none' },
@@ -384,15 +399,15 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       play: () => {
         const s = get();
         if (s.sim.dayOver) return;
-        set({ ...endTour(false), playing: true });
+        set({ ...endTour(false), playing: true, solo: false });
       },
-      pause: () => set({ playing: false }),
+      pause: () => set({ playing: false, solo: false }),
       toggle: () => (get().playing ? get().pause() : get().play()),
 
       step: () => {
         const s = get();
         if (s.sim.dayOver) return;
-        set({ ...endTour(false), playing: false });
+        set({ ...endTour(false), playing: false, solo: false });
         advance(1);
         if (s.sim.dayOver) closeDay();
         else refresh();
@@ -401,9 +416,18 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       tickBeat: () => {
         const s = get();
         if (!s.playing) return;
-        advance(1);
-        if (s.sim.dayOver) closeDay();
-        else refresh();
+        advance(1, s.solo);
+        if (s.sim.dayOver) {
+          closeDay();
+          return;
+        }
+        refresh();
+        // A solo run ends by itself: the payment is done (or the guard ran out), so the clock stops and the result stays on screen.
+        if (s.solo) {
+          soloBeats++;
+          const trace = get().presetTrace;
+          if (!trace || trace.done || soloBeats >= SOLO_BEAT_LIMIT) set({ playing: false, solo: false });
+        }
       },
 
       // A guided tour locks the speed to the slowest setting so nothing runs ahead of the explanation.
@@ -428,6 +452,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         s.sim.stepUntil(EOD_START);
         refresh({
           playing: true,
+          solo: false,
           notice: { kind: 'info', message: 'Jumped to 23:00. The EOD night cycle is starting: batch clearing, Visa settlement, then reconciliation.' },
         });
       },
@@ -444,7 +469,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         const s = get();
         s.sim.nextDay();
         startCarry = s.sim.carryState();
-        set({ ...endTour(false), playing: false, reportOpen: false, draftRules: { ...s.sim.rules }, comparison: null, comparisonStatus: 'idle' });
+        set({ ...endTour(false), playing: false, solo: false, reportOpen: false, draftRules: { ...s.sim.rules }, comparison: null, comparisonStatus: 'idle' });
         refresh();
         persist();
       },
@@ -457,6 +482,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           ...endTour(false),
           sim: fresh,
           playing: false,
+          solo: false,
           selection: { kind: 'none' },
           reportOpen: false,
           draftRules: { ...fresh.rules },
@@ -500,6 +526,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         set({
           sim: fresh,
           playing: false,
+          solo: false,
           selection: { kind: 'none' },
           reportOpen: false,
           draftRules: { ...fresh.rules },
@@ -596,7 +623,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         if (!def || s.sim.dayOver) return;
         if (id === 'eod') {
           if (s.sim.minute >= EOD_START) {
-            set({ ...endTour(false), playing: true });
+            set({ ...endTour(false), playing: true, solo: false });
             return;
           }
           s.jumpToEod();
@@ -606,15 +633,23 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         if (!customer) return;
         const txId = s.sim.inject(customer);
         if (!txId) return;
-        // The payment plays out on the live clock: start it if it was stopped, at no faster than normal speed so it can be followed.
+        // A paused bank plays this one payment on its own (a solo run); a bank that is already live just takes it in.
+        const solo = !s.playing;
+        soloBeats = 0;
         refresh({
           ...endTour(false),
           presetTxId: txId,
           playing: true,
+          solo,
           speedIndex: Math.min(s.speedIndex, DEFAULT_SPEED_INDEX),
           selection: { kind: 'transaction', id: txId },
           ledgerOpen: false,
         });
+      },
+
+      triggerGuidedFlow: (flow) => {
+        get().setActiveFlow(flow);
+        get().runPreset(PRIMARY_PRESET[flow]);
       },
 
       setWalkCollapsed: (collapsed) => set({ walkCollapsed: collapsed }),
@@ -659,6 +694,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           hubOpen: false,
           ledgerOpen: false,
           playing: false,
+          solo: false,
           selection: { kind: 'none' },
           reportOpen: false,
         });
