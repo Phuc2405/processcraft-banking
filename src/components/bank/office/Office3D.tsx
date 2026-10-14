@@ -1,5 +1,6 @@
 import { Canvas } from '@react-three/fiber';
 import { Component, memo, useCallback, useState, type ErrorInfo, type ReactNode } from 'react';
+import { useAcademyStore } from '../../../store/academyStore';
 import { activeFlowOf, useBankStore } from '../../../store/bankStore';
 import { OfficeScene } from './OfficeScene';
 import { TourLayer3D } from './TourLayer3D';
@@ -52,6 +53,7 @@ function Office3DView() {
   const setLabelMode = useBankStore((s) => s.setLabelMode);
   const touring = useBankStore((s) => s.spotlight !== null);
   const flowOn = useBankStore((s) => activeFlowOf(s) !== null);
+  const splitOpen = useAcademyStore((s) => s.isSplitScreenOpen);
   const resumeOffered = useBankStore((s) => s.leftTour !== null);
   const [resetKey, setResetKey] = useState(0);
   const [ready, setReady] = useState(false);
@@ -109,7 +111,8 @@ function Office3DView() {
           <b className="font-semibold text-slate-800">Click</b> a desk or a person to inspect it
         </span>
       </div>
-      <div className="absolute left-3 top-3 z-30 flex flex-col items-start gap-1.5 xl:flex-row xl:items-center">
+      {/* Beside the Academy panel the map is narrow, so these controls step down below the viewport dock instead of sharing its row. */}
+      <div className={`absolute left-3 z-30 flex flex-col items-start gap-1.5 ${splitOpen ? 'top-[108px]' : 'top-3 xl:flex-row xl:items-center'}`}>
         <button
           type="button"
           onClick={() => setResetKey((n) => n + 1)}

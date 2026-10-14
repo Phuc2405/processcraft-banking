@@ -1,11 +1,13 @@
 import { Html } from '@react-three/drei';
+import { useThree } from '@react-three/fiber';
+import { useMemo } from 'react';
 import { flowPlaces, GUIDED_FLOWS } from '../../../sim/guidedFlows';
 import type { PlaceId } from '../../../sim/topology';
-import { activeFlowOf, useBankStore } from '../../../store/bankStore';
+import { academyFocusOf, activeFlowOf, useBankStore } from '../../../store/bankStore';
 import type { FlowId } from '../../../types/viewport';
 import { StepPreviewBody } from '../StepPreview';
 import { GroundMark, type Role } from './TourStage';
-import { placeXZ } from './tour3d';
+import { frameFocus, placeXZ, type CamFocus } from './tour3d';
 
 /**
  * The 3D half of a guided flow (Beginner scope): a ring of the flow's colour round each of its desks while the daylight is
@@ -13,13 +15,25 @@ import { placeXZ } from './tour3d';
  * over the lit desk under the pointer. Nothing here runs while a chapter tour has the office.
  */
 
-function roleOf(place: PlaceId, route: readonly PlaceId[] | null, at: number, done: boolean): Role {
+/** The ring colour of a node the Academy teaches when no guided flow is lit. */
+const ACADEMY_ACCENT = '#38bdf8';
+
+/** Where the camera goes for the node the Academy split view is teaching, or null (the whole office) when there is none. */
+export function useAcademyCamera(): CamFocus | null {
+  const place = useBankStore(academyFocusOf);
+  const width = useThree((s) => s.size.width);
+  const height = useThree((s) => s.size.height);
+  return useMemo(() => (place ? frameFocus([place], { w: width, h: height }) : null), [place, width, height]);
+}
+
+function roleOf(place: PlaceId, route: readonly PlaceId[] | null, at: number, done: boolean, academy: PlaceId | null): Role {
+  if (place === academy) return 'here';
   if (!route) return 'lit';
   if (!done && route[at] === place) return 'here';
   return route.slice(0, at).includes(place) ? 'visited' : 'lit';
 }
 
-function Rings({ flow }: { flow: FlowId }) {
+function Rings({ flow, academy }: { flow: FlowId; academy: PlaceId | null }) {
   const accent = GUIDED_FLOWS[flow].accent;
   // Read only where the payment is, so the rings change when it moves rather than on every beat.
   const key = useBankStore((s) => (s.presetTrace ? `${s.presetTrace.at}|${s.presetTrace.done}|${s.presetTrace.route.join('>')}` : ''));
@@ -28,7 +42,7 @@ function Rings({ flow }: { flow: FlowId }) {
   return (
     <>
       {[...flowPlaces(flow)].map((p) => (
-        <GroundMark key={p} place={p} role={roleOf(p, route, Number(atText), doneText === 'true')} accent={accent} />
+        <GroundMark key={p} place={p} role={roleOf(p, route, Number(atText), doneText === 'true', academy)} accent={accent} />
       ))}
     </>
   );
@@ -49,11 +63,12 @@ function HoverPreview({ flow }: { flow: FlowId }) {
 
 export function FlowStage3D() {
   const flow = useBankStore(activeFlowOf);
-  if (!flow) return null;
+  const academy = useBankStore(academyFocusOf);
+  if (!flow && !academy) return null;
   return (
     <group name="flow-stage">
-      <Rings flow={flow} />
-      <HoverPreview flow={flow} />
+      {flow ? <Rings flow={flow} academy={academy} /> : academy && <GroundMark place={academy} role="here" accent={ACADEMY_ACCENT} />}
+      {flow && <HoverPreview flow={flow} />}
     </group>
   );
 }

@@ -5,7 +5,7 @@ import { LESSONS, PROCESS_SHORT, type ProcessId } from '../../sim/learning';
 import { wiresOfRoute } from '../../sim/spotlightPlan';
 import { DEPARTMENTS, DEPARTMENT_IDS, STATIONS, type DepartmentId, type ExternalId, type PlaceId, type StationId } from '../../sim/topology';
 import type { Move, StationView } from '../../sim/types';
-import { activeFlowOf, useBankStore } from '../../store/bankStore';
+import { academyFocusOf, activeFlowOf, useBankStore } from '../../store/bankStore';
 import { flowScope, GUIDED_FLOWS, type FlowScope } from '../../sim/guidedFlows';
 import type { FlowId } from '../../types/viewport';
 import { StepPreviewBody } from './StepPreview';
@@ -562,6 +562,8 @@ function BankMapView() {
   const presetPlace = useBankStore((s) => (s.presetTrace && !s.presetTrace.done ? (s.presetTrace.route[s.presetTrace.at] ?? null) : null));
   const flow = useMemo<FlowFocus | null>(() => (activeFlow ? { flow: activeFlow, accent: GUIDED_FLOWS[activeFlow].accent, scope: flowScope(activeFlow) } : null), [activeFlow]);
   const flowHereAt = flow ? presetPlace : null;
+  // The node the Academy split view is teaching pulses like the learner's own payment does.
+  const academyAt = useBankStore(academyFocusOf);
   // The learner's own payment goes first, so it is always one of the tokens that wear a badge.
   const moves = useMemo(() => (presetId ? [...view.moves].sort((a, b) => Number(b.packetId === presetId) - Number(a.packetId === presetId)) : view.moves), [view.moves, presetId]);
   const litMoves = useMemo(() => (flow ? moves.filter((m) => flow.scope.wires.has(m.edge)) : moves), [moves, flow]);
@@ -589,10 +591,10 @@ function BankMapView() {
             {!focus && <Travellers moves={litMoves} tick={view.tick} phase={view.phase} speedIndex={speedIndex} />}
             {!focus && dimMoves.length > 0 && <Travellers moves={dimMoves} tick={view.tick} phase={view.phase} speedIndex={speedIndex} className="opacity-15 grayscale" />}
             {STATION_LIST.map((def) => (
-              <StationCard key={def.id} id={def.id} sv={view.stations[def.id]} phase={view.phase} tick={view.tick} selected={selectedStation === def.id} accent={DEPARTMENTS[def.department].accent} focus={focus} flow={flow} flowHere={flowHereAt === def.id} terms={terms} />
+              <StationCard key={def.id} id={def.id} sv={view.stations[def.id]} phase={view.phase} tick={view.tick} selected={selectedStation === def.id} accent={DEPARTMENTS[def.department].accent} focus={focus} flow={flow} flowHere={flowHereAt === def.id || academyAt === def.id} terms={terms} />
             ))}
             {EXTERNALS.map((id) => (
-              <ExternalNode key={id} id={id} focus={focus} flow={flow} flowHere={flowHereAt === id} terms={terms} />
+              <ExternalNode key={id} id={id} focus={focus} flow={flow} flowHere={flowHereAt === id || academyAt === id} terms={terms} />
             ))}
             {night && !focus && (
               <div className="pointer-events-none absolute z-20 flex items-center gap-1.5 rounded-full bg-amber-400/15 px-2 py-0.5 text-[10.5px] font-semibold text-amber-200" style={{ left: DEPT_BOX.EOD.x + DEPT_BOX.EOD.w - 200, top: DEPT_BOX.EOD.y + 8 }}>

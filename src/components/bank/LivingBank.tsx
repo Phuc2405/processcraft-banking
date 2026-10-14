@@ -1,5 +1,7 @@
-import { Component, lazy, Suspense, useEffect, useState, type ErrorInfo, type ReactNode } from 'react';
+import { Component, lazy, Suspense, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
 import { activeFlowOf, useBankStore } from '../../store/bankStore';
+import { useAcademyStore } from '../../store/academyStore';
+import { AcademySplitLayout } from '../academy/AcademySplitLayout';
 import { GuidedBar, ResumeWalkthrough, WalkBadge } from '../education/GuidedWalkthrough';
 import { BankMap } from './BankMap';
 import { BankSidebar } from './BankSidebar';
@@ -98,36 +100,56 @@ export function LivingBank() {
   const viewMode = useBankStore((s) => s.viewMode);
   const setViewMode = useBankStore((s) => s.setViewMode);
   const [collapsed, setCollapsed] = useState(false);
-  const choose = (next: boolean): void => setCollapsed(next);
+  const choose = (next: boolean): void => {
+    foldedForSplit.current = false;
+    setCollapsed(next);
+  };
+  // The Academy split view needs the width: the overview sidebar folds to its slim rail while the lesson panel is open, and
+  // comes back when it closes (unless the learner folded or opened it themselves in between).
+  const splitOpen = useAcademyStore((s) => s.isSplitScreenOpen);
+  const foldedForSplit = useRef(false);
+  useEffect(() => {
+    if (splitOpen) {
+      setCollapsed((was) => {
+        foldedForSplit.current = !was;
+        return true;
+      });
+    } else if (foldedForSplit.current) {
+      foldedForSplit.current = false;
+      setCollapsed(false);
+    }
+  }, [splitOpen]);
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="living-bank">
       <ClockBar />
       <div className="flex min-h-0 flex-1">
         <BankSidebar collapsed={collapsed} onToggle={choose} />
-        <main className="flex min-w-0 flex-1 flex-col bg-[#070b14]" aria-label="Bank map">
-          {/* The map has a fixed size: the inspector and the ledger float over it, so opening them never resizes the scene. */}
-          {/* overflow-clip, not hidden: nothing (a focus, a scroll-into-view) may scroll this frame and slide the floating docks off it. */}
-          <div className="relative min-h-0 flex-1 overflow-clip">
-            {viewMode === '3d' ? (
-              <OfficeLoadBoundary onBack={() => setViewMode('2d')}>
-                <Suspense fallback={<OfficeLoading />}>
-                  <Office3D />
-                </Suspense>
-              </OfficeLoadBoundary>
-            ) : (
-              <BankMap />
-            )}
-            <ViewportControls />
-            <LedgerDrawer />
-            <HudToasts />
-            <PresetDock />
-            <WalkBadge />
-            <ResumeWalkthrough />
-            <Notice />
-            <Inspector />
-          </div>
-          <GuidedBar />
-        </main>
+        <AcademySplitLayout>
+          <main className="flex min-w-0 flex-1 flex-col bg-[#070b14]" aria-label="Bank map">
+            {/* The map has a fixed size: the inspector and the ledger float over it, so opening them never resizes the scene. */}
+            {/* overflow-clip, not hidden: nothing (a focus, a scroll-into-view) may scroll this frame and slide the floating docks off it. */}
+            <div className="relative min-h-0 flex-1 overflow-clip">
+              {viewMode === '3d' ? (
+                <OfficeLoadBoundary onBack={() => setViewMode('2d')}>
+                  <Suspense fallback={<OfficeLoading />}>
+                    <Office3D />
+                  </Suspense>
+                </OfficeLoadBoundary>
+              ) : (
+                <BankMap />
+              )}
+              <ViewportControls />
+              <LedgerDrawer />
+              <HudToasts />
+              <PresetDock />
+              <WalkBadge />
+              <ResumeWalkthrough />
+              <Notice />
+              <Inspector />
+            </div>
+            <GuidedBar />
+          </main>
+        </AcademySplitLayout>
       </div>
       <DayReportModal />
       <CourseCatalog />

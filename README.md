@@ -327,6 +327,26 @@ The bank is saved in this browser at the start of each day. Keys: `processcraft:
 Concept Explorer, 2D/3D), `processcraft:v1:ui` (3D label mode, inspector width) and `processcraft:v1:view` (which half you were on). **Start over** in the clock bar asks twice. A damaged or outdated
 save is validated and ignored, never trusted.
 
+## The Academy split view (Lessons)
+
+The **Lessons** button in the top bar opens a lesson panel beside the Living Bank (400 px, drag its edge or use the arrow keys to
+resize; the overview sidebar folds to its rail while it is open). It lists six chapters (First Swipes, Virtual Card & 3DS
+Routing, Card-Testing & Fraud Detection, BNPL & Installment Approvals, Account-to-Account & ISO 20022, Overnight EOD Clearing &
+Settlement), each with 3 to 4 levels and a `[Not Started]` / `[In Progress]` / `[Completed ✓]` badge.
+
+Choosing a level lights its Phase 1 guided flow (`GUIDED_FLOWS`) and focuses its node: the node pulses on the 2D map and in the
+3D office, and the 3D camera glides to it. A level at a desk no guided flow covers (the BNPL desk, the A2A gate) switches to the
+Advanced scope and highlights just that desk.
+
+* `src/sim/academyCatalog.ts`: the chapters and levels (pure data, checked against `GUIDED_FLOWS` by tests).
+* `src/store/academyStore.ts`: `activeChapterId`, `activeLevelId`, `isSplitScreenOpen`, `completedLessons`; actions `setChapter`,
+  `setLevel`, `toggleSplitScreen`, `completeLesson`. Remembered in the browser.
+* `src/store/academySync.ts`: turns the chosen level into `bankStore.focusAcademyStep` (one change: ends a tour, sets scope and flow,
+  sets `focusPlace`). `academyFocusOf` is what the map and the office read.
+* `src/components/academy/AcademySplitLayout.tsx`: the panel, the resize handle, the toggle, and the layout.
+
+The older **Academy** button (the Course Catalog of A to F guided tours) is unchanged.
+
 ## Build Lab reference
 
 ### Saving your work
