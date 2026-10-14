@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import {
-  ACADEMY_CHAPTERS,
+  ACADEMY_TRACKS,
   CHAPTER_STATUS_BADGE,
   chapterById,
   chapterStatus,
@@ -16,6 +16,7 @@ import { academyStore, clampPanelWidth, PANEL_WIDTH, useAcademyStore } from '../
 import { bindAcademySync } from '../../store/academySync';
 import { bankStore, dataDepthOf, useBankStore } from '../../store/bankStore';
 import { useTerms } from '../bank/useTerms';
+import { FlashcardsView, MessageInspector, QuizView, SimulateButton } from './AcademyStudy';
 
 /**
  * The Academy split view. The lesson panel sits on the left (400 px by default, drag its edge to resize) and the Living Bank,
@@ -166,6 +167,10 @@ function LessonCard({ level }: { level: AcademyLevel }) {
         <span className="h-2 w-2 rounded-full" style={{ background: chapter.accent, boxShadow: `0 0 6px ${chapter.accent}` }} aria-hidden="true" />
         On the map: <span className="font-semibold text-slate-200">{terms.place(level.place)}</span>
       </p>
+      <MessageInspector level={level} />
+      <div className="mt-3">
+        <SimulateButton flow={level.flow} testId="lesson-simulate" />
+      </div>
       <div className="mt-3 flex items-center gap-2">
         <button type="button" disabled={!prev} onClick={() => prev && setLevel(prev.id)} data-testid="lesson-prev" className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-slate-300 ring-1 ring-slate-700 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40">
           Back
@@ -243,6 +248,7 @@ function AcademyPanel() {
   const levelId = useAcademyStore((s) => s.activeLevelId);
   const doneCount = useAcademyStore((s) => Object.keys(s.completedLessons).length);
   const [resizing, setResizing] = useState(false);
+  const [tab, setTab] = useState<'lessons' | 'cards' | 'quiz'>('lessons');
   const aside = useRef<HTMLElement>(null);
   const level = levelById(levelId);
 
@@ -289,18 +295,51 @@ function AcademyPanel() {
           <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-800" role="progressbar" aria-valuemin={0} aria-valuemax={LESSON_COUNT} aria-valuenow={doneCount} aria-label="Lessons completed">
             <div className="h-full rounded-full bg-lime-300 transition-[width] duration-300" style={{ width: `${(doneCount / LESSON_COUNT) * 100}%` }} />
           </div>
+          <div className="mt-2 flex gap-1" role="tablist" aria-label="Academy sections">
+            {(['lessons', 'cards', 'quiz'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                role="tab"
+                aria-selected={tab === t}
+                onClick={() => setTab(t)}
+                data-testid={`academy-tab-${t}`}
+                className={`flex-1 rounded-md px-2 py-1 text-[12px] font-semibold ring-1 transition-colors ${tab === t ? 'bg-slate-100 text-slate-950 ring-slate-100' : 'text-slate-300 ring-slate-700 hover:bg-slate-800'}`}
+              >
+                {t === 'lessons' ? 'Lessons' : t === 'cards' ? 'Flashcards' : 'Quiz'}
+              </button>
+            ))}
+          </div>
         </header>
-        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3" data-testid="academy-catalog">
-          {ACADEMY_CHAPTERS.map((c) => (
-            <ChapterCard key={c.id} chapter={c} open={activeChapter === c.id} onOpen={() => setChapter(c.id)} />
-          ))}
-        </div>
-        {level ? (
-          <LessonCard key={level.id} level={level} />
+        {tab === 'lessons' ? (
+          <>
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3" data-testid="academy-catalog">
+              {ACADEMY_TRACKS.map((t) => (
+                <div key={t.id} className="space-y-2" data-testid={`track-${t.id}`}>
+                  <div className="pt-1">
+                    <div className="text-[10.5px] font-bold uppercase tracking-wider" style={{ color: t.accent }}>
+                      Track {t.id} · {t.title}
+                    </div>
+                    <p className="text-[11.5px] leading-snug text-slate-500">{t.blurb}</p>
+                  </div>
+                  {t.chapters.map((id) => (
+                    <ChapterCard key={id} chapter={chapterById(id)} open={activeChapter === id} onOpen={() => setChapter(id)} />
+                  ))}
+                </div>
+              ))}
+            </div>
+            {level ? (
+              <LessonCard key={level.id} level={level} />
+            ) : (
+              <p className="shrink-0 border-t border-slate-800 px-3 py-3 text-[12px] leading-relaxed text-slate-400" data-testid="lesson-empty">
+                Pick a level to light its step on the map.
+              </p>
+            )}
+          </>
         ) : (
-          <p className="shrink-0 border-t border-slate-800 px-3 py-3 text-[12px] leading-relaxed text-slate-400" data-testid="lesson-empty">
-            Pick a level to light its step on the map.
-          </p>
+          <div className="min-h-0 flex-1 overflow-y-auto p-3" data-testid={`academy-${tab}`}>
+            {tab === 'cards' ? <FlashcardsView /> : <QuizView />}
+          </div>
         )}
       </div>
       {open && <ResizeHandle onDrag={drag} onKey={(d) => setWidth(width + d)} />}

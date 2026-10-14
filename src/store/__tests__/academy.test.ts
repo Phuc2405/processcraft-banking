@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { memoryStorage } from '../bankPersistence';
 import { ACADEMY_KEY, createAcademyStore, PANEL_WIDTH } from '../academyStore';
-import { bindAcademySync } from '../academySync';
+import { bindAcademySync, simulateFlow } from '../academySync';
 import { academyFocusOf, activeFlowOf, createBankStore, viewportOf } from '../bankStore';
 
 const bank = () => createBankStore({ storage: memoryStorage(), now: () => new Date('2026-10-14T00:00:00Z'), seed: 7 });
@@ -146,5 +146,45 @@ describe('the Academy sync with the Living Bank', () => {
     bindAcademySync(academy, b);
     expect(viewportOf(b.getState())).toMatchObject({ scope: 'beginner', activeFlow: 2 });
     expect(b.getState().focusPlace).toBe('SEC_3DS');
+  });
+});
+
+describe('quiz scores and the Simulate deep link', () => {
+  it('keeps the best and the latest score per chapter, and remembers them', () => {
+    const storage = memoryStorage();
+    const a = createAcademyStore({ storage });
+    a.getState().recordQuiz(1, 2);
+    a.getState().recordQuiz(1, 4);
+    a.getState().recordQuiz(1, 3);
+    expect(a.getState().quizScores['1']).toEqual({ best: 4, last: 3, total: 4 });
+    a.getState().recordQuiz(2, 99);
+    a.getState().recordQuiz(9 as never, 1);
+    expect(a.getState().quizScores['2']).toBeUndefined();
+    expect(createAcademyStore({ storage }).getState().quizScores['1']).toEqual({ best: 4, last: 3, total: 4 });
+  });
+
+  it('drops a saved score that no longer fits its quiz', () => {
+    const storage = memoryStorage();
+    storage.setItem(ACADEMY_KEY, JSON.stringify({ quizScores: { '1': { best: 3, last: 3, total: 9 }, '2': { best: 1, last: 3, total: 3 }, '3': { best: 3, last: 2, total: 4 }, x: 1 } }));
+    expect(createAcademyStore({ storage }).getState().quizScores).toEqual({ '3': { best: 3, last: 2, total: 4 } });
+  });
+
+  it('setSplitScreen opens and closes the panel', () => {
+    const a = createAcademyStore({ storage: null });
+    a.getState().setSplitScreen(true);
+    expect(a.getState().isSplitScreenOpen).toBe(true);
+    a.getState().setSplitScreen(false);
+    expect(a.getState().isSplitScreenOpen).toBe(false);
+  });
+
+  it('Simulate this Flow closes the panel, lights the flow and sends its main payment', () => {
+    const a = createAcademyStore({ storage: null });
+    const b = bank();
+    a.getState().setSplitScreen(true);
+    simulateFlow(a, b, 2);
+    expect(a.getState().isSplitScreenOpen).toBe(false);
+    expect(b.getState()).toMatchObject({ scope: 'beginner', flow: 2 });
+    expect(b.getState().presetTxId).toMatch(/^d1-9001$/);
+    expect(b.getState().presetTrace?.scenario).toBe('preset-token-45');
   });
 });
