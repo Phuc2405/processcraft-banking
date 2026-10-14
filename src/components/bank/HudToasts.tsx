@@ -3,8 +3,8 @@ import { useBankStore } from '../../store/bankStore';
 import { HUD_EVENTS, HUD_TTL_MS, newEvents, pushToasts, type DeclineCounts, type HudToast } from './hudToasts';
 
 const TONE = {
-  amber: 'border-amber-400/50 bg-[#1c1406]/90 text-amber-100 [--dot:#fbbf24]',
-  red: 'border-rose-400/50 bg-[#1f0a10]/90 text-rose-100 [--dot:#fb7185]',
+  amber: 'border-amber-400/50 bg-[#1c1406]/95 text-amber-100 [--dot:#fbbf24]',
+  red: 'border-rose-400/50 bg-[#1f0a10]/95 text-rose-100 [--dot:#fb7185]',
 } as const;
 
 const META = Object.fromEntries(HUD_EVENTS.map((e) => [e.kind, e]));
@@ -39,12 +39,12 @@ export function HudToasts() {
 
   if (toasts.length === 0) return null;
   return (
-    <div className="pointer-events-none absolute right-3 top-12 z-30 flex w-[230px] flex-col items-end gap-1.5" aria-live="polite" data-testid="hud-toasts">
+    <div className="pointer-events-none absolute right-3 top-16 z-30 flex w-[230px] flex-col items-end gap-1.5" aria-live="polite" data-testid="hud-toasts">
       {toasts.map((t) => {
         const meta = META[t.kind];
         if (!meta) return null;
         return (
-          <div key={t.id} className={`bk-hud-toast pointer-events-none flex items-center gap-2 rounded-full border px-3 py-1 text-[11.5px] font-semibold shadow-lg backdrop-blur-sm ${TONE[meta.tone]}`} data-testid={`hud-toast-${t.kind}`} role="status">
+          <div key={t.id} className={`bk-hud-toast pointer-events-none flex items-center gap-2 rounded-full border px-3 py-1 text-[11.5px] font-semibold shadow-lg ${TONE[meta.tone]}`} data-testid={`hud-toast-${t.kind}`} role="status">
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--dot)]" aria-hidden="true" />
             {meta.title}
             {t.count > 1 && <span className="tabular-nums opacity-75">×{t.count}</span>}

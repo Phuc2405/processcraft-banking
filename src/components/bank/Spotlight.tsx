@@ -10,6 +10,7 @@ import { pointAlong, polylineLength, restPoint, tokenPolyline, travelMs, type Pt
 import { lookOfKind } from './ui';
 import { useSpotlightFocus, useTourPlayback, type Focus } from './useSpotlight';
 import { useStageScale } from './stage';
+import { useBankStore } from '../../store/bankStore';
 
 /**
  * The map side of Learn & Explore: the one token that walks the process, and the explanation card that waits for it at
@@ -99,6 +100,8 @@ export interface PlaceOptions {
   next?: Rect | null;
   /** Every other desk the process uses, which stay lit. Hiding them costs a little. */
   lit?: readonly Rect[];
+  /** The card never goes higher than this (the viewport dock sits above it). */
+  minTop?: number;
 }
 
 export type CalloutSide = 'right' | 'left' | 'below' | 'above' | 'far';
@@ -113,7 +116,8 @@ export function placeCallout(desk: Rect, card: { w: number; h: number }, bounds:
   const cx = (desk.left + desk.right) / 2;
   const cy = (desk.top + desk.bottom) / 2;
   const clampX = (x: number): number => Math.max(margin, Math.min(bounds.w - card.w - margin, x));
-  const clampY = (y: number): number => Math.max(margin, Math.min(bounds.h - card.h - margin, y));
+  const top = Math.max(margin, opts.minTop ?? margin);
+  const clampY = (y: number): number => Math.max(top, Math.min(bounds.h - card.h - margin, y));
   const midX = clampX(bounds.w / 2 - card.w / 2);
   const candidates: Array<{ side: CalloutSide; left: number; top: number }> = [
     { side: 'right', left: clampX(desk.right + gap), top: clampY(cy - card.h / 2) },
@@ -149,6 +153,7 @@ export function placeCallout(desk: Rect, card: { w: number; h: number }, bounds:
 export function SpotlightOverlay() {
   const focus = useSpotlightFocus();
   const scale = useStageScale();
+  const collapsed = useBankStore((s) => s.walkCollapsed);
   const [size, setSize] = useState({ w: 400, h: 360 });
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -171,7 +176,7 @@ export function SpotlightOverlay() {
 
   if (!focus) return null;
   if (intro) return <Kickoff focus={focus} />;
-  if (!arrived) return null;
+  if (!arrived || collapsed) return null;
 
   const rectOf = (place: PlaceId): Rect => {
     const box = PLACE_BOX[place];

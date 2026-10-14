@@ -122,6 +122,7 @@ const EN: LedgerBook = {
     ATM_DISPENSE: 'ATM cash out',
     ATM_JAM: 'ATM jam parked in suspense',
     ATM_REFUND: 'ATM jam refunded',
+    ATM_DEPOSIT: 'Cash deposited',
   },
 };
 

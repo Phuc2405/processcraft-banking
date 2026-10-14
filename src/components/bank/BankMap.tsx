@@ -1,16 +1,20 @@
-import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { beatMs, SPEEDS, type Phase } from '../../sim/clock';
 import { formatMoney } from '../../sim/kpis';
 import { LESSONS, PROCESS_SHORT, type ProcessId } from '../../sim/learning';
 import { wiresOfRoute } from '../../sim/spotlightPlan';
 import { DEPARTMENTS, DEPARTMENT_IDS, STATIONS, type DepartmentId, type ExternalId, type PlaceId, type StationId } from '../../sim/topology';
 import type { Move, StationView } from '../../sim/types';
-import { useBankStore } from '../../store/bankStore';
+import { activeFlowOf, useBankStore } from '../../store/bankStore';
+import { flowScope, GUIDED_FLOWS, type FlowScope } from '../../sim/guidedFlows';
+import type { FlowId } from '../../types/viewport';
+import { StepPreviewBody } from './StepPreview';
+import { useDockInset } from './ViewportControls';
 import { PathTraveller } from '../canvas/edges/PathTraveller';
 import { WorkstationGraphic } from '../canvas/nodes/WorkstationGraphic';
 import { BANK_WIRES, CARD, DEPT_BOX, pathOfWire, PLACE_BOX, STAGE, TIP_SIDE, type TipSide } from './layout';
 import { SpotlightOverlay, SpotlightToken } from './Spotlight';
-import { StageScaleContext } from './stage';
+import { StageScaleContext, useStageScale } from './stage';
 import { lookOfKind, RUN_STATUS, STATUS_DOT_CLASS, STATUS_LABEL, STATUS_TEXT_CLASS, WorkerFace } from './ui';
 import { useSpotlightFocus, type Focus } from './useSpotlight';
 import { useTerms, type Terms } from './useTerms';
@@ -22,7 +26,7 @@ import { useTerms, type Terms } from './useTerms';
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 1.3;
 
-function useFitScale(): { ref: RefObject<HTMLDivElement>; scale: number } {
+function useFitScale(topInset: number, bottomInset: number): { ref: RefObject<HTMLDivElement>; scale: number } {
   const ref = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.8);
   useLayoutEffect(() => {
@@ -30,7 +34,7 @@ function useFitScale(): { ref: RefObject<HTMLDivElement>; scale: number } {
     if (!el) return;
     const measure = (): void => {
       const w = el.clientWidth - 24;
-      const h = el.clientHeight - 24;
+      const h = el.clientHeight - 12 - topInset - bottomInset;
       if (w <= 0 || h <= 0) return;
       setScale(Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.min(w / STAGE.width, h / STAGE.height))));
     };
@@ -38,7 +42,7 @@ function useFitScale(): { ref: RefObject<HTMLDivElement>; scale: number } {
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [topInset, bottomInset]);
   return { ref, scale };
 }
 
@@ -81,6 +85,39 @@ function ProcessChip({ process, accent }: { process: ProcessId; accent: string }
 /** Nothing on the map is dimmed outside a tour. During one, everything the process does not use fades to 15%. */
 const dimClass = (focus: Focus | null, lit: boolean): string => (focus && !lit ? 'bk-dimmed' : '');
 
+/** The guided flow in focus in the Beginner scope: what it lights, and its colour. Null in Advanced and during a tour. */
+interface FlowFocus {
+  flow: FlowId;
+  accent: string;
+  scope: FlowScope;
+}
+
+/** Outside the active flow a part of the map fades to 15% and grey (a tour's own dimming wins while one runs). */
+const flowDim = (flow: FlowFocus | null, lit: boolean): string => (flow && !lit ? 'bk-flow-dim' : '');
+const flowVar = (flow: FlowFocus | null): CSSProperties | undefined => (flow ? ({ ['--flow' as string]: flow.accent } as CSSProperties) : undefined);
+
+const TIP_ORIGIN: Record<TipSide, string> = { below: 'top center', above: 'bottom center', right: 'center left', left: 'center right' };
+
+/**
+ * The step preview of a lit desk in a guided flow: step number, name, status and what happens there. It lives inside the
+ * scaled stage, so it is scaled back up to reading size (never past 1.35×) from the edge that touches the desk.
+ */
+function StepPreviewTip({ flow, place, side }: { flow: FlowId; place: PlaceId; side: TipSide }) {
+  const stage = useStageScale();
+  const grow = Math.min(1.35, Math.max(1, 1 / stage));
+  return (
+    <span
+      role="tooltip"
+      className={`bk-steptip pointer-events-none absolute z-50 w-[248px] rounded-lg border bg-[#0b1120] px-2.5 py-2 shadow-[0_10px_30px_rgba(0,0,0,0.6)] ${TIP_POSITION[side]}`}
+      style={{ borderColor: `${GUIDED_FLOWS[flow].accent}aa`, scale: String(grow), transformOrigin: TIP_ORIGIN[side] }}
+      data-testid="step-preview-tip"
+      data-side={side}
+    >
+      <StepPreviewBody flow={flow} place={place} />
+    </span>
+  );
+}
+
 /** A custom property the stylesheet reads for the neon colour of the tour. */
 const neon = (focus: Focus | null): CSSProperties | undefined => (focus ? ({ ['--tour' as string]: focus.accent } as CSSProperties) : undefined);
 
@@ -114,7 +151,7 @@ function HoverTip({ name, tip, side }: { name: string; tip: string; side: TipSid
 // Departments
 // ─────────────────────────────────────────────────────────────────────────────
 
-function DepartmentFrame({ id, focus, terms }: { id: DepartmentId; focus: Focus | null; terms: Terms }) {
+function DepartmentFrame({ id, focus, flow, terms }: { id: DepartmentId; focus: Focus | null; flow: FlowFocus | null; terms: Terms }) {
   const dept = DEPARTMENTS[id];
   const box = DEPT_BOX[id];
   const selected = useBankStore((s) => s.selection.kind === 'department' && s.selection.id === id);
@@ -128,7 +165,7 @@ function DepartmentFrame({ id, focus, terms }: { id: DepartmentId; focus: Focus 
   const name = terms.department(id);
 
   return (
-    <div className={dimClass(focus, lit)} style={neon(focus)} data-lit={focus ? lit : undefined}>
+    <div className={`${dimClass(focus, lit)} ${flowDim(flow, flow ? flow.scope.departments.has(id) : true)}`} style={neon(focus)} data-lit={focus ? lit : flow ? flow.scope.departments.has(id) : undefined}>
       <div
         aria-hidden="true"
         className="absolute rounded-2xl border transition-[box-shadow,border-color] duration-500"
@@ -174,6 +211,8 @@ const StationCard = memo(function StationCard({
   selected,
   accent,
   focus,
+  flow,
+  flowHere,
   terms,
 }: {
   id: StationId;
@@ -183,6 +222,10 @@ const StationCard = memo(function StationCard({
   selected: boolean;
   accent: string;
   focus: Focus | null;
+  /** The guided flow in focus (Beginner scope), or null. */
+  flow: FlowFocus | null;
+  /** The learner's preset payment is at this desk right now. */
+  flowHere: boolean;
   terms: Terms;
 }) {
   const select = useBankStore((s) => s.select);
@@ -193,7 +236,8 @@ const StationCard = memo(function StationCard({
   const lit = focus ? focus.scope.places.has(id) : false;
   const here = focus ? focus.current.place === id && !focus.tour.intro : false;
   const passed = focus ? focus.visited.has(id) : false;
-  const dim = !focus && sv.status === 'IDLE' && sv.queueLength === 0 && !isOnShift(id, phase);
+  const flowLit = flow ? flow.scope.places.has(id) : false;
+  const dim = !focus && !flowLit && sv.status === 'IDLE' && sv.queueLength === 0 && !isOnShift(id, phase);
   const worst = sv.alerts.some((a) => a.severity === 'crit' && a.live) ? 'crit' : sv.alerts.length > 0 ? 'warn' : null;
   const unit = def.kind === 'ACCOUNT' ? 'items' : 'waiting';
   const name = terms.station(id);
@@ -206,9 +250,10 @@ const StationCard = memo(function StationCard({
 
   return (
     <div
-      className={`group absolute z-20 transition-opacity duration-500 hover:z-[45] has-[:focus-visible]:z-[45] ${focus ? '' : dim ? 'opacity-50' : 'opacity-100'} ${dimClass(focus, lit)} ${here ? 'bk-spot-here' : ''}`}
-      style={{ left: box.cx - CARD.w / 2, top: box.cy - CARD.h / 2, width: CARD.w, height: CARD.h, ...neon(focus) }}
-      data-lit={focus ? lit : undefined}
+      className={`group absolute z-20 transition-opacity duration-500 hover:z-[45] has-[:focus-visible]:z-[45] ${focus ? '' : dim ? 'opacity-50' : 'opacity-100'} ${dimClass(focus, lit)} ${flowDim(flow, flowLit)} ${here ? 'bk-spot-here' : ''}`}
+      style={{ left: box.cx - CARD.w / 2, top: box.cy - CARD.h / 2, width: CARD.w, height: CARD.h, ...neon(focus), ...flowVar(flow) }}
+      data-lit={focus ? lit : flow ? flowLit : undefined}
+      data-flow-here={flowHere || undefined}
       data-here={here || undefined}
     >
       <button
@@ -218,7 +263,7 @@ const StationCard = memo(function StationCard({
         aria-label={`${title}: ${STATUS_LABEL[sv.status]}, ${sv.queueLength} ${unit}`}
         data-testid={`station-${id}`}
         data-status={sv.status}
-        className={`absolute inset-0 rounded-xl border bg-gradient-to-b from-slate-900 to-[#0b1120] transition hover:border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${lit && focus ? 'bk-spot-lit' : border} ${selected ? 'ring-2 ring-sky-400' : ''} ${sv.status === 'CONGESTED' && !focus ? 'bk-congested' : ''}`}
+        className={`absolute inset-0 rounded-xl border bg-gradient-to-b from-slate-900 to-[#0b1120] transition hover:border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${lit && focus ? 'bk-spot-lit' : flowLit ? 'bk-flow-lit' : border} ${flowHere ? 'bk-flow-here' : ''} ${selected ? 'ring-2 ring-sky-400' : ''} ${sv.status === 'CONGESTED' && !focus ? 'bk-congested' : ''}`}
       />
       <div className="pointer-events-none absolute inset-0 flex flex-col p-1.5">
         <div className={`flex gap-1.5 ${long ? 'items-start' : 'items-center'}`}>
@@ -264,7 +309,7 @@ const StationCard = memo(function StationCard({
           +{sv.arrivals}
         </span>
       )}
-      {!focus && <HoverTip name={title} tip={terms.tip(id)} side={TIP_SIDE[id]} />}
+      {!focus && (flow && flowLit ? <StepPreviewTip flow={flow.flow} place={id} side={TIP_SIDE[id]} /> : <HoverTip name={title} tip={terms.tip(id)} side={TIP_SIDE[id]} />)}
     </div>
   );
 });
@@ -341,7 +386,7 @@ const EXTERNAL_THEME: Record<ExternalId, { icon: ReactNode; border: string; text
   OUT_SETTLED: { icon: <TickIcon />, border: 'border-amber-400/50', text: 'text-amber-300', bg: 'from-amber-950/40 to-slate-950' },
 };
 
-function ExternalNode({ id, focus, terms }: { id: ExternalId; focus: Focus | null; terms: Terms }) {
+function ExternalNode({ id, focus, flow, flowHere, terms }: { id: ExternalId; focus: Focus | null; flow: FlowFocus | null; flowHere: boolean; terms: Terms }) {
   const count = useBankStore((s) => s.view.externals[id]);
   const startSpotlight = useBankStore((s) => s.startSpotlight);
   const spotlightFocus = useBankStore((s) => s.spotlightFocus);
@@ -365,8 +410,9 @@ function ExternalNode({ id, focus, terms }: { id: ExternalId; focus: Focus | nul
       <div className="mt-0.5 text-[9.5px] uppercase tracking-wide text-slate-500">{terms.externalSub(id)}</div>
     </>
   );
-  const style: CSSProperties = { left: box.cx - box.w / 2, top: box.cy - box.h / 2, width: box.w, height: box.h, ...neon(focus) };
-  const klass = `group absolute z-20 hover:z-[45] has-[:focus-visible]:z-[45] rounded-xl border bg-gradient-to-b p-2 text-left ${lit && focus ? 'bk-spot-lit' : t.border} ${t.bg} ${dimClass(focus, lit)} ${here ? 'bk-spot-here' : ''}`;
+  const flowLit = flow ? flow.scope.places.has(id) : false;
+  const style: CSSProperties = { left: box.cx - box.w / 2, top: box.cy - box.h / 2, width: box.w, height: box.h, ...neon(focus), ...flowVar(flow) };
+  const klass = `group absolute z-20 hover:z-[45] has-[:focus-visible]:z-[45] rounded-xl border bg-gradient-to-b p-2 text-left ${lit && focus ? 'bk-spot-lit' : flowLit ? 'bk-flow-lit' : t.border} ${t.bg} ${dimClass(focus, lit)} ${flowDim(flow, flowLit)} ${here ? 'bk-spot-here' : ''} ${flowHere ? 'bk-flow-here' : ''}`;
   if (id === 'CUSTOMER_OTP') {
     return (
       <button
@@ -374,18 +420,20 @@ function ExternalNode({ id, focus, terms }: { id: ExternalId; focus: Focus | nul
         onClick={() => (focus ? spotlightFocus(id) : startSpotlight('B'))}
         className={`${klass} transition hover:border-violet-300`}
         style={style}
-        title={focus ? terms.externalTip(id) : 'Chapter 2: the 3DS challenge sends the customer here'}
+        title={focus || (flow && flowLit) ? undefined : 'Chapter 2: the 3DS challenge sends the customer here'}
         data-testid="external-CUSTOMER_OTP-box"
         data-here={here || undefined}
+        data-lit={flow ? flowLit : undefined}
       >
         {body}
+        {!focus && flow && flowLit && <StepPreviewTip flow={flow.flow} place={id} side={TIP_SIDE[id]} />}
       </button>
     );
   }
   return (
-    <div className={klass} style={style} data-big={big} data-here={here || undefined} data-testid={`place-${id}`}>
+    <div className={klass} style={style} data-big={big} data-here={here || undefined} data-lit={flow ? flowLit : undefined} data-testid={`place-${id}`}>
       {body}
-      {!focus && <HoverTip name={terms.place(id)} tip={terms.externalTip(id)} side={TIP_SIDE[id]} />}
+      {!focus && (flow && flowLit ? <StepPreviewTip flow={flow.flow} place={id} side={TIP_SIDE[id]} /> : <HoverTip name={terms.place(id)} tip={terms.externalTip(id)} side={TIP_SIDE[id]} />)}
     </div>
   );
 }
@@ -417,7 +465,7 @@ function wireStyle(to: string, from: string): { base: string; glow: string; dash
   return { base: '#334155', glow: '#38bdf8' };
 }
 
-function Wires({ moves, tick, focus }: { moves: readonly Move[]; tick: number; focus: Focus | null }) {
+function Wires({ moves, tick, focus, flow }: { moves: readonly Move[]; tick: number; focus: Focus | null; flow: FlowFocus | null }) {
   const heat = useWireHeat(moves, tick);
   // The wires the token is on right now glow brightest; the ones it has already ridden stay lit.
   const current = new Set(focus && !focus.tour.intro ? wiresOfRoute(focus.current.route) : []);
@@ -435,10 +483,11 @@ function Wires({ moves, tick, focus }: { moves: readonly Move[]; tick: number; f
         const st = wireStyle(w.to, w.from);
         const h = focus ? 0 : (heat[w.id] ?? 0);
         const inScope = !focus || focus.scope.wires.has(w.id);
+        const inFlow = !flow || flow.scope.wires.has(w.id);
         const ridden = focus?.trail.has(w.id) ?? false;
         return (
-          <g key={w.id} data-wire={w.id} data-lit={focus ? inScope : undefined} data-ridden={ridden || undefined} opacity={inScope ? 1 : 0.15} style={focus && !inScope ? { filter: 'blur(1px)' } : undefined}>
-            <path d={w.path} fill="none" stroke={focus && inScope ? `${focus.accent}66` : st.base} strokeWidth="2" {...(st.dash ? { strokeDasharray: st.dash } : {})} markerEnd={`url(#bk-arrow-${st.base.slice(1)})`} />
+          <g key={w.id} data-wire={w.id} data-lit={focus ? inScope : flow ? inFlow : undefined} data-ridden={ridden || undefined} opacity={inScope && inFlow ? 1 : 0.15} style={focus && !inScope ? { filter: 'blur(1px)' } : flow && !inFlow ? { filter: 'grayscale(1)' } : undefined}>
+            <path d={w.path} fill="none" stroke={focus && inScope ? `${focus.accent}66` : flow && inFlow ? `${flow.accent}88` : st.base} strokeWidth="2" {...(st.dash ? { strokeDasharray: st.dash } : {})} markerEnd={`url(#bk-arrow-${st.base.slice(1)})`} />
             {h > 0.05 && <path d={w.path} fill="none" stroke={st.glow} strokeWidth={2 + Math.min(h, 6) * 0.3} strokeLinecap="round" opacity={Math.min(0.55, 0.1 + h * 0.07)} style={{ transition: 'opacity 400ms' }} />}
             {focus && ridden && (
               <path
@@ -456,7 +505,7 @@ function Wires({ moves, tick, focus }: { moves: readonly Move[]; tick: number; f
         );
       })}
       {BANK_WIRES.filter((w) => w.label && w.showLabel).map((w) => (
-        <g key={`label-${w.id}`} transform={`translate(${w.labelAt[0]} ${w.labelAt[1]})`} opacity={!focus || focus.scope.wires.has(w.id) ? 1 : 0.15}>
+        <g key={`label-${w.id}`} transform={`translate(${w.labelAt[0]} ${w.labelAt[1]})`} opacity={(!focus || focus.scope.wires.has(w.id)) && (!flow || flow.scope.wires.has(w.id)) ? 1 : 0.15}>
           <rect x={-(w.label as string).length * 2.7 - 4} y="-7" width={(w.label as string).length * 5.4 + 8} height="14" rx="4" fill="#060912" stroke="#1e293b" />
           <text textAnchor="middle" y="3.2" fontSize="9" fill="#94a3b8" style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
             {w.label}
@@ -474,11 +523,11 @@ function Wires({ moves, tick, focus }: { moves: readonly Move[]; tick: number; f
 /** How many of a beat's tokens wear a badge saying what the payment is. */
 const LABELLED_TOKENS = 6;
 
-function Travellers({ moves, tick, phase, speedIndex }: { moves: readonly Move[]; tick: number; phase: Phase; speedIndex: number }) {
+function Travellers({ moves, tick, phase, speedIndex, className = '' }: { moves: readonly Move[]; tick: number; phase: Phase; speedIndex: number; className?: string }) {
   const beat = beatMs(phase, SPEEDS[speedIndex]?.factor ?? 1);
   const hop = Math.round(Math.max(240, Math.min(720, beat * 0.5)));
   return (
-    <div className="pointer-events-none absolute inset-0 z-10" aria-hidden="true">
+    <div className={`pointer-events-none absolute inset-0 z-10 ${className}`} aria-hidden="true">
       {moves.map((m, i) => {
         const path = pathOfWire(m.edge);
         if (!path) return null;
@@ -498,13 +547,25 @@ const STATION_LIST = Object.values(STATIONS);
 const EXTERNALS: readonly ExternalId[] = ['CUSTOMER_OTP', 'OUT_APPROVED', 'OUT_DECLINED', 'OUT_SETTLED'];
 
 function BankMapView() {
-  const { ref, scale } = useFitScale();
+  const inset = useDockInset();
+  // The preset bar of a guided flow floats at the bottom of the map: the blueprint stops above it.
+  const bottomInset = useBankStore((s) => (activeFlowOf(s) ? 64 : 0));
+  const { ref, scale } = useFitScale(inset, bottomInset);
   const view = useBankStore((s) => s.view);
   const selection = useBankStore((s) => s.selection);
   const speedIndex = useBankStore((s) => s.speedIndex);
   const clearSelection = useBankStore((s) => s.clearSelection);
   const focus = useSpotlightFocus();
   const terms = useTerms();
+  const activeFlow = useBankStore(activeFlowOf);
+  const presetId = useBankStore((s) => s.presetTxId);
+  const presetPlace = useBankStore((s) => (s.presetTrace && !s.presetTrace.done ? (s.presetTrace.route[s.presetTrace.at] ?? null) : null));
+  const flow = useMemo<FlowFocus | null>(() => (activeFlow ? { flow: activeFlow, accent: GUIDED_FLOWS[activeFlow].accent, scope: flowScope(activeFlow) } : null), [activeFlow]);
+  const flowHereAt = flow ? presetPlace : null;
+  // The learner's own payment goes first, so it is always one of the tokens that wear a badge.
+  const moves = useMemo(() => (presetId ? [...view.moves].sort((a, b) => Number(b.packetId === presetId) - Number(a.packetId === presetId)) : view.moves), [view.moves, presetId]);
+  const litMoves = useMemo(() => (flow ? moves.filter((m) => flow.scope.wires.has(m.edge)) : moves), [moves, flow]);
+  const dimMoves = useMemo(() => (flow ? moves.filter((m) => !flow.scope.wires.has(m.edge)) : []), [moves, flow]);
 
   const night = view.phase === 'EOD';
   const selectedStation = selection.kind === 'station' ? selection.id : selection.kind === 'worker' ? selection.station : null;
@@ -512,8 +573,8 @@ function BankMapView() {
 
   return (
     <StageScaleContext.Provider value={scale}>
-      <div ref={ref} className="relative h-full w-full overflow-auto" onClick={(e) => e.target === e.currentTarget && clearSelection()} data-testid="bank-map" data-phase={view.phase} data-day={view.day} data-touring={focus ? 'yes' : 'no'} data-spot={spotlit ?? undefined}>
-        <div className="relative mx-auto" style={{ width: STAGE.width * scale, height: STAGE.height * scale, marginTop: 12 }}>
+      <div ref={ref} className="relative h-full w-full overflow-auto" onClick={(e) => e.target === e.currentTarget && clearSelection()} data-testid="bank-map" data-phase={view.phase} data-day={view.day} data-touring={focus ? 'yes' : 'no'} data-spot={spotlit ?? undefined} data-flow={flow?.flow ?? undefined}>
+        <div className="relative mx-auto" style={{ width: STAGE.width * scale, height: STAGE.height * scale, marginTop: inset }}>
           <div
             className={`bk-stage relative ${night ? 'bk-night' : ''} ${focus ? 'bk-touring' : ''}`}
             style={{ width: STAGE.width, height: STAGE.height, transform: `scale(${scale})`, transformOrigin: 'top left' }}
@@ -522,15 +583,16 @@ function BankMapView() {
             onClick={(e) => e.target === e.currentTarget && clearSelection()}
           >
             {DEPARTMENT_IDS.map((id) => (
-              <DepartmentFrame key={id} id={id} focus={focus} terms={terms} />
+              <DepartmentFrame key={id} id={id} focus={focus} flow={flow} terms={terms} />
             ))}
-            <Wires moves={view.moves} tick={view.tick} focus={focus} />
-            {!focus && <Travellers moves={view.moves} tick={view.tick} phase={view.phase} speedIndex={speedIndex} />}
+            <Wires moves={view.moves} tick={view.tick} focus={focus} flow={flow} />
+            {!focus && <Travellers moves={litMoves} tick={view.tick} phase={view.phase} speedIndex={speedIndex} />}
+            {!focus && dimMoves.length > 0 && <Travellers moves={dimMoves} tick={view.tick} phase={view.phase} speedIndex={speedIndex} className="opacity-15 grayscale" />}
             {STATION_LIST.map((def) => (
-              <StationCard key={def.id} id={def.id} sv={view.stations[def.id]} phase={view.phase} tick={view.tick} selected={selectedStation === def.id} accent={DEPARTMENTS[def.department].accent} focus={focus} terms={terms} />
+              <StationCard key={def.id} id={def.id} sv={view.stations[def.id]} phase={view.phase} tick={view.tick} selected={selectedStation === def.id} accent={DEPARTMENTS[def.department].accent} focus={focus} flow={flow} flowHere={flowHereAt === def.id} terms={terms} />
             ))}
             {EXTERNALS.map((id) => (
-              <ExternalNode key={id} id={id} focus={focus} terms={terms} />
+              <ExternalNode key={id} id={id} focus={focus} flow={flow} flowHere={flowHereAt === id} terms={terms} />
             ))}
             {night && !focus && (
               <div className="pointer-events-none absolute z-20 flex items-center gap-1.5 rounded-full bg-amber-400/15 px-2 py-0.5 text-[10.5px] font-semibold text-amber-200" style={{ left: DEPT_BOX.EOD.x + DEPT_BOX.EOD.w - 200, top: DEPT_BOX.EOD.y + 8 }}>

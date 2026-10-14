@@ -359,6 +359,12 @@ function planAtm(customer: Customer): RoutePlan {
     return plan([pinStop, end('OUT_DECLINED', 'Card kept', 'The machine locked the session and kept the card.')], { outcome: 'DECLINED', reasonCode: 'PIN_LOCKED', decline: 'PIN_LOCKED' });
   }
 
+  if (session.deposit) {
+    // Cash in: the machine counts and validates the notes, keeps them in its cassette and credits the account straight away.
+    const intake = step('ATM_CASH', 'Cash intake', `The note validator counted ${formatAud(amount)} and accepted every note.`, { atmDispense: 'DEPOSITED' }, 1, 3200);
+    return plan([pinStop, intake, end('OUT_APPROVED', 'Credited', `The customer's account was credited ${formatAud(amount)}.`)], { outcome: 'APPROVED', reasonCode: 'CASH_DEPOSITED', decline: null });
+  }
+
   if (payload.availableBalance < amount) {
     const cash = step('ATM_CASH', 'Cash dispense', `Balance ${formatAud(payload.availableBalance)} is less than the ${formatAud(amount)} requested, so nothing is dispensed.`, { ledgerDecision: 'INSUFFICIENT_FUNDS' }, 0.5, 900);
     return plan([pinStop, cash, end('OUT_DECLINED', 'Declined', 'Not enough money in the account.')], { outcome: 'DECLINED', reasonCode: 'INSUFFICIENT_FUNDS', decline: 'FUNDS' });

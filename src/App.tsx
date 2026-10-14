@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { LivingBank } from './components/bank/LivingBank';
 import { AcademyButton } from './components/bank/CourseCatalog';
-import { ModeToggle, ViewToggle } from './components/bank/ViewControls';
+import { ModeToggle } from './components/bank/ViewControls';
+import { WelcomeModal } from './components/bank/WelcomeModal';
 import { ProcessCanvas } from './components/canvas/ProcessCanvas';
 import { EvaluationPanel } from './components/evaluation/EvaluationPanel';
 import { ChallengeBrief } from './components/sidebar/ChallengeBrief';
@@ -68,15 +69,10 @@ function TopBar({ view, onView }: { view: View; onView: (v: View) => void }) {
       </nav>
       <div className="flex-1" />
       <div className="flex items-center gap-3">
-        {view === 'bank' && (
-          <>
-            <AcademyButton />
-            <div className="h-6 w-px bg-slate-800" aria-hidden="true" />
-          </>
-        )}
-        {/* How things are named follows the learner into the Build Lab: the tour and the ledger read the same setting. */}
-        <ModeToggle />
-        {view === 'bank' && <ViewToggle />}
+        {view === 'bank' && <AcademyButton />}
+        {/* In the Living Bank the scope, 2D/3D and data-depth switches live in the viewport dock over the map. The Build Lab keeps
+            the vocabulary switch here: the tour and the ledger read the same setting as the dock's Standard | Expert. */}
+        {view === 'lab' && <ModeToggle />}
       </div>
     </header>
   );
@@ -192,6 +188,13 @@ export default function App() {
     <div className="flex h-screen min-w-[1180px] flex-col bg-[#060912] text-slate-100">
       <TopBar view={view} onView={choose} />
       {view === 'bank' ? <LivingBank /> : <BuildLab />}
+      <WelcomeModal
+        onChooseBank={() => view !== 'bank' && choose('bank')}
+        onOpenAcademy={() => {
+          if (view !== 'bank') choose('bank');
+          bankStore.getState().openAcademy();
+        }}
+      />
     </div>
   );
 }

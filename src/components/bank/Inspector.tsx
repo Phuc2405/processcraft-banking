@@ -12,6 +12,7 @@ import { processesAt, useBankStore, type Selection } from '../../store/bankStore
 import { WorkstationGraphic } from '../canvas/nodes/WorkstationGraphic';
 import { MentalModelCard } from '../education/MentalModelCard';
 import { useTerms } from './useTerms';
+import { TransactionPanel } from './TransactionPanel';
 import { FatigueBar, fatigueLook, KIND_LABEL, PacketGlyph, RUN_STATUS, SEVERITY_BOX, SEVERITY_DOT, SEVERITY_TEXT, SectionTitle, Sparkline, Stat, STATUS_DOT_CLASS, STATUS_LABEL, STATUS_TEXT_CLASS, WorkerFace, waitText } from './ui';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -596,6 +597,7 @@ function InspectorDrawer() {
       {(open || mounted) && content.kind === 'department' && <DepartmentPanel id={content.id} />}
       {(open || mounted) && content.kind === 'station' && <StationPanel id={content.id} />}
       {(open || mounted) && content.kind === 'worker' && <WorkerPanel station={content.station} workerId={content.workerId} />}
+      {(open || mounted) && content.kind === 'transaction' && <TransactionPanel id={content.id} />}
     </aside>
   );
 }

@@ -19,7 +19,9 @@ import { clampRules, DEFAULT_RULES, rulesEqual, type BankRules } from '../sim/ru
 import { SPOTLIGHT_DEFAULT_EXAMPLE, spotPlan } from '../sim/spotlightPlan';
 import type { TermMode } from '../sim/terms';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
-import type { BankView } from '../sim/types';
+import type { BankView, PacketTrace } from '../sim/types';
+import { presetById, presetCustomer, type PresetId } from '../sim/presets';
+import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
 import { compareDays, type Comparison } from '../sim/whatIf';
 import { browserStorage, clampInspectorWidth, clearBank, loadBank, loadPrefs, loadUiPrefs, saveBank, savePrefs, saveUiPrefs, type BankPrefs, type BankSaveResult, type KeyValueStorage, type LabelMode, type UiPrefs, type ViewMode } from './bankPersistence';
@@ -32,7 +34,9 @@ export type Selection =
   | { kind: 'none' }
   | { kind: 'department'; id: DepartmentId }
   | { kind: 'station'; id: StationId }
-  | { kind: 'worker'; station: StationId; workerId: string };
+  | { kind: 'worker'; station: StationId; workerId: string }
+  /** A payment the learner sent with a preset action, followed along its route. */
+  | { kind: 'transaction'; id: string };
 
 export type BankSaveStatus = 'unavailable' | 'pristine' | 'saved' | 'error';
 
@@ -71,6 +75,14 @@ export interface SpotlightState {
   priorSpeed: number;
 }
 
+/** Where a tour was when the learner left it, so "Resume Walkthrough" can put them back at the same step. */
+export interface LeftTour {
+  process: ProcessId;
+  exampleId: string;
+  step: number;
+  answers: Record<number, QuizAnswer>;
+}
+
 /** The seed every new bank starts with, so everyone's first week is the same lesson plan. */
 export const DEFAULT_SEED = 2026;
 
@@ -96,6 +108,18 @@ export interface BankState {
   spotlight: SpotlightState | null;
   /** The Academy's Course Catalog modal. */
   academyOpen: boolean;
+  /** The step card of a tour folded away into a small badge, so the map can be seen whole. */
+  walkCollapsed: boolean;
+  /** The tour the learner last left with "Exit tutorial", until they resume it, start another or dismiss the offer. */
+  leftTour: LeftTour | null;
+
+  /** Beginner: one guided flow lit, the rest dimmed. Advanced: the whole Living Bank. */
+  scope: Scope;
+  /** The guided flow picked for the Beginner scope (kept while in Advanced, so switching back returns to it). */
+  flow: FlowId;
+  /** The payment the learner last sent with a preset action, and where it is now. */
+  presetTxId: string | null;
+  presetTrace: PacketTrace | null;
 
   selection: Selection;
   reportOpen: boolean;
@@ -151,6 +175,20 @@ export interface BankState {
   clearSelection(): void;
   dismissReport(): void;
   reopenReport(): void;
+
+  // The viewport: scope, dimension (2D/3D), data depth and the guided flow
+  setScope(scope: Scope): void;
+  setDimension(dimension: Dimension): void;
+  setDataDepth(depth: DataDepth): void;
+  setActiveFlow(flow: FlowId): void;
+  /** One click of a preset action: sends the scripted customer into the bank and follows it in the inspector. */
+  runPreset(id: PresetId): void;
+
+  // Walkthrough card
+  setWalkCollapsed(collapsed: boolean): void;
+  /** Re-opens the tour left with "Exit tutorial" at the same chapter, example, step and answers. */
+  resumeSpotlight(): void;
+  dismissResume(): void;
 
   // Academy (the Course Catalog)
   openAcademy(): void;
@@ -263,7 +301,9 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
 
     const refresh = (extra: Partial<BankState> = {}): void => {
       const s = get();
-      set({ view: s.sim.snapshot(), ...extra });
+      const presetTxId = 'presetTxId' in extra ? (extra.presetTxId ?? null) : s.presetTxId;
+      const presetTrace = presetTxId ? s.sim.traceOf(presetTxId) : null;
+      set({ view: s.sim.snapshot(), presetTrace, ...extra, ...(presetTxId && !presetTrace ? { presetTxId: null } : {}) });
     };
 
     const closeDay = (): void => {
@@ -308,6 +348,13 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       inspectorWidth: ui.inspectorWidth,
       spotlight: null,
       academyOpen: false,
+      walkCollapsed: false,
+      leftTour: null,
+
+      scope: ui.scope,
+      flow: ui.flow,
+      presetTxId: null,
+      presetTrace: null,
 
       selection: { kind: 'none' },
       reportOpen: false,
@@ -505,6 +552,59 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       dismissReport: () => set({ reportOpen: false }),
       reopenReport: () => set({ reportOpen: get().sim.dayOver || get().view.history.length > 0 }),
 
+      setScope: (scope) => {
+        if (get().scope === scope) return;
+        ui = { ...ui, scope };
+        saveUiPrefs(storage, ui);
+        set({ scope });
+      },
+      setDimension: (dimension) => get().setViewMode(dimension),
+      setDataDepth: (depth) => get().setTermMode(depth === 'expert' ? 'expert' : 'beginner'),
+      setActiveFlow: (flow) => {
+        ui = { ...ui, flow, scope: 'beginner' };
+        saveUiPrefs(storage, ui);
+        set({ flow, scope: 'beginner' });
+      },
+
+      runPreset: (id) => {
+        const def = presetById(id);
+        const s = get();
+        if (!def || s.sim.dayOver) return;
+        if (id === 'eod') {
+          if (s.sim.minute >= EOD_START) {
+            set({ ...endTour(false), playing: true });
+            return;
+          }
+          s.jumpToEod();
+          return;
+        }
+        const customer = presetCustomer(id, s.sim.rules);
+        if (!customer) return;
+        const txId = s.sim.inject(customer);
+        if (!txId) return;
+        // The payment plays out on the live clock: start it if it was stopped, at no faster than normal speed so it can be followed.
+        refresh({
+          ...endTour(false),
+          presetTxId: txId,
+          playing: true,
+          speedIndex: Math.min(s.speedIndex, DEFAULT_SPEED_INDEX),
+          selection: { kind: 'transaction', id: txId },
+          ledgerOpen: false,
+        });
+      },
+
+      setWalkCollapsed: (collapsed) => set({ walkCollapsed: collapsed }),
+      resumeSpotlight: () => {
+        const left = get().leftTour;
+        if (!left) return;
+        get().startSpotlight(left.process, left.exampleId);
+        const tour = get().spotlight;
+        if (!tour) return;
+        const last = spotPlan(left.process, tour.exampleId, get().sim.rules).steps.length - 1;
+        set({ spotlight: { ...tour, intro: false, step: Math.min(Math.max(0, left.step), last), answers: { ...left.answers } }, walkCollapsed: false });
+      },
+      dismissResume: () => set({ leftTour: null }),
+
       openAcademy: () => set({ academyOpen: true, hubOpen: false, ledgerOpen: false }),
       closeAcademy: () => set({ academyOpen: false }),
       startChapter: (process, exampleId) => {
@@ -530,6 +630,8 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           },
           speedIndex: SLOWEST_SPEED_INDEX,
           academyOpen: false,
+          leftTour: null,
+          walkCollapsed: false,
           hubOpen: false,
           ledgerOpen: false,
           playing: false,
@@ -601,7 +703,11 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         set({ spotlight: { ...tour, answers: { ...tour.answers, [tour.step]: { picked: optionIndex, correct: optionIndex === quiz.correct } } } });
       },
 
-      exitSpotlight: () => set(endTour(true)),
+      exitSpotlight: () => {
+        const tour = get().spotlight;
+        if (!tour) return;
+        set({ ...endTour(true), walkCollapsed: false, leftTour: { process: tour.process, exampleId: tour.exampleId, step: tour.intro ? 0 : tour.step, answers: tour.answers } });
+      },
 
       openHub: (process) => set({ ...endTour(false), hubOpen: true, academyOpen: false, ledgerOpen: false, hubProcess: process, playing: false }),
       closeHub: () => set({ hubOpen: false }),
@@ -670,6 +776,15 @@ export const bankStore = createBankStore();
 export function useBankStore<T>(selector: (state: BankState) => T): T {
   return useStore(bankStore, selector);
 }
+
+/** The data depth is the vocabulary switch seen from the viewport: Expert words and raw messages, or plain English. */
+export const dataDepthOf = (s: Pick<BankState, 'termMode'>): DataDepth => (s.termMode === 'expert' ? 'expert' : 'standard');
+
+/** The guided flow in focus: only in the Beginner scope, and never while a chapter tour has the map. */
+export const activeFlowOf = (s: Pick<BankState, 'scope' | 'flow' | 'spotlight'>): FlowId | null => (s.scope === 'beginner' && !s.spotlight ? s.flow : null);
+
+/** The four viewport choices as one value (build it from narrow selectors; see useViewport). */
+export const viewportOf = (s: BankState): ViewportSettings => ({ scope: s.scope, dimension: s.viewMode, dataDepth: dataDepthOf(s), activeFlow: activeFlowOf(s) });
 
 /** Convenience for the clock and the day-skip buttons. */
 export const SKIP_TARGETS = {

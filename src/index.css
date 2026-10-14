@@ -660,3 +660,86 @@ body,
 @media (prefers-reduced-motion: reduce) {
   .bk-hud-toast { animation: none; }
 }
+
+/* ── Phase 1: the viewport dock, the guided-flow dimming, the step previews ─────────────────────────────── */
+
+@keyframes bk-slide-down-kf {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.bk-slide-down {
+  animation: bk-slide-down-kf 220ms ease-out both;
+}
+
+/* Outside the active guided flow: 15% and grey, but still there to point at. Hovering one brings it halfway back. */
+.bk-flow-dim {
+  opacity: 0.15;
+  filter: grayscale(1);
+  transition:
+    opacity 400ms ease,
+    filter 400ms ease;
+}
+.bk-flow-dim:hover {
+  opacity: 0.55;
+}
+
+.bk-flow-lit {
+  border-color: var(--flow, #38bdf8) !important;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--flow, #38bdf8) 50%, transparent),
+    0 0 16px color-mix(in srgb, var(--flow, #38bdf8) 32%, transparent);
+}
+
+.bk-flow-here {
+  animation: bk-flow-here-kf 1.4s ease-in-out infinite;
+}
+@keyframes bk-flow-here-kf {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px var(--flow, #38bdf8), 0 0 18px color-mix(in srgb, var(--flow, #38bdf8) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 3px var(--flow, #38bdf8), 0 0 30px color-mix(in srgb, var(--flow, #38bdf8) 70%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bk-slide-down,
+  .bk-flow-here {
+    animation: none;
+  }
+  .bk-flow-dim {
+    transition: none;
+  }
+}
+
+/* The step preview of a guided flow is taken out of the layout until it shows, so the hidden, enlarged cards never make the
+   map scrollable. */
+.bk-steptip {
+  display: none;
+}
+.group:hover > .bk-steptip,
+.group:has(:focus-visible) > .bk-steptip {
+  display: block;
+  animation: bk-steptip-in 160ms ease 200ms both;
+}
+@keyframes bk-steptip-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .group:hover > .bk-steptip,
+  .group:has(:focus-visible) > .bk-steptip {
+    animation: none;
+  }
+}

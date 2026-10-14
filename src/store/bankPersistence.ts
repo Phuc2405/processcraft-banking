@@ -8,6 +8,7 @@
  * not have exactly the shape the screen expects is dropped.
  */
 
+import { isFlowId, isScope, type FlowId, type Scope } from '../types/viewport';
 import type { CardType, Id } from '../types/processLearning';
 import { emptyKpis } from '../sim/kpis';
 import { clampRules, RULE_KEYS, type BankRules } from '../sim/rules';
@@ -267,11 +268,15 @@ export const clampInspectorWidth = (px: number): number => (Number.isFinite(px) 
 export interface UiPrefs {
   labels: LabelMode;
   inspectorWidth: number;
+  /** Beginner (one guided flow lit) or Advanced (the whole bank). */
+  scope: Scope;
+  /** The guided flow last picked in the Beginner scope. */
+  flow: FlowId;
 }
 
 export const UI_PREFS_KEY = `processcraft:v${STORAGE_VERSION}:ui`;
 
-export const DEFAULT_UI_PREFS: UiPrefs = { labels: 'always', inspectorWidth: INSPECTOR_WIDTH.default };
+export const DEFAULT_UI_PREFS: UiPrefs = { labels: 'always', inspectorWidth: INSPECTOR_WIDTH.default, scope: 'advanced', flow: 1 };
 
 /** Anything that is not a known choice falls back to the default for that choice alone. */
 export function decodeUiPrefs(raw: string | null): UiPrefs {
@@ -282,6 +287,8 @@ export function decodeUiPrefs(raw: string | null): UiPrefs {
     return {
       labels: isLabelMode(parsed.labels) ? parsed.labels : DEFAULT_UI_PREFS.labels,
       inspectorWidth: typeof parsed.inspectorWidth === 'number' ? clampInspectorWidth(parsed.inspectorWidth) : DEFAULT_UI_PREFS.inspectorWidth,
+      scope: isScope(parsed.scope) ? parsed.scope : DEFAULT_UI_PREFS.scope,
+      flow: isFlowId(parsed.flow) ? parsed.flow : DEFAULT_UI_PREFS.flow,
     };
   } catch {
     return { ...DEFAULT_UI_PREFS };

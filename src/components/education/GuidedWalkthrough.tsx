@@ -230,6 +230,16 @@ export const StepCard = forwardRef<HTMLDivElement, { focus: Focus; style?: React
           {ui.stepOf(focus.index + 1, focus.plan.steps.length)}
         </span>
         <span className={`truncate rounded-full px-2 py-0.5 text-[10.5px] font-semibold ring-1 ${TONE[step.tone]}`}>{terms.place(place)}</span>
+        <button
+          type="button"
+          onClick={() => bankStore.getState().setWalkCollapsed(true)}
+          aria-label="Minimise the step card"
+          title="Minimise: fold this card into a small badge so the whole map can be seen"
+          data-testid="walk-collapse"
+          className="ml-auto grid h-6 w-6 shrink-0 place-items-center rounded-md text-[15px] font-bold leading-none text-slate-300 ring-1 ring-slate-700 transition hover:bg-slate-800 hover:text-white"
+        >
+          −
+        </button>
       </div>
       <h3 className="mt-1.5 text-[15px] font-bold leading-snug text-slate-50" data-testid="walk-title">
         {terms.t(step.title)}
@@ -433,6 +443,64 @@ export function GuidedBar() {
           </select>
         </label>
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The step card folded away, and the way back into a tour that was left
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The step card minimised: "📖 Chapter 2: Step 3/10". Click it to bring the card back. */
+export function WalkBadge() {
+  const focus = useSpotlightFocus();
+  const collapsed = useBankStore((s) => s.walkCollapsed);
+  const expand = useBankStore((s) => s.setWalkCollapsed);
+  if (!focus || !collapsed || focus.tour.intro) return null;
+  const chapter = LESSONS[focus.tour.process].chapter;
+  return (
+    <button
+      type="button"
+      onClick={() => expand(false)}
+      title="Show the step card again"
+      data-testid="walk-badge"
+      className="absolute bottom-3 left-3 z-40 flex items-center gap-2 rounded-full border bg-slate-900/95 px-3 py-1.5 text-[12px] font-semibold text-slate-100 shadow-xl transition hover:bg-slate-800"
+      style={{ borderColor: focus.accent, boxShadow: `0 0 18px ${focus.accent}44` }}
+    >
+      <span aria-hidden="true">📖</span>
+      <span className="tabular-nums">
+        Chapter {chapter}: Step {focus.index + 1}/{focus.plan.steps.length}
+      </span>
+      {focus.blocked && <span className="rounded-full bg-amber-400/20 px-1.5 text-[10.5px] text-amber-200">question waiting</span>}
+      <span aria-hidden="true" className="text-slate-400">▴</span>
+    </button>
+  );
+}
+
+/** After "Exit tutorial": a way back to the same chapter and step, without reloading anything. */
+export function ResumeWalkthrough() {
+  const left = useBankStore((s) => s.leftTour);
+  const touring = useBankStore((s) => s.spotlight !== null);
+  const resume = useBankStore((s) => s.resumeSpotlight);
+  const dismiss = useBankStore((s) => s.dismissResume);
+  if (!left || touring) return null;
+  const lesson = LESSONS[left.process];
+  return (
+    <div className="absolute bottom-3 left-3 z-40 flex items-center overflow-hidden rounded-full border border-slate-700 bg-slate-900/95 shadow-xl" data-testid="walk-resume-box">
+      <button
+        type="button"
+        onClick={resume}
+        title={`Back to Chapter ${lesson.chapter}, step ${left.step + 1}`}
+        data-testid="walk-resume"
+        className="flex items-center gap-2 py-1.5 pl-3 pr-2.5 text-[12px] font-semibold text-slate-950 transition hover:brightness-110"
+        style={{ background: lesson.accent }}
+      >
+        <span aria-hidden="true">🎓</span> Resume Walkthrough
+        <span className="font-medium text-slate-900/70">Ch {lesson.chapter} · Step {left.step + 1}</span>
+      </button>
+      <button type="button" onClick={dismiss} aria-label="Dismiss" title="Dismiss" data-testid="walk-resume-dismiss" className="px-2.5 py-1.5 text-[13px] text-slate-400 transition hover:text-white">
+        ×
+      </button>
     </div>
   );
 }

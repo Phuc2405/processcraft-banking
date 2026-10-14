@@ -998,12 +998,12 @@ describe('3D labels and the inspector width', () => {
   });
 
   it('decodes saved UI preferences one choice at a time, falling back on anything odd', () => {
-    expect(decodeUiPrefs(null)).toEqual({ labels: 'always', inspectorWidth: INSPECTOR_WIDTH.default });
-    expect(decodeUiPrefs('not json')).toEqual({ labels: 'always', inspectorWidth: INSPECTOR_WIDTH.default });
-    expect(decodeUiPrefs('[1,2]')).toEqual({ labels: 'always', inspectorWidth: INSPECTOR_WIDTH.default });
-    expect(decodeUiPrefs('{"labels":"sometimes","inspectorWidth":500}')).toEqual({ labels: 'always', inspectorWidth: 500 });
-    expect(decodeUiPrefs('{"labels":"hover","inspectorWidth":"wide"}')).toEqual({ labels: 'hover', inspectorWidth: INSPECTOR_WIDTH.default });
-    expect(decodeUiPrefs('{"labels":"hover","inspectorWidth":2000}')).toEqual({ labels: 'hover', inspectorWidth: 600 });
+    expect(decodeUiPrefs(null)).toEqual({ labels: 'always', inspectorWidth: INSPECTOR_WIDTH.default, scope: 'advanced', flow: 1 });
+    expect(decodeUiPrefs('not json')).toEqual({ labels: 'always', inspectorWidth: INSPECTOR_WIDTH.default, scope: 'advanced', flow: 1 });
+    expect(decodeUiPrefs('[1,2]')).toEqual({ labels: 'always', inspectorWidth: INSPECTOR_WIDTH.default, scope: 'advanced', flow: 1 });
+    expect(decodeUiPrefs('{"labels":"sometimes","inspectorWidth":500}')).toEqual({ labels: 'always', inspectorWidth: 500, scope: 'advanced', flow: 1 });
+    expect(decodeUiPrefs('{"labels":"hover","inspectorWidth":"wide"}')).toEqual({ labels: 'hover', inspectorWidth: INSPECTOR_WIDTH.default, scope: 'advanced', flow: 1 });
+    expect(decodeUiPrefs('{"labels":"hover","inspectorWidth":2000}')).toEqual({ labels: 'hover', inspectorWidth: 600, scope: 'advanced', flow: 1 });
   });
 });
 

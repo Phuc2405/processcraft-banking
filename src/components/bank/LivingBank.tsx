@@ -1,6 +1,6 @@
 import { Component, lazy, Suspense, useEffect, useState, type ErrorInfo, type ReactNode } from 'react';
-import { useBankStore } from '../../store/bankStore';
-import { GuidedBar } from '../education/GuidedWalkthrough';
+import { activeFlowOf, useBankStore } from '../../store/bankStore';
+import { GuidedBar, ResumeWalkthrough, WalkBadge } from '../education/GuidedWalkthrough';
 import { BankMap } from './BankMap';
 import { BankSidebar } from './BankSidebar';
 import { ClockBar } from './ClockBar';
@@ -10,7 +10,9 @@ import { HudToasts } from './HudToasts';
 import { Inspector } from './Inspector';
 import { LedgerDrawer } from './LedgerDrawer';
 import { LearningHub } from './LearningHub';
+import { PresetDock } from './PresetDock';
 import { useBankClock } from './useBankClock';
+import { ViewportControls } from './ViewportControls';
 
 /** The 3D office is loaded only when someone asks for it: three.js is the heaviest thing in the app. */
 const Office3D = lazy(() => import('./office/Office3D'));
@@ -71,6 +73,8 @@ const NOTICE_STYLE = {
 function Notice() {
   const notice = useBankStore((s) => s.notice);
   const hubOpen = useBankStore((s) => s.hubOpen);
+  // In the Beginner scope the preset dock sits at the bottom of the map, so the message goes just above it.
+  const dockBelow = useBankStore((s) => activeFlowOf(s) !== null);
   const dismiss = useBankStore((s) => s.dismissNotice);
   useEffect(() => {
     if (!notice) return;
@@ -79,7 +83,7 @@ function Notice() {
   }, [notice, dismiss]);
   if (!notice || hubOpen) return null;
   return (
-    <div className={`absolute bottom-4 left-1/2 z-30 flex max-w-[520px] -translate-x-1/2 items-start gap-3 rounded-xl border px-4 py-2.5 text-[13px] shadow-xl ${NOTICE_STYLE[notice.kind]}`} role="status" data-testid="bank-notice">
+    <div className={`absolute ${dockBelow ? 'bottom-[76px]' : 'bottom-4'} left-1/2 z-30 flex max-w-[520px] -translate-x-1/2 items-start gap-3 rounded-xl border px-4 py-2.5 text-[13px] shadow-xl ${NOTICE_STYLE[notice.kind]}`} role="status" data-testid="bank-notice">
       <span>{notice.message}</span>
       <button type="button" onClick={dismiss} aria-label="Dismiss" className="opacity-70 transition hover:opacity-100">
         ×
@@ -102,7 +106,8 @@ export function LivingBank() {
         <BankSidebar collapsed={collapsed} onToggle={choose} />
         <main className="flex min-w-0 flex-1 flex-col bg-[#070b14]" aria-label="Bank map">
           {/* The map has a fixed size: the inspector and the ledger float over it, so opening them never resizes the scene. */}
-          <div className="relative min-h-0 flex-1 overflow-hidden">
+          {/* overflow-clip, not hidden: nothing (a focus, a scroll-into-view) may scroll this frame and slide the floating docks off it. */}
+          <div className="relative min-h-0 flex-1 overflow-clip">
             {viewMode === '3d' ? (
               <OfficeLoadBoundary onBack={() => setViewMode('2d')}>
                 <Suspense fallback={<OfficeLoading />}>
@@ -112,8 +117,12 @@ export function LivingBank() {
             ) : (
               <BankMap />
             )}
+            <ViewportControls />
             <LedgerDrawer />
             <HudToasts />
+            <PresetDock />
+            <WalkBadge />
+            <ResumeWalkthrough />
             <Notice />
             <Inspector />
           </div>
