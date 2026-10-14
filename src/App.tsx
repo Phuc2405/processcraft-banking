@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
+import { AcademySplitToggle } from './components/academy/AcademySplitLayout';
 import { LivingBank } from './components/bank/LivingBank';
 import { AcademyButton } from './components/bank/CourseCatalog';
 import { ModeToggle } from './components/bank/ViewControls';
@@ -69,6 +70,7 @@ function TopBar({ view, onView }: { view: View; onView: (v: View) => void }) {
       </nav>
       <div className="flex-1" />
       <div className="flex items-center gap-3">
+        {view === 'bank' && <AcademySplitToggle />}
         {view === 'bank' && <AcademyButton />}
         {/* In the Living Bank the scope, 2D/3D and data-depth switches live in the viewport dock over the map. The Build Lab keeps
             the vocabulary switch here: the tour and the ledger read the same setting as the dock's Standard | Expert. */}

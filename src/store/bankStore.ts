@@ -18,6 +18,7 @@ import { DAY_END, DAY_START, DEFAULT_SPEED_INDEX, EOD_START, SLOWEST_SPEED_INDEX
 import { clampRules, DEFAULT_RULES, rulesEqual, type BankRules } from '../sim/rules';
 import { SPOTLIGHT_DEFAULT_EXAMPLE, spotPlan } from '../sim/spotlightPlan';
 import type { TermMode } from '../sim/terms';
+import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
 import type { BankView, PacketTrace } from '../sim/types';
 import { presetById, presetCustomer, type PresetId } from '../sim/presets';
@@ -120,6 +121,8 @@ export interface BankState {
   /** The payment the learner last sent with a preset action, and where it is now. */
   presetTxId: string | null;
   presetTrace: PacketTrace | null;
+  /** The node the Academy split view is teaching right now: it pulses on the 2D map and in the 3D office, and the 3D camera goes to it. */
+  focusPlace: PlaceId | null;
 
   selection: Selection;
   reportOpen: boolean;
@@ -181,6 +184,12 @@ export interface BankState {
   setDimension(dimension: Dimension): void;
   setDataDepth(depth: DataDepth): void;
   setActiveFlow(flow: FlowId): void;
+  /**
+   * The Academy split view picked a lesson step: one change that ends any chapter tour, lights `flow` in the Beginner scope (or,
+   * with no flow, shows the whole bank in the Advanced scope) and marks `place` as the node in focus.
+   */
+  focusAcademyStep(target: { flow: FlowId | null; place: PlaceId | null }): void;
+  clearAcademyFocus(): void;
   /** One click of a preset action: sends the scripted customer into the bank and follows it in the inspector. */
   runPreset(id: PresetId): void;
 
@@ -355,6 +364,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       flow: ui.flow,
       presetTxId: null,
       presetTrace: null,
+      focusPlace: null,
 
       selection: { kind: 'none' },
       reportOpen: false,
@@ -564,6 +574,20 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         ui = { ...ui, flow, scope: 'beginner' };
         saveUiPrefs(storage, ui);
         set({ flow, scope: 'beginner' });
+      },
+
+      focusAcademyStep: ({ flow, place }) => {
+        const s = get();
+        const scope: Scope = flow === null ? 'advanced' : 'beginner';
+        const next = flow ?? s.flow;
+        if (scope !== s.scope || next !== s.flow) {
+          ui = { ...ui, scope, flow: next };
+          saveUiPrefs(storage, ui);
+        }
+        set({ ...endTour(false), scope, flow: next, focusPlace: place });
+      },
+      clearAcademyFocus: () => {
+        if (get().focusPlace !== null) set({ focusPlace: null });
       },
 
       runPreset: (id) => {
@@ -782,6 +806,16 @@ export const dataDepthOf = (s: Pick<BankState, 'termMode'>): DataDepth => (s.ter
 
 /** The guided flow in focus: only in the Beginner scope, and never while a chapter tour has the map. */
 export const activeFlowOf = (s: Pick<BankState, 'scope' | 'flow' | 'spotlight'>): FlowId | null => (s.scope === 'beginner' && !s.spotlight ? s.flow : null);
+
+/**
+ * The node the Academy is teaching, if it should show: never during a chapter tour, and, when a guided flow is lit, only if the
+ * flow uses it (a node the learner has dimmed by picking another flow is not pulsed through the fade).
+ */
+export const academyFocusOf = (s: Pick<BankState, 'scope' | 'flow' | 'spotlight' | 'focusPlace'>): PlaceId | null => {
+  if (s.spotlight || s.focusPlace === null) return null;
+  const flow = activeFlowOf(s);
+  return flow !== null && !flowPlaces(flow).has(s.focusPlace) ? null : s.focusPlace;
+};
 
 /** The four viewport choices as one value (build it from narrow selectors; see useViewport). */
 export const viewportOf = (s: BankState): ViewportSettings => ({ scope: s.scope, dimension: s.viewMode, dataDepth: dataDepthOf(s), activeFlow: activeFlowOf(s) });

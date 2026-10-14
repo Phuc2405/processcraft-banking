@@ -5,7 +5,7 @@ import { CanvasTexture, ExtrudeGeometry, MOUSE, Path, RepeatWrapping, ShapeGeome
 import { DEPARTMENTS, STATION_IDS, type DepartmentId } from '../../../sim/topology';
 import { prefersReducedMotion } from '../../canvas/timing';
 import { activeFlowOf, bankStore, useBankStore } from '../../../store/bankStore';
-import { FlowStage3D } from './FlowStage3D';
+import { FlowStage3D, useAcademyCamera } from './FlowStage3D';
 import { useTerms } from '../useTerms';
 import { Desk3D } from './Desk3D';
 import { AtmKiosk } from './AtmKiosk';
@@ -553,10 +553,12 @@ function Lights() {
 
 export function OfficeScene({ resetKey }: { resetKey: number }) {
   const tourCamera = useTourCamera();
+  // A chapter tour owns the camera; otherwise it goes to the node the Academy split view is teaching.
+  const academyCamera = useAcademyCamera();
   return (
     <>
       <Lights />
-      <CameraRig resetKey={resetKey} focus={tourCamera} />
+      <CameraRig resetKey={resetKey} focus={tourCamera ?? academyCamera} />
       <Probe />
       <Floor />
       <FrameDriver />

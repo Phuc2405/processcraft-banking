@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useBankStore } from '../../store/bankStore';
-import { HUD_EVENTS, HUD_TTL_MS, newEvents, pushToasts, type DeclineCounts, type HudToast } from './hudToasts';
+import { HUD_EVENTS, HUD_TTL_MS, newEvents, pushToasts, type DeclineCounts, type HudToast } from './hudToastLogic';
 
 const TONE = {
   amber: 'border-amber-400/50 bg-[#1c1406]/95 text-amber-100 [--dot:#fbbf24]',
