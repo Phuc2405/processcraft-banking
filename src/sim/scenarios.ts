@@ -75,7 +75,19 @@ export const SCENARIOS: readonly Scenario[] = [
   s('ATM', 'atm-max', '🏧', 'Sidewalk ATM Maximum Withdrawal', 1000, 0, 100, true),
 ];
 
-const BY_ID: ReadonlyMap<string, Scenario> = new Map(SCENARIOS.map((x) => [x.id, x]));
+/**
+ * The payments the learner sends with the preset action buttons of the guided flows. They are looked up by id like any other
+ * scenario, but are not in SCENARIOS, so the daily traffic never draws them and every generated day stays exactly as it was.
+ */
+export const PRESET_SCENARIOS: readonly Scenario[] = [
+  s('POS', 'preset-pos-20', '🎯', 'Practice Swipe', 20, 0, 0, true),
+  s('POS', 'preset-pos-500', '🎯', 'Practice Swipe, Big Basket', 500, 0, 0, true),
+  s('VIRTUAL', 'preset-token-45', '🎯', 'Practice Token Checkout', 45, 0, 0, true),
+  s('ECOM', 'preset-3ds-250', '🎯', 'Practice 3DS Checkout', 250, 0, 0, true),
+  s('ATM', 'preset-cdm-200', '🎯', 'Practice Cash Deposit', 200, 0, 0, true),
+];
+
+const BY_ID: ReadonlyMap<string, Scenario> = new Map([...SCENARIOS, ...PRESET_SCENARIOS].map((x) => [x.id, x]));
 
 export const scenarioById = (id: string | null | undefined): Scenario | null => (id ? (BY_ID.get(id) ?? null) : null);
 

@@ -416,7 +416,7 @@ export interface DerivedFacts {
 
   /** The sidewalk ATM. PIN: verified, or locked after three wrong tries. Dispense: notes out, jammed after the debit, or refused. */
   atmPin?: 'VERIFIED' | 'LOCKED';
-  atmDispense?: 'DISPENSED' | 'JAMMED' | 'REFUSED';
+  atmDispense?: 'DISPENSED' | 'JAMMED' | 'REFUSED' | 'DEPOSITED';
 
   amlStatus?: 'CLEAR' | 'STRUCTURING' | 'PEP_HIT' | 'SANCTION_HIT';
   /** Best name-match score against the watchlists, 0 to 100. */
@@ -726,7 +726,8 @@ export type PostingKind =
   | 'ISSUER_LOSS'
   | 'ATM_DISPENSE'
   | 'ATM_JAM'
-  | 'ATM_REFUND';
+  | 'ATM_REFUND'
+  | 'ATM_DEPOSIT';
 
 /**
  * One line of the general ledger. Double entry means every line debits one account and credits another by the same

@@ -101,6 +101,9 @@ export const paymentExecuted = (amount: MinorUnits): Draft =>
   draft('PAYMENT_EXECUTED', 'CUST_CASA', 'OUTWARD_PAYMENTS_CLEARING', amount, `The payment is released: the customer is debited ${formatAud(amount)} and it goes to outward clearing.`);
 
 /** Cash leaves the bank’s own ATM and the customer’s account is debited for the same amount. No card scheme is involved. */
+export const atmDeposit = (amount: MinorUnits): Draft =>
+  draft('ATM_DEPOSIT', 'ATM_CASH', 'CUST_CASA', amount, `The machine counted ${formatAud(amount)} in notes into its cassette, so the cash in the machine rises and the customer's account is credited ${formatAud(amount)}.`);
+
 export const atmDispense = (amount: MinorUnits): Draft =>
   draft('ATM_DISPENSE', 'CUST_CASA', 'ATM_CASH', amount, `The ATM counted out ${formatAud(amount)} in notes, so the customer is debited ${formatAud(amount)} and the cash in the machine falls by the same amount.`);
 

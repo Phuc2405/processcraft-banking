@@ -43,6 +43,8 @@ export interface AtmSession {
   knowsPin: boolean;
   /** Whether the dispenser jams on this withdrawal. */
   jams: boolean;
+  /** A cash deposit (the machine takes notes in and the account is credited) instead of a withdrawal. Only scripted practice runs set it. */
+  deposit?: boolean;
 }
 
 export interface Customer {
@@ -423,6 +425,8 @@ export interface TxRecord {
   decline: DeclineReason | null;
   isFraud: boolean;
   recon: TxReconStatus;
+  /** Cash paid in at the machine, not taken out. */
+  deposit?: true;
 }
 
 /** One person of a night shift, as the day report shows them. */
@@ -520,3 +524,32 @@ export interface BankView {
 }
 
 export type { DepartmentId, ExternalId, PlaceId, StationId };
+
+/**
+ * Where one payment is on its route, for the inspector and the step previews: the places it will visit, which one it is at,
+ * and, once it has finished, its record. Built on demand for a payment the learner sent with a preset action.
+ */
+export interface PacketTrace {
+  id: Id;
+  kind: PacketKind;
+  scenario: string;
+  cardType: CardType;
+  amountCents: MinorUnits;
+  riskScore: number;
+  /** Minute of the day it arrived. */
+  bornMinute: number;
+  /** The places of its route in order, the outcome last. */
+  route: PlaceId[];
+  /** What happened at each stop, in the same order as `route`. */
+  stops: ReadonlyArray<{ place: PlaceId; label: string; note: string }>;
+  /** Index into `route` of the place it is at or waiting for; `route.length` once it has finished. */
+  at: number;
+  done: boolean;
+  plan: Pick<RoutePlan, 'outcome' | 'reasonCode' | 'decline' | 'latencyMs' | 'heldCents' | 'threeDs' | 'passes'>;
+  /** Everything the process wrote about it on the stops it has passed. */
+  facts: Partial<DerivedFacts>;
+  /** The finished payment, once there is one. */
+  record: TxRecord | null;
+  /** The ledger lines posted for it so far. */
+  ledger: GLEntry[];
+}

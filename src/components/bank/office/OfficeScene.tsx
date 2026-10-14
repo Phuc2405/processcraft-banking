@@ -4,7 +4,8 @@ import { memo, useEffect, useMemo, useRef } from 'react';
 import { CanvasTexture, ExtrudeGeometry, MOUSE, Path, RepeatWrapping, ShapeGeometry, SRGBColorSpace, TOUCH, Vector3, type AmbientLight, type DirectionalLight, type HemisphereLight } from 'three';
 import { DEPARTMENTS, STATION_IDS, type DepartmentId } from '../../../sim/topology';
 import { prefersReducedMotion } from '../../canvas/timing';
-import { bankStore, useBankStore } from '../../../store/bankStore';
+import { activeFlowOf, bankStore, useBankStore } from '../../../store/bankStore';
+import { FlowStage3D } from './FlowStage3D';
 import { useTerms } from '../useTerms';
 import { Desk3D } from './Desk3D';
 import { AtmKiosk } from './AtmKiosk';
@@ -500,7 +501,7 @@ function Probe() {
       const t = controls.target;
       return { x: t.x, z: t.z, zoom: (camera as { zoom?: number }).zoom ?? 1, az: Math.atan2(camera.position.x - t.x, camera.position.z - t.z) };
     };
-    w.__officeStats = () => ({ calls: gl.info.render.calls, triangles: gl.info.render.triangles, geometries: gl.info.memory.geometries, textures: gl.info.memory.textures });
+    w.__officeStats = () => ({ frame: gl.info.render.frame, calls: gl.info.render.calls, triangles: gl.info.render.triangles, geometries: gl.info.memory.geometries, textures: gl.info.memory.textures });
     return () => {
       delete w.__officeProbe;
       delete w.__officeView;
@@ -525,7 +526,8 @@ function Lights() {
   useFrame((_, dt) => {
     const s = bankStore.getState();
     const dusk = duskAt(s.view.minute);
-    const want = s.spotlight ? 1 : 0;
+    // A tour turns the daylight right down; a guided flow (Beginner scope) turns it down part of the way.
+    const want = s.spotlight ? 1 : activeFlowOf(s) ? 0.6 : 0;
     tour.current += (want - tour.current) * Math.min(1, dt * 3);
     const t = tour.current;
     const keep = (left: number): number => 1 + (left - 1) * t;
@@ -543,16 +545,6 @@ function Lights() {
         position={[-17, 30, 15]}
         intensity={2.4}
         color="#fff0d6"
-        castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-24}
-        shadow-camera-right={24}
-        shadow-camera-top={23}
-        shadow-camera-bottom={-21}
-        shadow-camera-near={1}
-        shadow-camera-far={90}
-        shadow-bias={-0.0005}
-        shadow-normalBias={0.04}
       />
       <directionalLight ref={fill} position={[15, 10, -9]} intensity={0.4} color="#d6e6ff" />
     </>
@@ -567,7 +559,11 @@ export function OfficeScene({ resetKey }: { resetKey: number }) {
       <CameraRig resetKey={resetKey} focus={tourCamera} />
       <Probe />
       <Floor />
+      <FrameDriver />
       <ContactShadows position={[0, -0.66, 0]} scale={[FLOOR_SLAB.w + 6, FLOOR_SLAB.d + 6]} far={0.9} blur={2.8} opacity={0.4} resolution={512} frames={1} color="#6b4f35" />
+      {/* Soft contact shadows under every desk, person and plant on the office floor, baked once. They replace the real-time
+          shadow map of the sun, which redrew the whole office a second time on every frame. */}
+      <ContactShadows position={[0, 0.03, 0]} scale={[FLOOR_SLAB.w, FLOOR_SLAB.d]} far={2.4} blur={2} opacity={0.4} resolution={1024} frames={1} color="#5b4330" />
       {DEPARTMENT_IDS.map((id) => (
         <Rug key={id} id={id} />
       ))}
@@ -583,6 +579,48 @@ export function OfficeScene({ resetKey }: { resetKey: number }) {
       <Arrivals />
       <Packets />
       <TourStage />
+      <FlowStage3D />
     </>
   );
+}
+
+/** How long the office keeps drawing after anything in the bank changed, so fades and glides can finish. */
+const AWAKE_MS = 1600;
+
+/**
+ * The canvas draws on demand (frameloop="demand"): a frame is drawn only when something asks for one. This keeps it drawing
+ * while the bank clock runs, while a tour plays, and for a moment after any change or any pointer move over the office, and
+ * otherwise lets it rest, so a paused office costs the graphics card nothing.
+ */
+function FrameDriver() {
+  const invalidate = useThree((s) => s.invalidate);
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    let awakeUntil = performance.now() + AWAKE_MS;
+    let frame = 0;
+    const wake = (): void => {
+      awakeUntil = performance.now() + AWAKE_MS;
+    };
+    const loop = (): void => {
+      const s = bankStore.getState();
+      if (s.playing || s.spotlight !== null || performance.now() < awakeUntil) invalidate();
+      frame = requestAnimationFrame(loop);
+    };
+    const unsubscribe = bankStore.subscribe(wake);
+    const el = gl.domElement;
+    el.addEventListener('pointermove', wake);
+    el.addEventListener('wheel', wake, { passive: true });
+    el.addEventListener('pointerdown', wake);
+    window.addEventListener('resize', wake);
+    frame = requestAnimationFrame(loop);
+    return () => {
+      cancelAnimationFrame(frame);
+      unsubscribe();
+      el.removeEventListener('pointermove', wake);
+      el.removeEventListener('wheel', wake);
+      el.removeEventListener('pointerdown', wake);
+      window.removeEventListener('resize', wake);
+    };
+  }, [invalidate, gl]);
+  return null;
 }

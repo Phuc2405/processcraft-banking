@@ -1,7 +1,6 @@
 import { Canvas } from '@react-three/fiber';
 import { Component, memo, useCallback, useState, type ErrorInfo, type ReactNode } from 'react';
-import { PCFSoftShadowMap } from 'three';
-import { useBankStore } from '../../../store/bankStore';
+import { activeFlowOf, useBankStore } from '../../../store/bankStore';
 import { OfficeScene } from './OfficeScene';
 import { TourLayer3D } from './TourLayer3D';
 import { CAMERA_DIRECTION, CAMERA_DISTANCE } from './layout3d';
@@ -52,6 +51,8 @@ function Office3DView() {
   const labelMode = useBankStore((s) => s.labelMode);
   const setLabelMode = useBankStore((s) => s.setLabelMode);
   const touring = useBankStore((s) => s.spotlight !== null);
+  const flowOn = useBankStore((s) => activeFlowOf(s) !== null);
+  const resumeOffered = useBankStore((s) => s.leftTour !== null);
   const [resetKey, setResetKey] = useState(0);
   const [ready, setReady] = useState(false);
   const [lost, setLost] = useState(false);
@@ -64,12 +65,13 @@ function Office3DView() {
   return (
     <div className="relative h-full w-full overflow-hidden bg-[radial-gradient(ellipse_at_50%_42%,#fdf6e8_0%,#e9eff6_58%,#d2dfec_100%)]" data-testid="office-3d" data-ready={ready} data-tour={touring ? 'on' : 'off'}>
       {/* The sky behind the diorama dims with the room while a tour runs, so the lit desks stand out against it. */}
-      <div className={`pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_42%,#1e293b_0%,#0f172a_70%,#070b14_100%)] transition-opacity duration-700 ${touring ? 'opacity-90' : 'opacity-0'}`} aria-hidden="true" />
+      <div className={`pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_42%,#1e293b_0%,#0f172a_70%,#070b14_100%)] transition-opacity duration-700 ${touring ? 'opacity-90' : flowOn ? 'opacity-60' : 'opacity-0'}`} aria-hidden="true" />
       <OfficeBoundary onBack={back}>
         <Canvas
           orthographic
           flat
-          shadows={{ type: PCFSoftShadowMap }}
+          // Drawn on demand: OfficeScene's FrameDriver asks for frames while something moves, and the canvas rests otherwise.
+          frameloop="demand"
           dpr={[1, 1.5]}
           camera={{ position: [CAMERA_DIRECTION[0] * k, k, CAMERA_DIRECTION[1] * k], zoom: 28, near: 0.1, far: 400 }}
           gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
@@ -93,7 +95,7 @@ function Office3DView() {
 
       <TourLayer3D />
 
-      <div className={`pointer-events-none absolute bottom-3 left-3 z-30 ${touring ? 'hidden' : 'flex'} flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-white bg-white/90 px-3 py-1.5 text-[11px] text-slate-500 shadow-md`} data-testid="office-hint">
+      <div className={`pointer-events-none absolute bottom-3 left-3 z-30 ${touring || resumeOffered || flowOn ? 'hidden' : 'flex'} flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-white bg-white/90 px-3 py-1.5 text-[11px] text-slate-500 shadow-md`} data-testid="office-hint">
         <span>
           <b className="font-semibold text-slate-800">Drag</b> to pan
         </span>
@@ -107,7 +109,7 @@ function Office3DView() {
           <b className="font-semibold text-slate-800">Click</b> a desk or a person to inspect it
         </span>
       </div>
-      <div className="absolute left-3 top-3 z-30 flex items-center gap-1.5">
+      <div className="absolute left-3 top-3 z-30 flex flex-col items-start gap-1.5 xl:flex-row xl:items-center">
         <button
           type="button"
           onClick={() => setResetKey((n) => n + 1)}

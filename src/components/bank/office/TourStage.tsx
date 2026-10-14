@@ -46,7 +46,7 @@ export function arrivalMs3d(focus: Focus): number {
 // Light on the floor
 // ─────────────────────────────────────────────────────────────────────────────
 
-type Role = 'here' | 'next' | 'visited' | 'lit';
+export type Role = 'here' | 'next' | 'visited' | 'lit';
 
 let glowTex: CanvasTexture | null = null;
 /** A soft round spot, white in the middle and clear at the edge, drawn once and tinted by each material. */
@@ -73,7 +73,7 @@ const RING_OPACITY: Record<Role, number> = { here: 0.95, next: 0.7, visited: 0.5
 const GLOW_OPACITY: Record<Role, number> = { here: 0.7, next: 0.42, visited: 0.28, lit: 0.2 };
 
 /** The ring of light round one desk of the chapter: a crisp rounded outline and a soft glow under it. The desk the token is at pulses. */
-function GroundMark({ place, role, accent }: { place: PlaceId; role: Role; accent: string }) {
+export function GroundMark({ place, role, accent }: { place: PlaceId; role: Role; accent: string }) {
   const f = useMemo(() => placeFootprint(place), [place]);
   const ring = useMemo(() => {
     const w = f.w + 0.9;

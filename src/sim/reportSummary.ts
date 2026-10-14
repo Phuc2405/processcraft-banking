@@ -252,7 +252,7 @@ export const TX_CSV_HEADER = [
   'Ledger_Ref',
 ] as const;
 
-export type ChannelType = 'CARD_PAYMENT' | 'PAY_IN_4' | 'INSTANT_A2A' | 'ATM_WITHDRAWAL';
+export type ChannelType = 'CARD_PAYMENT' | 'PAY_IN_4' | 'INSTANT_A2A' | 'ATM_WITHDRAWAL' | 'CASH_DEPOSIT';
 
 export const CHANNEL_TYPE: Record<Exclude<PacketKind, 'SETTLEMENT'>, ChannelType> = {
   POS: 'CARD_PAYMENT',
@@ -283,7 +283,7 @@ export function transactionsCsv(records: readonly TxRecord[]): string {
     .map((t) => [
       clockWithSeconds(t.minute),
       t.txId,
-      CHANNEL_TYPE[t.kind as Exclude<PacketKind, 'SETTLEMENT'>] ?? t.kind,
+      t.deposit ? 'CASH_DEPOSIT' : (CHANNEL_TYPE[t.kind as Exclude<PacketKind, 'SETTLEMENT'>] ?? t.kind),
       dollars(t.amountCents),
       dollars(t.feeCents),
       t.status,

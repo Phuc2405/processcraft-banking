@@ -16,8 +16,8 @@
 
 import { formatAud } from '../engine/capabilities';
 import { emptyBook, groupByTransaction, post, trialBalance, type LedgerBook } from '../engine/ledger';
-import { atmDispense, atmJam, atmRefund, clearSuspense, toEntries } from '../engine/postings';
-import type { CardType, GLEntry } from '../types/processLearning';
+import { atmDeposit, atmDispense, atmJam, atmRefund, clearSuspense, toEntries } from '../engine/postings';
+import type { CardType, DerivedFacts, GLEntry } from '../types/processLearning';
 import { BEATS_PER_DAY, DAY_END, DAY_START, EOD_START, beatIndexAt, beatMinutes, formatClock, phaseAt, type Phase } from './clock';
 import { A2A_FEE_CENTS, BNPL_FEE_RATE, bnplDefaultRate, COVER_COST_CENTS, emptyKpis, INTERCHANGE_RATE, pnl } from './kpis';
 import { closeBook, openingBook } from './bankBook';
@@ -47,6 +47,7 @@ import {
 import { edgeId, EXTERNAL_IDS, SERVICE_ORDER, STATION_IDS, STATIONS, type ExternalId, type PlaceId, type StationId } from './topology';
 import { eventForDay, generateDay, keyedUnit, makeSettlement, workingBeatIndex, type DayTraffic } from './traffic';
 import type {
+  PacketTrace,
   AlertView,
   RoutePlan,
   TxRecord,
@@ -206,6 +207,8 @@ export class BankSimulation {
   private lastPhase: Phase | null = null;
   /** Packet id (without the tx_ prefix) to the scenario label, so a ledger line can say what the money was for. */
   private labels = new Map<string, string>();
+  /** Payments the learner sent with a preset action today, by id, so the inspector can follow them along their route. */
+  private scripted = new Map<string, Packet>();
 
   constructor(options: BankSimOptions) {
     this.seed = options.seed;
@@ -317,6 +320,50 @@ export class BankSimulation {
   }
 
   /** Plays on until the clock reaches `minute` (or the day ends). */
+  /**
+   * Sends one scripted customer into the bank now (a preset action: "Swipe $20", "Deposit $200 cash"). The payment takes
+   * the same route, desks, queues and ledger postings as any other; it simply arrives at the current minute. Returns its id,
+   * or null when the day is over.
+   */
+  inject(customer: Customer): string | null {
+    if (this.dayOver) return null;
+    // Their own block of serials (9001 up), so they never share an id with the day's generated customers.
+    const id = `d${this.day}-${9001 + this.scripted.size}`;
+    const p = this.admit({ ...customer, id, minute: this.minute, payload: { ...customer.payload, txId: `tx_${id}` } });
+    this.scripted.set(p.id, p);
+    return p.id;
+  }
+
+  /** Where a payment sent with inject() is now, or null for an id this bank does not know (another day, or a replay). */
+  traceOf(id: string): PacketTrace | null {
+    const p = this.scripted.get(id);
+    if (!p) return null;
+    const record = this.txById.get(p.id) ?? null;
+    const stops = p.plan.stops;
+    const done = record !== null;
+    const at = done ? stops.length : Math.min(p.stopIndex, stops.length - 1);
+    const facts: Partial<DerivedFacts> = {};
+    for (let i = 0; i < Math.min(at, stops.length); i++) Object.assign(facts, stops[i]!.facts);
+    const { outcome, reasonCode, decline, latencyMs, heldCents, threeDs, passes } = p.plan;
+    return {
+      id: p.id,
+      kind: p.kind,
+      scenario: p.scenario,
+      cardType: p.cardType,
+      amountCents: p.amountCents,
+      riskScore: p.riskScore,
+      bornMinute: p.bornMinute,
+      route: stops.map((s) => s.place),
+      stops: stops.map((s) => ({ place: s.place, label: s.label, note: s.note })),
+      at,
+      done,
+      plan: { outcome, reasonCode, decline, latencyMs, heldCents, threeDs, passes },
+      facts,
+      record,
+      ledger: this.book.entries.filter((e) => e.txId === p.id || e.txId.startsWith(`${p.id}~`) || e.txId.startsWith(`${p.id}-`)),
+    };
+  }
+
   stepUntil(minute: number): void {
     while (!this.dayOver && this.minute < minute) this.step();
   }
@@ -331,6 +378,7 @@ export class BankSimulation {
   nextDay(): void {
     if (!this.dayOver) this.runToEndOfDay();
     this.day++;
+    this.scripted.clear();
     // The night team first: whoever worked last night keeps some of their tiredness, whoever had the night off comes back rested.
     const worked = new Map<string, number>();
     for (const id of NIGHT_STATIONS) for (const w of this.stations[id].workers) if (!w.temp) worked.set(w.seed.id, w.fatigue);
@@ -550,7 +598,7 @@ export class BankSimulation {
     };
   }
 
-  private admit(customer: Customer): void {
+  private admit(customer: Customer): Packet {
     const plan = planCheckout(customer, this.graphs);
     const { payload } = customer;
     const p: Packet = {
@@ -585,6 +633,7 @@ export class BankSimulation {
     st.arrivalsBeat++;
     bump(st, 'arrived');
     this.insert(st.queue, p);
+    return p;
   }
 
   private releasePhones(start: number, bm: number): void {
@@ -770,7 +819,11 @@ export class BankSimulation {
         break;
 
       case 'ATM_CASH':
-        if (f.atmDispense === 'DISPENSED') {
+        if (f.atmDispense === 'DEPOSITED') {
+          bump(st, 'deposited');
+          bump(st, 'depositedCents', p.amountCents);
+          this.postLines(toEntries([atmDeposit(p.amountCents)], p.id, 0));
+        } else if (f.atmDispense === 'DISPENSED') {
           bump(st, 'dispensed');
           bump(st, 'dispensedCents', p.amountCents);
           this.postLines(toEntries([atmDispense(p.amountCents)], p.id, 0));
@@ -1029,6 +1082,7 @@ export class BankSimulation {
       isFraud: p.isFraud,
       // A card payment waits for tonight's reconciliation; a jammed withdrawal's money is parked in suspense.
       recon: decline === 'ATM_JAM' ? 'SUSPENDED' : decline === null && card ? 'NO' : 'N/A',
+      ...(p.plan.reasonCode === 'CASH_DEPOSITED' ? { deposit: true as const } : {}),
     };
     this.txLog.push(rec);
     this.txById.set(p.id, rec);
@@ -1063,7 +1117,7 @@ export class BankSimulation {
         else k.bnpl.fallbackApproved++;
       }
       if (p.kind === 'A2A') k.a2a.released++;
-      if (p.kind === 'ATM') {
+      if (p.kind === 'ATM' && plan.reasonCode !== 'CASH_DEPOSITED') {
         k.atm.dispensed++;
         k.atm.dispensedCents += amount;
       }

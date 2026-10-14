@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { spotScope } from '../../../sim/spotlightPlan';
 import { isStation, type PlaceId } from '../../../sim/topology';
-import { bankStore, useBankStore } from '../../../store/bankStore';
+import { activeFlowOf, bankStore, useBankStore } from '../../../store/bankStore';
+import { flowPlaces } from '../../../sim/guidedFlows';
 
 /**
  * Whether a desk takes part in the chapter being toured: true or false during a tour, null when there is no tour.
@@ -9,7 +10,9 @@ import { bankStore, useBankStore } from '../../../store/bankStore';
  */
 export function useTourLit(place: PlaceId): boolean | null {
   const process = useBankStore((s) => s.spotlight?.process ?? null);
-  return useMemo(() => (process ? spotScope(process).places.has(place) : null), [process, place]);
+  // A guided flow (Beginner scope) lights its own desks the same way when no tour is running.
+  const flow = useBankStore(activeFlowOf);
+  return useMemo(() => (process ? spotScope(process).places.has(place) : flow ? flowPlaces(flow).has(place) : null), [process, flow, place]);
 }
 
 /**
