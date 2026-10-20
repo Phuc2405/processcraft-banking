@@ -1,26 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-import {
-  ACADEMY_TRACKS,
-  CHAPTER_STATUS_BADGE,
-  chapterById,
-  chapterStatus,
-  flowStepOf,
-  LESSON_COUNT,
-  levelById,
-  nextLevel,
-  type AcademyChapter,
-  type AcademyLevel,
-  type ChapterStatus,
-} from '../../sim/academyCatalog';
+import { ACADEMY_TRACKS, CHAPTER_STATUS_BADGE, chapterById, chapterStatus, LESSON_COUNT, levelById, type AcademyChapter, type ChapterStatus } from '../../sim/academyCatalog';
 import { academyStore, clampPanelWidth, PANEL_WIDTH, useAcademyStore } from '../../store/academyStore';
 import { bindAcademySync } from '../../store/academySync';
-import { bankStore, dataDepthOf, useBankStore } from '../../store/bankStore';
-import { useTerms } from '../bank/useTerms';
-import { FlashcardsView, MessageInspector, QuizView, SimulateButton } from './AcademyStudy';
+import { bankStore } from '../../store/bankStore';
+import { FlashcardsView, QuizView } from './AcademyStudy';
+import { LessonView, ViewLevelToggle } from './LessonView';
 
 /**
  * The Academy split view. The lesson panel sits on the left (400 px by default, drag its edge to resize) and the Living Bank,
- * 2D or 3D with its viewport controls, keeps the rest. Choosing a lesson step lights and focuses its node on the map: that link
+ * 2D or 3D with its viewport controls, keeps the rest. Focus Mode (`isMaximized`) lifts the panel over the whole screen as a
+ * reader, with the map blurred and inert behind it; [▶ Simulate this Flow] drops straight back to the map. Choosing a lesson step lights and focuses its node on the map: that link
  * is academySync.ts, bound here for as long as the Living Bank is on screen.
  */
 
@@ -128,71 +117,6 @@ function ChapterCard({ chapter, open, onOpen }: { chapter: AcademyChapter; open:
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The lesson in focus
-// ─────────────────────────────────────────────────────────────────────────────
-
-function LessonCard({ level }: { level: AcademyLevel }) {
-  const chapter = chapterById(level.chapter);
-  const done = useAcademyStore((s) => Boolean(s.completedLessons[level.id]));
-  const complete = useAcademyStore((s) => s.completeLesson);
-  const setLevel = useAcademyStore((s) => s.setLevel);
-  const depth = useBankStore(dataDepthOf);
-  const terms = useTerms();
-  const step = flowStepOf(level);
-  const index = chapter.levels.findIndex((l) => l.id === level.id);
-  const prev = chapter.levels[index - 1];
-  const next = nextLevel(level.id);
-  const lastOfCourse = next === null;
-  return (
-    <section className="shrink-0 border-t border-slate-800 bg-slate-950 p-3" aria-label="Lesson" data-testid="lesson-card" data-level={level.id}>
-      <div className="flex items-center gap-2 text-[10.5px] font-semibold uppercase tracking-wider" style={{ color: chapter.accent }}>
-        <span>
-          Chapter {chapter.id} · Step {index + 1} of {chapter.levels.length}
-        </span>
-        {done && (
-          <span className="flex items-center gap-1 text-lime-300">
-            <Check /> Done
-          </span>
-        )}
-      </div>
-      <h3 className="mt-1 text-[14px] font-bold text-slate-50">{level.title}</h3>
-      <p className="mt-1 text-[12.5px] leading-relaxed text-slate-300">{level.goal}</p>
-      {step && (
-        <p className="mt-2 rounded-lg bg-slate-900 px-2.5 py-2 text-[12px] leading-relaxed text-slate-300" data-testid="lesson-step-summary">
-          <span className="font-semibold text-slate-100">{step.name}: </span>
-          {step.summary[depth]}
-        </p>
-      )}
-      <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-slate-400" data-testid="lesson-focus">
-        <span className="h-2 w-2 rounded-full" style={{ background: chapter.accent, boxShadow: `0 0 6px ${chapter.accent}` }} aria-hidden="true" />
-        On the map: <span className="font-semibold text-slate-200">{terms.place(level.place)}</span>
-      </p>
-      <MessageInspector level={level} />
-      <div className="mt-3">
-        <SimulateButton flow={level.flow} testId="lesson-simulate" />
-      </div>
-      <div className="mt-3 flex items-center gap-2">
-        <button type="button" disabled={!prev} onClick={() => prev && setLevel(prev.id)} data-testid="lesson-prev" className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-slate-300 ring-1 ring-slate-700 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40">
-          Back
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            complete(level.id);
-            if (next) setLevel(next.id);
-          }}
-          data-testid="lesson-complete"
-          className="flex-1 rounded-lg px-3 py-1.5 text-[12px] font-bold text-slate-950 transition hover:brightness-110"
-          style={{ background: chapter.accent }}
-        >
-          {lastOfCourse ? 'Mark complete' : next && next.chapter !== level.chapter ? 'Complete chapter & continue' : 'Mark complete & next'}
-        </button>
-      </div>
-    </section>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Panel
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -238,13 +162,53 @@ function ResizeHandle({ onDrag, onKey }: { onDrag: (clientX: number) => void; on
   );
 }
 
+/** [⛶ Focus Mode] / [↙ Split View]. */
+function FocusToggle() {
+  const maximized = useAcademyStore((s) => s.isMaximized);
+  const toggle = useAcademyStore((s) => s.toggleMaximized);
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-pressed={maximized}
+      title={maximized ? 'Back to the split view: lessons beside the bank (Esc)' : 'Focus Mode: the lessons fill the screen and the map steps back'}
+      data-testid="academy-focus-toggle"
+      className={`rounded-md px-2 py-0.5 text-[11.5px] font-bold ring-1 transition-colors ${maximized ? 'bg-slate-100 text-slate-950 ring-slate-100 hover:bg-white' : 'bg-lime-400 text-slate-950 ring-lime-300 hover:bg-lime-300'}`}
+    >
+      {maximized ? '[↙ Split View]' : '[⛶ Focus Mode]'}
+    </button>
+  );
+}
+
+function Catalog({ className }: { className: string }) {
+  const activeChapter = useAcademyStore((s) => s.activeChapterId);
+  const setChapter = useAcademyStore((s) => s.setChapter);
+  return (
+    <div className={`space-y-2 overflow-y-auto p-3 ${className}`} data-testid="academy-catalog">
+      {ACADEMY_TRACKS.map((t) => (
+        <div key={t.id} className="space-y-2" data-testid={`track-${t.id}`}>
+          <div className="pt-1">
+            <div className="text-[10.5px] font-bold uppercase tracking-wider" style={{ color: t.accent }}>
+              Track {t.id} · {t.title}
+            </div>
+            <p className="text-[11.5px] leading-snug text-slate-500">{t.blurb}</p>
+          </div>
+          {t.chapters.map((id) => (
+            <ChapterCard key={id} chapter={chapterById(id)} open={activeChapter === id} onOpen={() => setChapter(id)} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function AcademyPanel() {
   const open = useAcademyStore((s) => s.isSplitScreenOpen);
+  const maximized = useAcademyStore((s) => s.isMaximized && s.isSplitScreenOpen);
+  const setMaximized = useAcademyStore((s) => s.setMaximized);
   const width = useAcademyStore((s) => s.panelWidth);
   const setWidth = useAcademyStore((s) => s.setPanelWidth);
   const toggle = useAcademyStore((s) => s.toggleSplitScreen);
-  const activeChapter = useAcademyStore((s) => s.activeChapterId);
-  const setChapter = useAcademyStore((s) => s.setChapter);
   const levelId = useAcademyStore((s) => s.activeLevelId);
   const doneCount = useAcademyStore((s) => Object.keys(s.completedLessons).length);
   const [resizing, setResizing] = useState(false);
@@ -258,6 +222,16 @@ function AcademyPanel() {
     if (el) el.inert = !open;
   }, [open]);
 
+  // Esc leaves Focus Mode.
+  useEffect(() => {
+    if (!maximized) return;
+    const onKey = (e: globalThis.KeyboardEvent): void => {
+      if (e.key === 'Escape' && !e.defaultPrevented) setMaximized(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [maximized, setMaximized]);
+
   const drag = useCallback(
     (clientX: number) => {
       setResizing(true);
@@ -267,22 +241,37 @@ function AcademyPanel() {
     [setWidth],
   );
 
+  const lesson = level ? (
+    <LessonView key={`${level.id}-${maximized}`} level={level} roomy={maximized} />
+  ) : (
+    <p className={`text-[12px] leading-relaxed text-slate-400 ${maximized ? 'mx-auto max-w-3xl px-6 py-10 text-center text-[14px]' : 'px-3 py-3'}`} data-testid="lesson-empty">
+      Pick a level to light its step on the map.
+    </p>
+  );
+
   return (
     <aside
       ref={aside}
       aria-label="Academy lessons"
       aria-hidden={!open}
+      aria-modal={maximized || undefined}
+      role={maximized ? 'dialog' : undefined}
       data-testid="academy-panel"
       data-open={open}
+      data-maximized={maximized}
       onPointerUp={() => setResizing(false)}
-      className={`relative shrink-0 overflow-hidden border-slate-800 bg-slate-950 motion-reduce:transition-none ${resizing ? '' : 'transition-[width,border-width] duration-300 ease-out'} ${open ? 'border-r' : 'border-r-0'}`}
-      style={{ width: open ? width : 0 }}
+      className={
+        maximized
+          ? 'fixed inset-0 z-40 flex justify-center bg-slate-950/80 backdrop-blur-md motion-safe:animate-[academy-focus-in_200ms_ease-out]'
+          : `relative shrink-0 overflow-hidden border-slate-800 bg-slate-950 motion-reduce:transition-none ${resizing ? '' : 'transition-[width,border-width] duration-300 ease-out'} ${open ? 'border-r' : 'border-r-0'}`
+      }
+      style={maximized ? undefined : { width: open ? width : 0 }}
     >
       {/* The content keeps its own width while the frame opens and closes, so it slides in without rewrapping. */}
-      <div className="flex h-full flex-col overflow-hidden" style={{ width }}>
-        <header className="shrink-0 border-b border-slate-800 px-3 py-2.5">
+      <div className={`flex h-full flex-col overflow-hidden ${maximized ? 'w-full border-x border-slate-800 bg-slate-950 shadow-2xl xl:w-[85%]' : ''}`} style={maximized ? undefined : { width }}>
+        <header className={`shrink-0 border-b border-slate-800 py-2.5 ${maximized ? 'px-5' : 'px-3'}`}>
           <div className="flex items-center gap-2">
-            <h2 className="flex-1 text-[13.5px] font-bold text-slate-50">
+            <h2 className={`flex-1 font-bold text-slate-50 ${maximized ? 'text-[16px]' : 'text-[13.5px]'}`}>
               <span aria-hidden="true">🎓 </span>Academy
             </h2>
             <span className="font-mono text-[11px] text-slate-400" data-testid="academy-progress-text">
@@ -292,10 +281,14 @@ function AcademyPanel() {
               ×
             </button>
           </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <FocusToggle />
+            <ViewLevelToggle />
+          </div>
           <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-800" role="progressbar" aria-valuemin={0} aria-valuemax={LESSON_COUNT} aria-valuenow={doneCount} aria-label="Lessons completed">
             <div className="h-full rounded-full bg-lime-300 transition-[width] duration-300" style={{ width: `${(doneCount / LESSON_COUNT) * 100}%` }} />
           </div>
-          <div className="mt-2 flex gap-1" role="tablist" aria-label="Academy sections">
+          <div className={`mt-2 flex gap-1 ${maximized ? 'max-w-md' : ''}`} role="tablist" aria-label="Academy sections">
             {(['lessons', 'cards', 'quiz'] as const).map((t) => (
               <button
                 key={t}
@@ -312,37 +305,26 @@ function AcademyPanel() {
           </div>
         </header>
         {tab === 'lessons' ? (
-          <>
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3" data-testid="academy-catalog">
-              {ACADEMY_TRACKS.map((t) => (
-                <div key={t.id} className="space-y-2" data-testid={`track-${t.id}`}>
-                  <div className="pt-1">
-                    <div className="text-[10.5px] font-bold uppercase tracking-wider" style={{ color: t.accent }}>
-                      Track {t.id} · {t.title}
-                    </div>
-                    <p className="text-[11.5px] leading-snug text-slate-500">{t.blurb}</p>
-                  </div>
-                  {t.chapters.map((id) => (
-                    <ChapterCard key={id} chapter={chapterById(id)} open={activeChapter === id} onOpen={() => setChapter(id)} />
-                  ))}
-                </div>
-              ))}
+          maximized ? (
+            <div className="flex min-h-0 flex-1">
+              <Catalog className="hidden w-72 shrink-0 border-r border-slate-800 md:block" />
+              <div className="min-h-0 flex-1 overflow-y-auto" data-testid="academy-reader">
+                {lesson}
+              </div>
             </div>
-            {level ? (
-              <LessonCard key={level.id} level={level} />
-            ) : (
-              <p className="shrink-0 border-t border-slate-800 px-3 py-3 text-[12px] leading-relaxed text-slate-400" data-testid="lesson-empty">
-                Pick a level to light its step on the map.
-              </p>
-            )}
-          </>
+          ) : (
+            <>
+              <Catalog className="min-h-[7rem] flex-1" />
+              <div className="max-h-[62%] shrink-0 overflow-y-auto border-t border-slate-800 bg-slate-950">{lesson}</div>
+            </>
+          )
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto p-3" data-testid={`academy-${tab}`}>
-            {tab === 'cards' ? <FlashcardsView /> : <QuizView />}
+            <div className={maximized ? 'mx-auto max-w-2xl py-4' : ''}>{tab === 'cards' ? <FlashcardsView /> : <QuizView />}</div>
           </div>
         )}
       </div>
-      {open && <ResizeHandle onDrag={drag} onKey={(d) => setWidth(width + d)} />}
+      {open && !maximized && <ResizeHandle onDrag={drag} onKey={(d) => setWidth(width + d)} />}
     </aside>
   );
 }
@@ -353,14 +335,23 @@ function AcademyPanel() {
 
 /**
  * Lays the lesson panel beside the Living Bank's map (`children`). It also keeps the panel and the map in step: while it is on
- * screen, the level in focus is lit and focused on the 2D map and in the 3D office.
+ * screen, the level in focus is lit and focused on the 2D map and in the 3D office. In Focus Mode the map, its docks and its
+ * controls stay mounted (the 3D scene keeps its state) but are blurred and inert.
  */
 export function AcademySplitLayout({ children }: { children: ReactNode }) {
   useEffect(() => bindAcademySync(academyStore, bankStore), []);
+  const maximized = useAcademyStore((s) => s.isMaximized && s.isSplitScreenOpen);
+  const stage = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = stage.current as (HTMLDivElement & { inert: boolean }) | null;
+    if (el) el.inert = maximized;
+  }, [maximized]);
   return (
     <div className="flex min-h-0 min-w-0 flex-1" data-testid="academy-split">
       <AcademyPanel />
-      {children}
+      <div ref={stage} aria-hidden={maximized || undefined} data-testid="academy-stage" className={`flex min-h-0 min-w-0 flex-1 transition-[filter] duration-300 ${maximized ? 'pointer-events-none blur-sm' : ''}`}>
+        {children}
+      </div>
     </div>
   );
 }

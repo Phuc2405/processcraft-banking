@@ -2,10 +2,12 @@ import { useMemo, useState } from 'react';
 import { ACADEMY_CHAPTERS, chapterById, type AcademyLevel, type ChapterId } from '../../sim/academyCatalog';
 import { glossaryFor, GLOSSARY, gradeQuiz, quizFor, type GlossaryEntry } from '../../sim/academyKnowledge';
 import { sampleForLevel } from '../../sim/academySamples';
+import { formatAud } from '../../engine/money';
+import { GL_PLAIN, rcLabel } from '../../sim/plainLanguage';
 import type { FlowId } from '../../types/viewport';
 import { academyStore, useAcademyStore } from '../../store/academyStore';
 import { simulateFlow } from '../../store/academySync';
-import { bankStore } from '../../store/bankStore';
+import { bankStore, useBankStore } from '../../store/bankStore';
 
 /**
  * The Academy's study views: flashcards and glossary, the chapter quizzes, the message and ledger inspector, and the
@@ -256,6 +258,7 @@ export function QuizView() {
 export function MessageInspector({ level }: { level: Pick<AcademyLevel, 'flow'> }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'iso' | 'gl'>('iso');
+  const beginner = useBankStore((s) => s.termMode === 'beginner');
   // The example is played only when the learner opens the inspector.
   const sample = useMemo(() => (open ? sampleForLevel(level) : null), [open, level]);
   if (level.flow === null) return null;
@@ -265,7 +268,10 @@ export function MessageInspector({ level }: { level: Pick<AcademyLevel, 'flow'> 
       {sample && (
         <div className="space-y-2 px-2.5 pb-2.5">
           <p className="text-[11px] text-slate-400">
-            Example: {sample.label} · response code <span className="font-mono text-slate-200">{sample.responseCode}</span>
+            Example: {sample.label} · {beginner ? 'answer' : 'response code'}{' '}
+            <span className={beginner ? 'text-slate-200' : 'font-mono text-slate-200'} data-testid="inspector-rc">
+              {beginner ? rcLabel(sample.responseCode, 'beginner') : sample.responseCode}
+            </span>
           </p>
           <div className="flex gap-1.5" role="tablist" aria-label="Inspector">
             {(['iso', 'gl'] as const).map((t) => (
@@ -283,7 +289,15 @@ export function MessageInspector({ level }: { level: Pick<AcademyLevel, 'flow'> 
               {sample.journal.length === 0 ? <li className="text-[11.5px] text-slate-400">This payment posted nothing to the ledger.</li> : null}
               {sample.journal.map((l, i) => (
                 <li key={i} className="rounded-md bg-slate-950 px-2 py-1.5 font-mono text-[10.5px] leading-snug text-slate-300">
-                  <span className="font-bold text-emerald-300">DR</span> {sample.journalText[i]?.replace(/^DR: /, '').replace(' | CR: ', '  ·  CR ')}
+                  {beginner ? (
+                    <>
+                      <span className="font-bold text-emerald-300">Debit</span> {GL_PLAIN[l.debit.code] ?? l.debit.name} {formatAud(l.amountCents)} · <span className="font-bold text-sky-300">Credit</span> {GL_PLAIN[l.credit.code] ?? l.credit.name}
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-bold text-emerald-300">DR</span> {sample.journalText[i]?.replace(/^DR: /, '').replace(' | CR: ', '  ·  CR ')}
+                    </>
+                  )}
                   <span className="mt-0.5 block uppercase tracking-wide text-slate-500">{l.kind.replace(/_/g, ' ')}</span>
                 </li>
               ))}
