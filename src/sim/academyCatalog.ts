@@ -11,7 +11,10 @@
 
 import type { FlowId } from '../types/viewport';
 import { flowPlaces, GUIDED_FLOWS, type FlowNodeId, type FlowStep } from './guidedFlows';
+import { lessonContentFor, type LessonContent } from './academyLessons';
 import type { PlaceId } from './topology';
+
+export type { EdgeCase, FlowStepLine, LessonContent } from './academyLessons';
 
 export const CHAPTER_IDS = [1, 2, 3, 4, 5, 6] as const;
 export type ChapterId = (typeof CHAPTER_IDS)[number];
@@ -20,7 +23,8 @@ export const isChapterId = (v: unknown): v is ChapterId => typeof v === 'number'
 /** "2.3": chapter 2, level 3. */
 export type LevelId = string;
 
-export interface AcademyLevel {
+/** A level carries its four-section lesson (academyLessons.ts): scenario, step-by-step flow, why it matters, edge cases. */
+export interface AcademyLevel extends LessonContent {
   id: LevelId;
   chapter: ChapterId;
   title: string;
@@ -45,7 +49,7 @@ export interface AcademyChapter {
   levels: readonly AcademyLevel[];
 }
 
-type LevelInput = Omit<AcademyLevel, 'id' | 'chapter'>;
+type LevelInput = Omit<AcademyLevel, 'id' | 'chapter' | keyof LessonContent>;
 
 const chapter = (id: ChapterId, title: string, topic: string, accent: string, flow: FlowId | null, levels: readonly LevelInput[]): AcademyChapter => ({
   id,
@@ -53,7 +57,7 @@ const chapter = (id: ChapterId, title: string, topic: string, accent: string, fl
   topic,
   accent,
   flow,
-  levels: levels.map((l, i) => ({ ...l, id: `${id}.${i + 1}`, chapter: id })),
+  levels: levels.map((l, i) => ({ ...l, ...lessonContentFor(`${id}.${i + 1}`), id: `${id}.${i + 1}`, chapter: id })),
 });
 
 export const ACADEMY_CHAPTERS: readonly AcademyChapter[] = [

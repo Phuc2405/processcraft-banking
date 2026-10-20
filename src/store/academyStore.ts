@@ -33,6 +33,8 @@ export interface AcademyState {
   /** The level in focus, or null while the chapter is only open. */
   activeLevelId: LevelId | null;
   isSplitScreenOpen: boolean;
+  /** Focus Mode: the lesson panel fills the screen and the map is hidden behind it. Never remembered across reloads. */
+  isMaximized: boolean;
   /** Levels the learner marked done. */
   completedLessons: LessonSet;
   /** Levels the learner has opened, so a chapter they began shows In Progress before anything is finished. */
@@ -49,6 +51,9 @@ export interface AcademyState {
   toggleSplitScreen(): void;
   /** Opens or closes the lesson panel. */
   setSplitScreen(open: boolean): void;
+  /** Enters or leaves Focus Mode. Entering also opens the lesson panel. */
+  setMaximized(on: boolean): void;
+  toggleMaximized(): void;
   completeLesson(id: LevelId): void;
   setPanelWidth(px: number): void;
   /** Keeps a chapter quiz result: `last` is always the newest, `best` the highest so far. */
@@ -114,6 +119,7 @@ export function createAcademyStore(options: { storage?: KeyValueStorage | null }
   const storage = options.storage === undefined ? browserStorage() : options.storage;
   const store = createStore<AcademyState>()((set, get) => ({
     ...loadAcademy(storage),
+    isMaximized: false,
 
     setChapter: (id) => {
       if (!isChapterId(id) || get().activeChapterId === id) return;
@@ -124,10 +130,17 @@ export function createAcademyStore(options: { storage?: KeyValueStorage | null }
       if (!level) return;
       set((s) => ({ activeLevelId: level.id, activeChapterId: level.chapter, startedLessons: s.startedLessons[level.id] ? s.startedLessons : { ...s.startedLessons, [level.id]: true } }));
     },
-    toggleSplitScreen: () => set((s) => ({ isSplitScreenOpen: !s.isSplitScreenOpen })),
+    // A closed panel can never be maximized.
+    toggleSplitScreen: () => set((s) => ({ isSplitScreenOpen: !s.isSplitScreenOpen, isMaximized: s.isSplitScreenOpen ? false : s.isMaximized })),
     setSplitScreen: (open) => {
-      if (get().isSplitScreenOpen !== open) set({ isSplitScreenOpen: open });
+      const s = get();
+      if (s.isSplitScreenOpen !== open || (!open && s.isMaximized)) set(open ? { isSplitScreenOpen: true } : { isSplitScreenOpen: false, isMaximized: false });
     },
+    setMaximized: (on) => {
+      const s = get();
+      if (s.isMaximized !== on || (on && !s.isSplitScreenOpen)) set(on ? { isMaximized: true, isSplitScreenOpen: true } : { isMaximized: false });
+    },
+    toggleMaximized: () => get().setMaximized(!get().isMaximized),
     completeLesson: (id) => {
       if (!levelById(id) || get().completedLessons[id]) return;
       set((s) => ({ completedLessons: { ...s.completedLessons, [id]: true } }));

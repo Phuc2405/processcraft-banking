@@ -743,3 +743,15 @@ body,
     animation: none;
   }
 }
+
+/* Academy Focus Mode: the reader fades and rises in. */
+@keyframes academy-focus-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

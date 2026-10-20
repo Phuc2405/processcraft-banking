@@ -38,10 +38,11 @@ export function bindAcademySync(academy: StoreApi<AcademyState>, bank: StoreApi<
 }
 
 /**
- * "[▶ Simulate this Flow]": closes the lesson panel so the whole map is free, then lights the flow and plays its main payment
+ * "[▶ Simulate this Flow]": leaves Focus Mode and closes the lesson panel so the whole map is free, then lights the flow and plays its main payment
  * on the live 2D/3D map. With the bank paused, only that one payment plays and the clock stops when it is done.
  */
 export function simulateFlow(academy: StoreApi<AcademyState>, bank: StoreApi<BankState>, flow: FlowId): void {
+  academy.getState().setMaximized(false);
   academy.getState().setSplitScreen(false);
   bank.getState().triggerGuidedFlow(flow);
 }
