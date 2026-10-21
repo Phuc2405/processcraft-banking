@@ -10,6 +10,7 @@
  */
 
 import { formatAud } from '../engine/money';
+import { activeLocale } from '../i18n/locale';
 import type { MinorUnits } from '../types/processLearning';
 import type { CheckoutKind } from './types';
 
@@ -97,16 +98,53 @@ const BY_ID: ReadonlyMap<string, Scenario> = new Map([...SCENARIOS, ...PRESET_SC
 
 export const scenarioById = (id: string | null | undefined): Scenario | null => (id ? (BY_ID.get(id) ?? null) : null);
 
+/** The Vietnamese name of every scenario, keyed by its English title. */
+export const SCENARIO_TITLE_VI: Readonly<Record<string, string>> = {
+  'Corner Cafe Tap': 'Chạm thẻ ở quán cà phê',
+  'Supermarket Groceries': 'Đi chợ siêu thị',
+  'Subway Transit Gate': 'Cổng tàu điện ngầm',
+  'Electronics Superstore': 'Siêu thị điện máy',
+  'City Jeweller': 'Tiệm trang sức trung tâm',
+  'Online Fashion Boutique': 'Cửa hàng thời trang trực tuyến',
+  'Digital Game Pass': 'Gói trò chơi điện tử',
+  'Phone Reseller Bundle': 'Gói điện thoại bán lại',
+  'Gift Card Marketplace': 'Chợ thẻ quà tặng',
+  '1-Time Masked Card for Trial': 'Thẻ ẩn danh dùng một lần cho bản dùng thử',
+  'Masked Card for App Subscription': 'Thẻ ẩn danh cho gói đăng ký ứng dụng',
+  'Resale Tickets via Masked Card': 'Vé bán lại qua thẻ ẩn danh',
+  'Sofa on Pay-in-4': 'Ghế sofa trả góp 4 kỳ',
+  'Headphones on Pay-in-4': 'Tai nghe trả góp 4 kỳ',
+  'E-Bike on Pay-in-4': 'Xe đạp điện trả góp 4 kỳ',
+  'Laptop on Pay-in-4': 'Máy tính xách tay trả góp 4 kỳ',
+  'QR Bill Split': 'Chia hóa đơn qua QR',
+  'Apartment Rent Transfer': 'Chuyển tiền thuê căn hộ',
+  'Urgent Invoice to a New Payee': 'Hóa đơn gấp cho người nhận mới',
+  'Sidewalk ATM Cash Out': 'Rút tiền ATM vỉa hè',
+  'Sidewalk ATM Quick Cash': 'Rút nhanh ATM vỉa hè',
+  'Sidewalk ATM Weekend Cash': 'Rút tiền cuối tuần ATM vỉa hè',
+  'Sidewalk ATM Maximum Withdrawal': 'Rút tối đa ATM vỉa hè',
+  'Practice Swipe': 'Quẹt thẻ luyện tập',
+  'Practice Swipe, Big Basket': 'Quẹt thẻ luyện tập, giỏ hàng lớn',
+  'Practice Token Checkout': 'Thanh toán token luyện tập',
+  'Practice 3DS Checkout': 'Thanh toán 3DS luyện tập',
+  'Practice Cash Deposit': 'Nộp tiền mặt luyện tập',
+  'Botnet $1 Card Test': 'Botnet dò thẻ $1',
+  'Large Business Transfer': 'Chuyển khoản doanh nghiệp lớn',
+};
+
+/** A scenario's title in the active language. */
+export const scenarioTitle = (x: Scenario): string => (activeLocale() === 'vi' ? (SCENARIO_TITLE_VI[x.title] ?? x.title) : x.title);
+
 /** "☕ Corner Cafe Tap ($4.50)": the one-line form used in badges, logs and ledger titles. */
 export function scenarioLabel(scenario: Scenario | string | null | undefined): string {
   const x = typeof scenario === 'string' ? scenarioById(scenario) : scenario;
-  return x ? `${x.emoji} ${x.title} (${formatAud(x.amountCents)})` : '';
+  return x ? `${x.emoji} ${scenarioTitle(x)} (${formatAud(x.amountCents)})` : '';
 }
 
 /** "☕ Corner Cafe Tap": the same without the price, for tight spaces where the amount is already shown. */
 export function scenarioShort(scenario: Scenario | string | null | undefined): string {
   const x = typeof scenario === 'string' ? scenarioById(scenario) : scenario;
-  return x ? `${x.emoji} ${x.title}` : '';
+  return x ? `${x.emoji} ${scenarioTitle(x)}` : '';
 }
 
 /** The scenarios a channel can draw from, genuine customers or fraudsters. */

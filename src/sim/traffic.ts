@@ -17,6 +17,7 @@ import { clamp, hashSeed, Rng } from './prng';
 import { WORK_END, WORK_START, beatMinutes } from './clock';
 import { scenariosFor } from './scenarios';
 import type { AtmSession, CheckoutKind, Customer, DayEvent, DayEventId, SettlementTruth } from './types';
+import { activeLocale } from '../i18n/locale';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Days and their events
@@ -521,3 +522,36 @@ export function keyedUnit(...parts: Array<string | number>): number {
   return hashSeed(...parts) / 4294967296;
 }
 
+
+const EVENT_VI: Readonly<Record<DayEventId, { title: string; blurb: string; watch: string }>> = {
+  NORMAL: {
+    title: 'Một ngày bình thường',
+    blurb: 'Lưu lượng ổn định với cao điểm buổi trưa. Không có gì bất thường.',
+    watch: 'Một ngày tốt để nắm mức cơ sở. Quầy nào bận nhất vào giờ trưa?',
+  },
+  PROMO: {
+    title: 'Flash sale',
+    blurb: 'Một nhà bán lẻ lớn đang chạy flash sale. Thanh toán trực tuyến và hồ sơ trả góp 4 kỳ sẽ tăng vọt.',
+    watch: 'Bàn rủi ro 3DS và quầy trả góp 4 kỳ sẽ thiếu người. Hãy theo dõi hàng chờ và những nhân viên mệt mỏi phía sau.',
+  },
+  FRAUD_RING: {
+    title: 'Đường dây gian lận hoạt động',
+    blurb: 'Bộ phận tình báo gian lận báo có một đường dây đang thử số thẻ bị đánh cắp trên mạng và dùng lại mã một lần đã bị bắt được.',
+    watch: 'Bao nhiêu gian lận lọt qua luồng không ma sát, và siết ngưỡng 3DS sẽ khiến khách hàng thật trả giá thế nào?',
+  },
+  VISA_GLITCH: {
+    title: 'Lỗi tệp Visa',
+    blurb: 'Tổ chức thẻ cảnh báo tệp bù trừ tối nay bị lỗi: dễ có bản ghi thiếu vế và bản trình bị nhân đôi.',
+    watch: 'Quầy đối soát và tài khoản treo. Ca đêm có theo kịp không, và ai xử lý đống tồn đọng ngày mai?',
+  },
+  PAYDAY: {
+    title: 'Ngày nhận lương',
+    blurb: 'Lương đã về qua đêm. Lượng quẹt thẻ tăng, số dư dồi dào, ít người cần chia hóa đơn.',
+    watch: 'Lưu lượng tại cổng POS và sổ cái ghi nợ. Số từ chối do thiếu tiền sẽ giảm.',
+  },
+};
+
+/** A day event's title, briefing and "watch" line in the active language. */
+export function eventText(e: DayEvent): { title: string; blurb: string; watch: string } {
+  return activeLocale() === 'vi' ? (EVENT_VI[e.id] ?? e) : { title: e.title, blurb: e.blurb, watch: e.watch };
+}

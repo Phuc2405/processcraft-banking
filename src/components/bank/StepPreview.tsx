@@ -1,4 +1,5 @@
-import { GUIDED_FLOWS, STEP_STATUS_LABEL, stepAt, stepStatus, type StepStatus } from '../../sim/guidedFlows';
+import { GUIDED_FLOWS, stepAt, stepStatus, stepStatusLabel, stepText, type StepStatus } from '../../sim/guidedFlows';
+import { tr } from '../../i18n/locale';
 import type { PlaceId } from '../../sim/topology';
 import { bankStore, dataDepthOf, useBankStore } from '../../store/bankStore';
 import type { FlowId } from '../../types/viewport';
@@ -28,16 +29,16 @@ export function StepPreviewBody({ flow, place }: { flow: FlowId; place: PlaceId 
     <span className="block text-left" data-testid="step-preview" data-status={status} data-step={found.number}>
       <span className="flex items-center justify-between gap-2">
         <span className="text-[10.5px] font-bold uppercase tracking-wider tabular-nums" style={{ color: accent }}>
-          Step {found.number}/{found.total}
+          {tr({ en: 'Step', vi: 'Bước' })} {found.number}/{found.total}
         </span>
         <span className={`rounded-full px-1.5 py-px text-[10px] font-semibold ring-1 ${BADGE[status]}`} data-testid="step-preview-status">
-          {STEP_STATUS_LABEL[status]}
+          {stepStatusLabel(status)}
         </span>
       </span>
       <span className="mt-0.5 block text-[12px] font-semibold leading-snug text-slate-50" data-testid="step-preview-name">
         {terms.place(place)}
       </span>
-      <span className="mt-0.5 block text-[11.5px] leading-snug text-slate-300">{found.step.summary[depth]}</span>
+      <span className="mt-0.5 block text-[11.5px] leading-snug text-slate-300">{stepText(flow, found.step).summary[depth]}</span>
     </span>
   );
 }

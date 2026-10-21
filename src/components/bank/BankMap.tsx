@@ -1,3 +1,4 @@
+import { t } from '../../i18n/t';
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { beatMs, SPEEDS, type Phase } from '../../sim/clock';
 import { formatMoney } from '../../sim/kpis';
@@ -15,7 +16,7 @@ import { WorkstationGraphic } from '../canvas/nodes/WorkstationGraphic';
 import { BANK_WIRES, CARD, DEPT_BOX, pathOfWire, PLACE_BOX, STAGE, TIP_SIDE, type TipSide } from './layout';
 import { SpotlightOverlay, SpotlightToken } from './Spotlight';
 import { StageScaleContext, useStageScale } from './stage';
-import { lookOfKind, RUN_STATUS, STATUS_DOT_CLASS, STATUS_LABEL, STATUS_TEXT_CLASS, WorkerFace } from './ui';
+import { lookOfKind, RUN_STATUS, STATUS_DOT_CLASS, STATUS_TEXT_CLASS, statusLabel, WorkerFace } from './ui';
 import { useSpotlightFocus, type Focus } from './useSpotlight';
 import { useTerms, type Terms } from './useTerms';
 import { clampZoom, wheelZoom, ZOOM_STEP, zoomStore } from '../../store/zoomStore';
@@ -362,7 +363,7 @@ const StationCard = memo(function StationCard({
   const flowLit = flow ? flow.scope.places.has(id) : false;
   const dim = !focus && !flowLit && sv.status === 'IDLE' && sv.queueLength === 0 && !isOnShift(id, phase);
   const worst = sv.alerts.some((a) => a.severity === 'crit' && a.live) ? 'crit' : sv.alerts.length > 0 ? 'warn' : null;
-  const unit = def.kind === 'ACCOUNT' ? 'items' : 'waiting';
+  const unit = def.kind === 'ACCOUNT' ? t('items') : t('waiting');
   const name = terms.station(id);
   const title = terms.stationTitle(id);
   // A long plain-English name takes two lines, so the desk art gives up a little height for it.
@@ -383,7 +384,7 @@ const StationCard = memo(function StationCard({
         type="button"
         onClick={() => (focus ? spotlightFocus(id) : select({ kind: 'station', id }))}
         aria-pressed={selected}
-        aria-label={`${title}: ${STATUS_LABEL[sv.status]}, ${sv.queueLength} ${unit}`}
+        aria-label={`${title}: ${statusLabel(sv.status)}, ${sv.queueLength} ${unit}`}
         data-testid={`station-${id}`}
         data-status={sv.status}
         className={`absolute inset-0 rounded-xl border bg-gradient-to-b from-slate-900 to-[#0b1120] transition hover:border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${lit && focus ? 'bk-spot-lit' : flowLit ? 'bk-flow-lit' : border} ${flowHere ? 'bk-flow-here' : ''} ${selected ? 'ring-2 ring-sky-400' : ''} ${sv.status === 'CONGESTED' && !focus ? 'bk-congested' : ''}`}
@@ -410,7 +411,7 @@ const StationCard = memo(function StationCard({
             <div className="mt-0.5 truncate text-[9.5px] leading-tight">
               <span className="uppercase tracking-wide text-slate-500">{unit}</span>
               <span className="text-slate-600"> · </span>
-              <span className={`font-medium ${STATUS_TEXT_CLASS[sv.status]}`}>{STATUS_LABEL[sv.status]}</span>
+              <span className={`font-medium ${STATUS_TEXT_CLASS[sv.status]}`}>{statusLabel(sv.status)}</span>
             </div>
           </div>
         </div>
@@ -514,14 +515,14 @@ function ExternalNode({ id, focus, flow, flowHere, terms }: { id: ExternalId; fo
   const startSpotlight = useBankStore((s) => s.startSpotlight);
   const spotlightFocus = useBankStore((s) => s.spotlightFocus);
   const box = PLACE_BOX[id];
-  const t = EXTERNAL_THEME[id];
+  const theme = EXTERNAL_THEME[id];
   const lit = focus ? focus.scope.places.has(id) : false;
   const here = focus ? focus.current.place === id && !focus.tour.intro : false;
   const big = id !== 'CUSTOMER_OTP';
   const body = (
     <>
-      <div className={`flex items-start gap-1.5 ${t.text}`}>
-        <span className="mt-px shrink-0">{t.icon}</span>
+      <div className={`flex items-start gap-1.5 ${theme.text}`}>
+        <span className="mt-px shrink-0">{theme.icon}</span>
         <span className="line-clamp-2 text-[11px] font-semibold leading-[1.15]">{terms.external(id)}</span>
       </div>
       <div className="mt-0.5 flex items-baseline justify-between gap-1">
@@ -535,7 +536,7 @@ function ExternalNode({ id, focus, flow, flowHere, terms }: { id: ExternalId; fo
   );
   const flowLit = flow ? flow.scope.places.has(id) : false;
   const style: CSSProperties = { left: box.cx - box.w / 2, top: box.cy - box.h / 2, width: box.w, height: box.h, ...neon(focus), ...flowVar(flow) };
-  const klass = `group absolute z-20 hover:z-[45] has-[:focus-visible]:z-[45] rounded-xl border bg-gradient-to-b p-2 text-left ${lit && focus ? 'bk-spot-lit' : flowLit ? 'bk-flow-lit' : t.border} ${t.bg} ${dimClass(focus, lit)} ${flowDim(flow, flowLit)} ${here ? 'bk-spot-here' : ''} ${flowHere ? 'bk-flow-here' : ''}`;
+  const klass = `group absolute z-20 hover:z-[45] has-[:focus-visible]:z-[45] rounded-xl border bg-gradient-to-b p-2 text-left ${lit && focus ? 'bk-spot-lit' : flowLit ? 'bk-flow-lit' : theme.border} ${theme.bg} ${dimClass(focus, lit)} ${flowDim(flow, flowLit)} ${here ? 'bk-spot-here' : ''} ${flowHere ? 'bk-flow-here' : ''}`;
   if (id === 'CUSTOMER_OTP') {
     return (
       <button
@@ -543,7 +544,7 @@ function ExternalNode({ id, focus, flow, flowHere, terms }: { id: ExternalId; fo
         onClick={() => (focus ? spotlightFocus(id) : startSpotlight('B'))}
         className={`${klass} transition hover:border-violet-300`}
         style={style}
-        title={focus || (flow && flowLit) ? undefined : 'Chapter 2: the 3DS challenge sends the customer here'}
+        title={focus || (flow && flowLit) ? undefined : t('Chapter 2: the 3DS challenge sends the customer here')}
         data-testid="external-CUSTOMER_OTP-box"
         data-here={here || undefined}
         data-lit={flow ? flowLit : undefined}
@@ -723,7 +724,7 @@ function BankMapView() {
             ))}
             {night && !focus && (
               <div className="pointer-events-none absolute z-20 flex items-center gap-1.5 rounded-full bg-amber-400/15 px-2 py-0.5 text-[10.5px] font-semibold text-amber-200" style={{ left: DEPT_BOX.EOD.x + DEPT_BOX.EOD.w - 200, top: DEPT_BOX.EOD.y + 8 }}>
-                <MoonIcon /> night cycle running
+                <MoonIcon /> {t('night cycle running')}
               </div>
             )}
             {focus && <SpotlightToken focus={focus} />}

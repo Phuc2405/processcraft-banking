@@ -14,6 +14,7 @@
 import type { DataDepth, FlowId, ViewportSettings } from '../types/viewport';
 import { edgeId, isStation, STATIONS, WIRES, type DepartmentId, type PlaceId } from './topology';
 import type { PacketTrace } from './types';
+import { activeLocale } from '../i18n/locale';
 
 export type FlowNodeId =
   | 'pos_terminal'
@@ -186,3 +187,75 @@ export function stepAt(flow: FlowId, place: PlaceId): { number: number; total: n
   const found = steps[i];
   return found ? { number: i + 1, total: steps.length, step: found } : null;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Language
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface FlowWords {
+  title: string;
+  blurb: string;
+  /** Per step, in the order of GUIDED_FLOWS[id].steps. */
+  steps: ReadonlyArray<{ name: string; standard: string; expert: string }>;
+}
+
+const FLOW_VI: Readonly<Record<FlowId, FlowWords>> = {
+  1: {
+    title: 'POS tại cửa hàng',
+    blurb: 'Một lần chạm thẻ tại máy POS: ngân hàng kiểm tra tài khoản và trả lời trong chưa đầy một giây.',
+    steps: [
+      { name: 'Cổng máy POS', standard: 'Máy POS của cửa hàng gửi lần chạm hoặc quẹt thẻ tới ngân hàng.', expert: 'Nhận yêu cầu cấp phép ISO 8583 0100 từ ngân hàng thanh toán.' },
+      { name: 'Tài khoản thanh toán (CASA)', standard: 'Kiểm tra có đủ tiền và khoanh giữ số tiền cho cửa hàng.', expert: 'Kiểm tra số dư khả dụng, rồi khoanh giữ cấp phép: Nợ Khoanh giữ CASA / Có Phải trả bù trừ thẻ.' },
+      { name: 'Phản hồi cấp phép', standard: 'Máy POS hiển thị Chấp thuận hoặc Từ chối.', expert: 'Trả về phản hồi 0110: RC 00 chấp thuận, hoặc RC 51 không đủ số dư.' },
+    ],
+  },
+  2: {
+    title: 'Web & 3DS',
+    blurb: 'Một lần thanh toán trực tuyến: thẻ đã mã hóa kèm mã động, hoặc kiểm tra rủi ro 3DS có thể nhắn mã cho khách.',
+    steps: [
+      { name: 'Cổng thanh toán web', standard: 'Website hoặc ứng dụng gửi giao dịch thẻ tới ngân hàng.', expert: 'Yêu cầu cấp phép không xuất trình thẻ: DPAN kèm dCVV, hoặc PAN kèm 3DS AReq.' },
+      { name: 'Kho token & dCVV', standard: 'Đổi số thẻ thay thế thành số thật và kiểm tra mã dùng một lần.', expert: 'Giải mã token DPAN → FPAN và xác thực CVV động trong cửa sổ thời gian.' },
+      { name: 'Bàn rủi ro 3DS', standard: 'Chấm điểm rủi ro: rủi ro thấp đi thẳng, rủi ro trung bình nhận mã.', expert: 'Xác thực dựa trên rủi ro: không ma sát dưới ngưỡng, thử thách trong dải, từ chối trên ngưỡng.' },
+      { name: 'Mã SMS dùng một lần', standard: 'Khách nhập mã từ điện thoại, hoặc bỏ cuộc.', expert: 'Thử thách OTP (CReq/CRes). Thử thách hoàn tất chuyển trách nhiệm gian lận sang ngân hàng phát hành.' },
+      { name: 'Bộ máy cấp phép', standard: 'Kiểm tra tiền có đủ, khoanh giữ và trả lời website.', expert: 'Kiểm tra số dư và khoanh giữ trên CASA hoặc hạn mức tín dụng, rồi trả mã phản hồi 0110.' },
+    ],
+  },
+  3: {
+    title: 'Nộp tiền CDM',
+    blurb: 'Nộp tiền mặt tại máy nộp tiền trên vỉa hè: đếm tiền, ghi có vào tài khoản ngay tại chỗ.',
+    steps: [
+      { name: 'Máy nộp tiền mặt', standard: 'Khách đưa thẻ vào và nhập PIN.', expert: 'Đọc thẻ và xác minh PIN tại CDM (ba lần thử trước khi máy giữ thẻ).' },
+      { name: 'Bộ kiểm tiền & hộp tiền', standard: 'Máy đếm tiền và kiểm tra tiền thật.', expert: 'Kiểm tra và đếm tiền; tiền mặt vào hộp tiền của máy (TK 1015 Tiền mặt ATM).' },
+      { name: 'Tài khoản thanh toán của khách', standard: 'Tiền hiện ngay trong tài khoản của khách.', expert: 'Bút toán: Nợ 1015 Quỹ tiền mặt trong ATM / Có 2010 Tài khoản thanh toán của khách.' },
+    ],
+  },
+  4: {
+    title: 'Cuối ngày qua đêm',
+    blurb: 'Chu kỳ ban đêm: mọi giao dịch được duyệt hôm nay được bù trừ với Visa, quyết toán và đối soát trước sáng mai.',
+    steps: [
+      { name: 'Đã duyệt hôm nay', standard: 'Mọi giao dịch thẻ được duyệt hôm nay chờ ca chạy đêm.', expert: 'Các khoản khoanh giữ đã cấp phép nhưng chưa quyết toán xếp hàng chờ giờ chốt lô 23:00.' },
+      { name: 'Bù trừ theo lô', standard: 'Lúc 23:00 các giao dịch trong ngày được đóng gói vào một tệp bù trừ.', expert: 'Tạo tệp bù trừ (presentment) từ các lần cấp phép trong ngày.' },
+      { name: 'Quyết toán Visa', standard: 'Visa tính ai nợ ai và tiền dịch chuyển.', expert: 'Quyết toán ròng của tổ chức thẻ; khoản khoanh giữ được ghi nhận: Nợ Khách hàng / Có Khoanh giữ CASA.' },
+      { name: 'Đối soát 3 bên', standard: 'Ba bản ghi phải khớp; điều gì bất thường chờ trong tài khoản treo.', expert: 'Khớp sổ cái với tệp bù trừ và bộ chuyển mạch; sai lệch ghi vào RECON_SUSPENSE cho tới khi xử lý.' },
+    ],
+  },
+};
+
+/** A flow's title and tooltip in the active language. */
+export function flowText(id: FlowId): { title: string; blurb: string } {
+  if (activeLocale() !== 'vi') return { title: GUIDED_FLOWS[id].title, blurb: GUIDED_FLOWS[id].blurb };
+  return { title: FLOW_VI[id].title, blurb: FLOW_VI[id].blurb };
+}
+
+/** A step's name and one-line summaries in the active language. */
+export function stepText(flow: FlowId, step: FlowStep): { name: string; summary: Record<DataDepth, string> } {
+  if (activeLocale() !== 'vi') return { name: step.name, summary: step.summary };
+  const i = GUIDED_FLOWS[flow].steps.indexOf(step);
+  const w = FLOW_VI[flow].steps[i];
+  return w ? { name: w.name, summary: { standard: w.standard, expert: w.expert } } : { name: step.name, summary: step.summary };
+}
+
+const STEP_STATUS_VI: Record<StepStatus, string> = { upcoming: 'Sắp tới', 'in-progress': 'Đang diễn ra', completed: 'Hoàn thành' };
+
+/** The label of a step status in the active language. */
+export const stepStatusLabel = (s: StepStatus): string => (activeLocale() === 'vi' ? STEP_STATUS_VI : STEP_STATUS_LABEL)[s];
