@@ -10,6 +10,15 @@ export default defineConfig({
     // The app chunk is about 1 MB (300 KB gzipped) and the 3D office is a separate chunk loaded on demand. That is expected for
     // this app, so the 500 KB advisory is raised to keep CI logs free of a warning that needs no action.
     chunkSizeWarningLimit: 1200,
+    rolldownOptions: {
+      output: {
+        // React, React Flow and Zustand change far less often than the app: their own chunk stays cached across deploys
+        // and keeps the app chunk under the limit now that every lesson and label also ships in Vietnamese.
+        advancedChunks: {
+          groups: [{ name: 'vendor', test: /node_modules[\\/](react|react-dom|scheduler|zustand|use-sync-external-store|@xyflow|classcat|d3-[a-z]+)[\\/]/ }],
+        },
+      },
+    },
   },
   test: {
     // The store, engine and conversion tests need no browser.

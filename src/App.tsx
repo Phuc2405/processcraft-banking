@@ -1,13 +1,11 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { AcademySplitToggle } from './components/academy/AcademySplitLayout';
 import { LivingBank } from './components/bank/LivingBank';
 import { AcademyButton } from './components/bank/CourseCatalog';
 import { ModeToggle } from './components/bank/ViewControls';
 import { SwitchModeButton, WelcomeModal } from './components/bank/WelcomeModal';
-import { AmlButton, AmlPanel } from './components/ops/AmlPanel';
-import { ChaosButton, ChaosPanel } from './components/ops/ChaosPanel';
-import { BenchmarkButton, PaymentBenchmarkModal } from './components/ops/PaymentBenchmarkModal';
+import { AmlButton, BenchmarkButton, ChaosButton } from './components/ops/OpsButtons';
 import { LanguageToggle } from './components/shell/LanguageToggle';
 import { SmallScreenBanner } from './components/shell/SmallScreenBanner';
 import { tr, useLocale } from './i18n/locale';
@@ -26,6 +24,23 @@ import { labTourStore } from './store/labTourStore';
 import { useWorkflowStore, workflowStore } from './store/workflowStore';
 
 type View = 'bank' | 'lab';
+
+/** The ops overlays are loaded the first time one is opened: they are not needed to run the bank. */
+const AmlPanel = lazy(() => import('./components/ops/AmlPanel').then((m) => ({ default: m.AmlPanel })));
+const PaymentBenchmarkModal = lazy(() => import('./components/ops/PaymentBenchmarkModal').then((m) => ({ default: m.PaymentBenchmarkModal })));
+const ChaosPanel = lazy(() => import('./components/ops/ChaosPanel').then((m) => ({ default: m.ChaosPanel })));
+
+function Overlays() {
+  const overlay = useUiStore((s) => s.overlay);
+  if (overlay === 'none' || overlay === 'audit') return null;
+  return (
+    <Suspense fallback={null}>
+      {overlay === 'aml' && <AmlPanel />}
+      {overlay === 'benchmark' && <PaymentBenchmarkModal />}
+      {overlay === 'chaos' && <ChaosPanel />}
+    </Suspense>
+  );
+}
 
 const VIEW_KEY = 'processcraft:v1:view';
 
@@ -234,9 +249,7 @@ export default function App() {
           bankStore.getState().openAcademy();
         }}
       />
-      <AmlPanel />
-      <PaymentBenchmarkModal />
-      <ChaosPanel />
+      <Overlays />
     </div>
   );
 }

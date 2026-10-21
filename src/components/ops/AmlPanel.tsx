@@ -420,19 +420,3 @@ export function AmlPanel() {
     </Modal>
   );
 }
-
-/** The header button that opens the AML desk. */
-export function AmlButton() {
-  return (
-    <button
-      type="button"
-      onClick={() => uiStore.getState().toggle('aml')}
-      data-testid="aml-button"
-      title={tr({ en: 'AML / SAR compliance desk', vi: 'Bàn tuân thủ AML / SAR' })}
-      className="flex items-center gap-1.5 whitespace-nowrap rounded-md bg-slate-900 px-2.5 py-1.5 text-[12px] font-semibold text-slate-200 ring-1 ring-slate-700 transition hover:bg-slate-800"
-    >
-      <span aria-hidden="true">🛡️</span>
-      AML
-    </button>
-  );
-}

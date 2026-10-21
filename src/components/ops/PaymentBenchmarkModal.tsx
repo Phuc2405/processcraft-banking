@@ -202,19 +202,3 @@ export function PaymentBenchmarkModal() {
     </Modal>
   );
 }
-
-/** The header button that opens the benchmark. */
-export function BenchmarkButton() {
-  return (
-    <button
-      type="button"
-      onClick={() => uiStore.getState().toggle('benchmark')}
-      data-testid="benchmark-button"
-      title={tr({ en: 'Compare card schemes, instant A2A and BNPL', vi: 'So sánh thẻ, A2A tức thì và BNPL' })}
-      className="flex items-center gap-1.5 whitespace-nowrap rounded-md bg-slate-900 px-2.5 py-1.5 text-[12px] font-semibold text-slate-200 ring-1 ring-slate-700 transition hover:bg-slate-800"
-    >
-      <span aria-hidden="true">📊</span>
-      {tr({ en: 'Rails', vi: 'Kênh TT' })}
-    </button>
-  );
-}

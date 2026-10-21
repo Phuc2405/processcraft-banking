@@ -8,13 +8,16 @@ import { tr } from '../../i18n/locale';
 export function Modal({ title, subtitle, icon, onClose, children, footer, width = 'max-w-3xl', testId, z = 'z-50' }: { title: string; subtitle?: string; icon?: string; onClose: () => void; children: ReactNode; footer?: ReactNode; width?: string; testId: string; z?: string }) {
   const titleId = useId();
   const box = useRef<HTMLDivElement>(null);
+  // The latest onClose, so the effect below runs once per opening and never steals focus back while the learner types.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     const before = document.activeElement as HTMLElement | null;
     box.current?.focus();
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape' && !e.defaultPrevented) {
         e.preventDefault();
-        onClose();
+        closeRef.current();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -22,7 +25,7 @@ export function Modal({ title, subtitle, icon, onClose, children, footer, width 
       window.removeEventListener('keydown', onKey);
       before?.focus?.();
     };
-  }, [onClose]);
+  }, []);
   return (
     <div className={`fixed inset-0 ${z} flex items-center justify-center bg-black/80 p-4`} onClick={(e) => e.target === e.currentTarget && onClose()} data-testid={`${testId}-backdrop`}>
       <div ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId} data-testid={testId} className={`flex max-h-[90vh] w-full ${width} flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-2xl outline-none`}>

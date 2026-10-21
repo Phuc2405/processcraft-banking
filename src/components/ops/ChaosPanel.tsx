@@ -189,23 +189,3 @@ export function ChaosPanel() {
     </Modal>
   );
 }
-
-/** The header button that opens the panel. Pulses while any fault or scenario is active. */
-export function ChaosButton() {
-  const active = useBankStore((s) => s.view.chaos.active);
-  return (
-    <button
-      type="button"
-      onClick={() => uiStore.getState().toggle('chaos')}
-      data-testid="chaos-button"
-      data-active={active}
-      title={tr({ en: 'Chaos Monkey: inject faults and see the scripted day 2 / day 3 scenarios', vi: 'Chaos Monkey: gây sự cố và xem kịch bản ngày 2 / ngày 3' })}
-      className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[12px] font-semibold ring-1 transition ${active ? 'bg-rose-500/20 text-rose-100 ring-rose-400/70' : 'bg-slate-900 text-slate-200 ring-slate-700 hover:bg-slate-800'}`}
-    >
-      <span aria-hidden="true" className={active ? 'motion-safe:animate-pulse' : ''}>
-        🐒
-      </span>
-      {tr({ en: 'Chaos', vi: 'Sự cố' })}
-    </button>
-  );
-}
