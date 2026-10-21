@@ -10,6 +10,9 @@
  * account around the reconciliation desk. Those appear as "synthetic" steps, with the same text structure.
  */
 
+import { activeLocale } from '../i18n/locale';
+import { noteText } from '../i18n/notesVi';
+import { localLesson } from './learningVi';
 import type { BankingPayload, DerivedFacts, ExecutionStep, Id, ProcessEdge, ProcessGraph, ProcessNode } from '../types/processLearning';
 import { failCasesFor } from './failCases';
 import { DECLINE_LABEL, formatMoney } from './kpis';
@@ -303,7 +306,8 @@ function startNote(graphKey: GraphKey, payload: BankingPayload): string {
 }
 
 export function buildWalkthrough(lessonId: ProcessId, exampleId: string, rulesIn: Partial<BankRules> = DEFAULT_RULES): Walkthrough {
-  const lesson = LESSONS[lessonId];
+  // The lesson's words in the active language; its diagram, payloads and dials are the same in every language.
+  const lesson = localLesson(LESSONS[lessonId]);
   const example = lesson.examples.find((e) => e.id === exampleId) ?? lesson.examples[0];
   if (!example) throw new Error(`Lesson ${lessonId} has no examples`);
   const rules = clampRules(rulesIn);
@@ -487,7 +491,20 @@ export function buildWalkthrough(lessonId: ProcessId, exampleId: string, rulesIn
     verdict = checkoutVerdict(plan, payload);
   }
 
-  return { lessonId, exampleId: example.id, rules, carries: carriesOf(example), steps, verdict, broken };
+  const walk: Walkthrough = { lessonId, exampleId: example.id, rules, carries: carriesOf(example), steps, verdict, broken };
+  return activeLocale() === 'vi' ? localizeWalk(walk) : walk;
+}
+
+/**
+ * The walkthrough in Vietnamese: the engine's and the builder's sentences rebuilt by noteText. Fact and carry labels stay in
+ * English on purpose (the quizzes look them up by label); the screen translates them as it draws them.
+ */
+function localizeWalk(w: Walkthrough): Walkthrough {
+  return {
+    ...w,
+    steps: w.steps.map((s) => ({ ...s, happened: noteText(s.happened) })),
+    verdict: { ...w.verdict, headline: noteText(w.verdict.headline), detail: noteText(w.verdict.detail) },
+  };
 }
 
 function transferVerdict(approved: boolean, invalid: boolean): WalkVerdict {

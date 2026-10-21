@@ -4,6 +4,7 @@
  */
 
 import { t } from '../../i18n/t';
+import { activeLocale } from '../../i18n/locale';
 import type { ReactNode } from 'react';
 import type { TokenLook } from '../../store/liveSimulation';
 import type { CardType } from '../../types/processLearning';
@@ -96,7 +97,10 @@ export function PacketGlyph({ kind, cardType, width = 26 }: { kind: PacketKind; 
 
 export const clock = formatClock;
 
-export const waitText = (minutes: number): string => (minutes < 1 ? '<1 min' : minutes < 60 ? `${Math.round(minutes)} min` : `${(minutes / 60).toFixed(1)} h`);
+export const waitText = (minutes: number): string => {
+  const vi = activeLocale() === 'vi';
+  return minutes < 1 ? (vi ? '<1 phút' : '<1 min') : minutes < 60 ? `${Math.round(minutes)} ${vi ? 'phút' : 'min'}` : `${(minutes / 60).toFixed(1)} ${vi ? 'giờ' : 'h'}`;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fatigue
