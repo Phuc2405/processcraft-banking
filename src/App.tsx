@@ -18,10 +18,11 @@ import { NodePalette } from './components/sidebar/NodePalette';
 import { LabTourOverlay } from './components/education/LabWalkthrough';
 import { CURRICULUM } from './data/seedChallenges';
 import { levelTabLabel } from './data/curriculumCopy';
+import { localChallenge, stageText } from './i18n/challengeVi';
 import { stageAccent } from './data/curriculumTheme';
 import { bankStore } from './store/bankStore';
 import { labTourStore } from './store/labTourStore';
-import { useWorkflowStore, workflowStore } from './store/workflowStore';
+import { relocalizeWorkflow, useWorkflowStore, workflowStore } from './store/workflowStore';
 
 type View = 'bank' | 'lab';
 
@@ -150,10 +151,11 @@ function LevelBar() {
         });
         if (inStage.length === 0) return null;
         const open = inStage.some((l) => l.id === current);
+        const text = stageText(stage);
         return (
-          <section key={stage.stage} aria-label={`Stage ${stage.stage}: ${stage.title}`} title={stage.blurb} data-testid={`stage-${stage.stage}`} data-open={open} className="flex shrink-0 flex-col gap-0.5 border-l pl-2.5 first:border-l-0 first:pl-0" style={{ borderColor: `${accent}44` }}>
+          <section key={stage.stage} aria-label={tr({ en: `Stage ${stage.stage}: ${text.title}`, vi: `Giai đoạn ${stage.stage}: ${text.title}` })} title={text.blurb} data-testid={`stage-${stage.stage}`} data-open={open} className="flex shrink-0 flex-col gap-0.5 border-l pl-2.5 first:border-l-0 first:pl-0" style={{ borderColor: `${accent}44` }}>
             <h2 className="whitespace-nowrap text-[9.5px] font-bold uppercase tracking-wider" style={{ color: open ? accent : '#64748b' }}>
-              {stage.stage}. {stage.title}
+              {stage.stage}. {text.title}
             </h2>
             <div className="flex gap-1">
               {inStage.map((l, i) => {
@@ -164,7 +166,7 @@ function LevelBar() {
                     type="button"
                     onClick={() => switchTo(l.id)}
                     aria-current={active ? 'page' : undefined}
-                    title={tr({ en: `Level ${l.levelNumber}: ${l.title}`, vi: `Cấp ${l.levelNumber}: ${l.title}` })}
+                    title={tr({ en: `Level ${l.levelNumber}: ${l.title}`, vi: `Cấp ${l.levelNumber}: ${localChallenge(l).title}` })}
                     data-testid={`level-tab-${l.levelNumber}`}
                     className={`flex shrink-0 items-center whitespace-nowrap rounded-md px-2.5 py-1 text-[12px] font-medium transition ${active ? 'bg-slate-800 text-slate-50' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`}
                     style={active ? { boxShadow: `inset 0 -2px 0 ${accent}` } : undefined}
@@ -213,6 +215,8 @@ export default function App() {
   // Every pick()/tr() reader below redraws in the new language: the tree is keyed by it. The stores keep the bank running.
   const locale = useLocale();
   useEffect(() => bindAudioFX(bankStore, uiStore), []);
+  // The Build Lab's grade, playback log and notice were written in the old language: write them again in the new one.
+  useEffect(() => relocalizeWorkflow(), [locale]);
   const choose = (next: View): void => {
     setView(next);
     writeView(next);

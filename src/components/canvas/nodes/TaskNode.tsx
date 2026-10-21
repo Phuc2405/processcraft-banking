@@ -1,4 +1,8 @@
+import { t } from '../../../i18n/t';
 import { memo } from 'react';
+import { configLabel } from '../../../i18n/catalogVi';
+import { labLabel } from '../../../i18n/labText';
+import { tr } from '../../../i18n/locale';
 import { Position, type NodeProps } from '@xyflow/react';
 import type { ProcessFlowNode } from '../../../store/graphConversion';
 import { IDLE_RUNTIME, useWorkflowStore } from '../../../store/workflowStore';
@@ -38,7 +42,7 @@ function TaskNodeView({ id, data, selected }: NodeProps<ProcessFlowNode>) {
 
   const settings = (definition?.configSchema ?? []).slice(0, 3).map((c) => ({
     key: c.key,
-    text: `${c.label}: ${String(node.configParams[c.key] ?? c.defaultValue)}`,
+    text: `${configLabel(c.key, c.label)}: ${String(node.configParams[c.key] ?? c.defaultValue)}`,
   }));
 
   return (
@@ -60,8 +64,8 @@ function TaskNodeView({ id, data, selected }: NodeProps<ProcessFlowNode>) {
         >
           <NodeIcon type={node.type} capability={capability} size={15} />
         </span>
-        <h3 className="min-w-0 flex-1 truncate text-[13px] font-semibold leading-tight" title={node.label}>
-          {node.label}
+        <h3 className="min-w-0 flex-1 truncate text-[13px] font-semibold leading-tight" title={labLabel(node.label)}>
+          {labLabel(node.label)}
         </h3>
       </header>
 
@@ -78,21 +82,21 @@ function TaskNodeView({ id, data, selected }: NodeProps<ProcessFlowNode>) {
         )}
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-            <span className={`rounded-full px-1.5 py-px text-[9.5px] font-semibold ring-1 ${category.badge}`}>{category.label}</span>
+            <span className={`rounded-full px-1.5 py-px text-[9.5px] font-semibold ring-1 ${category.badge}`}>{t(category.label)}</span>
           </div>
           {worker && (
-            <p className="truncate text-[11px] text-slate-400" title={worker.desk}>
-              {worker.role}
+            <p className="truncate text-[11px] text-slate-400" title={t(worker.desk)}>
+              {t(worker.role)}
             </p>
           )}
           <p className={`flex items-center gap-1.5 text-[12px] font-medium ${status.text}`} aria-live="polite">
             <span className={`inline-block h-2 w-2 rounded-full ${status.dot}`} />
-            {status.label}
+            {t(status.label)}
             {runtime.status === 'PROCESSING' && runtime.lastDurationMs !== null && (
               <span className="font-normal text-slate-400">{runtime.lastDurationMs} ms</span>
             )}
           </p>
-          {runtime.visits > 0 && <p className="text-[11px] text-slate-500">Handled {runtime.visits}×</p>}
+          {runtime.visits > 0 && <p className="text-[11px] text-slate-500">{tr({ en: `Handled ${runtime.visits}×`, vi: `Đã xử lý ${runtime.visits}×` })}</p>}
         </div>
       </div>
 
@@ -109,7 +113,7 @@ function TaskNodeView({ id, data, selected }: NodeProps<ProcessFlowNode>) {
 
       {/* progress strip while the desk is working */}
       {runtime.status === 'PROCESSING' && (
-        <div className="absolute inset-x-0 bottom-0 h-1 overflow-hidden rounded-b-xl bg-slate-800" role="progressbar" aria-label="Work in progress">
+        <div className="absolute inset-x-0 bottom-0 h-1 overflow-hidden rounded-b-xl bg-slate-800" role="progressbar" aria-label={t('Work in progress')}>
           <div key={`bar-${runtime.workedAtTick}`} className="pc-progress h-full bg-amber-400" />
         </div>
       )}

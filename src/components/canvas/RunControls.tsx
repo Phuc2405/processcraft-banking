@@ -1,4 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { localChallenge } from '../../i18n/challengeVi';
+import { tr } from '../../i18n/locale';
+import { t } from '../../i18n/t';
 import type { SaveStatus } from '../../store/persistence';
 import { useWorkflowStore } from '../../store/workflowStore';
 import { TokenGlyph } from './tokens/TokenGlyph';
@@ -70,7 +73,7 @@ function PersistenceRow() {
       <span className={`flex min-w-0 items-center gap-1.5 text-[11px] ${copy.tone}`} role="status" data-testid="save-status" data-status={status}>
         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${copy.dot}`} aria-hidden="true" />
         <span className="truncate">
-          {copy.text}
+          {t(copy.text)}
           {time && <span className="text-slate-500"> · {time}</span>}
         </span>
       </span>
@@ -85,14 +88,14 @@ function PersistenceRow() {
           setArmed(false);
           resetToStarter();
         }}
-        title={nothingToReset ? 'This level is already on its starter graph.' : 'Clear your saved diagram for this level and go back to the starting point.'}
+        title={nothingToReset ? t('This level is already on its starter graph.') : t('Clear your saved diagram for this level and go back to the starting point.')}
         data-testid="reset-starter"
         className={[
           'shrink-0 rounded-md border px-2.5 py-1 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-40',
           armed ? 'border-rose-500 bg-rose-500/15 text-rose-200 hover:bg-rose-500/25' : 'border-slate-700 text-slate-300 hover:border-slate-500 hover:text-slate-100',
         ].join(' ')}
       >
-        {armed ? 'Click again to erase this level' : 'Reset to Starter Graph'}
+        {armed ? t('Click again to erase this level') : t('Reset to Starter Graph')}
       </button>
     </div>
   );
@@ -104,7 +107,7 @@ function PersistenceRow() {
  * including the hidden tests, which are never replayed.
  */
 export function RunControls() {
-  const level = useWorkflowStore((s) => s.level);
+  const level = localChallenge(useWorkflowStore((s) => s.level));
   const selectedTestId = useWorkflowStore((s) => s.selectedTestId);
   const isRunning = useWorkflowStore((s) => s.isRunning);
   const simulation = useWorkflowStore((s) => s.simulation);
@@ -132,7 +135,7 @@ export function RunControls() {
   // The kinds of token on the canvas right now, one entry per look, for the legend in the status line.
   const looks = [...new Map(activeTokens.map((t) => [`${t.look.kind}:${t.look.cardType}`, t.look])).values()];
 
-  const visible = level.testSuite.filter((t) => !t.hidden);
+  const visible = level.testSuite.filter((tc) => !tc.hidden);
   const hiddenCount = level.testSuite.length - visible.length;
   const finished = simulation?.finished === true;
   const live = simulation !== null && !finished;
@@ -146,37 +149,37 @@ export function RunControls() {
     <div className="pointer-events-auto w-[min(560px,calc(100vw-800px))] min-w-[400px] rounded-xl border border-slate-700 bg-slate-950/95 p-2 shadow-2xl">
       <div className="flex flex-wrap items-center gap-2">
         <select
-          aria-label="Test to replay"
+          aria-label={t('Test to replay')}
           value={selectedTestId ?? ''}
           onChange={(e) => selectTest(e.target.value)}
           className="min-w-0 flex-1 rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-slate-100 focus:border-sky-500 focus:outline-none"
         >
-          {visible.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
+          {visible.map((tc) => (
+            <option key={tc.id} value={tc.id}>
+              {tc.name}
             </option>
           ))}
         </select>
 
-        <div className="flex items-center gap-1" role="group" aria-label="Playback">
-          <IconButton label="Reset" onClick={reset} disabled={!simulation}>
+        <div className="flex items-center gap-1" role="group" aria-label={t('Playback')}>
+          <IconButton label={t('Reset')} onClick={reset} disabled={!simulation}>
             <svg {...svgProps}>
               <path d="M7 2a5 5 0 1 0 5 5h-1.6A3.4 3.4 0 1 1 7 3.6V6l3-3-3-3z" transform="translate(0 1) scale(.9)" />
             </svg>
           </IconButton>
-          <IconButton label="Step one node" onClick={step} disabled={finished || isRunning}>
+          <IconButton label={t('Step one node')} onClick={step} disabled={finished || isRunning}>
             <svg {...svgProps}>
               <path d="M2 2l6 5-6 5zM10 2h2v10h-2z" />
             </svg>
           </IconButton>
           {isRunning ? (
-            <IconButton label="Pause" onClick={pause} tone="primary">
+            <IconButton label={t('Pause')} onClick={pause} tone="primary">
               <svg {...svgProps}>
                 <path d="M3 2h3v10H3zM8 2h3v10H8z" />
               </svg>
             </IconButton>
           ) : (
-            <IconButton label={finished ? 'Replay' : live ? 'Resume' : 'Play'} onClick={play} tone="primary">
+            <IconButton label={finished ? t('Replay') : live ? t('Resume') : t('Play')} onClick={play} tone="primary">
               <svg {...svgProps}>
                 <path d="M3 1.5l9 5.5-9 5.5z" />
               </svg>
@@ -185,7 +188,7 @@ export function RunControls() {
         </div>
 
         <select
-          aria-label="Playback speed"
+          aria-label={t('Playback speed')}
           value={speed}
           onChange={(e) => setPlaybackMs(SPEEDS[Number(e.target.value)]?.ms ?? 900)}
           className="rounded-md border border-slate-700 bg-slate-900 px-1.5 py-1.5 text-[12px] text-slate-200 focus:border-sky-500 focus:outline-none"
@@ -203,9 +206,9 @@ export function RunControls() {
           type="button"
           onClick={() => evaluate()}
           className="rounded-md bg-emerald-500 px-3 py-1.5 text-[12px] font-semibold text-slate-950 hover:bg-emerald-400"
-          title={`Grade your diagram against all ${level.testSuite.length} tests`}
+          title={tr({ en: `Grade your diagram against all ${level.testSuite.length} tests`, vi: `Chấm sơ đồ của bạn với cả ${level.testSuite.length} bài kiểm tra` })}
         >
-          Submit
+          {t('Submit')}
         </button>
       </div>
 
@@ -215,37 +218,51 @@ export function RunControls() {
             {looks.map((look) => (
               <span key={`${look.kind}:${look.cardType}`} className="flex items-center gap-1 rounded-full bg-slate-800/80 py-px pl-1 pr-2 text-slate-200" data-token-kind={look.kind}>
                 <TokenGlyph look={look} width={20} />
-                {look.label}
+                {t(look.label)}
               </span>
             ))}
           </span>
         )}
         {!simulation && (
           <>
-            Press play to watch one transaction travel through your diagram.
-            {hiddenCount > 0 && <> {hiddenCount} hidden test{hiddenCount === 1 ? '' : 's'} run only when you submit.</>}
+            {t('Press play to watch one transaction travel through your diagram.')}
+            {hiddenCount > 0 && (
+              <> {tr({ en: `${hiddenCount} hidden test${hiddenCount === 1 ? '' : 's'} run only when you submit.`, vi: `${hiddenCount} bài kiểm tra ẩn chỉ chạy khi bạn nộp bài.` })}</>
+            )}
           </>
         )}
         {live && (
           <>
-            Tick <span className="font-mono text-slate-200">{tick}</span> · replaying <span className="text-slate-200">{simulation.testName}</span>
+            {t('Tick')} <span className="font-mono text-slate-200">{tick}</span> · {t('replaying')}{' '}
+            <span className="text-slate-200">{level.testSuite.find((tc) => tc.id === simulation.testCaseId)?.name ?? simulation.testName}</span>
           </>
         )}
         {finished && simulation.matchesExpected && (
           <span className="text-emerald-300">
-            ✓ Ended as expected: {simulation.outcome?.replace(/_/g, ' ').toLowerCase()} in {simulation.latencyMs} ms
+            ✓{' '}
+            {tr({
+              en: `Ended as expected: ${simulation.outcome?.replace(/_/g, ' ').toLowerCase()} in ${simulation.latencyMs} ms`,
+              vi: `Kết thúc đúng như mong đợi: ${simulation.outcome ?? ''} trong ${simulation.latencyMs} ms`,
+            })}
           </span>
         )}
         {finished && !simulation.matchesExpected && (
           <span className="text-rose-300">
-            ✕ Expected {simulation.expectedOutcome.replace(/_/g, ' ').toLowerCase()}, got {simulation.outcome?.replace(/_/g, ' ').toLowerCase()}
+            ✕{' '}
+            {tr({
+              en: `Expected ${simulation.expectedOutcome.replace(/_/g, ' ').toLowerCase()}, got ${simulation.outcome?.replace(/_/g, ' ').toLowerCase()}`,
+              vi: `Mong đợi ${simulation.expectedOutcome}, nhận ${simulation.outcome ?? ''}`,
+            })}
             {simulation.anomalies[0] ? `. ${simulation.anomalies[0].message}` : ''}
           </span>
         )}
         {result && (
           <span className="float-right ml-2">
             <span className={result.passed ? 'text-emerald-300' : 'text-amber-300'}>
-              Last submit: {result.correctnessScore}% correct{stale ? ' (out of date)' : ''}
+              {tr({
+                en: `Last submit: ${result.correctnessScore}% correct${stale ? ' (out of date)' : ''}`,
+                vi: `Lần nộp gần nhất: đúng ${result.correctnessScore}%${stale ? ' (đã cũ)' : ''}`,
+              })}
             </span>
           </span>
         )}

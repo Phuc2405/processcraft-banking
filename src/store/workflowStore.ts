@@ -12,6 +12,9 @@
  * short delay, `loadChallenge` restores what was saved, and `resetToStarter` throws it away.
  */
 
+import { nodeDefLabel, portLabel } from '../i18n/catalogVi';
+import { labLabel } from '../i18n/labText';
+import { tr } from '../i18n/locale';
 import { createContext, useContext } from 'react';
 import { useStore } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
@@ -267,15 +270,15 @@ export function paletteBlockReason(
   definitionId: Id,
 ): string | null {
   const def = catalog.find((d) => d.id === definitionId);
-  if (!def) return `Unknown node type '${definitionId}'.`;
+  if (!def) return tr({ en: `Unknown node type '${definitionId}'.`, vi: `Loại nút không xác định '${definitionId}'.` });
   const usage = computePaletteUsage(level, nodes);
   const row = usage.rows.find((r) => r.definitionId === definitionId);
-  if (!row) return `'${def.label}' is not available on this level.`;
+  if (!row) return tr({ en: `'${def.label}' is not available on this level.`, vi: `'${nodeDefLabel(def.id, def.label)}' không có ở cấp độ này.` });
   if (row.max !== null && row.used >= row.max) {
-    return `This level allows ${row.max} '${def.label}' node${row.max === 1 ? '' : 's'}.`;
+    return tr({ en: `This level allows ${row.max} '${def.label}' node${row.max === 1 ? '' : 's'}.`, vi: `Cấp độ này cho phép ${row.max} nút '${nodeDefLabel(def.id, def.label)}'.` });
   }
   if (usage.budget !== null && usage.placed >= usage.budget) {
-    return `Node budget reached: this level allows ${usage.budget} nodes.`;
+    return tr({ en: `Node budget reached: this level allows ${usage.budget} nodes.`, vi: `Đã đạt giới hạn nút: cấp độ này cho phép ${usage.budget} nút.` });
   }
   return null;
 }
@@ -288,21 +291,21 @@ export function checkConnection(
 ): ConnectionCheck {
   const from = nodes.find((n) => n.id === c.source)?.data.node;
   const to = nodes.find((n) => n.id === c.target)?.data.node;
-  if (!from || !to) return { ok: false, reason: 'Both ends of a connection must be nodes on the canvas.' };
-  if (from.id === to.id) return { ok: false, reason: `'${from.label}' cannot connect to itself. Route through another step to make a loop.` };
+  if (!from || !to) return { ok: false, reason: tr({ en: 'Both ends of a connection must be nodes on the canvas.', vi: 'Cả hai đầu của kết nối phải là nút trên canvas.' }) };
+  if (from.id === to.id) return { ok: false, reason: tr({ en: `'${from.label}' cannot connect to itself. Route through another step to make a loop.`, vi: `'${labLabel(from.label)}' không thể nối với chính nó. Hãy đi qua một bước khác để tạo vòng.` }) };
 
   const out = portOf(from.outputPorts, c.sourceHandle);
-  if (!out) return { ok: false, reason: `Start from an output handle on '${from.label}'.` };
+  if (!out) return { ok: false, reason: tr({ en: `Start from an output handle on '${from.label}'.`, vi: `Hãy bắt đầu từ một điểm ra trên '${labLabel(from.label)}'.` }) };
   const inn = portOf(to.inputPorts, c.targetHandle);
-  if (!inn) return { ok: false, reason: `End on an input handle on '${to.label}'.` };
+  if (!inn) return { ok: false, reason: tr({ en: `End on an input handle on '${to.label}'.`, vi: `Hãy kết thúc ở một điểm vào trên '${labLabel(to.label)}'.` }) };
 
   const outUse = edges.filter((e) => e.source === from.id && e.sourceHandle === out.id).length;
   if (outUse >= out.maxEdges) {
-    return { ok: false, reason: `'${out.label}' on '${from.label}' already has ${out.maxEdges === 1 ? 'a connection' : `${out.maxEdges} connections`}. Use another output.` };
+    return { ok: false, reason: tr({ en: `'${out.label}' on '${from.label}' already has ${out.maxEdges === 1 ? 'a connection' : `${out.maxEdges} connections`}. Use another output.`, vi: `'${portLabel(out.label)}' trên '${labLabel(from.label)}' đã có ${out.maxEdges} kết nối. Hãy dùng cổng ra khác.` }) };
   }
   const inUse = edges.filter((e) => e.target === to.id && e.targetHandle === inn.id).length;
   if (inUse >= inn.maxEdges) {
-    return { ok: false, reason: `'${inn.label}' on '${to.label}' is full (${inn.maxEdges}). Use another input.` };
+    return { ok: false, reason: tr({ en: `'${inn.label}' on '${to.label}' is full (${inn.maxEdges}). Use another input.`, vi: `'${portLabel(inn.label)}' trên '${labLabel(to.label)}' đã đầy (${inn.maxEdges}). Hãy dùng cổng vào khác.` }) };
   }
   return { ok: true, sourceHandle: out.id, targetHandle: inn.id };
 }
@@ -378,7 +381,13 @@ export function createWorkflowStore(config: WorkflowStoreConfig = {}): WorkflowS
     const saved = restore ? loadSavedDiagram(storage, level, catalog) : null;
     const starter = level.starterGraph;
     const { nodes, edges } = saved ? fromProcessGraph(saved.graph) : starter ? fromProcessGraph(starter) : { nodes: [], edges: [] };
-    const lost = saved && saved.dropped > 0 ? ` ${saved.dropped} piece${saved.dropped === 1 ? '' : 's'} could not be restored and ${saved.dropped === 1 ? 'was' : 'were'} left out.` : '';
+    const lost =
+      saved && saved.dropped > 0
+        ? tr({
+            en: ` ${saved.dropped} piece${saved.dropped === 1 ? '' : 's'} could not be restored and ${saved.dropped === 1 ? 'was' : 'were'} left out.`,
+            vi: ` ${saved.dropped} phần không khôi phục được và đã bị bỏ qua.`,
+          })
+        : '';
     return {
       level,
       graphId: attemptId(level),
@@ -388,7 +397,7 @@ export function createWorkflowStore(config: WorkflowStoreConfig = {}): WorkflowS
       selectedTestId: firstPlayableTest(level)?.id ?? null,
       lastEvaluationResult: null,
       isEvaluationStale: false,
-      notice: saved ? makeNotice('info', `Restored your saved diagram for Level ${level.levelNumber}.${lost}`) : null,
+      notice: saved ? makeNotice('info', tr({ en: `Restored your saved diagram for Level ${level.levelNumber}.${lost}`, vi: `Đã khôi phục sơ đồ đã lưu của bạn cho Cấp độ ${level.levelNumber}.${lost}` })) : null,
       saveStatus: (storage === null ? 'unavailable' : saved ? 'saved' : 'pristine') as SaveStatus,
       lastSavedAt: saved?.savedAt ?? null,
     };
@@ -408,26 +417,43 @@ export function createWorkflowStore(config: WorkflowStoreConfig = {}): WorkflowS
       return toProcessGraph(s.nodes, s.edges, { id: s.graphId, name: s.graphName, challengeId: s.level.id }, now().toISOString());
     };
 
-    const labelOf = (id: Id): string => get().nodes.find((n) => n.id === id)?.data.node.label ?? id;
+    const labelOf = (id: Id): string => {
+      const label = get().nodes.find((n) => n.id === id)?.data.node.label;
+      return label === undefined ? id : labLabel(label);
+    };
 
     const describe = (e: RunEvent, tick: number): PlaybackLogLine | null => {
       switch (e.type) {
         case 'NODE_EXECUTED':
-          return { tick, kind: 'step', text: `${e.tokenId} ran '${labelOf(e.nodeId)}' (${e.step.durationMs} ms)` };
+          return { tick, kind: 'step', text: tr({ en: `${e.tokenId} ran '${labelOf(e.nodeId)}' (${e.step.durationMs} ms)`, vi: `${e.tokenId} chạy '${labelOf(e.nodeId)}' (${e.step.durationMs} ms)` }) };
         case 'EDGE_TAKEN': {
-          const why = e.reason === 'CONDITION' ? ' (condition matched)' : e.reason === 'DEFAULT' ? ' (default branch)' : e.reason === 'ERROR_PORT' ? ' (error port)' : '';
+          const why =
+            e.reason === 'CONDITION'
+              ? tr({ en: ' (condition matched)', vi: ' (điều kiện khớp)' })
+              : e.reason === 'DEFAULT'
+                ? tr({ en: ' (default branch)', vi: ' (nhánh mặc định)' })
+                : e.reason === 'ERROR_PORT'
+                  ? tr({ en: ' (error port)', vi: ' (cổng lỗi)' })
+                  : '';
           return { tick, kind: 'move', text: `${e.tokenId}: '${labelOf(e.fromNodeId)}' → '${labelOf(e.toNodeId)}'${why}` };
         }
         case 'TOKEN_FORKED':
-          return { tick, kind: 'fork', text: `${e.tokenId} forked into ${e.childTokenIds.length} parallel tokens at '${labelOf(e.nodeId)}'` };
+          return { tick, kind: 'fork', text: tr({ en: `${e.tokenId} forked into ${e.childTokenIds.length} parallel tokens at '${labelOf(e.nodeId)}'`, vi: `${e.tokenId} tách thành ${e.childTokenIds.length} token song song tại '${labelOf(e.nodeId)}'` }) };
         case 'JOIN_WAITING':
-          return { tick, kind: 'join', text: `'${labelOf(e.nodeId)}' is waiting: ${e.arrived} of ${e.expected} branches have arrived` };
+          return { tick, kind: 'join', text: tr({ en: `'${labelOf(e.nodeId)}' is waiting: ${e.arrived} of ${e.expected} branches have arrived`, vi: `'${labelOf(e.nodeId)}' đang chờ: ${e.arrived}/${e.expected} nhánh đã tới` }) };
         case 'JOIN_RELEASED':
-          return { tick, kind: 'join', text: `'${labelOf(e.nodeId)}' released after ${e.elapsedMs} ms (the slowest branch)` };
+          return { tick, kind: 'join', text: tr({ en: `'${labelOf(e.nodeId)}' released after ${e.elapsedMs} ms (the slowest branch)`, vi: `'${labelOf(e.nodeId)}' giải phóng sau ${e.elapsedMs} ms (nhánh chậm nhất)` }) };
         case 'TOKEN_COMPLETED':
-          return { tick, kind: 'done', text: `${e.tokenId} finished: ${e.outcome}${e.reasonCode ? ` (${e.reasonCode})` : ''}` };
+          return { tick, kind: 'done', text: tr({ en: `${e.tokenId} finished: ${e.outcome}${e.reasonCode ? ` (${e.reasonCode})` : ''}`, vi: `${e.tokenId} hoàn tất: ${e.outcome}${e.reasonCode ? ` (${e.reasonCode})` : ''}` }) };
         case 'TOKEN_FAULTED':
-          return { tick, kind: 'fault', text: `${e.tokenId} ${e.state === 'DEADLOCKED' ? 'is stuck' : 'failed'}: ${e.exception.message}` };
+          return {
+            tick,
+            kind: 'fault',
+            text: tr({
+              en: `${e.tokenId} ${e.state === 'DEADLOCKED' ? 'is stuck' : 'failed'}: ${e.exception.message}`,
+              vi: `${e.tokenId} ${e.state === 'DEADLOCKED' ? 'bị kẹt' : 'thất bại'}: ${e.exception.message}`,
+            }),
+          };
         case 'ANOMALY':
           return { tick, kind: 'anomaly', text: e.anomaly.message };
         case 'TOKEN_SPAWNED':
@@ -446,7 +472,7 @@ export function createWorkflowStore(config: WorkflowStoreConfig = {}): WorkflowS
         return line ? [line] : [];
       });
       for (const { alarm } of detectAlarms(events, runner.tokens, tick)) {
-        if (alarm.kind !== 'RECON_BREAK') lines.push({ tick, kind: 'anomaly', text: `ALARM: ${alarm.text}.` });
+        if (alarm.kind !== 'RECON_BREAK') lines.push({ tick, kind: 'anomaly', text: tr({ en: `ALARM: ${alarm.text}.`, vi: `CẢNH BÁO: ${alarm.text}.` }) });
       }
 
       let simulation = s.simulation;
@@ -506,7 +532,7 @@ export function createWorkflowStore(config: WorkflowStoreConfig = {}): WorkflowS
       loadChallenge: (levelId) => {
         const level = levels.find((l) => l.id === levelId);
         if (!level) {
-          warn(`There is no level '${levelId}'.`, 'error');
+          warn(tr({ en: `There is no level '${levelId}'.`, vi: `Không có cấp độ '${levelId}'.` }), 'error');
           return false;
         }
         runner = null;
@@ -522,7 +548,7 @@ export function createWorkflowStore(config: WorkflowStoreConfig = {}): WorkflowS
           ...contentFor(s.level, false),
           ...CLEAN_RUN,
           canvasEpoch: s.canvasEpoch + 1,
-          notice: makeNotice('info', 'Back to the starter graph. Your saved diagram for this level was cleared.'),
+          notice: makeNotice('info', tr({ en: 'Back to the starter graph. Your saved diagram for this level was cleared.', vi: 'Đã quay về sơ đồ khởi đầu. Sơ đồ đã lưu của bạn cho cấp độ này đã bị xóa.' })),
         });
       },
 
@@ -574,7 +600,7 @@ export function createWorkflowStore(config: WorkflowStoreConfig = {}): WorkflowS
         if (!target) return false;
         const node = target.data.node;
         if (node.locked) {
-          warn(`'${node.label}' is part of the starter diagram, so its settings are fixed.`);
+          warn(tr({ en: `'${node.label}' is part of the starter diagram, so its settings are fixed.`, vi: `'${labLabel(node.label)}' thuộc sơ đồ khởi đầu, nên thiết lập của nó cố định.` }));
           return false;
         }
         const def = s.catalog.find((d) => d.id === node.definitionId);
@@ -656,7 +682,7 @@ export function createWorkflowStore(config: WorkflowStoreConfig = {}): WorkflowS
         const target = s.nodes.find((n) => n.id === nodeId);
         if (!target) return false;
         if (target.data.node.locked) {
-          warn(`'${target.data.node.label}' is part of the starter diagram and cannot be deleted.`);
+          warn(tr({ en: `'${target.data.node.label}' is part of the starter diagram and cannot be deleted.`, vi: `'${labLabel(target.data.node.label)}' thuộc sơ đồ khởi đầu và không thể xóa.` }));
           return false;
         }
         set({
@@ -697,7 +723,7 @@ export function createWorkflowStore(config: WorkflowStoreConfig = {}): WorkflowS
           edges: removed.size ? s.edges.filter((e) => !removed.has(e.source) && !removed.has(e.target)) : s.edges,
           ...(structural ? invalidate() : {}),
           ...(allowed.length !== changes.length
-            ? { notice: makeNotice('warn', 'Starter nodes are locked. You can move them, but not delete them.') }
+            ? { notice: makeNotice('warn', tr({ en: 'Starter nodes are locked. You can move them, but not delete them.', vi: 'Các nút khởi đầu bị khóa. Bạn có thể di chuyển, nhưng không thể xóa chúng.' })) }
             : {}),
         });
       },
@@ -769,12 +795,12 @@ export function createWorkflowStore(config: WorkflowStoreConfig = {}): WorkflowS
         const wanted = testCaseId ?? s.selectedTestId ?? firstPlayableTest(s.level)?.id;
         const test = s.level.testSuite.find((t) => t.id === wanted);
         if (!test) {
-          warn('Pick a test to run.');
+          warn(tr({ en: 'Pick a test to run.', vi: 'Hãy chọn một bài kiểm tra để chạy.' }));
           return false;
         }
         if (test.hidden) {
           // A playback shows the payload. Hidden tests are only ever graded, never replayed.
-          warn('Hidden tests are graded when you submit. They cannot be replayed.');
+          warn(tr({ en: 'Hidden tests are graded when you submit. They cannot be replayed.', vi: 'Bài kiểm tra ẩn được chấm khi bạn nộp bài. Chúng không thể phát lại.' }));
           return false;
         }
         runner = new ProcessRunner(getProcessGraph(), test, { runnerConfig: s.level.runnerConfig, catalog, conditionVariables });
@@ -846,4 +872,16 @@ export const WorkflowStoreProvider = StoreContext.Provider;
 
 export function useWorkflowStore<T>(selector: (state: WorkflowState) => T): T {
   return useStore(useContext(StoreContext), selector);
+}
+
+/**
+ * After a language switch: the grader's feedback, the playback log and the last notice were written in the old language.
+ * A fresh grade is re-run in the new one (only when it still describes the diagram on the canvas), the playback is cleared
+ * and the notice dropped. Nothing about the diagram changes.
+ */
+export function relocalizeWorkflow(store: typeof workflowStore = workflowStore): void {
+  const s = store.getState();
+  if (s.notice) s.dismissNotice();
+  if (s.simulation) s.resetSimulation();
+  if (s.lastEvaluationResult && !s.isEvaluationStale) s.runEvaluation();
 }

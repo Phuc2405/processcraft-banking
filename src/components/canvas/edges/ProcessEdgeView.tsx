@@ -1,3 +1,4 @@
+import { t } from '../../../i18n/t';
 import { memo, useMemo } from 'react';
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from '@xyflow/react';
 import { checkExpression } from '../../../engine/expression';
@@ -107,7 +108,7 @@ function ProcessEdgeViewImpl({
           <button
             type="button"
             onClick={() => selectEdge(id)}
-            title={caption.tone === 'todo' ? 'Click to write the condition for this branch' : caption.text}
+            title={caption.tone === 'todo' ? t('Click to write the condition for this branch') : caption.text}
             className={`nodrag nopan pointer-events-auto absolute flex max-w-[190px] items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[11px] shadow-md ${PILL[caption.tone]} ${selected ? 'ring-2 ring-sky-400' : ''}`}
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`, opacity: faded ? 0.15 : 1, filter: faded ? 'blur(1px)' : undefined, transition: 'opacity 300ms' }}
           >

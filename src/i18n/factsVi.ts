@@ -61,6 +61,16 @@ const LABEL_VI: Readonly<Record<string, string>> = {
   'Next move': 'Bước tiếp theo',
   'First instalment': 'Kỳ trả đầu tiên',
   'Then 3 of': 'Sau đó 3 kỳ mỗi kỳ',
+  'Payment reference': 'Mã tham chiếu thanh toán',
+  'From bank': 'Từ ngân hàng',
+  'To bank': 'Tới ngân hàng',
+  Purpose: 'Mục đích',
+  Status: 'Trạng thái',
+  'Purchase was': 'Lần mua cách đây',
+  'Shop’s bank': 'Ngân hàng của cửa hàng',
+  Currency: 'Đơn vị tiền',
+  'Attempts in 10 min': 'Số lần thử trong 10 phút',
+  'Customer can spend': 'Khách có thể chi',
 };
 
 const VALUE_VI: Readonly<Record<string, string>> = {
@@ -117,6 +127,16 @@ const VALUE_VI: Readonly<Record<string, string>> = {
   FRICTIONLESS: 'KHÔNG MA SÁT',
   CHALLENGE: 'THỬ THÁCH',
   REJECT: 'TỪ CHỐI',
+  payroll: 'chi lương',
+  'supplier payment': 'thanh toán nhà cung cấp',
+  'VIP client': 'khách VIP',
+  'virtual card': 'thẻ ảo',
+  'debit card': 'thẻ ghi nợ',
+  'credit card': 'thẻ tín dụng',
+  'prepaid card': 'thẻ trả trước',
+  fraud: 'gian lận',
+  'goods not received': 'không nhận được hàng',
+  'duplicate charge': 'trừ tiền trùng',
 };
 
 export function factLabel(label: string): string {
@@ -131,6 +151,8 @@ export function factValue(value: string): string {
   if (m) return `${m[1]} lần trong ${m[2]} ngày`;
   m = /^(\d+) times$/.exec(value);
   if (m) return `${m[1]} lần`;
+  m = /^(\d+) days ago$/.exec(value);
+  if (m) return `${m[1]} ngày`;
   m = /^(\d+) s$/.exec(value);
   if (m) return `${m[1]} giây`;
   return value;

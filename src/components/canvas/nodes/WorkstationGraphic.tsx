@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { tr } from '../../../i18n/locale';
+import { t } from '../../../i18n/t';
 import type { BankingCapability } from '../../../types/processLearning';
 import type { NodeRunStatus } from '../../../store/liveSimulation';
 import { CATEGORY_THEME, categoryOf, WORKER_PROFILE, type Accessory } from '../nodeTheme';
@@ -159,9 +161,9 @@ export function WorkstationGraphic({ capability, status, className, profile }: P
       viewBox="0 0 96 72"
       className={className}
       role="img"
-      aria-label={`${worker.role} at the ${worker.desk}. Status: ${status.toLowerCase()}`}
+      aria-label={tr({ en: `${worker.role} at the ${worker.desk}. Status: ${status.toLowerCase()}`, vi: `${t(worker.role)} tại ${t(worker.desk)}. Trạng thái: ${status.toLowerCase()}` })}
     >
-      <title>{`${worker.role}: ${worker.desk}`}</title>
+      <title>{`${t(worker.role)}: ${t(worker.desk)}`}</title>
       {/* floor shadow */}
       <ellipse cx="48" cy="66" rx="40" ry="4" fill="#020617" opacity="0.55" />
 
@@ -240,8 +242,8 @@ export function WorkstationGraphic({ capability, status, className, profile }: P
 /** A customer holding up a card: the "payment arrives" picture on the Start event. */
 export function CustomerGraphic({ active, className }: { active: boolean; className?: string }) {
   return (
-    <svg viewBox="0 0 64 64" className={className} role="img" aria-label="A customer presenting a card">
-      <title>Customer presenting a card</title>
+    <svg viewBox="0 0 64 64" className={className} role="img" aria-label={t('A customer presenting a card')}>
+      <title>{t('Customer presenting a card')}</title>
       <ellipse cx="32" cy="58" rx="22" ry="3.5" fill="#020617" opacity="0.5" />
       <path d="M12 56 Q12 36 28 36 Q44 36 44 56 Z" fill="#65a30d" />
       <rect x="25" y="30" width="6" height="7" rx="2.5" fill="#e0ac86" />

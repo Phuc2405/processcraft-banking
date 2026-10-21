@@ -209,7 +209,7 @@ function factsOf(written: Partial<DerivedFacts>): WalkFact[] {
 /** "dcvvStatus = 'VALID'." from the runner's gateway note, without the edge id that follows it. */
 function gatewayReading(note: string | undefined): string {
   if (!note) return '';
-  const cut = note.search(/\s(Took|No condition)\b/);
+  const cut = note.search(/\s(Took|No condition|Đi |Không điều kiện)/);
   return (cut === -1 ? note : note.slice(0, cut)).trim();
 }
 

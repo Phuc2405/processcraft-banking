@@ -10,6 +10,7 @@
  * read here, because the bank cannot observe it.
  */
 
+import { tr } from '../i18n/locale';
 import type {
   BankingCapability,
   BankingPayload,
@@ -67,7 +68,9 @@ const tokenVault: CapabilityHandler = ({ payload }) => {
     return {
       ok: false,
       code: 'TOKEN_NOT_FOUND',
-      message: card ? 'The DPAN presented has no mapping in the token vault' : 'No DPAN was presented to look up',
+      message: card
+        ? tr({ en: 'The DPAN presented has no mapping in the token vault', vi: 'DPAN được xuất trình không có ánh xạ trong kho token' })
+        : tr({ en: 'No DPAN was presented to look up', vi: 'Không có DPAN nào được xuất trình để tra cứu' }),
     };
   }
   return ok(

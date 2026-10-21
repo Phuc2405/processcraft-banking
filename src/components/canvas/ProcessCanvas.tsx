@@ -1,3 +1,4 @@
+import { t } from '../../i18n/t';
 import { useCallback, useEffect, type DragEvent } from 'react';
 import {
   Background,
@@ -45,7 +46,7 @@ function Notice() {
       className={`pointer-events-auto flex max-w-[520px] items-start gap-3 rounded-lg border px-3 py-2 text-[12px] shadow-xl ${NOTICE_COLOR[notice.kind]}`}
     >
       <span className="flex-1 leading-snug">{notice.message}</span>
-      <button type="button" onClick={dismiss} aria-label="Dismiss" className="opacity-70 hover:opacity-100">
+      <button type="button" onClick={dismiss} aria-label={t('Dismiss')} className="opacity-70 hover:opacity-100">
         ✕
       </button>
     </div>
@@ -145,9 +146,9 @@ export function ProcessCanvas() {
       {placedCount === 0 && (
         <div className="pointer-events-none absolute inset-0 z-[5] grid place-items-center pt-16">
           <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/70 px-5 py-4 text-center">
-            <p className="text-[13px] font-medium text-slate-200">Your canvas is empty</p>
+            <p className="text-[13px] font-medium text-slate-200">{t('Your canvas is empty')}</p>
             <p className="mt-1 max-w-[260px] text-[12px] leading-snug text-slate-400">
-              Drag a desk from the palette, then pull a wire from its right-hand handle to the next node&apos;s left-hand handle.
+              {t('Drag a desk from the palette, then pull a wire from its right-hand handle to the next node’s left-hand handle.')}
             </p>
           </div>
         </div>

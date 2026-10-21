@@ -1,3 +1,4 @@
+import { t } from '../../../i18n/t';
 import type { CardType } from '../../../types/processLearning';
 import type { TokenLook } from '../../../store/liveSimulation';
 
@@ -128,10 +129,10 @@ export function TokenGlyph({ look, width = 34, className }: { look: TokenLook; w
       viewBox="-20 -15 40 30"
       className={className}
       role="img"
-      aria-label={look.label}
+      aria-label={t(look.label)}
       style={{ overflow: 'visible' }}
     >
-      <title>{look.label}</title>
+      <title>{t(look.label)}</title>
       <TokenShape look={look} />
     </svg>
   );

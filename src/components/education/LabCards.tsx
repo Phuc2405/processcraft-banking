@@ -1,3 +1,5 @@
+import { factLabel, factValue } from '../../i18n/factsVi';
+import { localChallenge } from '../../i18n/challengeVi';
 import { forwardRef, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { labScene, labUi } from '../../data/labTourCopy';
 import { curriculumPosition, LEVELS } from '../../data/seedChallenges';
@@ -42,8 +44,8 @@ function Facts({ items }: { items: ReadonlyArray<{ label: string; value: string 
     <dl className="mt-1.5 flex flex-wrap gap-1">
       {items.map((f) => (
         <div key={f.label} className="rounded bg-slate-800/80 px-1.5 py-0.5 text-[11px]">
-          <dt className="inline text-slate-400">{f.label}: </dt>
-          <dd className="inline font-medium text-slate-100">{f.value}</dd>
+          <dt className="inline text-slate-400">{factLabel(f.label)}: </dt>
+          <dd className="inline font-medium text-slate-100">{factValue(f.value)}</dd>
         </div>
       ))}
     </dl>
@@ -133,8 +135,8 @@ export function LabIntro({ accent }: { accent: string }) {
               <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
                 {tour.carries.map((f) => (
                   <div key={f.label} className="text-[11.5px]">
-                    <dt className="inline text-slate-500">{f.label}: </dt>
-                    <dd className="inline font-medium tabular-nums text-slate-200">{f.value}</dd>
+                    <dt className="inline text-slate-500">{factLabel(f.label)}: </dt>
+                    <dd className="inline font-medium tabular-nums text-slate-200">{factValue(f.value)}</dd>
                   </div>
                 ))}
               </dl>
@@ -177,7 +179,7 @@ export function LabIntro({ accent }: { accent: string }) {
 /** The payments the learner may follow on this level: every test that is not hidden. */
 function tourTests(tour: LabTour): Array<{ id: string; name: string }> {
   const level = LEVELS.find((l) => l.id === tour.levelId);
-  return level ? playableTests(level).map((t) => ({ id: t.id, name: t.name })) : [];
+  return level ? playableTests(localChallenge(level)).map((tc) => ({ id: tc.id, name: tc.name })) : [];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

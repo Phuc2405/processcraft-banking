@@ -13,6 +13,7 @@
  * time, no cap, backed by the central bank). The gateway in front of both has a queue and a liquidity budget.
  */
 
+import { tr } from '../i18n/locale';
 import type { A2aContext, BankingPayload, MinorUnits } from '../types/processLearning';
 import { formatAud } from './money';
 
@@ -55,15 +56,15 @@ export interface Pacs008Issue {
 /** Every format rule the gateway checks before it will touch a message. Empty means the message is well formed. */
 export function validatePacs008(m: Readonly<Pacs008>, instructedAmount: MinorUnits): Pacs008Issue[] {
   const issues: Pacs008Issue[] = [];
-  if (m.endToEndId.trim() === '') issues.push({ field: 'EndToEndId', message: 'EndToEndId is missing. Without it the payment cannot be traced from sender to receiver.' });
-  else if (m.endToEndId.length > END_TO_END_ID_MAX) issues.push({ field: 'EndToEndId', message: `EndToEndId is ${m.endToEndId.length} characters; the limit is ${END_TO_END_ID_MAX}.` });
-  if (!BIC_PATTERN.test(m.debtorAgent)) issues.push({ field: 'DebtorAgent', message: `DebtorAgent '${m.debtorAgent}' is not a valid BIC (8 or 11 characters).` });
-  if (!BIC_PATTERN.test(m.creditorAgent)) issues.push({ field: 'CreditorAgent', message: `CreditorAgent '${m.creditorAgent}' is not a valid BIC (8 or 11 characters).` });
-  if (!Number.isInteger(m.interbankSettlementAmount) || m.interbankSettlementAmount <= 0) issues.push({ field: 'InterbankSettlementAmount', message: 'InterbankSettlementAmount must be more than zero.' });
+  if (m.endToEndId.trim() === '') issues.push({ field: 'EndToEndId', message: tr({ en: 'EndToEndId is missing. Without it the payment cannot be traced from sender to receiver.', vi: 'Thiếu EndToEndId. Không có nó thì không thể truy giao dịch từ người gửi tới người nhận.' }) });
+  else if (m.endToEndId.length > END_TO_END_ID_MAX) issues.push({ field: 'EndToEndId', message: tr({ en: `EndToEndId is ${m.endToEndId.length} characters; the limit is ${END_TO_END_ID_MAX}.`, vi: `EndToEndId dài ${m.endToEndId.length} ký tự; giới hạn là ${END_TO_END_ID_MAX}.` }) });
+  if (!BIC_PATTERN.test(m.debtorAgent)) issues.push({ field: 'DebtorAgent', message: tr({ en: `DebtorAgent '${m.debtorAgent}' is not a valid BIC (8 or 11 characters).`, vi: `DebtorAgent '${m.debtorAgent}' không phải BIC hợp lệ (8 hoặc 11 ký tự).` }) });
+  if (!BIC_PATTERN.test(m.creditorAgent)) issues.push({ field: 'CreditorAgent', message: tr({ en: `CreditorAgent '${m.creditorAgent}' is not a valid BIC (8 or 11 characters).`, vi: `CreditorAgent '${m.creditorAgent}' không phải BIC hợp lệ (8 hoặc 11 ký tự).` }) });
+  if (!Number.isInteger(m.interbankSettlementAmount) || m.interbankSettlementAmount <= 0) issues.push({ field: 'InterbankSettlementAmount', message: tr({ en: 'InterbankSettlementAmount must be more than zero.', vi: 'InterbankSettlementAmount phải lớn hơn không.' }) });
   else if (m.interbankSettlementAmount !== instructedAmount) {
-    issues.push({ field: 'InterbankSettlementAmount', message: `InterbankSettlementAmount (${money(m.interbankSettlementAmount)}) does not equal the instructed amount (${money(instructedAmount)}).` });
+    issues.push({ field: 'InterbankSettlementAmount', message: tr({ en: `InterbankSettlementAmount (${money(m.interbankSettlementAmount)}) does not equal the instructed amount (${money(instructedAmount)}).`, vi: `InterbankSettlementAmount (${money(m.interbankSettlementAmount)}) không bằng số tiền trong lệnh (${money(instructedAmount)}).` }) });
   }
-  if (!/^[A-Z]{3}$/.test(m.currency)) issues.push({ field: 'Currency', message: `Currency '${m.currency}' is not an ISO 4217 code.` });
+  if (!/^[A-Z]{3}$/.test(m.currency)) issues.push({ field: 'Currency', message: tr({ en: `Currency '${m.currency}' is not an ISO 4217 code.`, vi: `Đơn vị tiền '${m.currency}' không phải mã ISO 4217.` }) });
   return issues;
 }
 

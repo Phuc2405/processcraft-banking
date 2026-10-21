@@ -25,6 +25,9 @@
  */
 
 import { CONDITION_VARIABLES, NODE_CATALOG } from '../data/seedChallenges';
+import { configLabel, nodeDefLabel, portLabel } from '../i18n/catalogVi';
+import { labLabel as L } from '../i18n/labText';
+import { activeLocale, tr } from '../i18n/locale';
 import type {
   BankingCapability,
   ChallengeLevel,
@@ -108,12 +111,12 @@ export function validateGraph(graph: ProcessGraph, level: ChallengeLevel, option
   // ── identity ──
   const nodeIds = new Set<Id>();
   for (const n of graph.nodes) {
-    if (nodeIds.has(n.id)) error('INVALID_STRUCTURE', { nodeId: n.id, message: `Two nodes share the id '${n.id}'.` });
+    if (nodeIds.has(n.id)) error('INVALID_STRUCTURE', { nodeId: n.id, message: tr({ en: `Two nodes share the id '${n.id}'.`, vi: `Hai nút có cùng id '${n.id}'.` }) });
     nodeIds.add(n.id);
   }
   const edgeIds = new Set<Id>();
   for (const e of graph.edges) {
-    if (edgeIds.has(e.id)) error('INVALID_STRUCTURE', { edgeId: e.id, message: `Two edges share the id '${e.id}'.` });
+    if (edgeIds.has(e.id)) error('INVALID_STRUCTURE', { edgeId: e.id, message: tr({ en: `Two edges share the id '${e.id}'.`, vi: `Hai cạnh có cùng id '${e.id}'.` }) });
     edgeIds.add(e.id);
   }
   const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
@@ -122,9 +125,9 @@ export function validateGraph(graph: ProcessGraph, level: ChallengeLevel, option
   // ── start event ──
   const starts = graph.nodes.filter((n) => typeOf(n) === 'EVENT_START');
   if (starts.length === 0) {
-    error('MISSING_START_EVENT', { message: 'The diagram has no Start event. Every transaction needs somewhere to enter.' });
+    error('MISSING_START_EVENT', { message: tr({ en: 'The diagram has no Start event. Every transaction needs somewhere to enter.', vi: 'Sơ đồ không có sự kiện Bắt đầu. Mọi giao dịch cần một nơi để đi vào.' }) });
   } else if (starts.length > 1) {
-    error('INVALID_STRUCTURE', { message: `The diagram has ${starts.length} Start events. Use exactly one.` });
+    error('INVALID_STRUCTURE', { message: tr({ en: `The diagram has ${starts.length} Start events. Use exactly one.`, vi: `Sơ đồ có ${starts.length} sự kiện Bắt đầu. Hãy dùng đúng một.` }) });
   }
 
   // ── nodes: definition, palette, starter nodes, config ──
@@ -135,23 +138,23 @@ export function validateGraph(graph: ProcessGraph, level: ChallengeLevel, option
   for (const s of level.starterGraph?.nodes.filter((n) => n.locked) ?? []) {
     const n = nodeById.get(s.id);
     if (!n) {
-      error('INVALID_STRUCTURE', { nodeId: s.id, message: `The starter node '${s.label}' was removed. It is locked and must stay.` });
+      error('INVALID_STRUCTURE', { nodeId: s.id, message: tr({ en: `The starter node '${s.label}' was removed. It is locked and must stay.`, vi: `Nút khởi đầu '${L(s.label)}' đã bị xóa. Nó bị khóa và phải được giữ lại.` }) });
     } else if (!free.has(n.id)) {
-      error('INVALID_STRUCTURE', { nodeId: n.id, message: `The starter node '${s.label}' is locked, but it was changed.` });
+      error('INVALID_STRUCTURE', { nodeId: n.id, message: tr({ en: `The starter node '${s.label}' is locked, but it was changed.`, vi: `Nút khởi đầu '${L(s.label)}' bị khóa, nhưng đã bị thay đổi.` }) });
     }
   }
 
   for (const n of graph.nodes) {
     const def = defs.get(n.definitionId);
     if (n.locked && !free.has(n.id) && !level.starterGraph?.nodes.some((s) => s.id === n.id && s.locked)) {
-      error('INVALID_STRUCTURE', { nodeId: n.id, message: `'${n.label}' is marked locked, but it is not one of this level's starter nodes.` });
+      error('INVALID_STRUCTURE', { nodeId: n.id, message: tr({ en: `'${n.label}' is marked locked, but it is not one of this level's starter nodes.`, vi: `'${L(n.label)}' được đánh dấu khóa, nhưng không phải nút khởi đầu của cấp độ này.` }) });
     }
     if (!def) {
-      error('PALETTE_VIOLATION', { nodeId: n.id, message: `'${n.label}' was not built from any known node type (${n.definitionId}).` });
+      error('PALETTE_VIOLATION', { nodeId: n.id, message: tr({ en: `'${n.label}' was not built from any known node type (${n.definitionId}).`, vi: `'${L(n.label)}' không được tạo từ loại nút nào đã biết (${n.definitionId}).` }) });
       continue;
     }
     if (def.type !== n.type || def.bankingCapability !== n.bankingCapability) {
-      error('INVALID_STRUCTURE', { nodeId: n.id, message: `'${n.label}' does not behave like its node type '${def.label}'.` });
+      error('INVALID_STRUCTURE', { nodeId: n.id, message: tr({ en: `'${n.label}' does not behave like its node type '${def.label}'.`, vi: `'${L(n.label)}' không hoạt động như loại nút '${nodeDefLabel(def.id, def.label)}' của nó.` }) });
     }
 
     if (!free.has(n.id)) {
@@ -162,28 +165,28 @@ export function validateGraph(graph: ProcessGraph, level: ChallengeLevel, option
     for (const c of def.configSchema) {
       const v = n.configParams[c.key];
       if (v === undefined) {
-        if (c.required) error('INVALID_CONFIG', { nodeId: n.id, message: `'${n.label}' needs a value for '${c.label}'.` });
+        if (c.required) error('INVALID_CONFIG', { nodeId: n.id, message: tr({ en: `'${n.label}' needs a value for '${c.label}'.`, vi: `'${L(n.label)}' cần một giá trị cho '${configLabel(c.key, c.label)}'.` }) });
         continue;
       }
-      const label = `'${c.label}' on '${n.label}'`;
+      const label = tr({ en: `'${c.label}' on '${n.label}'`, vi: `'${configLabel(c.key, c.label)}' trên '${L(n.label)}'` });
       if (c.type === 'number') {
-        if (typeof v !== 'number' || !Number.isFinite(v)) error('INVALID_CONFIG', { nodeId: n.id, message: `${label} must be a number.` });
+        if (typeof v !== 'number' || !Number.isFinite(v)) error('INVALID_CONFIG', { nodeId: n.id, message: tr({ en: `${label} must be a number.`, vi: `${label} phải là một số.` }) });
         else if ((c.min !== undefined && v < c.min) || (c.max !== undefined && v > c.max)) {
-          error('INVALID_CONFIG', { nodeId: n.id, message: `${label} must be between ${c.min ?? '-∞'} and ${c.max ?? '∞'} (got ${v}).` });
+          error('INVALID_CONFIG', { nodeId: n.id, message: tr({ en: `${label} must be between ${c.min ?? '-∞'} and ${c.max ?? '∞'} (got ${v}).`, vi: `${label} phải nằm trong khoảng ${c.min ?? '-∞'} đến ${c.max ?? '∞'} (nhận ${v}).` }) });
         }
       } else if (c.type === 'boolean') {
-        if (typeof v !== 'boolean') error('INVALID_CONFIG', { nodeId: n.id, message: `${label} must be true or false.` });
+        if (typeof v !== 'boolean') error('INVALID_CONFIG', { nodeId: n.id, message: tr({ en: `${label} must be true or false.`, vi: `${label} phải là true hoặc false.` }) });
       } else if (c.type === 'enum') {
         if (typeof v !== 'string' || !(c.options ?? []).includes(v)) {
-          error('INVALID_CONFIG', { nodeId: n.id, message: `${label} must be one of ${(c.options ?? []).join(', ')} (got ${JSON.stringify(v)}).` });
+          error('INVALID_CONFIG', { nodeId: n.id, message: tr({ en: `${label} must be one of ${(c.options ?? []).join(', ')} (got ${JSON.stringify(v)}).`, vi: `${label} phải là một trong ${(c.options ?? []).join(', ')} (nhận ${JSON.stringify(v)}).` }) });
         }
       } else if (typeof v !== 'string') {
-        error('INVALID_CONFIG', { nodeId: n.id, message: `${label} must be text.` });
+        error('INVALID_CONFIG', { nodeId: n.id, message: tr({ en: `${label} must be text.`, vi: `${label} phải là văn bản.` }) });
       }
     }
     const known = new Set(def.configSchema.map((c) => c.key));
     for (const key of Object.keys(n.configParams)) {
-      if (!known.has(key)) warn('INVALID_CONFIG', { nodeId: n.id, message: `'${n.label}' has a setting '${key}' that this node does not use.` });
+      if (!known.has(key)) warn('INVALID_CONFIG', { nodeId: n.id, message: tr({ en: `'${n.label}' has a setting '${key}' that this node does not use.`, vi: `'${L(n.label)}' có thiết lập '${key}' mà nút này không dùng.` }) });
     }
     if (def.bankingCapability === 'THREE_DS_EVALUATOR') {
       const lo = n.configParams.frictionlessBelow;
@@ -191,7 +194,7 @@ export function validateGraph(graph: ProcessGraph, level: ChallengeLevel, option
       if (typeof lo === 'number' && typeof hi === 'number' && lo > hi) {
         error('INVALID_CONFIG', {
           nodeId: n.id,
-          message: `'${n.label}': the frictionless line (${lo}) is above the reject line (${hi}), so the bands overlap.`,
+          message: tr({ en: `'${n.label}': the frictionless line (${lo}) is above the reject line (${hi}), so the bands overlap.`, vi: `'${L(n.label)}': ngưỡng không ma sát (${lo}) cao hơn ngưỡng từ chối (${hi}), nên các dải chồng lên nhau.` }),
         });
       }
     }
@@ -199,15 +202,15 @@ export function validateGraph(graph: ProcessGraph, level: ChallengeLevel, option
 
   for (const [defId, count] of counts) {
     const entry = level.allowedNodePalette.entries.find((e) => e.nodeDefinitionId === defId);
-    const name = defs.get(defId)?.label ?? defId;
-    if (!entry) error('PALETTE_VIOLATION', { message: `'${name}' is not available on this level.` });
+    const name = nodeDefLabel(defId, defs.get(defId)?.label ?? defId);
+    if (!entry) error('PALETTE_VIOLATION', { message: tr({ en: `'${name}' is not available on this level.`, vi: `'${name}' không có ở cấp độ này.` }) });
     else if (entry.maxCount !== null && count > entry.maxCount) {
-      error('PALETTE_VIOLATION', { message: `This level allows ${entry.maxCount} '${name}' node${entry.maxCount === 1 ? '' : 's'}, but the diagram uses ${count}.` });
+      error('PALETTE_VIOLATION', { message: tr({ en: `This level allows ${entry.maxCount} '${name}' node${entry.maxCount === 1 ? '' : 's'}, but the diagram uses ${count}.`, vi: `Cấp độ này cho phép ${entry.maxCount} nút '${name}', nhưng sơ đồ dùng ${count}.` }) });
     }
   }
   const budget = level.allowedNodePalette.totalNodeBudget;
   if (budget !== null && placed > budget) {
-    error('PALETTE_VIOLATION', { message: `This level allows ${budget} nodes, but the diagram uses ${placed}.` });
+    error('PALETTE_VIOLATION', { message: tr({ en: `This level allows ${budget} nodes, but the diagram uses ${placed}.`, vi: `Cấp độ này cho phép ${budget} nút, nhưng sơ đồ dùng ${placed}.` }) });
   }
 
   // ── edges ──
@@ -216,13 +219,13 @@ export function validateGraph(graph: ProcessGraph, level: ChallengeLevel, option
     const from = nodeById.get(e.sourceNodeId);
     const to = nodeById.get(e.targetNodeId);
     if (!from || !to) {
-      error('INVALID_STRUCTURE', { edgeId: e.id, message: `Edge ${e.id} connects to a node that is not in the diagram.` });
+      error('INVALID_STRUCTURE', { edgeId: e.id, message: tr({ en: `Edge ${e.id} connects to a node that is not in the diagram.`, vi: `Cạnh ${e.id} nối tới một nút không có trong sơ đồ.` }) });
       continue;
     }
     const outPort = from.outputPorts.find((p) => p.id === e.sourcePortId);
     const inPort = to.inputPorts.find((p) => p.id === e.targetPortId);
-    if (!outPort) error('INVALID_STRUCTURE', { edgeId: e.id, nodeId: from.id, message: `Edge ${e.id} leaves '${from.label}' from a port it does not have ('${e.sourcePortId}').` });
-    if (!inPort) error('INVALID_STRUCTURE', { edgeId: e.id, nodeId: to.id, message: `Edge ${e.id} enters '${to.label}' at a port it does not have ('${e.targetPortId}').` });
+    if (!outPort) error('INVALID_STRUCTURE', { edgeId: e.id, nodeId: from.id, message: tr({ en: `Edge ${e.id} leaves '${from.label}' from a port it does not have ('${e.sourcePortId}').`, vi: `Cạnh ${e.id} rời '${L(from.label)}' từ một cổng nó không có ('${e.sourcePortId}').` }) });
+    if (!inPort) error('INVALID_STRUCTURE', { edgeId: e.id, nodeId: to.id, message: tr({ en: `Edge ${e.id} enters '${to.label}' at a port it does not have ('${e.targetPortId}').`, vi: `Cạnh ${e.id} vào '${L(to.label)}' ở một cổng nó không có ('${e.targetPortId}').` }) });
     for (const [key, port, node] of [
       [`${from.id}:${e.sourcePortId}`, outPort, from],
       [`${to.id}:${e.targetPortId}`, inPort, to],
@@ -230,17 +233,17 @@ export function validateGraph(graph: ProcessGraph, level: ChallengeLevel, option
       const used = (portUse.get(key) ?? 0) + 1;
       portUse.set(key, used);
       if (port && used === port.maxEdges + 1) {
-        error('INVALID_STRUCTURE', { nodeId: node.id, message: `The '${port.label}' port on '${node.label}' takes at most ${port.maxEdges} connection${port.maxEdges === 1 ? '' : 's'}.` });
+        error('INVALID_STRUCTURE', { nodeId: node.id, message: tr({ en: `The '${port.label}' port on '${node.label}' takes at most ${port.maxEdges} connection${port.maxEdges === 1 ? '' : 's'}.`, vi: `Cổng '${portLabel(port.label)}' trên '${L(node.label)}' nhận tối đa ${port.maxEdges} kết nối.` }) });
       }
     }
 
     if (e.conditionExpression !== undefined) {
       if (typeOf(from) !== 'GATEWAY_XOR') {
-        warn('INVALID_EXPRESSION', { edgeId: e.id, nodeId: from.id, message: `Edge ${e.id} has a condition, but only edges leaving a Decision (XOR) gateway use one. It is ignored.` });
+        warn('INVALID_EXPRESSION', { edgeId: e.id, nodeId: from.id, message: tr({ en: `Edge ${e.id} has a condition, but only edges leaving a Decision (XOR) gateway use one. It is ignored.`, vi: `Cạnh ${e.id} có điều kiện, nhưng chỉ các cạnh rời cổng Quyết định (XOR) mới dùng điều kiện. Nó bị bỏ qua.` }) });
       } else {
         const check = checkExpression(e.conditionExpression, variables);
         for (const msg of check.errors) {
-          error('INVALID_EXPRESSION', { edgeId: e.id, nodeId: from.id, message: `Condition "${e.conditionExpression}" on edge ${e.id} after '${from.label}': ${msg}` });
+          error('INVALID_EXPRESSION', { edgeId: e.id, nodeId: from.id, message: tr({ en: `Condition "${e.conditionExpression}" on edge ${e.id} after '${from.label}': ${msg}`, vi: `Điều kiện "${e.conditionExpression}" trên cạnh ${e.id} sau '${L(from.label)}': ${msg}` }) });
         }
       }
     }
@@ -249,10 +252,10 @@ export function validateGraph(graph: ProcessGraph, level: ChallengeLevel, option
   for (const n of graph.nodes.filter((x) => typeOf(x) === 'GATEWAY_XOR')) {
     const out = graph.edges.filter((e) => e.sourceNodeId === n.id);
     if (out.filter((e) => e.isDefault).length > 1) {
-      error('INVALID_STRUCTURE', { nodeId: n.id, message: `The decision '${n.label}' has more than one default edge. Choose one.` });
+      error('INVALID_STRUCTURE', { nodeId: n.id, message: tr({ en: `The decision '${n.label}' has more than one default edge. Choose one.`, vi: `Quyết định '${L(n.label)}' có nhiều hơn một cạnh mặc định. Hãy chọn một.` }) });
     }
     if (out.length > 1 && out.some((e) => !e.isDefault && e.conditionExpression === undefined)) {
-      warn('INVALID_STRUCTURE', { nodeId: n.id, message: `An edge out of the decision '${n.label}' has no condition and is not the default, so it is always taken when reached.` });
+      warn('INVALID_STRUCTURE', { nodeId: n.id, message: tr({ en: `An edge out of the decision '${n.label}' has no condition and is not the default, so it is always taken when reached.`, vi: `Một cạnh rời quyết định '${L(n.label)}' không có điều kiện và không phải mặc định, nên nó luôn được đi khi tới đó.` }) });
     }
   }
 
@@ -267,7 +270,7 @@ export function validateGraph(graph: ProcessGraph, level: ChallengeLevel, option
   }
   if (starts.length > 0) {
     for (const n of graph.nodes) {
-      if (!reached.has(n.id)) warn('UNREACHABLE_NODE', { nodeId: n.id, message: `'${n.label}' cannot be reached from the Start event, so it never runs.` });
+      if (!reached.has(n.id)) warn('UNREACHABLE_NODE', { nodeId: n.id, message: tr({ en: `'${n.label}' cannot be reached from the Start event, so it never runs.`, vi: `'${L(n.label)}' không thể tới được từ sự kiện Bắt đầu, nên nó không bao giờ chạy.` }) });
     }
   }
 
@@ -307,9 +310,14 @@ interface ExplainContext {
   reveal: boolean;
 }
 
-const labelOf = (graph: ProcessGraph, id: Id): string => graph.nodes.find((n) => n.id === id)?.label ?? id;
-const capabilityLabel = (catalog: readonly NodeDefinition[], cap: BankingCapability): string =>
-  catalog.find((d) => d.bankingCapability === cap)?.label ?? cap;
+const labelOf = (graph: ProcessGraph, id: Id): string => {
+  const label = graph.nodes.find((n) => n.id === id)?.label;
+  return label === undefined ? id : L(label);
+};
+const capabilityLabel = (catalog: readonly NodeDefinition[], cap: BankingCapability): string => {
+  const def = catalog.find((d) => d.bankingCapability === cap);
+  return def ? nodeDefLabel(def.id, def.label) : cap;
+};
 
 /** The steps a token took, including everything its ancestors did before it. */
 function pathSteps(run: RunResult, tokenId: Id | null): ExecutionStep[] {
@@ -324,17 +332,24 @@ function pathSteps(run: RunResult, tokenId: Id | null): ExecutionStep[] {
 const describePath = (graph: ProcessGraph, steps: ExecutionStep[]): string =>
   steps.map((s) => labelOf(graph, s.nodeId)).join(' → ');
 
-const FAULT_ADVICE: Partial<Record<TokenExceptionCode, string>> = {
+const FAULT_ADVICE_EN: Partial<Record<TokenExceptionCode, string>> = {
   TOKEN_NOT_FOUND: "Connect the Token Vault's error port to an End event (for example Declined) so unknown tokens are handled instead of stalling.",
   NO_MATCHING_BRANCH: 'Mark one outgoing edge as the default, so every case lands somewhere.',
   INVALID_EXPRESSION: 'Fix the condition on that edge.',
   INVALID_CONFIG: "Check that node's settings.",
   STEP_LIMIT_EXCEEDED: 'Give the loop an exit, or take it out. Every path should end at an End event.',
 };
+const FAULT_ADVICE_VI: Partial<Record<TokenExceptionCode, string>> = {
+  TOKEN_NOT_FOUND: 'Nối cổng lỗi của Kho token tới một sự kiện kết thúc (ví dụ Từ chối) để token không xác định được xử lý thay vì bị treo.',
+  NO_MATCHING_BRANCH: 'Đánh dấu một cạnh ra là mặc định, để mọi trường hợp đều có nơi đến.',
+  INVALID_EXPRESSION: 'Sửa điều kiện trên cạnh đó.',
+  INVALID_CONFIG: 'Kiểm tra thiết lập của nút đó.',
+  STEP_LIMIT_EXCEEDED: 'Cho vòng lặp một lối ra, hoặc bỏ nó đi. Mọi nhánh nên kết thúc ở một sự kiện kết thúc.',
+};
 
 function explainFailure(test: TestCase, run: RunResult, reasons: TestFailureReason[], ctx: ExplainContext): FeedbackLog[] {
   const logs: FeedbackLog[] = [];
-  const tag = `${test.name}${test.hidden ? ' (hidden test)' : ''}:`;
+  const tag = `${test.name}${test.hidden ? tr({ en: ' (hidden test)', vi: ' (bài kiểm tra ẩn)' }) : ''}:`;
   const add = (message: string, nodeId?: Id): void => {
     logs.push({ level: 'ERROR', testCaseId: test.id, message: `${tag} ${message}`, ...(nodeId !== undefined ? { nodeId } : {}) });
   };
@@ -352,23 +367,26 @@ function explainFailure(test: TestCase, run: RunResult, reasons: TestFailureReas
     const advice =
       code === 'DEAD_END'
         ? nodeType === 'GATEWAY_AND'
-          ? 'Make sure every branch into the join is taken on every path, or do not use a join here.'
-          : 'Connect it to the next step, or to an End event.'
-        : FAULT_ADVICE[code];
+          ? tr({ en: 'Make sure every branch into the join is taken on every path, or do not use a join here.', vi: 'Đảm bảo mọi nhánh vào điểm gộp đều được đi trên mọi nhánh, hoặc đừng dùng điểm gộp ở đây.' })
+          : tr({ en: 'Connect it to the next step, or to an End event.', vi: 'Nối nó tới bước tiếp theo, hoặc tới một sự kiện kết thúc.' })
+        : (activeLocale() === 'vi' ? FAULT_ADVICE_VI : FAULT_ADVICE_EN)[code];
     const sentence = /[.!?]$/.test(message) ? message : `${message}.`;
     add(`${sentence} ${advice ?? ''}`.trim(), nodeId);
   }
 
   if (reasons.includes('WRONG_OUTCOME')) {
     if (run.outcome === 'NO_OUTCOME') {
-      add(`Expected ${test.expectedOutcome}, but no path reached an End event.`);
+      add(tr({ en: `Expected ${test.expectedOutcome}, but no path reached an End event.`, vi: `Mong đợi ${test.expectedOutcome}, nhưng không nhánh nào tới được sự kiện kết thúc.` }));
     } else {
       const last = decider[decider.length - 1];
-      let msg = `Expected ${test.expectedOutcome} but the transaction ended ${run.outcome} at '${last ? labelOf(ctx.graph, last.nodeId) : 'an End event'}'.`;
+      let msg = tr({
+        en: `Expected ${test.expectedOutcome} but the transaction ended ${run.outcome} at '${last ? labelOf(ctx.graph, last.nodeId) : 'an End event'}'.`,
+        vi: `Mong đợi ${test.expectedOutcome} nhưng giao dịch kết thúc ${run.outcome} tại '${last ? labelOf(ctx.graph, last.nodeId) : 'một sự kiện kết thúc'}'.`,
+      });
       if (ctx.reveal) {
-        msg += ` Path: ${describePath(ctx.graph, decider)}.`;
+        msg += tr({ en: ` Path: ${describePath(ctx.graph, decider)}.`, vi: ` Đường đi: ${describePath(ctx.graph, decider)}.` });
         const decision = [...decider].reverse().find((s) => ctx.graph.nodes.find((n) => n.id === s.nodeId)?.type === 'GATEWAY_XOR' && s.note);
-        if (decision) msg += ` Last decision, '${labelOf(ctx.graph, decision.nodeId)}': ${decision.note}`;
+        if (decision) msg += tr({ en: ` Last decision, '${labelOf(ctx.graph, decision.nodeId)}': ${decision.note}`, vi: ` Quyết định cuối, '${labelOf(ctx.graph, decision.nodeId)}': ${decision.note}` });
       }
       add(msg, last?.nodeId);
     }
@@ -378,8 +396,14 @@ function explainFailure(test: TestCase, run: RunResult, reasons: TestFailureReas
     const last = decider[decider.length - 1];
     add(
       ctx.reveal
-        ? `The reason code is '${run.reasonCode ?? '(none)'}' but this case belongs in '${test.expectedReasonCode}'. Check the reason code on the End event '${last ? labelOf(ctx.graph, last.nodeId) : '?'}', or route this case to a different End event.`
-        : 'The outcome is right but the reason code on the End event is wrong. Different kinds of break go to different queues.',
+        ? tr({
+            en: `The reason code is '${run.reasonCode ?? '(none)'}' but this case belongs in '${test.expectedReasonCode}'. Check the reason code on the End event '${last ? labelOf(ctx.graph, last.nodeId) : '?'}', or route this case to a different End event.`,
+            vi: `Mã lý do là '${run.reasonCode ?? '(không có)'}' nhưng trường hợp này thuộc về '${test.expectedReasonCode}'. Kiểm tra mã lý do trên sự kiện kết thúc '${last ? labelOf(ctx.graph, last.nodeId) : '?'}', hoặc định tuyến trường hợp này tới sự kiện kết thúc khác.`,
+          })
+        : tr({
+            en: 'The outcome is right but the reason code on the End event is wrong. Different kinds of break go to different queues.',
+            vi: 'Kết quả đúng nhưng mã lý do trên sự kiện kết thúc sai. Các loại sai lệch khác nhau đi tới các hàng chờ khác nhau.',
+          }),
       last?.nodeId,
     );
   }
@@ -387,29 +411,31 @@ function explainFailure(test: TestCase, run: RunResult, reasons: TestFailureReas
   if (reasons.includes('LATENCY_EXCEEDED')) {
     const slow = [...decider].filter((s) => s.durationMs > 0).sort((a, b) => b.durationMs - a.durationMs).slice(0, 3);
     add(
-      `It took ${run.latencyMs} ms but this case must finish within ${test.maxLatencyMs} ms.` +
-        (slow.length ? ` Slowest steps: ${slow.map((s) => `${labelOf(ctx.graph, s.nodeId)} (${s.durationMs} ms)`).join(', ')}.` : '') +
-        ' Remove steps this case does not need.',
+      tr({ en: `It took ${run.latencyMs} ms but this case must finish within ${test.maxLatencyMs} ms.`, vi: `Mất ${run.latencyMs} ms nhưng trường hợp này phải xong trong ${test.maxLatencyMs} ms.` }) +
+        (slow.length
+          ? tr({ en: ' Slowest steps: ', vi: ' Các bước chậm nhất: ' }) + `${slow.map((s) => `${labelOf(ctx.graph, s.nodeId)} (${s.durationMs} ms)`).join(', ')}.`
+          : '') +
+        tr({ en: ' Remove steps this case does not need.', vi: ' Bỏ các bước trường hợp này không cần.' }),
     );
   }
 
   for (const cap of test.requiredCapabilities ?? []) {
     if (!run.visitedCapabilities.includes(cap)) {
-      add(`This case has to pass through the ${capabilityLabel(ctx.catalog, cap)}, but your diagram skipped it.`);
+      add(tr({ en: `This case has to pass through the ${capabilityLabel(ctx.catalog, cap)}, but your diagram skipped it.`, vi: `Trường hợp này phải đi qua ${capabilityLabel(ctx.catalog, cap)}, nhưng sơ đồ của bạn đã bỏ qua nó.` }));
     }
   }
   for (const cap of test.forbiddenCapabilities ?? []) {
     if (run.visitedCapabilities.includes(cap)) {
       const hit = run.tokens.flatMap((t) => t.executionPathHistory).find((s) => s.capability === cap);
       add(
-        `This case must not reach the ${capabilityLabel(ctx.catalog, cap)}, but it did. Stop it earlier: a request that is already decided should not trigger that check.`,
+        tr({ en: `This case must not reach the ${capabilityLabel(ctx.catalog, cap)}, but it did. Stop it earlier: a request that is already decided should not trigger that check.`, vi: `Trường hợp này không được tới ${capabilityLabel(ctx.catalog, cap)}, nhưng nó đã tới. Hãy dừng nó sớm hơn: một yêu cầu đã được quyết định thì không nên kích hoạt bước kiểm tra đó.` }),
         hit?.nodeId,
       );
     }
   }
 
   if (!ctx.reveal && test.tags?.length) {
-    logs.push({ level: 'HINT', testCaseId: test.id, message: `${tag} this hidden test covers: ${test.tags.join(', ')}.` });
+    logs.push({ level: 'HINT', testCaseId: test.id, message: tr({ en: `${tag} this hidden test covers: ${test.tags.join(', ')}.`, vi: `${tag} bài kiểm tra ẩn này bao gồm: ${test.tags.join(', ')}.` }) });
   }
   return logs;
 }
@@ -425,7 +451,7 @@ function dedupeAnomalies(list: DetectedAnomaly[]): DetectedAnomaly[] {
     else byKey.set(key, { anomaly: a, extra: 0 });
   }
   return [...byKey.values()].map(({ anomaly, extra }) =>
-    extra > 0 ? { ...anomaly, message: `${anomaly.message} (also in ${extra} other test${extra === 1 ? '' : 's'})` } : anomaly,
+    extra > 0 ? { ...anomaly, message: tr({ en: `${anomaly.message} (also in ${extra} other test${extra === 1 ? '' : 's'})`, vi: `${anomaly.message} (cũng có ở ${extra} bài kiểm tra khác)` }) } : anomaly,
   );
 }
 
@@ -477,7 +503,7 @@ export function evaluateChallenge(graph: ProcessGraph, level: ChallengeLevel, op
         severity: 'ERROR',
         testCaseId: test.id,
         ...(lastStep ? { nodeId: lastStep.nodeId } : {}),
-        message: 'A fraudulent transaction was approved. Catch it with the risk score before it reaches an Approved end.',
+        message: tr({ en: 'A fraudulent transaction was approved. Catch it with the risk score before it reaches an Approved end.', vi: 'Một giao dịch gian lận đã được chấp thuận. Hãy bắt nó bằng điểm rủi ro trước khi nó tới sự kiện kết thúc Chấp thuận.' }),
       });
     }
 
@@ -496,7 +522,7 @@ export function evaluateChallenge(graph: ProcessGraph, level: ChallengeLevel, op
     if (!passed) {
       testLogs.push(...explainFailure(test, run, reasons, { graph, catalog, reveal: !test.hidden || options.revealHidden === true }));
       if (leaked) {
-        testLogs.push({ level: 'ERROR', testCaseId: test.id, message: `${test.name}${test.hidden ? ' (hidden test)' : ''}: this was a fraudulent transaction and your diagram approved it.` });
+        testLogs.push({ level: 'ERROR', testCaseId: test.id, message: tr({ en: `${test.name}${test.hidden ? ' (hidden test)' : ''}: this was a fraudulent transaction and your diagram approved it.`, vi: `${test.name}${test.hidden ? ' (bài kiểm tra ẩn)' : ''}: đây là giao dịch gian lận và sơ đồ của bạn đã chấp thuận nó.` }) });
       }
     }
   }
@@ -540,19 +566,24 @@ export function evaluateChallenge(graph: ProcessGraph, level: ChallengeLevel, op
       level: 'WARN',
       nodeId: u.nodeId,
       message:
-        `The decision '${labelOf(graph, u.nodeId)}' (edge ${u.edgeId}) reads '${u.fact}', but nothing on that path has set it yet` +
-        (producer ? `; it comes from the ${capabilityLabel(catalog, producer)}. Put that step before this decision.` : '.'),
+        tr({
+          en: `The decision '${labelOf(graph, u.nodeId)}' (edge ${u.edgeId}) reads '${u.fact}', but nothing on that path has set it yet`,
+          vi: `Quyết định '${labelOf(graph, u.nodeId)}' (cạnh ${u.edgeId}) đọc '${u.fact}', nhưng chưa có gì trên nhánh đó đặt giá trị cho nó`,
+        }) +
+        (producer
+          ? tr({ en: `; it comes from the ${capabilityLabel(catalog, producer)}. Put that step before this decision.`, vi: `; nó đến từ ${capabilityLabel(catalog, producer)}. Hãy đặt bước đó trước quyết định này.` })
+          : '.'),
     });
   }
   if (passed) {
     if (nodesUsed > bench.optimalNodeCount) {
-      logs.push({ level: 'HINT', message: `Your diagram uses ${nodesUsed} nodes; the benchmark is ${bench.optimalNodeCount}. Look for a node you can remove.` });
+      logs.push({ level: 'HINT', message: tr({ en: `Your diagram uses ${nodesUsed} nodes; the benchmark is ${bench.optimalNodeCount}. Look for a node you can remove.`, vi: `Sơ đồ của bạn dùng ${nodesUsed} nút; chuẩn là ${bench.optimalNodeCount}. Hãy tìm một nút có thể bỏ.` }) });
     }
     if (avgLatency > bench.optimalAvgLatencyMs * 1.005) {
-      logs.push({ level: 'HINT', message: `Average latency is ${avgLatency.toFixed(1)} ms against a benchmark of ${bench.optimalAvgLatencyMs} ms. Look for checks that run on requests that are already decided.` });
+      logs.push({ level: 'HINT', message: tr({ en: `Average latency is ${avgLatency.toFixed(1)} ms against a benchmark of ${bench.optimalAvgLatencyMs} ms. Look for checks that run on requests that are already decided.`, vi: `Độ trễ trung bình là ${avgLatency.toFixed(1)} ms so với chuẩn ${bench.optimalAvgLatencyMs} ms. Hãy tìm các bước kiểm tra chạy trên yêu cầu đã được quyết định.` }) });
     }
   } else {
-    logs.push({ level: 'INFO', message: 'Efficiency is scored once all tests pass.' });
+    logs.push({ level: 'INFO', message: tr({ en: 'Efficiency is scored once all tests pass.', vi: 'Hiệu quả chỉ được chấm khi mọi bài kiểm tra đều đạt.' }) });
   }
 
   return {
