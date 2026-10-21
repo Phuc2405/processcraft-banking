@@ -87,7 +87,11 @@ export const PRESET_SCENARIOS: readonly Scenario[] = [
   s('ATM', 'preset-cdm-200', '🎯', 'Practice Cash Deposit', 200, 0, 0, true),
 ];
 
-const BY_ID: ReadonlyMap<string, Scenario> = new Map([...SCENARIOS, ...PRESET_SCENARIOS].map((x) => [x.id, x]));
+/** The botnet's card-testing attempt on day 3 (Chaos Monkey). Not in SCENARIOS, so ordinary days never draw it. */
+export const BOT_SCENARIO_ID = 'chaos-bot-card-test';
+export const CHAOS_SCENARIOS: readonly Scenario[] = [s('ECOM', BOT_SCENARIO_ID, '🤖', 'Botnet $1 Card Test', 1, 0, 0, true)];
+
+const BY_ID: ReadonlyMap<string, Scenario> = new Map([...SCENARIOS, ...PRESET_SCENARIOS, ...CHAOS_SCENARIOS].map((x) => [x.id, x]));
 
 export const scenarioById = (id: string | null | undefined): Scenario | null => (id ? (BY_ID.get(id) ?? null) : null);
 

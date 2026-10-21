@@ -123,6 +123,7 @@ const EN: LedgerBook = {
     ATM_JAM: 'ATM jam parked in suspense',
     ATM_REFUND: 'ATM jam refunded',
     ATM_DEPOSIT: 'Cash deposited',
+    CHARGEBACK_REVERSAL: 'Chargeback reversal',
   },
 };
 
@@ -191,6 +192,7 @@ const VI: LedgerBook = {
     ATM_JAM: 'Kẹt tiền ATM đưa vào tài khoản treo',
     ATM_REFUND: 'Hoàn tiền kẹt ATM',
     ATM_DEPOSIT: 'Nộp tiền mặt',
+    CHARGEBACK_REVERSAL: 'Đảo tiền tra soát (chargeback)',
   },
 };
 

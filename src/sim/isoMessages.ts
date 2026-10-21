@@ -33,6 +33,9 @@ const DECLINE_RC: Record<DeclineReason, readonly [string, string]> = {
   PROCESS_ERROR: ['96', 'System Malfunction'],
 };
 
+/** The ISO response code and its text for a decline reason. */
+export const declineResponseCode = (decline: DeclineReason): readonly [string, string] => DECLINE_RC[decline];
+
 /** The answer the payment got, as a terminal (or, for a transfer, the instant-payments rail) would see it. */
 export function responseCodeFor(trace: PacketTrace): ResponseCode {
   const scheme = trace.kind === 'A2A' ? 'ISO 20022' : 'ISO 8583';

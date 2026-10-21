@@ -5,6 +5,8 @@
  */
 
 import type { ChapterId } from './academyCatalog';
+import { activeLocale, type Locale } from '../i18n/locale';
+import { GLOSSARY_VI, QUIZ_VI } from '../i18n/academyVi';
 
 export interface GlossaryEntry {
   /** Stable id, also what a track lists as one of its concepts. */
@@ -122,4 +124,22 @@ export function gradeQuiz(chapter: ChapterId, answers: Readonly<Record<string, n
   const questions = quizFor(chapter);
   const missed = questions.filter((q) => answers[q.id] !== q.answer).map((q) => q.id);
   return { score: questions.length - missed.length, total: questions.length, missed };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Language
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A glossary entry with its term and definition in the active language. */
+export function localGlossary(entry: GlossaryEntry, locale: Locale = activeLocale()): GlossaryEntry {
+  if (locale === 'en') return entry;
+  const vi = GLOSSARY_VI[entry.id];
+  return vi ? { ...entry, ...vi } : entry;
+}
+
+/** A quiz question with its prompt, options and explanation in the active language. The answer index is unchanged. */
+export function localQuestion(q: QuizQuestion, locale: Locale = activeLocale()): QuizQuestion {
+  if (locale === 'en') return q;
+  const vi = QUIZ_VI[q.id];
+  return vi ? { ...q, ...vi } : q;
 }

@@ -1,16 +1,20 @@
 /**
- * Beginner View vocabulary for the Academy: GL account codes and response codes in plain English.
+ * Beginner View vocabulary for the Academy and the ledgers: GL account codes and response codes in plain words, in English
+ * and Vietnamese.
  *
- * Expert View shows the raw code ("1120", "RC 51"); Beginner View shows the plain name ("Pending Card Hold", "Insufficient
- * Balance"). `plainText` rewrites free text (lesson steps, journal lines) so a beginner never meets a bare code.
- * Pure data and pure functions.
+ * Expert View shows the raw code with its professional name ("1120-Customer Credit Line Hold", "RC 51 Insufficient Funds");
+ * Beginner View shows the plain name ("Pending Card Hold", "Insufficient Balance"). In Vietnamese both views use the bank's
+ * Vietnamese account names, and the response codes keep the international term in brackets in Expert View.
+ * `plainText` rewrites free text (lesson steps, journal lines) so a beginner never meets a bare code.
+ * Pure data and pure functions; the language comes from i18n/locale.ts.
  */
 
 import { CHART_OF_ACCOUNTS } from '../engine/ledger';
+import { activeLocale, pick, type Locale, type Localized } from '../i18n/locale';
+import type { AccountId } from '../types/processLearning';
 import type { TermMode } from './terms';
 
-/** Plain names for every GL account, keyed by its four-digit code. */
-export const GL_PLAIN: Readonly<Record<string, string>> = {
+const GL_PLAIN_EN: Readonly<Record<string, string>> = {
   '1015': 'Cash Inside ATMs',
   '1110': 'Pending Debit Card Hold',
   '1120': 'Pending Card Hold',
@@ -33,6 +37,44 @@ export const GL_PLAIN: Readonly<Record<string, string>> = {
   '5010': 'Fraud Losses',
 };
 
+/** Vietnamese account names. The seven the course leans on most use the bank's exact wording. */
+const GL_NAME_VI: Readonly<Record<string, string>> = {
+  '1015': 'Quỹ tiền mặt tồn trong cây ATM/CDM',
+  '1110': 'Khoanh giữ tài khoản thanh toán khả dụng',
+  '1120': 'Tạm khóa hạn mức thẻ tín dụng',
+  '1130': 'Khoanh giữ ví trả trước',
+  '1150': 'Phải thu thẻ tín dụng',
+  '1210': 'Tài khoản Nostro quyết toán với tổ chức thẻ',
+  '1310': 'Dư nợ cho vay Mua trước trả sau (BNPL)',
+  '1410': 'Tài khoản quyết toán thanh toán tức thì',
+  '1420': 'Tài khoản quyết toán RTGS tại Ngân hàng Trung ương',
+  '1510': 'Phải thu tra soát từ tổ chức thẻ',
+  '1910': 'Tài khoản treo tra soát sai lệch (Chờ xử lý lỗi mạng)',
+  '1920': 'Tài khoản treo lỗ chênh lệch tỷ giá',
+  '2010': 'Tài khoản thanh toán tiền gửi khả dụng',
+  '2020': 'Số dư ví trả trước',
+  '2110': 'Quỹ chờ quyết toán trả cửa hàng/Tổ chức thẻ',
+  '2410': 'Phải trả hàng chờ cổng A2A',
+  '2420': 'Bù trừ thanh toán đi',
+  '2510': 'Tiền bị phong tỏa do nghi vấn rửa tiền (AML)',
+  '2920': 'Tài khoản treo lãi chênh lệch tỷ giá',
+  '5010': 'Chi phí tổn thất gian lận',
+};
+
+/** Plain names for every GL account, keyed by its four-digit code, per language. */
+export const GL_PLAIN_BOOK: Localized<Readonly<Record<string, string>>> = { en: GL_PLAIN_EN, vi: GL_NAME_VI };
+
+/**
+ * Plain names for every GL account in the active language. A Proxy, so code that reads `GL_PLAIN['1120']` follows the language
+ * switch without changing.
+ */
+export const GL_PLAIN: Readonly<Record<string, string>> = new Proxy({} as Record<string, string>, {
+  get: (_t, key) => (typeof key === 'string' ? pick(GL_PLAIN_BOOK)[key] : undefined),
+  has: (_t, key) => typeof key === 'string' && key in pick(GL_PLAIN_BOOK),
+  ownKeys: () => Object.keys(pick(GL_PLAIN_BOOK)),
+  getOwnPropertyDescriptor: (_t, key) => (typeof key === 'string' && key in pick(GL_PLAIN_BOOK) ? { enumerable: true, configurable: true, value: pick(GL_PLAIN_BOOK)[key] } : undefined),
+});
+
 export interface ResponseCodeLabel {
   /** The plain title a beginner sees. */
   plain: string;
@@ -40,8 +82,7 @@ export interface ResponseCodeLabel {
   expert: string;
 }
 
-/** Plain titles for the response codes the course teaches. */
-export const RC_PLAIN: Readonly<Record<string, ResponseCodeLabel>> = {
+const RC_EN: Readonly<Record<string, ResponseCodeLabel>> = {
   '00': { plain: 'Approved', expert: 'Approved' },
   '05': { plain: 'Bank Said No', expert: 'Do Not Honour' },
   '14': { plain: 'Card Number Not Recognised', expert: 'Invalid Card Number' },
@@ -56,17 +97,56 @@ export const RC_PLAIN: Readonly<Record<string, ResponseCodeLabel>> = {
   N7: { plain: 'Security Code Wrong', expert: 'CVV2 Failure' },
 };
 
+const RC_VI: Readonly<Record<string, ResponseCodeLabel>> = {
+  '00': { plain: 'Chấp thuận', expert: 'Chấp thuận (Approved)' },
+  '05': { plain: 'Ngân hàng từ chối', expert: 'Không chấp thuận (Do Not Honour)' },
+  '14': { plain: 'Số thẻ không được nhận diện', expert: 'Số thẻ không hợp lệ (Invalid Card Number)' },
+  '51': { plain: 'Tài khoản không đủ số dư', expert: 'Tài khoản không đủ số dư (Insufficient Funds)' },
+  '59': { plain: 'Nghi ngờ gian lận', expert: 'Nghi ngờ gian lận (Suspected Fraud)' },
+  '61': { plain: 'Vượt hạn mức giao dịch ngày', expert: 'Vượt hạn mức giao dịch ngày (Exceeds Withdrawal Limit)' },
+  '62': { plain: 'Thẻ bị khóa bởi chủ thẻ', expert: 'Thẻ bị khóa bởi chủ thẻ (Restricted Card)' },
+  '68': { plain: 'Lỗi quá thời gian phản hồi mạng', expert: 'Lỗi quá thời gian phản hồi mạng (Network Timeout)' },
+  '75': { plain: 'Nhập sai PIN quá số lần', expert: 'Nhập sai PIN quá số lần (PIN Tries Exceeded)' },
+  '91': { plain: 'Không kết nối được ngân hàng', expert: 'Ngân hàng phát hành hoặc bộ chuyển mạch ngừng hoạt động (Issuer or Switch Inoperative)' },
+  '96': { plain: 'Lỗi hệ thống', expert: 'Lỗi hệ thống (System Malfunction)' },
+  N7: { plain: 'Sai mã bảo mật', expert: 'Sai mã CVV2 (CVV2 Failure)' },
+};
+
+export const RC_BOOK: Localized<Readonly<Record<string, ResponseCodeLabel>>> = { en: RC_EN, vi: RC_VI };
+
+/** Plain titles for the response codes the course teaches, in the active language (a Proxy, like GL_PLAIN). */
+export const RC_PLAIN: Readonly<Record<string, ResponseCodeLabel>> = new Proxy({} as Record<string, ResponseCodeLabel>, {
+  get: (_t, key) => (typeof key === 'string' ? pick(RC_BOOK)[key] : undefined),
+  has: (_t, key) => typeof key === 'string' && key in pick(RC_BOOK),
+  ownKeys: () => Object.keys(pick(RC_BOOK)),
+  getOwnPropertyDescriptor: (_t, key) => (typeof key === 'string' && key in pick(RC_BOOK) ? { enumerable: true, configurable: true, value: pick(RC_BOOK)[key] } : undefined),
+});
+
+const FALLBACK: Localized<{ code: (c: string) => string; codeLower: (c: string) => string }> = {
+  en: { code: (c) => `Code ${c}`, codeLower: (c) => `code ${c}` },
+  vi: { code: (c) => `Mã ${c}`, codeLower: (c) => `mã ${c}` },
+};
+
+/** The professional name of an account in the active language: the chart's English name, or the Vietnamese name. */
+export function accountName(id: AccountId, locale: Locale = activeLocale()): string {
+  const def = CHART_OF_ACCOUNTS[id];
+  return locale === 'vi' ? (GL_NAME_VI[def.code] ?? def.name) : def.name;
+}
+
+/** "1120-Customer Credit Line Hold" or "1120-Tạm khóa hạn mức thẻ tín dụng". */
+export const accountLabel = (id: AccountId, locale: Locale = activeLocale()): string => `${CHART_OF_ACCOUNTS[id].code}-${accountName(id, locale)}`;
+
 /** The name of a GL account for the chosen view. Unknown codes are returned as given. */
-export function glName(code: string, mode: TermMode): string {
-  if (mode === 'beginner') return GL_PLAIN[code] ?? code;
+export function glName(code: string, mode: TermMode, locale: Locale = activeLocale()): string {
+  if (mode === 'beginner') return pick(GL_PLAIN_BOOK, locale)[code] ?? code;
   const account = Object.values(CHART_OF_ACCOUNTS).find((a) => a.code === code);
-  return account ? `${code}-${account.name}` : code;
+  return account ? `${code}-${accountName(account.id, locale)}` : code;
 }
 
 /** The label of a response code for the chosen view: "RC 51 Insufficient Funds" or "Insufficient Balance". */
-export function rcLabel(code: string, mode: TermMode): string {
-  const known = RC_PLAIN[code];
-  if (mode === 'beginner') return known?.plain ?? `Code ${code}`;
+export function rcLabel(code: string, mode: TermMode, locale: Locale = activeLocale()): string {
+  const known = pick(RC_BOOK, locale)[code];
+  if (mode === 'beginner') return known?.plain ?? pick(FALLBACK, locale).code(code);
   return known ? `RC ${code} ${known.expert}` : `RC ${code}`;
 }
 
@@ -76,11 +156,11 @@ const GL_PATTERN = /(?<![$\d.,])\b([0-9]{4})\b(?![.,]?\d)/g;
 
 /**
  * Free text for the chosen view. Expert View returns it unchanged. Beginner View swaps every "RC xx" for its plain title and
- * every known GL code for the plain account name.
+ * every known GL code for the plain account name, in the active language.
  */
-export function plainText(text: string, mode: TermMode): string {
+export function plainText(text: string, mode: TermMode, locale: Locale = activeLocale()): string {
   if (mode === 'expert') return text;
-  return text
-    .replace(RC_PATTERN, (_m, code: string) => RC_PLAIN[code]?.plain ?? `code ${code}`)
-    .replace(GL_PATTERN, (m, code: string) => GL_PLAIN[code] ?? m);
+  const rc = pick(RC_BOOK, locale);
+  const gl = pick(GL_PLAIN_BOOK, locale);
+  return text.replace(RC_PATTERN, (_m, code: string) => rc[code]?.plain ?? pick(FALLBACK, locale).codeLower(code)).replace(GL_PATTERN, (m, code: string) => gl[code] ?? m);
 }

@@ -16,16 +16,39 @@
 
 import { formatAud } from '../engine/capabilities';
 import { emptyBook, groupByTransaction, post, trialBalance, type LedgerBook } from '../engine/ledger';
-import { atmDeposit, atmDispense, atmJam, atmRefund, clearSuspense, toEntries } from '../engine/postings';
+import { atmDeposit, atmDispense, atmJam, atmRefund, chargebackReversal, clearSuspense, toEntries } from '../engine/postings';
+import {
+  ALERT_FATIGUE_PER_BOT,
+  BOT_AMOUNT_CENTS,
+  BOTS_PER_BEAT,
+  chaosActive,
+  cleanChaos,
+  CONGESTION_LATENCY_MS,
+  congestionOn,
+  congestionOutcome,
+  emptyChaosStats,
+  FATIGUE_SPIKE_LEVEL,
+  HSM_CHANNELS,
+  misApprovalChance,
+  NO_CHAOS,
+  scenarioForDay,
+  SURGE_MULTIPLIER,
+  type ChaosConfig,
+  type ChaosScenario,
+  type ChaosTag,
+  type ChaosStats,
+  type ChaosView,
+} from '../engine/chaos';
 import type { CardType, DerivedFacts, GLEntry } from '../types/processLearning';
 import { BEATS_PER_DAY, DAY_END, DAY_START, EOD_START, beatIndexAt, beatMinutes, formatClock, phaseAt, type Phase } from './clock';
 import { A2A_FEE_CENTS, BNPL_FEE_RATE, bnplDefaultRate, COVER_COST_CENTS, emptyKpis, INTERCHANGE_RATE, pnl } from './kpis';
 import { closeBook, openingBook } from './bankBook';
 import { describeWork, IDLE_TEXT } from './narration';
 import { buildGraphs, planCheckout, planSettlement, type BankGraphs } from './processes';
-import { clamp } from './prng';
+import { clamp, hashSeed, Rng } from './prng';
 import { clampRules, DEFAULT_RULES, type BankRules } from './rules';
-import { scenarioLabel } from './scenarios';
+import { BOT_SCENARIO_ID, scenarioLabel } from './scenarios';
+import { declineResponseCode } from './isoMessages';
 import {
   DAY_START_FATIGUE,
   fatigueChange,
@@ -45,7 +68,7 @@ import {
   type WorkerSeed,
 } from './roster';
 import { edgeId, EXTERNAL_IDS, SERVICE_ORDER, STATION_IDS, STATIONS, type ExternalId, type PlaceId, type StationId } from './topology';
-import { eventForDay, generateDay, keyedUnit, makeSettlement, workingBeatIndex, type DayTraffic } from './traffic';
+import { eventForDay, generateDay, keyedUnit, makeCustomer, makeSettlement, workingBeatIndex, type DayTraffic } from './traffic';
 import type {
   PacketTrace,
   AlertView,
@@ -145,6 +168,19 @@ export interface BankSimOptions {
   cover?: Partial<Record<StationId, number>>;
   /** Skip everything only a screen needs (feed, moves, wording). Several times faster. */
   headless?: boolean;
+  /** Chaos Monkey faults and the scripted day 2 / day 3 scenarios. Off unless given. */
+  chaos?: Partial<ChaosConfig>;
+}
+
+/** The result of disputing a payment from the ledger. */
+export interface DisputeResult {
+  ok: boolean;
+  /** The amount reversed to the customer, when ok. */
+  amountCents: number;
+  /** Why the dispute could not be raised, when not ok. */
+  reason: 'UNKNOWN' | 'NOT_A_CARD_PURCHASE' | 'ALREADY_DISPUTED' | 'DAY_OVER' | null;
+  /** The id the reversal lines were posted under. */
+  txId: string | null;
 }
 
 interface ApprovedRecord {
@@ -211,6 +247,18 @@ export class BankSimulation {
   private scripted = new Map<string, Packet>();
   /** Generated customers kept out of the building during a solo run (see step). */
   private heldBack: Customer[] = [];
+  /** Chaos Monkey: the faults switched on, today's scripted scenario and what they did. */
+  private chaosConfig: ChaosConfig = { ...NO_CHAOS };
+  private chaosScenario: ChaosScenario = 'NONE';
+  private chaosStats: ChaosStats = emptyChaosStats();
+  private chaosSerial = 0;
+  /** Bot attempts since the last velocity alert, and the hour that alert covered. */
+  private botsThisHour = 0;
+  private velocityHour = -1;
+  /** Payments already disputed from the ledger today, by transaction id. */
+  private disputed = new Set<string>();
+  /** What Chaos Monkey did to each payment it touched today, by packet id. */
+  private chaosTags = new Map<string, ChaosTag>();
 
   constructor(options: BankSimOptions) {
     this.seed = options.seed;
@@ -255,6 +303,7 @@ export class BankSimulation {
     this.nightPool = nightPoolFor(this.seed);
     this.nightFatigue = this.nightPool.map(() => NIGHT_START_FATIGUE);
     this.seatNightCrew();
+    this.chaosConfig = cleanChaos({ ...NO_CHAOS, ...options.chaos });
     if (options.carry) this.restore(options.carry);
     this.beginDay(options.cover);
   }
@@ -276,6 +325,27 @@ export class BankSimulation {
     const rules = clampRules({ ...this.rulesNow, ...next });
     this.rulesNow = rules;
     this.graphs = buildGraphs(rules);
+  }
+
+  /** The Chaos Monkey settings in force. */
+  get chaos(): ChaosConfig {
+    return { ...this.chaosConfig };
+  }
+
+  /**
+   * Switches Chaos Monkey faults on or off. They apply from the next beat; payments already in the building keep their route.
+   * Turning `scriptedDays` on or off takes effect from the next day.
+   */
+  setChaos(next: Partial<ChaosConfig>): void {
+    const before = this.chaosConfig;
+    this.chaosConfig = cleanChaos({ ...before, ...next });
+    if (this.headless) return;
+    const changed = (Object.keys(this.chaosConfig) as Array<keyof ChaosConfig>).filter((k) => k !== 'scriptedDays' && this.chaosConfig[k] !== before[k]);
+    for (const k of changed) {
+      const on = this.chaosConfig[k];
+      const what = { posOutage: 'POS station outage', hsmFailure: '3DS HSM cryptography failure', congestion: 'Network congestion', fatigueSpike: 'Staff fatigue spike' }[k as Exclude<keyof ChaosConfig, 'scriptedDays'>];
+      this.log(on ? 'crit' : 'ok', null, on ? `Chaos Monkey: ${what} injected.` : `Chaos Monkey: ${what} cleared.`, { notable: true });
+    }
   }
 
   /** Books a temporary worker on a desk for the rest of the day. Costs money. Returns false when the desk cannot take another. */
@@ -312,8 +382,9 @@ export class BankSimulation {
     }
     this.announce(phase, start);
 
+    if (this.chaosConfig.fatigueSpike) this.spikeFatigue();
     if (phase === 'WORKING') {
-      const arriving = this.traffic.beats[workingBeatIndex(start)] ?? [];
+      const arriving = [...(this.traffic.beats[workingBeatIndex(start)] ?? []), ...this.chaosArrivals(start)];
       if (options.admit === false) this.heldBack.push(...arriving);
       else {
         // Customers held back during a solo run walk in now, as if they had just arrived.
@@ -463,6 +534,13 @@ export class BankSimulation {
     this.labels.clear();
     this.txLog = [];
     this.txById.clear();
+    this.chaosScenario = scenarioForDay(this.day, this.chaosConfig.scriptedDays);
+    this.chaosStats = emptyChaosStats();
+    this.chaosSerial = 0;
+    this.botsThisHour = 0;
+    this.velocityHour = -1;
+    this.disputed.clear();
+    this.chaosTags.clear();
 
     for (const st of Object.values(this.stations)) {
       // Whatever is still queued from yesterday starts the new day at the front of the line.
@@ -494,6 +572,11 @@ export class BankSimulation {
     }
     const e = this.traffic.event;
     this.log('info', null, `Day ${this.day}: ${e.title}. ${e.blurb}`, { notable: true });
+    if (this.chaosScenario === 'FLASH_SURGE') {
+      this.log('crit', null, `Day ${this.day} scenario: FLASH SALE. Expect ${SURGE_MULTIPLIER}x the usual customers, a congested network and 504 gateway timeouts. Status inquiries will chase every timed-out payment.`, { notable: true });
+    } else if (this.chaosScenario === 'BOTNET') {
+      this.log('crit', null, `Day ${this.day} scenario: BOTNET ATTACK. A botnet is testing stolen cards with $1 online payments. Every alert tires the fraud desk; above 70% fatigue they start waving bots through.`, { notable: true });
+    }
   }
 
   private restore(carry: CarryState): void {
@@ -613,7 +696,8 @@ export class BankSimulation {
     };
   }
 
-  private admit(customer: Customer): Packet {
+  private admit(incoming: Customer): Packet {
+    const customer = this.chaosTriage(incoming);
     const plan = planCheckout(customer, this.graphs);
     const { payload } = customer;
     const p: Packet = {
@@ -643,12 +727,184 @@ export class BankSimulation {
     if (customer.kind === 'ATM') k.atm.sessions++;
     this.remember(p);
 
+    if (customer.scenario === BOT_SCENARIO_ID) p.bot = true;
+
     const gate = plan.stops[0]?.place;
     const st = gate && gate in this.stations ? this.stations[gate as StationId] : this.stations.GATE_ECOM;
     st.arrivalsBeat++;
     bump(st, 'arrived');
+    if (this.chaosFault(p, st)) return p;
     this.insert(st.queue, p);
     return p;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Chaos Monkey
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /** One independent random stream per payment and purpose, so chaos never shifts the draws of the day's own traffic. */
+  private chaosDraw(id: string, purpose: string): number {
+    return new Rng(hashSeed(this.seed, this.day, id, 'chaos', purpose)).next();
+  }
+
+  /** The flash sale's extra customers and the botnet's bots for the beat starting at `start`. */
+  private chaosArrivals(start: number): Customer[] {
+    const out: Customer[] = [];
+    if (this.chaosScenario === 'FLASH_SURGE') {
+      const base = this.traffic.beats[workingBeatIndex(start)] ?? [];
+      for (const c of base) {
+        if (c.kind === 'ATM' || c.kind === 'A2A') continue;
+        for (let k = 1; k < SURGE_MULTIPLIER; k++) {
+          const id = `d${this.day}-${20001 + this.chaosSerial++}`;
+          this.chaosTags.set(id, 'SURGE');
+          out.push({ ...c, id, payload: { ...c.payload, txId: `tx_${id}` } });
+        }
+      }
+      this.chaosStats.surgeCustomers += out.length;
+    }
+    if (this.chaosScenario === 'BOTNET') {
+      const hour = Math.floor(start / 60);
+      if (this.velocityHour < 0) this.velocityHour = hour;
+      if (hour !== this.velocityHour) {
+        this.velocityAlert(this.velocityHour);
+        this.velocityHour = hour;
+      }
+      for (let i = 0; i < BOTS_PER_BEAT; i++) {
+        const id = `d${this.day}-${40001 + this.chaosSerial++}`;
+        this.chaosTags.set(id, 'BOT');
+        const minute = start + Math.min(4, Math.floor(this.chaosDraw(id, 'minute') * 5));
+        const base = makeCustomer(this.seed, this.day, id, 'ECOM', minute, this.traffic.event);
+        const risk = 82 + Math.floor(this.chaosDraw(id, 'risk') * 16);
+        out.push({ ...base, scenario: BOT_SCENARIO_ID, otpCompletes: false, payload: { ...base.payload, txId: `tx_${id}`, amount: BOT_AMOUNT_CENTS, isFraud: true, riskScore: risk } });
+      }
+      this.chaosStats.botAttempts += BOTS_PER_BEAT;
+      this.botsThisHour += BOTS_PER_BEAT;
+      // Every alert the fraud desk reviews wears its analysts down.
+      for (const w of this.stations.SEC_3DS.workers) {
+        if (!STATIONS.SEC_3DS.automated) w.fatigue = clamp(w.fatigue + ALERT_FATIGUE_PER_BOT * BOTS_PER_BEAT, 0, 100);
+      }
+    }
+    return out;
+  }
+
+  /** The hourly velocity alert of the botnet day. */
+  private velocityAlert(hour: number): void {
+    if (this.botsThisHour === 0) return;
+    this.chaosStats.velocityAlerts++;
+    const text = `Velocity alert ${String(hour).padStart(2, '0')}:00-${String(hour + 1).padStart(2, '0')}:00: ${this.botsThisHour} card-testing attempts of $1.00 from rotating devices. Fraud desk fatigue ${Math.round(this.analystFatigue())}%.`;
+    this.log('crit', 'SEC_3DS', text, { notable: true });
+    this.pushAlert('SEC_3DS', 'crit', text, `velocity:${this.day}:${hour}`);
+    this.botsThisHour = 0;
+  }
+
+  /** The mean fatigue of the people on the 3DS fraud desk. */
+  private analystFatigue(): number {
+    const people = this.stations.SEC_3DS.workers;
+    return people.length > 0 ? people.reduce((n, w) => n + w.fatigue, 0) / people.length : 0;
+  }
+
+  /** A tired fraud desk sometimes clears a bot as if it were a regular: it then takes the frictionless path. */
+  private chaosTriage(c: Customer): Customer {
+    if (c.scenario !== BOT_SCENARIO_ID) return c;
+    if (this.chaosDraw(c.id, 'misapprove') >= misApprovalChance(this.analystFatigue())) return c;
+    this.chaosStats.misApprovals++;
+    this.chaosTags.set(c.id, 'MISAPPROVED');
+    if (!this.headless && this.throttle('misapprove', 15)) {
+      this.log('crit', 'SEC_3DS', `A fatigued analyst (fatigue ${Math.round(this.analystFatigue())}%) cleared a $1.00 bot attempt as low risk. The stolen card is now confirmed live.`, { packetId: c.id, notable: true });
+    }
+    return { ...c, payload: { ...c.payload, riskScore: Math.max(0, this.rulesNow.frictionlessBelow - 5) } };
+  }
+
+  /**
+   * Applies the faults that stop a payment at the door. Returns true when the payment was ended here (declined) and must not
+   * be queued. Congestion that recovers only adds latency.
+   */
+  private chaosFault(p: Packet, st: StationState): boolean {
+    const c = this.chaosConfig;
+    const decline = (reason: 'PROCESS_ERROR' | 'TIMEOUT', counter: keyof ChaosStats, message: string, key: string, tag: ChaosTag): true => {
+      (this.chaosStats[counter] as number)++;
+      this.chaosTags.set(p.id, tag);
+      st.errors++;
+      bump(st, 'chaos');
+      this.finishCheckout(p, reason);
+      if (!this.headless && this.throttle(key, 10)) {
+        this.log('crit', st.id, message, { packetId: p.id, notable: true });
+        this.pushAlert(st.id, 'crit', message, `${key}:${Math.floor(this.minute / 10)}`);
+      }
+      return true;
+    };
+    if (c.posOutage && p.kind === 'POS') {
+      return decline('PROCESS_ERROR', 'posOutageDeclines', `POS station outage: ${this.what(p)} could not reach the switch (RC 91 Issuer or Switch Inoperative).`, 'chaos-pos', 'POS_OUTAGE');
+    }
+    if (c.hsmFailure && p.kind !== 'SETTLEMENT' && HSM_CHANNELS.has(p.kind)) {
+      return decline('PROCESS_ERROR', 'hsmDeclines', `3DS HSM failure: no cryptogram could be signed for ${this.what(p)} (RC 96 System Malfunction).`, 'chaos-hsm', 'HSM_FAILURE');
+    }
+    if (congestionOn(c, this.chaosScenario)) {
+      this.chaosStats.addedLatencyMs += CONGESTION_LATENCY_MS;
+      p.extraLatencyMs = (p.extraLatencyMs ?? 0) + CONGESTION_LATENCY_MS;
+      const outcome = congestionOutcome(this.chaosDraw(p.id, 'timeout'), this.chaosDraw(p.id, 'inquiry'));
+      if (outcome === 'CLEAR') return false;
+      this.chaosStats.timeouts504++;
+      if (outcome === 'RECOVERED') {
+        this.chaosStats.inquiriesRecovered++;
+        if (!this.chaosTags.has(p.id)) this.chaosTags.set(p.id, 'INQUIRY_RECOVERED');
+        p.extraLatencyMs += CONGESTION_LATENCY_MS;
+        if (!this.headless && this.throttle('chaos-inquiry', 12)) {
+          this.log('warn', st.id, `504 Gateway Timeout on ${this.what(p)}. An automatic status inquiry found the request alive, so it carries on.`, { packetId: p.id, notable: true });
+        }
+        return false;
+      }
+      return decline('TIMEOUT', 'inquiriesFailed', `504 Gateway Timeout on ${this.what(p)} and the status inquiry got no answer: declined RC 68 (Response Received Too Late) and reversed.`, 'chaos-timeout', 'TIMEOUT_504');
+    }
+    return false;
+  }
+
+  /** Keeps everyone on shift at or above the spike level while the fatigue spike is on. */
+  private spikeFatigue(): void {
+    for (const st of Object.values(this.stations)) {
+      if (STATIONS[st.id].automated) continue;
+      for (const w of st.workers) w.fatigue = Math.max(w.fatigue, FATIGUE_SPIKE_LEVEL);
+    }
+  }
+
+  /** What Chaos Monkey is doing today, for the screen. */
+  chaosView(): ChaosView {
+    return { scenario: this.chaosScenario, config: { ...this.chaosConfig }, stats: { ...this.chaosStats }, active: chaosActive(this.chaosConfig, this.chaosScenario) };
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Disputes raised from the ledger
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Raises a cardholder dispute on a card purchase from the live ledger: the amount the bank still owes the merchant side
+   * (2110 Card Settlement Clearing Payable) is reversed back to the customer's CASA (2010). One balanced pair of lines,
+   * posted under `<txId>-CB`. A payment can be disputed once.
+   */
+  disputeTransaction(txId: string): DisputeResult {
+    const fail = (reason: DisputeResult['reason']): DisputeResult => ({ ok: false, amountCents: 0, reason, txId: null });
+    if (this.dayOver) return fail('DAY_OVER');
+    const base = txId.replace(/-CB$/, '');
+    const lines = this.book.entries.filter((e) => e.txId === base);
+    if (lines.length === 0) return fail('UNKNOWN');
+    if (this.disputed.has(base)) return fail('ALREADY_DISPUTED');
+    const amount = lines.filter((e) => e.creditAccount === 'CARD_CLEARING_PAYABLE').reduce((n, e) => n + e.amount, 0);
+    if (amount <= 0) return fail('NOT_A_CARD_PURCHASE');
+    const id = `${base}-CB`;
+    this.disputed.add(base);
+    this.postLines(toEntries([chargebackReversal(amount)], id, 0));
+    this.kpis.disputesRaised = (this.kpis.disputesRaised ?? 0) + 1;
+    this.kpis.disputedCents = (this.kpis.disputedCents ?? 0) + amount;
+    if (!this.headless) {
+      const label = this.labelForTx(base);
+      this.log('warn', 'LEDGER_DEBIT', `Chargeback raised on ${label || base}: ${formatAud(amount)} reversed from the merchant payout pool (2110) back to the customer’s account (2010).`, { packetId: base, notable: true });
+    }
+    return { ok: true, amountCents: amount, reason: null, txId: id };
+  }
+
+  /** True when a payment has already been disputed today. */
+  isDisputed(txId: string): boolean {
+    return this.disputed.has(txId.replace(/-CB$/, ''));
   }
 
   private releasePhones(start: number, bm: number): void {
@@ -1098,9 +1354,18 @@ export class BankSimulation {
       // A card payment waits for tonight's reconciliation; a jammed withdrawal's money is parked in suspense.
       recon: decline === 'ATM_JAM' ? 'SUSPENDED' : decline === null && card ? 'NO' : 'N/A',
       ...(p.plan.reasonCode === 'CASH_DEPOSITED' ? { deposit: true as const } : {}),
+      ...(this.chaosTags.has(p.id) ? { chaos: this.chaosTags.get(p.id) as ChaosTag } : {}),
+      responseCode: this.responseCodeOf(p, decline),
     };
     this.txLog.push(rec);
     this.txById.set(p.id, rec);
+  }
+
+  /** The ISO response code a finished payment got. A POS outage answers 91 rather than the generic 96. */
+  private responseCodeOf(p: Packet, decline: DeclineReason | null): string {
+    if (decline === null) return p.kind === 'A2A' ? 'ACSC' : '00';
+    if (this.chaosTags.get(p.id) === 'POS_OUTAGE') return '91';
+    return declineResponseCode(decline)[0];
   }
 
   /** Every customer payment that finished today, oldest first. Read only when the learner exports it. */
@@ -1109,6 +1374,10 @@ export class BankSimulation {
   }
 
   private finishCheckout(p: Packet, decline: DeclineReason | null): void {
+    if (p.bot) {
+      if (decline === null) this.chaosStats.botApproved++;
+      else this.chaosStats.botBlocked++;
+    }
     const k = this.kpis;
     const plan = p.plan;
     const amount = p.amountCents;
@@ -1121,7 +1390,7 @@ export class BankSimulation {
 
   private finishCheckoutInner(p: Packet, decline: DeclineReason | null, k: DayKpis, plan: RoutePlan, amount: number, earned: (cents: number) => void): void {
     k.finished++;
-    k.latencySumMs += plan.latencyMs;
+    k.latencySumMs += plan.latencyMs + (p.extraLatencyMs ?? 0);
     k.waitSumMin += p.waitedMin;
 
     if (decline === null) {
@@ -1261,6 +1530,7 @@ export class BankSimulation {
   }
 
   private closeDay(): void {
+    if (this.chaosScenario === 'BOTNET' && this.velocityHour >= 0) this.velocityAlert(this.velocityHour);
     this.minute = DAY_END;
     this.dayOver = true;
     const report = this.buildReport();
@@ -1695,6 +1965,8 @@ export class BankSimulation {
         scenarios: this.recentScenarios(),
       },
       history: [...this.history],
+      chaos: this.chaosView(),
+      disputed: [...this.disputed],
     };
   }
 

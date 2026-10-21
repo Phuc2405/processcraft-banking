@@ -12,7 +12,8 @@
 import { useStore } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 
-import { BankSimulation } from '../sim/bankSimulation';
+import { BankSimulation, type DisputeResult } from '../sim/bankSimulation';
+import { cleanChaos, NO_CHAOS, type ChaosConfig } from '../engine/chaos';
 import { LESSONS, type ProcessId } from '../sim/learning';
 import { DAY_END, DAY_START, DEFAULT_SPEED_INDEX, EOD_START, SLOWEST_SPEED_INDEX, SPEEDS, WORK_END, WORK_START } from '../sim/clock';
 import { clampRules, DEFAULT_RULES, rulesEqual, type BankRules } from '../sim/rules';
@@ -244,12 +245,22 @@ export interface BankState {
   runComparison(days?: number): void;
 
   dismissNotice(): void;
+
+  // Chaos Monkey and disputes
+  /** The faults switched on, and whether day 2 and day 3 run their scripted scenarios. */
+  chaos: ChaosConfig;
+  /** Switches faults on or off. They apply to the running bank at once and to every replay of the day. */
+  setChaos(next: Partial<ChaosConfig>): void;
+  /** Raises a chargeback on a card purchase from the live ledger (2110 back to 2010). */
+  disputeTransaction(txId: string): DisputeResult;
 }
 
 export interface BankStoreOptions {
   storage?: KeyValueStorage | null;
   now?: () => Date;
   seed?: number;
+  /** Chaos Monkey settings to start with. Off unless given. */
+  chaos?: Partial<ChaosConfig>;
 }
 
 /** The process each desk takes part in, first one being its main process. */
@@ -275,11 +286,13 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
   let prefs: BankPrefs = loadPrefs(storage);
   let ui: UiPrefs = loadUiPrefs(storage);
   const seed = saved?.seed ?? options.seed ?? DEFAULT_SEED;
+  const initialChaos: ChaosConfig = cleanChaos({ ...NO_CHAOS, ...options.chaos });
   const makeSim = (): BankSimulation =>
     new BankSimulation({
       seed,
       day: saved?.day ?? 1,
       rules: saved?.rules ?? DEFAULT_RULES,
+      chaos: initialChaos,
       ...(saved ? { carry: saved.carry, history: saved.history } : {}),
     });
   const sim = makeSim();
@@ -343,6 +356,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         seed: s.seed,
         day,
         rules: s.sim.rules,
+        chaos: s.chaos,
         carry: startCarry,
         history: s.sim.snapshot().history.filter((r) => r.day < day),
       });
@@ -395,6 +409,22 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       saveStatus: storage ? (saved ? 'saved' : 'pristine') : 'unavailable',
       lastSavedAt: saved?.savedAt || null,
       notice: saved ? { kind: 'info', message: `Welcome back. The bank is on day ${saved.day}.` } : null,
+      chaos: initialChaos,
+
+      setChaos: (next) => {
+        const s = get();
+        const chaos = cleanChaos({ ...s.chaos, ...next });
+        s.sim.setChaos(chaos);
+        set({ chaos });
+        refresh();
+      },
+
+      disputeTransaction: (txId) => {
+        const s = get();
+        const result = s.sim.disputeTransaction(txId);
+        if (result.ok) refresh();
+        return result;
+      },
 
       play: () => {
         const s = get();
@@ -476,7 +506,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
 
       resetBank: () => {
         clearBank(storage);
-        const fresh = new BankSimulation({ seed: get().seed });
+        const fresh = new BankSimulation({ seed: get().seed, chaos: get().chaos });
         startCarry = fresh.carryState();
         set({
           ...endTour(false),
@@ -831,7 +861,8 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const bankStore = createBankStore();
+/** The app's bank. Day 2 (flash sale) and day 3 (botnet) run their scripted scenarios. */
+export const bankStore = createBankStore({ chaos: { scriptedDays: true } });
 
 export function useBankStore<T>(selector: (state: BankState) => T): T {
   return useStore(bankStore, selector);
