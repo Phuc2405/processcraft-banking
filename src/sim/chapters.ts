@@ -13,6 +13,7 @@
  * the real plans (a chapter's "estimated steps" is the fewest and most desks-and-decisions its examples take, not a guess).
  */
 
+import { activeLocale } from '../i18n/locale';
 import { LESSON_LIST, type ProcessId } from './learning';
 import { spotPlan } from './spotlightPlan';
 
@@ -59,6 +60,30 @@ const LAYMAN: Record<ProcessId, string> = {
   F: 'Spotting suspicious money, and settling who pays when a customer says “that charge is not mine”.',
 };
 
+const LAYMAN_VI: Record<ProcessId, string> = {
+  A: 'Một số thẻ dùng một lần cho một cửa hàng, với mã bảo mật đổi mỗi phút nên bản sao bị đánh cắp cũng vô dụng.',
+  B: 'Cách ngân hàng quyết định cho một giao dịch trực tuyến đi qua lặng lẽ hay yêu cầu khách nhập mã gửi qua tin nhắn.',
+  C: 'Chia một lần mua thành bốn kỳ trả: ai được duyệt kế hoạch, và điều gì xảy ra khi kết quả thẩm định là không.',
+  D: 'Ca đêm kiểm tra mọi bản ghi có khớp nhau không, và chiếc hộp chờ nơi những bản ghi lệch đợi con người xử lý.',
+  E: 'Chuyển tiền thẳng từ tài khoản ngân hàng này sang tài khoản khác trong vài giây, với một bước kiểm tra nghiêm ngặt trước khi tiền di chuyển.',
+  F: 'Phát hiện dòng tiền đáng ngờ, và phân xử ai phải trả khi khách nói “giao dịch này không phải của tôi”.',
+};
+
+const DIFFICULTY_VI: Record<Difficulty, { label: string; hint: string }> = {
+  Beginner: { label: 'Cơ bản', hint: 'Không cần kiến thức ngân hàng' },
+  Intermediate: { label: 'Trung cấp', hint: 'Dựa trên các chương trước' },
+  Advanced: { label: 'Nâng cao', hint: 'Nhiều quyết định và nhiều phần chuyển động' },
+};
+
+/** The difficulty tag in the active language. */
+export const difficultyText = (d: Difficulty): string => (activeLocale() === 'vi' ? DIFFICULTY_VI[d].label : d);
+
+/** The difficulty tooltip in the active language. */
+export const difficultyHint = (d: Difficulty): string => (activeLocale() === 'vi' ? DIFFICULTY_VI[d].hint : DIFFICULTY_HINT[d]);
+
+/** The one-line plain explanation in the active language. */
+export const laymanText = (c: Pick<Chapter, 'id' | 'layman'>): string => (activeLocale() === 'vi' ? LAYMAN_VI[c.id] : c.layman);
+
 const cache: { list: readonly Chapter[] | null } = { list: null };
 
 /** The six chapters, in order. */
@@ -89,5 +114,6 @@ export const chapterOf = (id: ProcessId): Chapter => {
 /** "6 steps" or "5 to 10 steps". */
 export function stepsText(c: Pick<Chapter, 'steps'>): string {
   const { min, max } = c.steps;
-  return min === max ? `${min} steps` : `${min}–${max} steps`;
+  const unit = activeLocale() === 'vi' ? 'bước' : 'steps';
+  return min === max ? `${min} ${unit}` : `${min}–${max} ${unit}`;
 }

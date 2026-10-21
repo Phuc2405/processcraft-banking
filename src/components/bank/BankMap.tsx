@@ -1,8 +1,10 @@
+import { tr } from '../../i18n/locale';
 import { t } from '../../i18n/t';
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { beatMs, SPEEDS, type Phase } from '../../sim/clock';
 import { formatMoney } from '../../sim/kpis';
-import { LESSONS, PROCESS_SHORT, type ProcessId } from '../../sim/learning';
+import { LESSONS, type ProcessId } from '../../sim/learning';
+import { processShort } from '../../sim/learningVi';
 import { wiresOfRoute } from '../../sim/spotlightPlan';
 import { DEPARTMENTS, DEPARTMENT_IDS, STATIONS, type DepartmentId, type ExternalId, type PlaceId, type StationId } from '../../sim/topology';
 import type { Move, StationView } from '../../sim/types';
@@ -191,8 +193,8 @@ function ProcessChip({ process, accent }: { process: ProcessId; accent: string }
     <button
       type="button"
       onClick={() => startSpotlight(process)}
-      title={`Chapter ${LESSONS[process].chapter}: ${PROCESS_SHORT[process]}`}
-      aria-label={`Start Chapter ${LESSONS[process].chapter}: ${PROCESS_SHORT[process]}`}
+      title={tr({ en: `Chapter ${LESSONS[process].chapter}: ${processShort(process)}`, vi: `Chương ${LESSONS[process].chapter}: ${processShort(process)}` })}
+      aria-label={tr({ en: `Start Chapter ${LESSONS[process].chapter}: ${processShort(process)}`, vi: `Bắt đầu Chương ${LESSONS[process].chapter}: ${processShort(process)}` })}
       data-testid={`chip-process-${process}`}
       className="pointer-events-auto grid h-[17px] w-[17px] place-items-center rounded-[5px] text-[10px] font-black leading-none text-slate-950 transition hover:scale-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
       style={{ background: accent }}
@@ -468,7 +470,7 @@ function WorkerButton({
       onClick={() => (touring ? spotlightFocus(station) : select({ kind: 'worker', station, workerId: id }))}
       aria-pressed={selected}
       aria-label={`${name}, ${role}`}
-      title={`${name} · ${role} · fatigue ${Math.round(fatigue)}`}
+      title={tr({ en: `${name} · ${role} · fatigue ${Math.round(fatigue)}`, vi: `${name} · ${role} · mệt mỏi ${Math.round(fatigue)}` })}
       data-testid={`worker-${id}`}
       className={`pointer-events-auto rounded-full transition hover:scale-125 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${touring && lit ? 'bk-worker-glow' : ''}`}
     >

@@ -1,3 +1,4 @@
+import { tr } from '../../i18n/locale';
 import { memo, useMemo } from 'react';
 import { exampleOf, graphKeyOf, layoutFor, type Lesson, type DiagramKind, type EdgeRoute, type GraphKey, type Side } from '../../sim/learning';
 import { lessonGraph, wireLabel, type StepTone, type Walkthrough } from '../../sim/walkthrough';
@@ -278,7 +279,7 @@ export const ProcessDiagram = memo(function ProcessDiagram({ lesson, walk, activ
   const arrowColors = ['#334155', '#64748b', '#e2e8f0', '#fb7185'];
 
   return (
-    <svg viewBox={`0 0 ${layout.width} ${layout.height}`} className="h-auto w-full" role="img" aria-label={`Diagram of Process ${lesson.id}: ${terms.t(lesson.title)}`} data-testid="process-diagram" data-active={active}>
+    <svg viewBox={`0 0 ${layout.width} ${layout.height}`} className="h-auto w-full" role="img" aria-label={tr({ en: `Diagram of Process ${lesson.id}: ${terms.t(lesson.title)}`, vi: `Sơ đồ quy trình ${lesson.id}: ${terms.t(lesson.title)}` })} data-testid="process-diagram" data-active={active}>
       <defs>
         {arrowColors.map((c) => (
           <marker key={c} id={`bk-d-arrow-${c.slice(1)}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -336,7 +337,7 @@ export const ProcessDiagram = memo(function ProcessDiagram({ lesson, walk, activ
             onClick={clickable ? () => onSelectStep(first) : undefined}
             style={{ cursor: clickable ? 'pointer' : 'default' }}
             role={clickable ? 'button' : undefined}
-            aria-label={clickable ? `Go to step ${first + 1}: ${s.label}` : undefined}
+            aria-label={clickable ? tr({ en: `Go to step ${first + 1}: ${s.label}`, vi: `Tới bước ${first + 1}: ${s.label}` }) : undefined}
             tabIndex={clickable ? 0 : undefined}
             onKeyDown={clickable ? (ev) => (ev.key === 'Enter' || ev.key === ' ') && (ev.preventDefault(), onSelectStep(first)) : undefined}
           >

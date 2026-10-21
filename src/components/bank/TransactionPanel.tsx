@@ -1,5 +1,9 @@
+import { tr } from '../../i18n/locale';
+import { t } from '../../i18n/t';
 import { Fragment, type ReactNode } from 'react';
 import { formatAud } from '../../engine/money';
+import { postingKindLabel } from '../../data/ledgerCopy';
+import type { PostingKind } from '../../types/processLearning';
 import { journalLines, journalText, plainFacts, rawMessage, responseCodeFor, type ResponseCode } from '../../sim/isoMessages';
 import { scenarioShort } from '../../sim/scenarios';
 import { formatClock } from '../../sim/clock';
@@ -97,7 +101,7 @@ function Route({ trace }: { trace: PacketTrace }) {
 
 function Standard({ trace }: { trace: PacketTrace }) {
   return (
-    <Section title="What happened" testId="tx-standard">
+    <Section title={t('What happened')} testId="tx-standard">
       <dl className="grid grid-cols-2 gap-2">
         {plainFacts(trace).map((f) => (
           <div key={f.label} className="rounded-lg border border-slate-800 bg-slate-950/60 px-2.5 py-2">
@@ -115,26 +119,26 @@ function Expert({ trace }: { trace: PacketTrace }) {
   const lines = journalLines(trace);
   return (
     <>
-      <Section title={`${rc.scheme} response`} testId="tx-rc">
+      <Section title={tr({ en: `${rc.scheme} response`, vi: `Phản hồi ${rc.scheme}` })} testId="tx-rc">
         <span className={`inline-flex items-center gap-2 rounded-lg px-2.5 py-1 font-mono text-[12.5px] font-bold ring-1 ${TONE_BADGE[rc.tone]}`} data-testid="tx-rc-badge" data-code={rc.code}>
           RC: {rc.code} <span className="font-sans font-semibold">{rc.text}</span>
         </span>
-        <span className="ml-2 text-[11px] text-slate-500">latency {Math.round(trace.plan.latencyMs)} ms</span>
+        <span className="ml-2 text-[11px] text-slate-500">{tr({ en: `latency ${Math.round(trace.plan.latencyMs)} ms`, vi: `độ trễ ${Math.round(trace.plan.latencyMs)} ms` })}</span>
       </Section>
-      <Section title={trace.kind === 'A2A' ? 'Raw message (pacs.008)' : trace.done ? 'Raw message (ISO 8583 0110)' : 'Raw message (ISO 8583 0100)'}>
+      <Section title={trace.kind === 'A2A' ? t('Raw message (pacs.008)') : trace.done ? t('Raw message (ISO 8583 0110)') : t('Raw message (ISO 8583 0100)')}>
         <JsonBlock value={rawMessage(trace)} />
       </Section>
-      <Section title="Core banking GL journal" testId="tx-journal">
+      <Section title={t('Core banking GL journal')} testId="tx-journal">
         {lines.length === 0 ? (
-          <p className="text-[12px] text-slate-500">Nothing posted yet: the ledger writes when the payment reaches the desk that books it.</p>
+          <p className="text-[12px] text-slate-500">{t('Nothing posted yet: the ledger writes when the payment reaches the desk that books it.')}</p>
         ) : (
           <ul className="space-y-1.5">
             {lines.map((l, i) => (
               <li key={i} className="rounded-lg border border-slate-800 bg-slate-950/60 px-2.5 py-1.5" title={l.memo}>
                 <div className="font-mono text-[11px] leading-snug text-slate-200" data-testid="tx-journal-line">
-                  <span className="font-bold text-emerald-300">DR:</span> {l.debit.code}-{l.debit.name} {formatAud(l.amountCents)} <span className="text-slate-600">|</span> <span className="font-bold text-rose-300">CR:</span> {l.credit.code}-{l.credit.name} {formatAud(l.amountCents)}
+                  <span className="font-bold text-emerald-300">{t('DR:')}</span> {l.debit.code}-{l.debit.name} {formatAud(l.amountCents)} <span className="text-slate-600">|</span> <span className="font-bold text-rose-300">{t('CR:')}</span> {l.credit.code}-{l.credit.name} {formatAud(l.amountCents)}
                 </div>
-                <div className="mt-0.5 text-[10.5px] uppercase tracking-wide text-slate-500">{l.kind.replace(/_/g, ' ')}</div>
+                <div className="mt-0.5 text-[10.5px] uppercase tracking-wide text-slate-500">{postingKindLabel(l.kind as PostingKind)}</div>
                 <span className="sr-only">{journalText(l)}</span>
               </li>
             ))}
@@ -156,13 +160,13 @@ export function TransactionPanel({ id }: { id: string }) {
       <header className="shrink-0 border-b border-slate-800 bg-gradient-to-b from-sky-500/10 to-transparent p-3.5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-sky-300">Your payment{trace ? ` · ${trace.id}` : ''}</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-sky-300">{t('Your payment')}{trace ? ` · ${trace.id}` : ''}</div>
             <h2 className="mt-0.5 text-[16px] font-bold leading-tight text-slate-50" data-testid="inspector-title">
-              {trace ? `${scenarioShort(trace.scenario) || 'Payment'} · ${formatAud(trace.amountCents)}` : 'Payment'}
+              {trace ? `${scenarioShort(trace.scenario) || t('Payment')} · ${formatAud(trace.amountCents)}` : t('Payment')}
             </h2>
-            {trace && <div className="mt-0.5 text-[11px] text-slate-400">Arrived {formatClock(trace.bornMinute)}</div>}
+            {trace && <div className="mt-0.5 text-[11px] text-slate-400">{tr({ en: `Arrived ${formatClock(trace.bornMinute)}`, vi: `Đến lúc ${formatClock(trace.bornMinute)}` })}</div>}
           </div>
-          <button type="button" onClick={clear} aria-label="Close the inspector" data-testid="inspector-close" className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-400 transition hover:bg-slate-800 hover:text-white">
+          <button type="button" onClick={clear} aria-label={t('Close the inspector')} data-testid="inspector-close" className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-400 transition hover:bg-slate-800 hover:text-white">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
               <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" />
             </svg>
@@ -170,23 +174,29 @@ export function TransactionPanel({ id }: { id: string }) {
         </div>
         {rc && (
           <div className={`mt-2 text-[12px] font-semibold ${TONE_TEXT[rc.tone]}`} role="status">
-            {rc.tone === 'pending' ? 'On its way through the bank…' : depth === 'expert' ? `RC ${rc.code} · ${rc.text}` : rc.tone === 'good' ? 'Done: approved' : `Done: declined (${rc.text.toLowerCase()})`}
+            {rc.tone === 'pending'
+              ? t('On its way through the bank…')
+              : depth === 'expert'
+                ? `RC ${rc.code} · ${rc.text}`
+                : rc.tone === 'good'
+                  ? t('Done: approved')
+                  : tr({ en: `Done: declined (${rc.text.toLowerCase()})`, vi: `Xong: bị từ chối (${rc.text})` })}
           </div>
         )}
       </header>
       <div className="bk-scroll min-h-0 flex-1 overflow-y-auto p-3.5">
         {!trace ? (
-          <p className="text-[12.5px] leading-relaxed text-slate-400">This payment is not part of the bank any more: the day was replayed or a new day began. Send another with the buttons at the bottom of the map.</p>
+          <p className="text-[12.5px] leading-relaxed text-slate-400">{t('This payment is not part of the bank any more: the day was replayed or a new day began. Send another with the buttons at the bottom of the map.')}</p>
         ) : (
           <>
-            <Section title="Route">
+            <Section title={t('Route')}>
               <Route trace={trace} />
             </Section>
             {depth === 'expert' ? <Expert trace={trace} /> : <Standard trace={trace} />}
             <p className="mt-4 text-[11px] leading-snug text-slate-500">
-              {depth === 'expert' ? 'Want it in plain English? ' : 'Want the raw ISO 8583 message and the GL journal? '}
+              {depth === 'expert' ? t('Want it in plain English? ') : t('Want the raw ISO 8583 message and the GL journal? ')}
               <button type="button" onClick={() => setDepth(depth === 'expert' ? 'standard' : 'expert')} className="font-semibold text-sky-300 underline-offset-2 hover:underline" data-testid="tx-depth-toggle">
-                Switch to {depth === 'expert' ? 'Standard' : 'Expert'}
+                {depth === 'expert' ? t('Switch to Standard') : t('Switch to Expert')}
               </button>
             </p>
           </>

@@ -1,4 +1,6 @@
+import { t } from '../../i18n/t';
 import { Component, lazy, Suspense, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
+import { noticeText } from '../../i18n/simVi';
 import { activeFlowOf, useBankStore } from '../../store/bankStore';
 import { useAcademyStore } from '../../store/academyStore';
 import { AcademySplitLayout } from '../academy/AcademySplitLayout';
@@ -29,7 +31,7 @@ class OfficeLoadBoundary extends Component<{ onBack: () => void; children: React
   override state = { error: null as string | null };
 
   static getDerivedStateFromError(error: unknown): { error: string } {
-    return { error: error instanceof Error ? error.message : 'The 3D office could not be loaded.' };
+    return { error: error instanceof Error ? error.message : t('The 3D office could not be loaded.') };
   }
 
   override componentDidCatch(error: unknown, info: ErrorInfo): void {
@@ -41,16 +43,16 @@ class OfficeLoadBoundary extends Component<{ onBack: () => void; children: React
     return (
       <div className="grid h-full place-items-center p-8" role="alert" data-testid="office-3d-load-failed">
         <div className="max-w-lg rounded-2xl border border-slate-700 bg-slate-900/80 p-6">
-          <h2 className="text-[16px] font-bold text-slate-50">The 3D office could not be loaded</h2>
+          <h2 className="text-[16px] font-bold text-slate-50">{t('The 3D office could not be loaded')}</h2>
           <p className="mt-2 text-[13px] leading-relaxed text-slate-300">
-            Its packages (<code className="font-mono text-sky-200">three</code>, <code className="font-mono text-sky-200">@react-three/fiber</code>,{' '}
-            <code className="font-mono text-sky-200">@react-three/drei</code>) are probably missing from this project folder. In a terminal in the project folder, run:
+            {t('Its packages')} (<code className="font-mono text-sky-200">three</code>, <code className="font-mono text-sky-200">@react-three/fiber</code>,{' '}
+            <code className="font-mono text-sky-200">@react-three/drei</code>) {t('are probably missing from this project folder. In a terminal in the project folder, run:')}
           </p>
           <pre className="mt-3 overflow-x-auto rounded-lg bg-slate-950 px-3 py-2 font-mono text-[12px] text-lime-200">npm install{'\n'}npm run dev</pre>
-          <p className="mt-3 text-[13px] leading-relaxed text-slate-300">Then reload this page. Nothing is lost, and the 2D blueprint shows exactly the same bank.</p>
+          <p className="mt-3 text-[13px] leading-relaxed text-slate-300">{t('Then reload this page. Nothing is lost, and the 2D blueprint shows exactly the same bank.')}</p>
           <p className="mt-2 break-words text-[11px] text-slate-500">{this.state.error}</p>
           <button type="button" onClick={this.props.onBack} data-testid="office-3d-load-back" className="mt-4 rounded-lg bg-lime-400 px-4 py-2 text-[13px] font-bold text-slate-950 hover:bg-lime-300">
-            Back to the 2D blueprint
+            {t('Back to the 2D blueprint')}
           </button>
         </div>
       </div>
@@ -87,8 +89,8 @@ function Notice() {
   if (!notice || hubOpen) return null;
   return (
     <div className={`absolute ${dockBelow ? 'bottom-[76px]' : 'bottom-4'} left-1/2 z-30 flex max-w-[520px] -translate-x-1/2 items-start gap-3 rounded-xl border px-4 py-2.5 text-[13px] shadow-xl ${NOTICE_STYLE[notice.kind]}`} role="status" data-testid="bank-notice">
-      <span>{notice.message}</span>
-      <button type="button" onClick={dismiss} aria-label="Dismiss" className="opacity-70 transition hover:opacity-100">
+      <span>{noticeText(notice.message)}</span>
+      <button type="button" onClick={dismiss} aria-label={t('Dismiss')} className="opacity-70 transition hover:opacity-100">
         ×
       </button>
     </div>
@@ -126,7 +128,7 @@ export function LivingBank() {
       <div className="flex min-h-0 flex-1">
         <BankSidebar collapsed={collapsed} onToggle={choose} />
         <AcademySplitLayout>
-          <main className="flex min-w-0 flex-1 flex-col bg-[#070b14]" aria-label="Bank map">
+          <main className="flex min-w-0 flex-1 flex-col bg-[#070b14]" aria-label={t('Bank map')}>
             {/* The map has a fixed size: the inspector and the ledger float over it, so opening them never resizes the scene. */}
             {/* overflow-clip, not hidden: nothing (a focus, a scroll-into-view) may scroll this frame and slide the floating docks off it. */}
             <div className="relative min-h-0 flex-1 overflow-clip">
