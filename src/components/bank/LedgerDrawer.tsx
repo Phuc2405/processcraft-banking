@@ -1,9 +1,68 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { tr } from '../../i18n/locale';
+import { formatAud } from '../../engine/money';
 import { ledgerUi } from '../../data/ledgerCopy';
 import { everyTransactionBalances } from '../../engine/ledger';
 import { formatClock } from '../../sim/clock';
 import { useBankStore } from '../../store/bankStore';
 import { batchesFrom, LedgerView, type LedgerBatch } from '../ledger/LedgerView';
+
+/** The amount a batch owes the merchant side (credits to 2110): what a chargeback would reverse. 0 when it is not a card purchase. */
+export const disputableCents = (batch: LedgerBatch): number =>
+  /(-CB|-CLR|-RF)$|~\d+$|^tx_/.test(batch.id) ? 0 : batch.entries.filter((e) => e.creditAccount === 'CARD_CLEARING_PAYABLE').reduce((n, e) => n + e.amount, 0);
+
+/** [⚖️ Dispute Transaction] on a card purchase in the live ledger: two clicks (ask, confirm) raise a chargeback 2110 → 2010. */
+function DisputeAction({ batch }: { batch: LedgerBatch }) {
+  const disputed = useBankStore((s) => s.view.disputed.includes(batch.id));
+  const dayOver = useBankStore((s) => s.view.dayOver);
+  const dispute = useBankStore((s) => s.disputeTransaction);
+  const [confirming, setConfirming] = useState(false);
+  const amount = disputableCents(batch);
+  if (amount <= 0) return null;
+  if (disputed) {
+    return (
+      <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-[10.5px] font-bold text-amber-200 ring-1 ring-amber-400/40" data-testid="ledger-disputed">
+        ⚖️ {tr({ en: 'Charged back', vi: 'Đã tra soát' })}
+      </span>
+    );
+  }
+  if (confirming) {
+    return (
+      <span className="flex items-center gap-1" data-testid="ledger-dispute-confirm">
+        <button
+          type="button"
+          onClick={() => {
+            dispute(batch.id);
+            setConfirming(false);
+          }}
+          className="rounded-md bg-rose-500 px-2 py-0.5 text-[10.5px] font-bold text-white hover:bg-rose-400"
+          data-testid="ledger-dispute-yes"
+          title={tr({ en: `Post DR 2110 / CR 2010 ${formatAud(amount)}`, vi: `Ghi Nợ 2110 / Có 2010 ${formatAud(amount)}` })}
+        >
+          {tr({ en: `Reverse ${formatAud(amount)}`, vi: `Đảo ${formatAud(amount)}` })}
+        </button>
+        <button type="button" onClick={() => setConfirming(false)} className="rounded-md px-1.5 py-0.5 text-[10.5px] text-slate-400 hover:bg-slate-800 hover:text-slate-100">
+          {tr({ en: 'Cancel', vi: 'Hủy' })}
+        </button>
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => setConfirming(true)}
+      disabled={dayOver}
+      data-testid="ledger-dispute"
+      title={tr({
+        en: 'The cardholder disputes this purchase: reverse the amount owed to the merchant (2110 Merchant Payout) back to the customer’s account (2010 CASA)',
+        vi: 'Chủ thẻ khiếu nại giao dịch này: đảo số tiền phải trả cửa hàng (2110) về tài khoản thanh toán của khách (2010)',
+      })}
+      className="rounded-md bg-slate-800 px-2 py-0.5 text-[10.5px] font-semibold text-amber-200 ring-1 ring-amber-400/40 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      ⚖️ {tr({ en: 'Dispute Transaction', vi: 'Khiếu nại giao dịch' })}
+    </button>
+  );
+}
 
 /** The bank's clock as a minute of the day, read back off a line's timestamp (see `BankSimulation.postLines`). */
 const minuteOf = (timestamp: number): number => Math.round((timestamp % 86_400_000) / 60_000);
@@ -69,7 +128,7 @@ export function LedgerDrawer() {
             <p className="mb-2.5 text-[11.5px] text-slate-500" data-testid="bank-ledger-showing">
               {ui.showing(ledger.recent.length, ledger.lines)} {ledger.trial.balanced && everyOneBalances ? ui.allBalance : ''}
             </p>
-            <LedgerView batches={batches} trial={ledger.trial} split />
+            <LedgerView batches={batches} trial={ledger.trial} split actions={(b) => <DisputeAction batch={b} />} />
           </>
         )}
       </div>

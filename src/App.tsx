@@ -4,7 +4,15 @@ import { AcademySplitToggle } from './components/academy/AcademySplitLayout';
 import { LivingBank } from './components/bank/LivingBank';
 import { AcademyButton } from './components/bank/CourseCatalog';
 import { ModeToggle } from './components/bank/ViewControls';
-import { WelcomeModal } from './components/bank/WelcomeModal';
+import { SwitchModeButton, WelcomeModal } from './components/bank/WelcomeModal';
+import { AmlButton, AmlPanel } from './components/ops/AmlPanel';
+import { ChaosButton, ChaosPanel } from './components/ops/ChaosPanel';
+import { BenchmarkButton, PaymentBenchmarkModal } from './components/ops/PaymentBenchmarkModal';
+import { LanguageToggle } from './components/shell/LanguageToggle';
+import { SmallScreenBanner } from './components/shell/SmallScreenBanner';
+import { tr, useLocale } from './i18n/locale';
+import { uiStore, useUiStore } from './store/uiStore';
+import { audioSupported, bindAudioFX } from './utils/audioFX';
 import { ProcessCanvas } from './components/canvas/ProcessCanvas';
 import { EvaluationPanel } from './components/evaluation/EvaluationPanel';
 import { ChallengeBrief } from './components/sidebar/ChallengeBrief';
@@ -37,11 +45,30 @@ function writeView(view: View): void {
   }
 }
 
+/** 🔊 / 🔇: the sound effects (approval ding, decline buzz, botnet siren). */
+function SoundToggle() {
+  const on = useUiStore((s) => s.soundOn);
+  if (!audioSupported()) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => uiStore.getState().setSoundOn(!on)}
+      aria-pressed={on}
+      aria-label={on ? tr({ en: 'Mute sound effects', vi: 'Tắt âm thanh' }) : tr({ en: 'Turn sound effects on', vi: 'Bật âm thanh' })}
+      title={on ? tr({ en: 'Sound on: approval ding, decline buzz, botnet siren', vi: 'Đang bật âm thanh: tiếng duyệt, tiếng từ chối, còi báo botnet' }) : tr({ en: 'Sound off', vi: 'Đang tắt âm thanh' })}
+      data-testid="sound-toggle"
+      className="grid h-8 w-8 place-items-center rounded-md bg-slate-900 text-[14px] ring-1 ring-slate-700 transition hover:bg-slate-800"
+    >
+      <span aria-hidden="true">{on ? '🔊' : '🔇'}</span>
+    </button>
+  );
+}
+
 /** The two ways to learn: watch a bank run itself, or build the processes from the parts. */
 function TopBar({ view, onView }: { view: View; onView: (v: View) => void }) {
   const tabs: Array<{ id: View; label: string; hint: string }> = [
-    { id: 'bank', label: 'Living Bank', hint: 'Run a bank day by day and learn from what happens' },
-    { id: 'lab', label: 'Build Lab', hint: 'Build each process yourself from the parts and get graded' },
+    { id: 'bank', label: tr({ en: 'Living Bank', vi: 'Ngân hàng sống' }), hint: tr({ en: 'Run a bank day by day and learn from what happens', vi: 'Vận hành ngân hàng từng ngày và học từ những gì xảy ra' }) },
+    { id: 'lab', label: tr({ en: 'Build Lab', vi: 'Phòng dựng quy trình' }), hint: tr({ en: 'Build each process yourself from the parts and get graded', vi: 'Tự dựng từng quy trình từ các thành phần và được chấm điểm' }) },
   ];
   return (
     <header className="flex h-12 shrink-0 items-center gap-5 border-b border-slate-800 bg-slate-950 px-4">
@@ -53,7 +80,7 @@ function TopBar({ view, onView }: { view: View; onView: (v: View) => void }) {
           ProcessCraft <span className="font-normal text-slate-400">Banking</span>
         </h1>
       </div>
-      <nav aria-label="Views" className="flex gap-1">
+      <nav aria-label={tr({ en: 'Views', vi: 'Chế độ xem' })} className="flex gap-1">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -68,13 +95,19 @@ function TopBar({ view, onView }: { view: View; onView: (v: View) => void }) {
           </button>
         ))}
       </nav>
+      <SwitchModeButton />
       <div className="flex-1" />
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         {view === 'bank' && <AcademySplitToggle />}
         {view === 'bank' && <AcademyButton />}
+        {view === 'bank' && <AmlButton />}
+        {view === 'bank' && <BenchmarkButton />}
+        {view === 'bank' && <ChaosButton />}
         {/* In the Living Bank the scope, 2D/3D and data-depth switches live in the viewport dock over the map. The Build Lab keeps
             the vocabulary switch here: the tour and the ledger read the same setting as the dock's Standard | Expert. */}
         {view === 'lab' && <ModeToggle />}
+        <SoundToggle />
+        <LanguageToggle />
       </div>
     </header>
   );
@@ -93,7 +126,7 @@ function LevelBar() {
   };
 
   return (
-    <nav aria-label="Levels" className="flex shrink-0 items-stretch gap-3 overflow-x-auto border-b border-slate-800 bg-slate-950 px-4 py-1.5" data-testid="level-bar">
+    <nav aria-label={tr({ en: 'Levels', vi: 'Các cấp độ' })} className="flex shrink-0 items-stretch gap-3 overflow-x-auto border-b border-slate-800 bg-slate-950 px-4 py-1.5" data-testid="level-bar">
       {CURRICULUM.map((stage) => {
         const accent = stageAccent(stage.stage);
         const inStage = stage.levelIds.flatMap((id) => {
@@ -116,7 +149,7 @@ function LevelBar() {
                     type="button"
                     onClick={() => switchTo(l.id)}
                     aria-current={active ? 'page' : undefined}
-                    title={`Level ${l.levelNumber}: ${l.title}`}
+                    title={tr({ en: `Level ${l.levelNumber}: ${l.title}`, vi: `Cấp ${l.levelNumber}: ${l.title}` })}
                     data-testid={`level-tab-${l.levelNumber}`}
                     className={`flex shrink-0 items-center whitespace-nowrap rounded-md px-2.5 py-1 text-[12px] font-medium transition ${active ? 'bg-slate-800 text-slate-50' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`}
                     style={active ? { boxShadow: `inset 0 -2px 0 ${accent}` } : undefined}
@@ -162,6 +195,9 @@ function BuildLab() {
 
 export default function App() {
   const [view, setView] = useState<View>(readView);
+  // Every pick()/tr() reader below redraws in the new language: the tree is keyed by it. The stores keep the bank running.
+  const locale = useLocale();
+  useEffect(() => bindAudioFX(bankStore, uiStore), []);
   const choose = (next: View): void => {
     setView(next);
     writeView(next);
@@ -187,7 +223,8 @@ export default function App() {
   }, []);
 
   return (
-    <div className="flex h-screen min-w-[1180px] flex-col bg-[#060912] text-slate-100">
+    <div key={locale} lang={locale} className="flex h-screen min-w-[1180px] flex-col bg-[#060912] text-slate-100">
+      <SmallScreenBanner />
       <TopBar view={view} onView={choose} />
       {view === 'bank' ? <LivingBank /> : <BuildLab />}
       <WelcomeModal
@@ -197,6 +234,9 @@ export default function App() {
           bankStore.getState().openAcademy();
         }}
       />
+      <AmlPanel />
+      <PaymentBenchmarkModal />
+      <ChaosPanel />
     </div>
   );
 }

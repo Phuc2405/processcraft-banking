@@ -1,4 +1,5 @@
 import { ContactShadows, OrbitControls } from '@react-three/drei';
+import { ZOOM_STEP, zoomStore } from '../../../store/zoomStore';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef } from 'react';
 import { CanvasTexture, ExtrudeGeometry, MOUSE, Path, RepeatWrapping, ShapeGeometry, SRGBColorSpace, TOUCH, Vector3, type AmbientLight, type DirectionalLight, type HemisphereLight } from 'three';
@@ -170,6 +171,27 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [size.width, size.height]);
 
+  // The floating zoom toolbar: + and − glide the zoom by one step about the middle of the view, Fit glides home.
+  useEffect(
+    () =>
+      zoomStore.subscribe((st, prev) => {
+        const cmd = st.command;
+        const c = controls.current;
+        if (!cmd || cmd === prev.command || !c) return;
+        if (cmd.kind === 'fit') {
+          if (focusRef.current) goToFocus(focusRef.current);
+          else placeHome(true);
+          return;
+        }
+        touched.current = true;
+        const az = Math.atan2(camera.position.x - c.target.x, camera.position.z - c.target.z);
+        const next = Math.min(ZOOM_LIMITS.max, Math.max(ZOOM_LIMITS.min, camera.zoom * (cmd.kind === 'in' ? ZOOM_STEP : 1 / ZOOM_STEP)));
+        glideTo(c.target.x, c.target.z, az, next, 220);
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [camera],
+  );
+
   // Each step of a tour moves the camera; the end of the tour brings it home.
   const focusKey = focus ? `${focus.x.toFixed(2)}|${focus.z.toFixed(2)}|${focus.zoom.toFixed(1)}|${focus.az.toFixed(3)}` : '';
   useEffect(() => {
@@ -182,6 +204,12 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusKey]);
+
+  // The percentage the toolbar shows: the camera's zoom against the zoom that fits the whole office.
+  useFrame(() => {
+    const fit = fitZoom(size.width, size.height);
+    if (fit > 0) zoomStore.getState().report((camera.zoom / fit) * 100);
+  });
 
   useFrame(() => {
     const g = glide.current;
@@ -242,6 +270,8 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
       screenSpacePanning
       panSpeed={1}
       zoomSpeed={0.9}
+      // The wheel zooms towards the point under the cursor, not the middle of the screen.
+      zoomToCursor
       minZoom={ZOOM_LIMITS.min}
       maxZoom={ZOOM_LIMITS.max}
       mouseButtons={{ LEFT: MOUSE.PAN, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.ROTATE }}

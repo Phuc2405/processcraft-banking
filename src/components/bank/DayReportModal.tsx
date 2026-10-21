@@ -1,3 +1,5 @@
+import { tr } from '../../i18n/locale';
+import { exportAudit } from '../ops/auditExport';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { formatClock } from '../../sim/clock';
 import { DECLINE_LABEL, DECLINE_REASONS, formatMoney, formatPct, pct, pnl } from '../../sim/kpis';
@@ -398,9 +400,9 @@ export function DayReportModal() {
       <div ref={ref} role="dialog" aria-modal="true" aria-label={`Day ${report.day} report`} tabIndex={-1} onKeyDown={(e) => e.key === 'Escape' && dismiss()} className="flex max-h-[min(900px,calc(100vh-16px))] w-[min(1020px,100%)] flex-col overflow-hidden rounded-3xl border border-slate-700 bg-[#070b14] shadow-2xl outline-none" data-testid="day-report" data-day={report.day} data-view={view}>
         <header className="flex shrink-0 flex-wrap items-start gap-x-4 gap-y-3 border-b border-slate-800 bg-gradient-to-b from-amber-400/10 to-transparent px-4 py-4 sm:px-6">
           <div className="min-w-0 flex-1 basis-[320px]">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-300">The bank is closed for the night</div>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-300">{tr({ en: 'The bank is closed for the night', vi: 'Ngân hàng đã đóng cửa qua đêm' })}</div>
             <h2 className="mt-0.5 text-[22px] font-bold text-slate-50">
-              Day {report.day} · {terms.t(report.event.title)}
+              {tr({ en: 'Day', vi: 'Ngày' })} {report.day} · {terms.t(report.event.title)}
             </h2>
             <p className="mt-0.5 text-[12.5px] text-slate-400">
               {done !== null ? `The night team finished at ${formatClock(done)}.` : `The night team ran out of time: ${report.close.reconBacklog} records are still waiting.`}
@@ -412,8 +414,8 @@ export function DayReportModal() {
             <div className="flex rounded-lg bg-slate-900 p-0.5 ring-1 ring-slate-700" role="tablist" aria-label="Report view">
               {(
                 [
-                  ['overview', 'Overview'],
-                  ['audit', 'Detailed Audit'],
+                  ['overview', tr({ en: 'Overview', vi: 'Tổng quan' })],
+                  ['audit', tr({ en: 'Detailed Audit', vi: 'Kiểm toán chi tiết' })],
                 ] as const
               ).map(([id, label]) => (
                 <button
@@ -436,7 +438,7 @@ export function DayReportModal() {
               title="Download every P&L line, decline reason and operational figure of the day as a spreadsheet file"
               className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-[12px] font-semibold text-slate-100 ring-1 ring-slate-700 transition hover:bg-slate-700"
             >
-              <span aria-hidden="true">📥</span> Export Day Report (.CSV)
+              <span aria-hidden="true">📥</span> {tr({ en: 'Export Day Report (.CSV)', vi: 'Xuất báo cáo ngày (.CSV)' })}
             </button>
             <button
               type="button"
@@ -451,7 +453,21 @@ export function DayReportModal() {
               }
               className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-[12px] font-semibold text-slate-100 ring-1 ring-slate-700 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <span aria-hidden="true">📥</span> Export Transactions (.CSV)
+              <span aria-hidden="true">📥</span> {tr({ en: 'Export Transactions (.CSV)', vi: 'Xuất giao dịch (.CSV)' })}
+            </button>
+            <button
+              type="button"
+              // Built only on the click, from the log, the ledger and what Chaos Monkey did today.
+              onClick={() => exportAudit(sim)}
+              disabled={!txAvailable}
+              data-testid="report-export-audit"
+              title={tr({
+                en: 'Download the end-of-day audit: summary, trial balance, Chaos Monkey impact, exceptions for sampling and the full audit trail with ISO response codes',
+                vi: 'Tải báo cáo kiểm toán cuối ngày: tóm tắt, bảng cân đối thử, tác động Chaos Monkey, các ngoại lệ cần chọn mẫu và toàn bộ dấu vết kiểm toán kèm mã phản hồi ISO',
+              })}
+              className="flex items-center gap-1.5 rounded-lg bg-amber-400 px-3 py-1.5 text-[12px] font-bold text-slate-950 ring-1 ring-amber-300 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <span aria-hidden="true">📥</span> {tr({ en: 'Export Audit Report (CSV)', vi: 'Xuất báo cáo kiểm toán (CSV)' })}
             </button>
           </div>
         </header>
@@ -476,10 +492,10 @@ export function DayReportModal() {
 
         <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-800 bg-slate-950 px-4 py-3 sm:px-6">
           <button type="button" onClick={dismiss} data-testid="report-dismiss" className="rounded-lg bg-slate-800 px-4 py-2 text-[13px] font-medium text-slate-200 transition hover:bg-slate-700">
-            Look around the bank
+            {tr({ en: 'Look around the bank', vi: 'Xem quanh ngân hàng' })}
           </button>
           <button type="button" onClick={startNextDay} disabled={!dayOver} data-testid="report-next-day" className="rounded-lg bg-lime-400 px-4 py-2 text-[13px] font-bold text-slate-950 transition hover:bg-lime-300 disabled:opacity-40">
-            Start day {report.day + 1}
+            {tr({ en: `Start day ${report.day + 1}`, vi: `Bắt đầu ngày ${report.day + 1}` })}
           </button>
         </footer>
       </div>

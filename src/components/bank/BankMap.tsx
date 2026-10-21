@@ -18,6 +18,7 @@ import { StageScaleContext, useStageScale } from './stage';
 import { lookOfKind, RUN_STATUS, STATUS_DOT_CLASS, STATUS_LABEL, STATUS_TEXT_CLASS, WorkerFace } from './ui';
 import { useSpotlightFocus, type Focus } from './useSpotlight';
 import { useTerms, type Terms } from './useTerms';
+import { clampZoom, wheelZoom, ZOOM_STEP, zoomStore } from '../../store/zoomStore';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scaling the stage to the space it is given
@@ -44,6 +45,128 @@ function useFitScale(topInset: number, bottomInset: number): { ref: RefObject<HT
     return () => observer.disconnect();
   }, [topInset, bottomInset]);
   return { ref, scale };
+}
+
+/**
+ * Zoom and pan on top of the fitted scale. The mouse wheel zooms about the cursor (the point under it stays put), a drag on the
+ * empty background pans, and the floating toolbar's +, − and Fit arrive through zoomStore. Returns the zoom (a multiple of the
+ * fitted size), the ref of the content box, and whether the last pointer press was a pan (so it is not taken for a click).
+ */
+function useZoomPan(frame: RefObject<HTMLDivElement>, fit: number): { zoom: number; content: RefObject<HTMLDivElement>; panned: RefObject<boolean> } {
+  const [zoom, setZoom] = useState(1);
+  const content = useRef<HTMLDivElement>(null);
+  const panned = useRef(false);
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  const fitRef = useRef(fit);
+  fitRef.current = fit;
+  /** The stage point that must end up under (cx, cy) of the frame once the new scale has been drawn. */
+  const anchor = useRef<{ sx: number; sy: number; cx: number; cy: number } | null>(null);
+
+  const zoomAbout = (next: number, cx: number, cy: number): void => {
+    const el = frame.current;
+    const box = content.current;
+    const target = clampZoom(next);
+    if (!el || !box || target === zoomRef.current) return;
+    const scale = fitRef.current * zoomRef.current;
+    anchor.current = { sx: (el.scrollLeft + cx - box.offsetLeft) / scale, sy: (el.scrollTop + cy - box.offsetTop) / scale, cx, cy };
+    setZoom(target);
+  };
+
+  // The wheel listener must be non-passive to stop the page scrolling while it zooms.
+  useEffect(() => {
+    const el = frame.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent): void => {
+      if (e.deltaY === 0) return;
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      zoomAbout(wheelZoom(zoomRef.current, e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY), e.clientX - r.left, e.clientY - r.top);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // After the new scale is drawn, scroll so the anchored stage point is back under the cursor.
+  useLayoutEffect(() => {
+    const el = frame.current;
+    const box = content.current;
+    const a = anchor.current;
+    if (!el || !box || !a) return;
+    anchor.current = null;
+    const scale = fit * zoom;
+    el.scrollLeft = box.offsetLeft + a.sx * scale - a.cx;
+    el.scrollTop = box.offsetTop + a.sy * scale - a.cy;
+  }, [zoom, fit, frame]);
+
+  // The toolbar's commands, and the percentage it shows.
+  useEffect(
+    () =>
+      zoomStore.subscribe((s, prev) => {
+        const c = s.command;
+        if (!c || c === prev.command) return;
+        const el = frame.current;
+        if (!el) return;
+        if (c.kind === 'fit') {
+          anchor.current = null;
+          setZoom(1);
+          el.scrollTo({ left: 0, top: 0 });
+          return;
+        }
+        zoomAbout(zoomRef.current * (c.kind === 'in' ? ZOOM_STEP : 1 / ZOOM_STEP), el.clientWidth / 2, el.clientHeight / 2);
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  useEffect(() => {
+    zoomStore.getState().report(fit * zoom * 100);
+  }, [fit, zoom]);
+
+  // Drag on the empty background to pan.
+  useEffect(() => {
+    const el = frame.current;
+    if (!el) return;
+    let start: { x: number; y: number; left: number; top: number; id: number } | null = null;
+    const onDown = (e: PointerEvent): void => {
+      const t = e.target as HTMLElement;
+      const background = t === el || t.dataset.testid === 'bank-stage' || t === content.current;
+      panned.current = false;
+      if (e.button !== 0 || !background) return;
+      start = { x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop, id: e.pointerId };
+    };
+    const onMove = (e: PointerEvent): void => {
+      if (!start || e.pointerId !== start.id) return;
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      if (!panned.current && Math.hypot(dx, dy) < 4) return;
+      if (!panned.current) {
+        panned.current = true;
+        el.setPointerCapture?.(e.pointerId);
+        el.style.cursor = 'grabbing';
+      }
+      el.scrollLeft = start.left - dx;
+      el.scrollTop = start.top - dy;
+    };
+    const onUp = (e: PointerEvent): void => {
+      if (!start || e.pointerId !== start.id) return;
+      start = null;
+      el.style.cursor = '';
+      if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId);
+    };
+    el.addEventListener('pointerdown', onDown);
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
+    return () => {
+      el.removeEventListener('pointerdown', onDown);
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onUp);
+      el.removeEventListener('pointercancel', onUp);
+    };
+  }, [frame]);
+
+  return { zoom, content, panned };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -550,7 +673,9 @@ function BankMapView() {
   const inset = useDockInset();
   // The preset bar of a guided flow floats at the bottom of the map: the blueprint stops above it.
   const bottomInset = useBankStore((s) => (activeFlowOf(s) ? 64 : 0));
-  const { ref, scale } = useFitScale(inset, bottomInset);
+  const { ref, scale: fit } = useFitScale(inset, bottomInset);
+  const { zoom, content, panned } = useZoomPan(ref, fit);
+  const scale = fit * zoom;
   const view = useBankStore((s) => s.view);
   const selection = useBankStore((s) => s.selection);
   const speedIndex = useBankStore((s) => s.speedIndex);
@@ -575,14 +700,14 @@ function BankMapView() {
 
   return (
     <StageScaleContext.Provider value={scale}>
-      <div ref={ref} className="relative h-full w-full overflow-auto" onClick={(e) => e.target === e.currentTarget && clearSelection()} data-testid="bank-map" data-phase={view.phase} data-day={view.day} data-touring={focus ? 'yes' : 'no'} data-spot={spotlit ?? undefined} data-flow={flow?.flow ?? undefined}>
-        <div className="relative mx-auto" style={{ width: STAGE.width * scale, height: STAGE.height * scale, marginTop: inset }}>
+      <div ref={ref} className="relative h-full w-full overflow-auto" onClick={(e) => e.target === e.currentTarget && !panned.current && clearSelection()} data-testid="bank-map" data-zoom={Math.round(scale * 100)} data-phase={view.phase} data-day={view.day} data-touring={focus ? 'yes' : 'no'} data-spot={spotlit ?? undefined} data-flow={flow?.flow ?? undefined}>
+        <div ref={content} className="relative mx-auto" style={{ width: STAGE.width * scale, height: STAGE.height * scale, marginTop: inset }}>
           <div
             className={`bk-stage relative ${night ? 'bk-night' : ''} ${focus ? 'bk-touring' : ''}`}
             style={{ width: STAGE.width, height: STAGE.height, transform: `scale(${scale})`, transformOrigin: 'top left' }}
             data-testid="bank-stage"
             data-phase={view.phase}
-            onClick={(e) => e.target === e.currentTarget && clearSelection()}
+            onClick={(e) => e.target === e.currentTarget && !panned.current && clearSelection()}
           >
             {DEPARTMENT_IDS.map((id) => (
               <DepartmentFrame key={id} id={id} focus={focus} flow={flow} terms={terms} />

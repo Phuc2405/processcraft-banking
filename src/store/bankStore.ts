@@ -21,7 +21,7 @@ import { SPOTLIGHT_DEFAULT_EXAMPLE, spotPlan } from '../sim/spotlightPlan';
 import type { TermMode } from '../sim/terms';
 import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
-import type { BankView, PacketTrace } from '../sim/types';
+import type { BankView, Customer, PacketTrace } from '../sim/types';
 import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
@@ -253,6 +253,8 @@ export interface BankState {
   setChaos(next: Partial<ChaosConfig>): void;
   /** Raises a chargeback on a card purchase from the live ledger (2110 back to 2010). */
   disputeTransaction(txId: string): DisputeResult;
+  /** Sends one hand-made customer into the bank now (the AML desk's test transfer). Returns its id, or null after closing time. */
+  sendCustomer(customer: Customer): string | null;
 }
 
 export interface BankStoreOptions {
@@ -417,6 +419,13 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         s.sim.setChaos(chaos);
         set({ chaos });
         refresh();
+      },
+
+      sendCustomer: (customer) => {
+        const s = get();
+        const id = s.sim.inject(customer);
+        if (id) refresh();
+        return id;
       },
 
       disputeTransaction: (txId) => {

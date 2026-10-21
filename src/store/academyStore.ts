@@ -43,6 +43,10 @@ export interface AcademyState {
   panelWidth: number;
   /** The result of each chapter quiz the learner has taken. */
   quizScores: QuizScores;
+  /** The section of the panel on show. Not remembered across reloads. */
+  studyTab: StudyTab;
+  /** The chapter the Flashcards tab is filtered to, or 'all'. Not remembered across reloads. */
+  cardsChapter: ChapterId | 'all';
 
   /** Opens a chapter. Its levels show; no level is chosen yet. */
   setChapter(id: ChapterId): void;
@@ -58,7 +62,13 @@ export interface AcademyState {
   setPanelWidth(px: number): void;
   /** Keeps a chapter quiz result: `last` is always the newest, `best` the highest so far. */
   recordQuiz(chapter: ChapterId, score: number): void;
+  setStudyTab(tab: StudyTab): void;
+  setCardsChapter(chapter: ChapterId | 'all'): void;
+  /** [📇 Practice in Flashcards Tab]: opens the panel on the Flashcards tab, filtered to one chapter. */
+  openFlashcards(chapter: ChapterId): void;
 }
+
+export type StudyTab = 'lessons' | 'cards' | 'quiz';
 
 type Saved = Pick<AcademyState, 'activeChapterId' | 'activeLevelId' | 'isSplitScreenOpen' | 'completedLessons' | 'startedLessons' | 'panelWidth' | 'quizScores'>;
 
@@ -120,6 +130,19 @@ export function createAcademyStore(options: { storage?: KeyValueStorage | null }
   const store = createStore<AcademyState>()((set, get) => ({
     ...loadAcademy(storage),
     isMaximized: false,
+    studyTab: 'lessons',
+    cardsChapter: 'all',
+
+    setStudyTab: (tab) => {
+      if (get().studyTab !== tab) set({ studyTab: tab });
+    },
+    setCardsChapter: (chapter) => {
+      if (chapter === 'all' || isChapterId(chapter)) set({ cardsChapter: chapter });
+    },
+    openFlashcards: (chapter) => {
+      if (!isChapterId(chapter)) return;
+      set({ studyTab: 'cards', cardsChapter: chapter, isSplitScreenOpen: true });
+    },
 
     setChapter: (id) => {
       if (!isChapterId(id) || get().activeChapterId === id) return;

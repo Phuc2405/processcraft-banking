@@ -15,6 +15,7 @@ import { LearningHub } from './LearningHub';
 import { PresetDock } from './PresetDock';
 import { useBankClock } from './useBankClock';
 import { ViewportControls } from './ViewportControls';
+import { ZoomToolbar } from '../shell/ZoomToolbar';
 
 /** The 3D office is loaded only when someone asks for it: three.js is the heaviest thing in the app. */
 const Office3D = lazy(() => import('./office/Office3D'));
@@ -139,6 +140,7 @@ export function LivingBank() {
                 <BankMap />
               )}
               <ViewportControls />
+              <ZoomToolbar />
               <LedgerDrawer />
               <HudToasts />
               <PresetDock />

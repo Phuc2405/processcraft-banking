@@ -89,7 +89,9 @@ export const PRESET_SCENARIOS: readonly Scenario[] = [
 
 /** The botnet's card-testing attempt on day 3 (Chaos Monkey). Not in SCENARIOS, so ordinary days never draw it. */
 export const BOT_SCENARIO_ID = 'chaos-bot-card-test';
-export const CHAOS_SCENARIOS: readonly Scenario[] = [s('ECOM', BOT_SCENARIO_ID, '🤖', 'Botnet $1 Card Test', 1, 0, 0, true)];
+/** The large transfer the AML desk can send in to see its >$10,000 rule fire. */
+export const AML_TEST_SCENARIO_ID = 'aml-large-transfer';
+export const CHAOS_SCENARIOS: readonly Scenario[] = [s('ECOM', BOT_SCENARIO_ID, '🤖', 'Botnet $1 Card Test', 1, 0, 0, true), s('A2A', AML_TEST_SCENARIO_ID, '🏢', 'Large Business Transfer', 12_500, 0, 0, true)];
 
 const BY_ID: ReadonlyMap<string, Scenario> = new Map([...SCENARIOS, ...PRESET_SCENARIOS, ...CHAOS_SCENARIOS].map((x) => [x.id, x]));
 

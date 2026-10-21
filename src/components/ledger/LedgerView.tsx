@@ -1,4 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
+import { useLocale } from '../../i18n/locale';
+import { accountName } from '../../sim/plainLanguage';
 import { ledgerUi, postingKindLabel } from '../../data/ledgerCopy';
 import { CHART_OF_ACCOUNTS, groupByTransaction, isBalanced, trialBalance, type TrialBalance as Trial } from '../../engine/ledger';
 import { formatAud } from '../../engine/money';
@@ -41,17 +43,25 @@ function BalancedBadge({ ok, testId }: { ok: boolean; testId?: string }) {
 
 function AccountName({ id }: { id: AccountId }) {
   const def = CHART_OF_ACCOUNTS[id];
+  const locale = useLocale();
   return (
     <span title={def.description} className="block min-w-0 truncate">
       <span className="mr-1.5 font-mono text-[10.5px] text-slate-500">{def.code}</span>
-      {def.name}
+      {accountName(id, locale)}
     </span>
   );
+}
+
+/** The memo of a line. The engine writes it in English; in Vietnamese it is rebuilt from the line's kind, accounts and amount. */
+function memoOf(entry: GLEntry, locale: string, t: (s: string) => string): string {
+  if (locale !== 'vi') return t(entry.memo);
+  return `${postingKindLabel(entry.kind)}: Nợ ${CHART_OF_ACCOUNTS[entry.debitAccount].code} ${accountName(entry.debitAccount, 'vi')} / Có ${CHART_OF_ACCOUNTS[entry.creditAccount].code} ${accountName(entry.creditAccount, 'vi')}, ${formatAud(entry.amount)}.`;
 }
 
 function Line({ entry }: { entry: GLEntry }) {
   const ui = ledgerUi();
   const terms = useTerms();
+  const locale = useLocale();
   const money = formatAud(entry.amount);
   return (
     <li className="rounded-md bg-slate-900/70 px-2.5 py-1.5" data-testid="ledger-line" data-kind={entry.kind}>
@@ -77,14 +87,15 @@ function Line({ entry }: { entry: GLEntry }) {
           {money}
         </span>
       </div>
-      <p className="mt-1 text-[11.5px] leading-snug text-slate-400">{terms.t(entry.memo)}</p>
+      <p className="mt-1 text-[11.5px] leading-snug text-slate-400">{memoOf(entry, locale, terms.t)}</p>
     </li>
   );
 }
 
-function Batch({ batch }: { batch: LedgerBatch }) {
+function Batch({ batch, actions }: { batch: LedgerBatch; actions?: (batch: LedgerBatch) => ReactNode }) {
   const ui = ledgerUi();
   const ok = isBalanced(batch.entries);
+  const extra = actions?.(batch);
   return (
     <section className="rounded-lg border border-slate-800 bg-slate-950/60 p-2.5" data-testid="ledger-batch" data-tx={batch.id}>
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -92,6 +103,7 @@ function Batch({ batch }: { batch: LedgerBatch }) {
         {batch.subtitle && <span className="truncate text-[11px] text-slate-500">{batch.subtitle}</span>}
         <span className="ml-auto text-[11px] text-slate-500">{ui.entries(batch.entries.length)}</span>
         <BalancedBadge ok={ok} />
+        {extra}
       </header>
       <ol className="mt-2 space-y-1.5">
         {batch.entries.map((e) => (
@@ -159,7 +171,7 @@ function TrialBalance({ tb }: { tb: Trial }) {
  * lines and the balance should cover more. `split` puts the trial balance beside the
  * journal on a wide screen (the results drawer); the default stacks them (a narrow card).
  */
-export function LedgerView({ batches, empty, split = false, trial }: { batches: readonly LedgerBatch[]; empty?: string; split?: boolean; trial?: Trial }) {
+export function LedgerView({ batches, empty, split = false, trial, actions }: { batches: readonly LedgerBatch[]; empty?: string; split?: boolean; trial?: Trial; actions?: (batch: LedgerBatch) => ReactNode }) {
   const ui = ledgerUi();
   const all = useMemo(() => batches.flatMap((b) => b.entries), [batches]);
   // The trial balance covers every line unless the caller has one for lines it is not showing (the Living Bank shows only the latest).
@@ -173,7 +185,7 @@ export function LedgerView({ batches, empty, split = false, trial }: { batches: 
   }
   return (
     <div className={split ? 'grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_440px]' : 'space-y-2.5'} data-testid="ledger-view">
-      <div className="space-y-2.5">{batches.map((b) => (b.entries.length > 0 ? <Batch key={b.id} batch={b} /> : null))}</div>
+      <div className="space-y-2.5">{batches.map((b) => (b.entries.length > 0 ? <Batch key={b.id} batch={b} {...(actions ? { actions } : {})} /> : null))}</div>
       <TrialBalance tb={tb} />
     </div>
   );
