@@ -77,6 +77,29 @@ export const MENTAL_MODELS: Record<MentalModelId, MentalModel> = {
         ],
         watchOut: 'A hold nobody claims expires and the money springs back, which is why a pending charge can simply vanish. Meanwhile it still shrinks what you can spend.',
       },
+      vi: {
+        title: 'Chiếc ví có ngăn khóa tạm thời',
+        topic: 'Sổ cái lõi & số dư khoanh giữ',
+        hook: 'Quẹt thẻ không lấy tiền ra khỏi ví: nó khóa số tiền đó vào một ngăn phụ cho đến khi cửa hàng nhận tiền.',
+        parts: [
+          {
+            real: 'Số dư khả dụng',
+            picture: 'Tiền được tự do chi tiêu',
+            explain: 'Phần mở của chiếc ví. Đây là phần duy nhất mà một giao dịch mua mới được phép dùng.',
+          },
+          {
+            real: 'Khoanh giữ (cấp phép)',
+            picture: 'Ngăn bị khóa',
+            explain: 'Khi bạn quẹt thẻ, ngân hàng khóa số tiền đó vào một ngăn tạm. Bạn không tiêu được, nhưng tiền vẫn chưa rời ví.',
+          },
+          {
+            real: 'Quyết toán',
+            picture: 'Trao tiền đi',
+            explain: 'Một đến hai ngày sau, lệnh quyết toán của cửa hàng tới và số tiền bị khóa mới thật sự bị trừ.',
+          },
+        ],
+        watchOut: 'Khoản khoanh giữ không ai nhận sẽ hết hạn và tiền tự trở lại, vì thế một khoản chờ xử lý có thể biến mất. Trong lúc chờ, nó vẫn làm giảm số tiền bạn được chi.',
+      },
     },
   },
   tokenization: {
@@ -108,6 +131,29 @@ export const MENTAL_MODELS: Record<MentalModelId, MentalModel> = {
           },
         ],
         watchOut: 'A longer ticket window is kinder to slow typists and friendlier to a thief replaying a copied code. The window is a trade-off, not a free gift.',
+      },
+      vi: {
+        title: 'Chứng minh thư giả dùng một lần',
+        topic: 'Mã hóa thẻ (Tokenization) & dCVV',
+        hook: 'Cửa hàng chỉ thấy một mã định danh thay thế và một tấm vé hết hiệu lực sau một phút, không bao giờ thấy thẻ thật.',
+        parts: [
+          {
+            real: 'Số thẻ thật (FPAN)',
+            picture: 'Danh tính thật của bạn',
+            explain: 'Không bao giờ rời khỏi ngân hàng. Chỉ kho token biết nó.',
+          },
+          {
+            real: 'Số thẻ ảo (DPAN)',
+            picture: 'Chứng minh thư giả',
+            explain: 'Một số mặt nạ trỏ tới thẻ thật. Kho token chuyển nó về số thật, và không ai khác làm được.',
+          },
+          {
+            real: 'CVV động (dCVV)',
+            picture: 'Tấm vé 60 giây',
+            explain: 'Mã bảo mật liên tục thay đổi. Một bức ảnh chụp lén nó trở nên vô dụng sau một phút.',
+          },
+        ],
+        watchOut: 'Cửa sổ thời gian dài hơn thì dễ chịu với người gõ chậm, nhưng cũng dễ dãi với kẻ gian dùng lại mã đã sao chép. Độ dài cửa sổ là sự đánh đổi, không phải món quà miễn phí.',
       },
     },
   },
@@ -141,6 +187,29 @@ export const MENTAL_MODELS: Record<MentalModelId, MentalModel> = {
         ],
         watchOut: 'A strict gatekeeper loses honest customers who give up at the door (cart abandonment). A relaxed one lets fraud walk in. The two dials pull against each other.',
       },
+      vi: {
+        title: 'Người gác cổng nhận ra khách quen',
+        topic: '3-D Secure 2.x',
+        hook: 'Khách quen mua những thứ quen thuộc thì đi thẳng vào; bất cứ điều gì bất thường đều bị chặn ở cửa và phải chứng minh danh tính.',
+        parts: [
+          {
+            real: 'Luồng không ma sát (frictionless)',
+            picture: 'Đi thẳng vào',
+            explain: 'Rủi ro thấp: một khách quen làm việc họ vẫn làm. Người gác cổng gật đầu và không ai bị làm phiền.',
+          },
+          {
+            real: 'Thử thách (SMS OTP / sinh trắc học)',
+            picture: 'Bị chặn lại và hỏi giấy tờ',
+            explain: 'Rủi ro bất thường, như địa điểm lạ hoặc giờ khuya. Khách phải nhập mã gửi về điện thoại hoặc dùng vân tay.',
+          },
+          {
+            real: 'Từ chối',
+            picture: 'Bị mời về',
+            explain: 'Rủi ro quá cao, không cần hỏi thêm. Giao dịch bị từ chối ngay tại cửa.',
+          },
+        ],
+        watchOut: 'Người gác cổng quá khắt khe làm mất khách thật bỏ cuộc giữa chừng (bỏ giỏ hàng). Người quá dễ dãi thì để gian lận lọt vào. Hai núm điều chỉnh kéo ngược chiều nhau.',
+      },
     },
   },
   'eod-recon': {
@@ -172,6 +241,29 @@ export const MENTAL_MODELS: Record<MentalModelId, MentalModel> = {
           },
         ],
         watchOut: 'Never force a break to match. A growing safe means the night’s rules are too tight, or the day team is overloaded.',
+      },
+      vi: {
+        title: 'Đếm két tiền và két đồ thất lạc',
+        topic: 'Đối soát cuối ngày & tài khoản treo',
+        hook: 'Lúc đóng cửa, ba người cùng đếm một két tiền. Nếu tổng của họ khác nhau, phần tiền lệch được cất vào két riêng cho tới khi tìm ra nguyên nhân.',
+        parts: [
+          {
+            real: 'Đối soát 3 bên (Cửa hàng, Visa, Ngân hàng lõi)',
+            picture: 'Ba người đếm cùng một két',
+            explain: 'Báo cáo của cửa hàng, tệp của Visa và sổ cái của chính ngân hàng đều phải ra cùng một con số.',
+          },
+          {
+            real: 'Sai lệch (break)',
+            picture: 'Một lần đếm không khớp',
+            explain: 'Một tổng bị khác, bị thiếu hoặc bị đếm hai lần. Có gì đó sai và chưa ai biết là gì.',
+          },
+          {
+            real: 'Tài khoản treo',
+            picture: 'Két đồ thất lạc',
+            explain: 'Tiền không khớp được đưa vào két và nằm yên ở đó. Sáng hôm sau một nhân viên điều tra và xử lý.',
+          },
+        ],
+        watchOut: 'Không bao giờ ép một sai lệch cho khớp. Két ngày càng đầy nghĩa là quy tắc ca đêm quá chặt, hoặc đội ca ngày đang quá tải.',
       },
     },
   },

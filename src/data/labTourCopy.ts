@@ -9,7 +9,7 @@
 
 import { pick, type Localized } from '../i18n/locale';
 import type { BankingCapability, Id, Outcome } from '../types/processLearning';
-import { sceneOf, walkUi, type Scene, type WalkUi } from './walkthroughCopy';
+import { sceneOf, WALK_COPY, type Scene, type WalkUi } from './walkthroughCopy';
 
 export type { Scene };
 
@@ -88,7 +88,7 @@ interface LabBook {
 
 const EN: LabBook = {
   ui: {
-    ...walkUi(),
+    ...WALK_COPY.en.ui,
     labTour: 'Guided tour',
     exampleSource: 'Worked example: a model answer',
     mineSource: 'Your diagram',
@@ -288,7 +288,209 @@ const EN: LabBook = {
   },
 };
 
-export const LAB_COPY: Localized<LabBook> = { en: EN };
+const VI: LabBook = {
+  ui: {
+    ...WALK_COPY.vi.ui,
+    labTour: 'Tham quan có hướng dẫn',
+    exampleSource: 'Ví dụ mẫu: một lời giải chuẩn',
+    mineSource: 'Sơ đồ của bạn',
+    mineBlurb: 'Chuyến tham quan đi theo chính sơ đồ của bạn, chạy đúng như cách hệ thống chấm điểm chạy.',
+    mineEmpty: 'Hãy đặt một quầy lên sơ đồ trước, hoặc tham quan ví dụ mẫu.',
+    spoiler: 'Chuyến tham quan này đi theo một lời giải hoàn chỉnh của cấp độ. Nếu bạn muốn tự giải trước, hãy rời đi và quay lại sau khi đã thử.',
+    launchTitle: 'Tham quan có hướng dẫn',
+    launchBlurb: 'Theo chân một giao dịch qua quy trình, từng quầy một, với một câu hỏi ở mỗi điểm quyết định.',
+    launchExample: 'Tham quan ví dụ mẫu',
+    launchMine: 'Đi qua sơ đồ của tôi',
+    mineProblem: (why) => `Chưa thể đi qua sơ đồ của bạn: ${why}`,
+    testLabel: 'Giao dịch',
+    levelOf: (label, title) => `Cấp ${label}: ${title}`,
+    verdictTitle: 'Kết cục',
+    ledgerTitle: 'Sổ sách đã ghi gì',
+    kinds: { start: 'Sự kiện bắt đầu', task: 'Quầy xử lý', gateway: 'Điểm quyết định', end: 'Sự kiện kết thúc' },
+    stuckTitle: 'Bị kẹt ở đâu',
+    replayTour: 'Xem lại chuyến tham quan',
+    following: 'Đang theo dõi',
+    messageArrives: 'Thông điệp khi đến (pacs.008)',
+    messageStamped: 'Cùng thông điệp, đã được đóng dấu kênh thanh toán',
+    matchesTest: 'Đây đúng là kết cục bài kiểm tra mong đợi.',
+    missesTest: 'Đây không phải kết cục bài kiểm tra mong đợi.',
+    onItsWay: (title) => `Đang đi tới “${title}”…`,
+    stageOf: (stage, title) => `Giai đoạn ${stage}: ${title}`,
+    start: 'Bắt đầu tham quan',
+    startHint: 'Mã giao dịch bắt đầu di chuyển. Nó dừng ở mỗi quầy để giải thích, và ở mỗi điểm quyết định để hỏi bạn một câu.',
+  },
+
+  scenes: {
+    lvl_05_first_swipes: {
+      chapter: 'Lần quẹt đầu tiên: tiền có đủ không?',
+      scene:
+        'Khách hàng An chạm thẻ vào máy POS. Chiếc áo khoác giá $500.00. Trong một giây ngân hàng phải trả lời một câu hỏi: An có trả được không? Nếu có, ngân hàng khoanh giữ số tiền và máy báo đã duyệt. Nếu không, máy phải báo rõ ràng, và ngân hàng không được giữ khoanh tiền cho một khoản không hề được chi.',
+      lookFor: ['Một dữ kiện duy nhất mà bước kiểm tra sổ cái ghi lại cho quyết định tiếp theo.', 'Vì sao điểm quyết định cần một nhánh mặc định, kể cả khi bạn kể tên được mọi trường hợp.', 'Mã lý do giúp gì cho khách hàng đang đứng ở quầy.'],
+    },
+    lvl_06_card_testing: {
+      chapter: 'Nửa đêm: bot, và một khách chỉ muốn gia hạn dịch vụ',
+      scene:
+        'Bây giờ là 00:12. Một con bot có danh sách số thẻ bị đánh cắp và thử từng thẻ với $1.00, lặp đi lặp lại, để tìm thẻ nào còn dùng được. Cùng phút đó An đang gia hạn gói đăng ký $12.00. Cả hai cùng đến một cổng. Ngân hàng phải chặn con bot mà không bắt An nhập mã OTP, vì mỗi bước thêm vào làm một phần khách hàng thật bỏ đi.',
+      lookFor: ['Hai dấu hiệu nhận biết một đợt dò thẻ.', 'Vì sao con bot bị chặn trước các bước kiểm tra tốn kém.', 'Những giao dịch nào đủ nhỏ để bỏ qua mã OTP.'],
+    },
+    lvl_07_a2a_iso20022: {
+      chapter: 'Mạch máu của hệ thống: chuyển tiền giữa các ngân hàng',
+      scene:
+        'Không phải giao dịch nào cũng dùng thẻ. Ở đây một công ty trả tiền cho nhà cung cấp và nhân viên trực tiếp từ tài khoản sang tài khoản. Lệnh đến ngân hàng dưới dạng thông điệp pacs.008, một phong bì chuẩn ghi ngân hàng gửi, ngân hàng nhận, số tiền và mã tham chiếu đi kèm giao dịch. Cổng thanh toán đọc, kiểm tra và chọn kênh: tức thì, hoặc RTGS cho khoản lớn.',
+      lookFor: ['Bốn trường mà mọi thông điệp phải có.', 'Ranh giới giữa kênh tức thì và RTGS nằm ở đâu.', 'Vì sao lương được ưu tiên vượt hàng chờ và quỹ dự trữ.'],
+    },
+    lvl_08_fx_breaks: {
+      chapter: 'Ca đêm 23:59: mười lăm sai lệch và một đồng ngoại tệ',
+      scene:
+        'Còn một phút nữa là nửa đêm và mười lăm giao dịch ngoại tệ không đối soát được. Mỗi giao dịch được ghi bằng đô la theo một tỷ giá và được tổ chức thẻ quyết toán theo tỷ giá khác. Khoảng chênh là tiền thật, nhưng không phải lỗi: đó là tỷ giá. Ngân hàng phải đưa từng khoản chênh vào đúng tài khoản treo ngoại hối và phân biệt lãi với lỗ.',
+      lookFor: ['Điều gì khiến một khoản chênh là chênh lệch tỷ giá thay vì lỗi.', 'Chiều nào là lãi và chiều nào là lỗ.', 'Những sai lệch trông giống tỷ giá nhưng không phải.'],
+    },
+    lvl_09_sanctions_storm: {
+      chapter: 'Bão cấm vận: khách VIP không có trong danh sách',
+      scene:
+        'Một khách VIP mười lăm năm gửi một khoản thanh toán lớn. Hệ thống phòng chống rửa tiền bật cảnh báo: tên ông gần giống một người trong danh sách cấm vận. Nếu ngân hàng phong tỏa, họ mất khách hàng tốt nhất. Nếu cho qua mà ông đúng là người trong danh sách, ngân hàng vi phạm pháp luật. Lối thoát là nhật ký kiểm toán: ngày sinh và quốc tịch đã xác minh sẽ giải quyết vấn đề.',
+      lookFor: ['Vì sao một kết quả trùng khớp sàng lọc chỉ là manh mối, không phải phán quyết.', 'Điều tra viên tin vào dữ kiện nào và bỏ qua dữ kiện nào.', 'Ngân hàng làm gì khi bằng chứng không đủ.'],
+    },
+    lvl_10_chargeback_warfare: {
+      chapter: 'Cuộc chiến tra soát: ai trả tiền khi khách khiếu nại?',
+      scene:
+        'An nói hàng chưa bao giờ đến và yêu cầu ngân hàng hoàn tiền. Điều đó mở ra một vụ tra soát: ngân hàng yêu cầu cửa hàng xuất trình hóa đơn, thu hồi tiền, cửa hàng phản hồi, và nếu không bên nào nhượng bộ thì tổ chức thẻ sẽ phân xử. Nhưng trước hết, hai câu hỏi quyết định ai có thể thắng: khiếu nại còn trong hạn không, và giao dịch có qua kiểm tra 3-D Secure không?',
+      lookFor: ['Bốn giai đoạn của một vụ tra soát, theo thứ tự.', 'Vì sao giao dịch đã qua 3-D Secure có thể chuyển tổn thất sang ngân hàng.', 'Một điều duy nhất khiến khiếu nại bị bác ngay từ đầu.'],
+    },
+  },
+
+  facts: {
+    tokenStatus: 'Token',
+    fundingSource: 'Nguồn tiền',
+    fpanLast4: 'Thẻ thật đuôi',
+    dcvvStatus: 'dCVV',
+    threeDsPath: 'Luồng 3DS',
+    authenticated: 'Đã xác thực',
+    liabilityShift: 'Trách nhiệm gian lận',
+    ledgerDecision: 'Sổ cái',
+    authHoldMinor: 'Số tiền khoanh giữ',
+    reconStatus: 'Đối soát',
+    reconVarianceMinor: 'Chênh lệch lớn nhất',
+    reconCause: 'Nguyên nhân chênh lệch',
+    fxDirection: 'Chênh lệch tỷ giá',
+    underwritingScore: 'Điểm',
+    downPaymentPct: 'Trả trước',
+    bnplDecision: 'Thẩm định',
+    installment1Minor: 'Kỳ đầu tiên',
+    installmentAmountMinor: 'Sau đó 3 kỳ mỗi kỳ',
+    a2aValid: 'Thông điệp hợp lệ',
+    a2aRail: 'Kênh',
+    a2aPriority: 'Ưu tiên',
+    a2aQueue: 'Hàng chờ',
+    a2aLiquidity: 'Thanh khoản',
+    amlStatus: 'Kết quả sàng lọc',
+    amlMatchScore: 'Mức trùng tên cao nhất',
+    amlList: 'Danh sách',
+    amlStructuring: 'Chia nhỏ giao dịch',
+    caseVerdict: 'Kết luận',
+    caseEvidenceCount: 'Số bằng chứng',
+    disputeWindow: 'Thời hạn khiếu nại',
+    disputeLiability: 'Trách nhiệm',
+    disputeNext: 'Giai đoạn tiếp',
+  },
+
+  capabilities: {
+    TOKEN_VAULT: {
+      title: 'Kho Token: thẻ thật đằng sau số giả',
+      what: 'Số thẻ ảo là số thay thế. Kho token tra cứu và tìm ra thẻ thật đằng sau nó, nên cửa hàng không bao giờ thấy số thật mà ngân hàng vẫn biết đây là tiền của ai.',
+      why: 'Một số mà kho chưa từng phát hành thì không phải là thẻ: dừng ở đây, trước khi xem tới tiền.',
+      fails: ['Số chưa từng được phát hành nên kho báo lỗi. Nếu không có gì bắt lỗi đó thì giao dịch bị kẹt.', 'Thẻ ảo đã bị chủ thẻ tạm ngưng, và giao dịch không nên tiếp tục.'],
+    },
+    DCVV_VERIFIER: {
+      title: 'Bộ kiểm tra dCVV: mã bảo mật có hạn dùng',
+      what: 'CVV động là mã ba chữ số thay đổi mỗi phút. Quầy so sánh mã được nhập với mã kho token mong đợi, và kiểm tra mã còn mới.',
+      why: 'Mã cũ và mã sai đều bị từ chối: kẻ gian cầm mã của một giờ trước sẽ không được gì.',
+      fails: ['Người gõ chậm bị từ chối ở sát mép cửa sổ thời gian.', 'Cửa sổ quá dài cho kẻ gian thời gian dùng mã bị đánh cắp.'],
+    },
+    THREE_DS_EVALUATOR: {
+      title: '3-D Secure: chỉ gây phiền khi đáng',
+      what: 'Ngân hàng chấm điểm mức rủi ro của giao dịch. Điểm thấp đi thẳng, điểm trung bình nhận mã OTP trên điện thoại khách, điểm cao bị từ chối.',
+      why: 'Giao dịch qua 3-D Secure chuyển trách nhiệm gian lận sang ngân hàng đã duyệt, nên bước này quyết định ai chịu nếu hóa ra là gian lận.',
+      fails: ['Thử thách quá nhiều khách thì khách thật bỏ giỏ hàng.', 'Thử thách quá ít thì gian lận lọt qua.'],
+    },
+    CORE_LEDGER_CHECK: {
+      title: 'Kiểm tra sổ cái lõi: tiền có đủ không?',
+      what: 'Sổ cái lõi là hồ sơ chính thức của ngân hàng về mọi số dư. Quầy so sánh số tiền với số khách được phép chi. Nếu đủ, nó khoanh giữ số tiền đó.',
+      why: 'Bước kiểm tra chỉ ghi một dữ kiện: đủ hay không. Quyết định duyệt hay từ chối do điểm quyết định tiếp theo đưa ra.',
+      fails: ['Kiểm tra sai số tiền: với kế hoạch trả 4 kỳ, hôm nay chỉ phải trả kỳ đầu.', 'Chạy kiểm tra cho một giao dịch sẽ bị từ chối vì lý do khác làm tốn một lần gọi hệ thống lõi.'],
+    },
+    RECON_DESK: {
+      title: 'Quầy đối soát: ba bộ sổ có khớp không?',
+      what: 'Sổ cái ngân hàng, tệp bù trừ của tổ chức thẻ và ngân hàng của cửa hàng mỗi bên giữ một bản ghi riêng về giao dịch. Quầy xếp ba bản ghi cạnh nhau và cho phép một biên sai số nhỏ do làm tròn.',
+      why: 'Không bao giờ ép một khoản chênh cho khớp. Nó được đưa vào tài khoản treo cho tới khi có người tìm ra nguyên nhân.',
+      fails: ['Biên sai số quá rộng làm một lỗi thật bị khớp mất.', 'Biên quá hẹp đưa cả sai số làm tròn vào tài khoản treo và nhấn chìm đội ngũ trong các sai lệch giả.'],
+    },
+    BNPL_UNDERWRITER: {
+      title: 'Thẩm định: tin tưởng, nhưng có phương án B',
+      what: 'Mua trước Trả sau cho khách trả làm bốn kỳ. Bộ phận thẩm định so điểm tín dụng và khoản trả trước của khách với mức tối thiểu của ngân hàng trước khi đưa ra kế hoạch.',
+      why: 'Một lời “không” không nhất thiết làm mất đơn hàng: khách vẫn có thể trả đủ bằng thẻ.',
+      fails: ['Duyệt quá dễ thì các kỳ trả góp không được thanh toán.', 'Từ chối mà không có phương án dự phòng thì mất đơn hàng.'],
+    },
+    A2A_GATEWAY: {
+      title: 'Cổng thanh toán A2A: đọc thông điệp, chọn kênh',
+      what: 'Cổng đọc thông điệp pacs.008 và kiểm tra định dạng: mã tham chiếu, mã BIC của hai ngân hàng và số tiền quyết toán. Sau đó nó chọn kênh, xem hàng chờ và kiểm tra có đủ tiền để gửi.',
+      why: 'Một giao dịch chỉ tốt bằng thông điệp của nó. Thông điệp lỗi bị từ chối tại đây, trước khi tới ngân hàng bên kia.',
+      fails: ['Hạn mức kênh tức thì đặt quá cao khiến khoản lớn đi vào kênh không chịu nổi.', 'Lương bị giữ chung hàng chờ với mọi thứ khác và đến muộn.'],
+    },
+    AML_SCREENING: {
+      title: 'Sàng lọc AML: tên, danh sách và mẫu hình',
+      what: 'Quầy so tên khách hàng với danh sách cấm vận và danh sách người có ảnh hưởng chính trị, có tính tới khác biệt chính tả, và xem các lần nộp tiền mặt gần đây để tìm dấu hiệu chia nhỏ giao dịch.',
+      why: 'Trùng tên là manh mối, không phải phán quyết. Phải có người xem xét trước khi ngân hàng phong tỏa hay cho qua một khách hàng.',
+      fails: ['Ngưỡng quá thấp làm đội ngũ ngập trong cảnh báo sai.', 'Ngưỡng quá cao để một trường hợp trùng thật lọt qua.'],
+    },
+    CASE_INVESTIGATION: {
+      title: 'Điều tra hồ sơ: nhật ký kiểm toán chứng minh điều gì',
+      what: 'Điều tra viên mở nhật ký kiểm toán và so ngày sinh, quốc tịch đã xác minh với người trong danh sách. Các mục chưa xác minh bị bỏ qua.',
+      why: 'Bằng chứng có ba khả năng: không phải người đó, đúng người đó, hoặc chưa đủ để kết luận. Khả năng cuối không được làm tròn thành khả năng đầu.',
+      fails: ['Tin vào mục chưa xác minh là giải tỏa khách hàng dựa trên một thông tin ai cũng có thể gõ vào.', 'Đưa mọi khách hàng vào đây khiến khách thật phải chờ vô ích.'],
+    },
+    CHARGEBACK_DESK: {
+      title: 'Quầy tra soát: vụ việc đang ở đâu, và ai chịu?',
+      what: 'Quầy xác định giai đoạn tra soát từ bằng chứng của cửa hàng, khiếu nại còn trong hạn không, và ai chịu tổn thất. Khiếu nại gian lận với giao dịch đã qua 3-D Secure là tổn thất của ngân hàng phát hành.',
+      why: 'Hai điều chấm dứt khiếu nại trước khi bắt đầu: quá hạn, hoặc trách nhiệm thuộc về ngân hàng.',
+      fails: ['Tự đếm ngày bằng tay thay vì hỏi quầy.', 'Tra soát một giao dịch mà tổ chức thẻ quy định ngân hàng phải tự chịu.'],
+    },
+  },
+
+  start: {
+    title: 'Giao dịch đến',
+    what: 'Mọi giao dịch bắt đầu ở đây. Mã giao dịch đi qua sơ đồ mang theo các dữ kiện về giao dịch: số tiền, thẻ, và mọi điều ngân hàng đã biết.',
+    why: 'Dữ kiện đến cùng giao dịch có thể được mọi điểm quyết định đọc. Dữ kiện do một quầy ghi chỉ đọc được sau khi quầy đó đã chạy.',
+    fails: ['Không có gì nối với sự kiện bắt đầu, nên giao dịch không đi đâu cả.'],
+  },
+  startA2a: {
+    title: 'Một thông điệp pacs.008 đến',
+    what: 'Lệnh chuyển tài khoản sang tài khoản đến ngân hàng dưới dạng thông điệp ISO 20022 pacs.008. Nó ghi ngân hàng gửi, ngân hàng nhận, số tiền và mã tham chiếu đi cùng giao dịch cho tới khi được giao.',
+    why: 'Vì mọi ngân hàng đọc cùng một thông điệp theo cùng một cách, giao dịch có thể đi từ ngân hàng này sang ngân hàng khác mà không ai phải gõ lại.',
+    fails: ['Một trường bị thiếu hoặc sai định dạng, và cổng phải từ chối toàn bộ thông điệp.'],
+  },
+  gateway: {
+    title: 'Quyết định: giao dịch này đi nhánh nào?',
+    what: 'Điểm quyết định đọc các dữ kiện mà quầy trước đã ghi và đưa giao dịch vào đúng một nhánh. Nó thử các nhánh theo thứ tự và chọn nhánh đầu tiên có quy tắc đúng. Nếu không nhánh nào đúng, nó đi nhánh mặc định.',
+    why: 'Thứ tự quan trọng, và nhánh mặc định cũng vậy: thiếu nhánh mặc định, một giao dịch ngoài dự tính không có chỗ để đi.',
+    fails: ['Hai quy tắc cùng đúng và quy tắc sai được xếp trước.', 'Quy tắc đọc một dữ kiện chưa quầy nào ghi, nên không bao giờ đúng.'],
+  },
+  end: {
+    title: 'Giao dịch kết thúc',
+    what: 'Sự kiện kết thúc là nơi hành trình dừng lại và ngân hàng báo kết quả. Kết quả cùng mã lý do quyết định khách được báo gì và sổ sách ghi gì.',
+    why: 'Mọi giao dịch phải kết thúc ở đâu đó, với một kết quả có thể hành động được.',
+    fails: ['Từ chối mà không có mã lý do khiến khách phải đoán.'],
+  },
+
+  outcomes: {
+    APPROVED: 'Đã duyệt: tiền dịch chuyển và sổ sách ghi nhận.',
+    DECLINED: 'Từ chối: khách được báo không. Không được để lại khoản khoanh giữ nào trên tiền của họ.',
+    ROUTED_TO_SUSPENSE: 'Treo lại: giao dịch được giữ cho tới khi một người hoặc một quy trình sau quyết định.',
+    CHALLENGE_REQUIRED: 'Cần thêm thông tin trước khi ngân hàng có thể quyết định.',
+  },
+};
+
+export const LAB_COPY: Localized<LabBook> = { en: EN, vi: VI };
 
 const book = (): LabBook => pick(LAB_COPY);
 

@@ -19,7 +19,20 @@ const EN: Readonly<Record<Id, string>> = {
   lvl_10_chargeback_warfare: 'Chargebacks',
 };
 
-export const LEVEL_TAB_LABELS: Localized<Readonly<Record<Id, string>>> = { en: EN };
+const VI: Readonly<Record<Id, string>> = {
+  lvl_05_first_swipes: 'Lần quẹt đầu',
+  lvl_01_virtual_card_dcvv: 'Thẻ ảo',
+  lvl_02_three_ds_routing: 'Định tuyến 3DS',
+  lvl_06_card_testing: 'Dò thẻ',
+  lvl_04_bnpl_pay_in_4: 'BNPL trả 4 kỳ',
+  lvl_07_a2a_iso20022: 'Kênh A2A',
+  lvl_03_eod_recon_suspense: 'Đối soát cuối ngày',
+  lvl_08_fx_breaks: 'Chênh lệch tỷ giá',
+  lvl_09_sanctions_storm: 'Bão cấm vận',
+  lvl_10_chargeback_warfare: 'Tra soát hoàn tiền',
+};
+
+export const LEVEL_TAB_LABELS: Localized<Readonly<Record<Id, string>>> = { en: EN, vi: VI };
 
 /** The name on a level's tab: the short name when there is one, otherwise the full title. */
 export const levelTabLabel = (levelId: Id, fullTitle: string): string => pick(LEVEL_TAB_LABELS)[levelId] ?? fullTitle;
