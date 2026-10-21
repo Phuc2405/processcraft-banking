@@ -124,7 +124,7 @@ export function fatigueLook(fatigue: number): FatigueLook {
 export function FatigueBar({ fatigue, className = '' }: { fatigue: number; className?: string }) {
   const look = fatigueLook(fatigue);
   return (
-    <div className={`relative h-1.5 overflow-hidden rounded-full bg-slate-800 ${className}`} role="meter" aria-label="Fatigue" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(fatigue)}>
+    <div className={`relative h-1.5 overflow-hidden rounded-full bg-slate-800 ${className}`} role="meter" aria-label={t('Fatigue')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(fatigue)}>
       <div className={`h-full rounded-full transition-[width] duration-500 ${look.bar}`} style={{ width: `${Math.max(2, Math.min(100, fatigue))}%` }} />
       {/* where the slips begin */}
       <div className="absolute inset-y-0 w-px bg-slate-950/70" style={{ left: '60%' }} />

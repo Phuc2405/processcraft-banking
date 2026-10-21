@@ -1,3 +1,4 @@
+import { tr } from '../../../i18n/locale';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { Mesh, MeshBasicMaterial } from 'three';
@@ -118,7 +119,7 @@ export const AtmKiosk = memo(function AtmKiosk({ id }: { id: StationId }) {
     cursor(false);
   };
 
-  const sign = id === 'ATM_CASH' ? 'ATM · CASH' : 'ATM · PIN';
+  const sign = id === 'ATM_CASH' ? tr({ en: 'ATM · CASH', vi: 'ATM · TIỀN MẶT' }) : 'ATM · PIN';
   return (
     <group position={[pose.x, 0, pose.z]} name={`atm-${id}`}>
       <group position={[-0.5, 0, 0]}>

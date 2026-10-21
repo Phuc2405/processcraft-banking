@@ -1,3 +1,4 @@
+import { flowAriaLabels } from '../../i18n/flowAria';
 import { localChallenge } from '../../i18n/challengeVi';
 import { t } from '../../i18n/t';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
@@ -153,6 +154,7 @@ function LabFlow() {
   return (
     <div className="relative h-full w-full" data-testid="lab-canvas" style={timingVars(playbackMs)}>
       <ReactFlow<ProcessFlowNode, ProcessFlowEdge>
+        ariaLabelConfig={flowAriaLabels()}
         nodes={shown}
         edges={wires}
         nodeTypes={nodeTypes}

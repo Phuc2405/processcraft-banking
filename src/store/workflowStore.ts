@@ -13,6 +13,7 @@
  */
 
 import { nodeDefLabel, portLabel } from '../i18n/catalogVi';
+import { localChallenge } from '../i18n/challengeVi';
 import { labLabel } from '../i18n/labText';
 import { tr } from '../i18n/locale';
 import { createContext, useContext } from 'react';
@@ -776,7 +777,9 @@ export function createWorkflowStore(config: WorkflowStoreConfig = {}): WorkflowS
       getProcessGraph,
 
       runEvaluation: () => {
-        const result = evaluateChallenge(getProcessGraph(), get().level, { catalog, conditionVariables });
+        // The grader reads ids, payloads and expected outcomes, which are the same in both languages; the test names in its
+        // feedback come out in the language on screen.
+        const result = evaluateChallenge(getProcessGraph(), localChallenge(get().level), { catalog, conditionVariables });
         set({ lastEvaluationResult: result, isEvaluationStale: false });
         return result;
       },

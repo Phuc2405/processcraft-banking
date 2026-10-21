@@ -1,3 +1,4 @@
+import { t } from '../../i18n/t';
 import { modelCopy, type MentalModel } from '../../data/mentalModels';
 
 /**
@@ -36,7 +37,7 @@ export function MentalModelCard({ model, compact = false }: { model: MentalModel
             ))}
           </dl>
           <p className="mt-2 border-l-2 pl-2.5 text-[12px] leading-snug text-slate-300" style={{ borderColor: model.accent }}>
-            <span className="font-semibold text-slate-100">Where it goes wrong: </span>
+            <span className="font-semibold text-slate-100">{t('Where it goes wrong: ')}</span>
             {copy.watchOut}
           </p>
         </>

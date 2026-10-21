@@ -1,3 +1,4 @@
+import { tr } from '../../i18n/locale';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { placeTip, tipWidth } from './tipPlacement';
@@ -57,7 +58,7 @@ export function InfoTip({ text, label, testId }: { text: string; label: string; 
       <button
         ref={button}
         type="button"
-        aria-label={`What is “${label}”?`}
+        aria-label={tr({ en: `What is “${label}”?`, vi: `“${label}” là gì?` })}
         aria-describedby={open ? id : undefined}
         aria-expanded={open}
         data-testid={testId}

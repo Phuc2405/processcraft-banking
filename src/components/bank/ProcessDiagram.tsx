@@ -1,3 +1,5 @@
+import { labLabel } from '../../i18n/labText';
+import { t } from '../../i18n/t';
 import { tr } from '../../i18n/locale';
 import { memo, useMemo } from 'react';
 import { exampleOf, graphKeyOf, layoutFor, type Lesson, type DiagramKind, type EdgeRoute, type GraphKey, type Side } from '../../sim/learning';
@@ -54,9 +56,10 @@ function shapesOf(lesson: Lesson, graphKey: GraphKey): Map<string, Shape> {
       const outcome = n.configParams.outcome as Outcome | undefined;
       if (isOutcome(outcome)) accent = OUTCOME_THEME[outcome].accent;
     }
-    const sub = kind === 'task' && n.bankingCapability ? WORKER_PROFILE[n.bankingCapability].role : null;
-    const size = kind === 'start' ? { hw: 15, hh: 15 } : kind === 'gateway' ? { hw: 23, hh: 23 } : kind === 'end' ? { hw: pillWidth(n.label) / 2, hh: 15 } : { hw: 76, hh: 28 };
-    out.set(n.id, { id: n.id, kind, x: at.x, y: at.y, label: n.label, sub, accent, ...size });
+    const sub = kind === 'task' && n.bankingCapability ? t(WORKER_PROFILE[n.bankingCapability].role) : null;
+    const label = labLabel(n.label);
+    const size = kind === 'start' ? { hw: 15, hh: 15 } : kind === 'gateway' ? { hw: 23, hh: 23 } : kind === 'end' ? { hw: pillWidth(label) / 2, hh: 15 } : { hw: 76, hh: 28 };
+    out.set(n.id, { id: n.id, kind, x: at.x, y: at.y, label, sub, accent, ...size });
   }
   for (const s of layout.synthetic) {
     const size = s.kind === 'phone' ? { hw: 68, hh: 29 } : s.kind === 'account' ? { hw: 68, hh: 26 } : s.kind === 'end' ? { hw: 46, hh: 15 } : { hw: 62, hh: 24 };

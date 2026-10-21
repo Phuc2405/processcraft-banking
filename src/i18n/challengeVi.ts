@@ -357,6 +357,45 @@ const CANVAS_LABEL_VI: Readonly<Record<string, string>> = {
   'Issuer absorbs the loss': 'Ngân hàng phát hành chịu tổn thất',
   'Merchant won': 'Cửa hàng thắng',
   'Time-barred': 'Hết thời hiệu',
+  // Boxes of the reference diagrams the Academy and the guided tours draw.
+  'dCVV ok?': 'dCVV ổn?',
+  'Funds ok?': 'Đủ tiền?',
+  '3DS path?': 'Nhánh 3DS?',
+  'Send to OTP': 'Chuyển sang OTP',
+  'Matched?': 'Khớp?',
+  'Suspense: variance': 'Treo: chênh lệch',
+  'Pay-in-4 underwriting': 'Thẩm định trả góp 4 kỳ',
+  'Plan approved?': 'Kế hoạch được duyệt?',
+  'Debit down payment': 'Trừ khoản trả trước',
+  'Card authorisation (full price)': 'Cấp phép thẻ (toàn bộ giá)',
+  'Approved: Pay-in-4': 'Chấp thuận: trả góp 4 kỳ',
+  'Approved: card fallback': 'Chấp thuận: dự phòng bằng thẻ',
+  'Declined: down payment': 'Từ chối: khoản trả trước',
+  'Declined: card': 'Từ chối: thẻ',
+  'Are the funds there?': 'Có đủ tiền không?',
+  'Declined: insufficient funds': 'Từ chối: không đủ số dư',
+  'Card-testing?': 'Dò thẻ?',
+  '3DS route': 'Định tuyến 3DS',
+  'Blocked: card-testing': 'Bị chặn: dò thẻ',
+  'Can it go?': 'Có đi được không?',
+  'Which rail?': 'Kênh nào?',
+  'Rejected: invalid message': 'Từ chối: thông điệp không hợp lệ',
+  'Held: liquidity': 'Tạm giữ: thanh khoản',
+  'Held: congestion': 'Tạm giữ: nghẽn',
+  'Released: instant rail': 'Giải phóng: kênh tức thì',
+  'Released: RTGS': 'Giải phóng: RTGS',
+  'Why the gap?': 'Vì sao chênh lệch?',
+  'Name hit?': 'Trùng tên?',
+  'Investigate the audit log': 'Điều tra nhật ký kiểm toán',
+  'Who is it?': 'Đó là ai?',
+  '3DS: was it authenticated?': '3DS: đã xác thực chưa?',
+  'Can it proceed?': 'Có tiếp tục được không?',
+  'Which stage?': 'Giai đoạn nào?',
+  'Who wins?': 'Ai thắng?',
+  'Card swiped': 'Thẻ được quẹt',
+  'Transfer received': 'Đã nhận lệnh chuyển',
+  'Message valid?': 'Thông điệp hợp lệ?',
+  'Released': 'Đã giải phóng',
 };
 
 /** A box label on the Build Lab canvas, in the active language. Labels the learner typed are shown as typed. */
@@ -400,3 +439,20 @@ const STAGE_VI: Readonly<Record<number, { title: string; blurb: string }>> = {
 export function stageText(stage: { stage: number; title: string; blurb: string }, locale: Locale = activeLocale()): { title: string; blurb: string } {
   return locale === 'vi' ? (STAGE_VI[stage.stage] ?? stage) : { title: stage.title, blurb: stage.blurb };
 }
+
+const TAG_VI: Readonly<Record<string, string>> = {
+  'happy-path': 'đường suôn sẻ', boundary: 'biên', expiry: 'hết hạn', mismatch: 'không khớp', exception: 'ngoại lệ', funds: 'tiền',
+  frictionless: 'không ma sát', challenge: 'thử thách', completed: 'đã hoàn tất', 'drop-off': 'rơi rụng', fraud: 'gian lận', match: 'khớp',
+  tolerance: 'biên sai số', break: 'sai lệch', 'missing-leg': 'thiếu vế', duplicate: 'trùng lặp', bnpl: 'BNPL', 'down-payment': 'trả trước',
+  decline: 'từ chối', credit: 'tín dụng', fallback: 'dự phòng', 'hard-decline': 'từ chối cứng', graceful: 'từ chối lịch sự', prepaid: 'trả trước (thẻ)',
+  genuine: 'khách thật', exemption: 'miễn trừ', 'card-testing': 'dò thẻ', retry: 'thử lại', burst: 'dồn dập', 'big-ticket': 'giá trị lớn',
+  instant: 'tức thì', rtgs: 'RTGS', payroll: 'chi lương', priority: 'ưu tiên', queue: 'hàng chờ', liquidity: 'thanh khoản', validation: 'kiểm tra định dạng',
+  fx: 'tỷ giá', loss: 'lỗ', gain: 'lãi', unexplained: 'không giải thích được', clear: 'sạch', deposits: 'nộp tiền', structuring: 'chia nhỏ giao dịch',
+  'false-positive': 'cảnh báo sai', vip: 'VIP', sanctions: 'cấm vận', inconclusive: 'chưa kết luận', pep: 'PEP', 'near-miss': 'suýt trùng',
+  retrieval: 'yêu cầu chứng từ', 'first-chargeback': 'tra soát lần đầu', 'merchant-wins': 'cửa hàng thắng', 'cardholder-wins': 'chủ thẻ thắng',
+  representment: 'phản hồi của cửa hàng', 'pre-arbitration': 'tiền trọng tài', 'liability-shift': 'chuyển dịch trách nhiệm',
+  'no-liability-shift': 'không chuyển dịch trách nhiệm', 'time-barred': 'hết thời hiệu',
+};
+
+/** A test's topic tag ("card-testing") in the active language. */
+export const tagText = (tag: string, locale: Locale = activeLocale()): string => (locale === 'vi' ? (TAG_VI[tag] ?? tag) : tag);

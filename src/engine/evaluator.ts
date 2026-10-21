@@ -26,6 +26,7 @@
 
 import { CONDITION_VARIABLES, NODE_CATALOG } from '../data/seedChallenges';
 import { configLabel, nodeDefLabel, portLabel } from '../i18n/catalogVi';
+import { tagText } from '../i18n/challengeVi';
 import { labLabel as L } from '../i18n/labText';
 import { activeLocale, tr } from '../i18n/locale';
 import type {
@@ -435,7 +436,7 @@ function explainFailure(test: TestCase, run: RunResult, reasons: TestFailureReas
   }
 
   if (!ctx.reveal && test.tags?.length) {
-    logs.push({ level: 'HINT', testCaseId: test.id, message: tr({ en: `${tag} this hidden test covers: ${test.tags.join(', ')}.`, vi: `${tag} bài kiểm tra ẩn này bao gồm: ${test.tags.join(', ')}.` }) });
+    logs.push({ level: 'HINT', testCaseId: test.id, message: tr({ en: `${tag} this hidden test covers: ${test.tags.join(', ')}.`, vi: `${tag} bài kiểm tra ẩn này bao gồm: ${test.tags.map((x) => tagText(x)).join(', ')}.` }) });
   }
   return logs;
 }
@@ -551,10 +552,16 @@ export function evaluateChallenge(graph: ProcessGraph, level: ChallengeLevel, op
   const logs: FeedbackLog[] = [];
   logs.push({
     level: 'INFO',
-    message:
-      `Passed ${passCount} of ${testResults.length} tests. Correctness ${correctnessScore}/100` +
-      (errorCount > 0 ? ` (${errorCount} problem${errorCount === 1 ? '' : 's'} cost ${errorCount * level.scoring.anomalyPenaltyPoints} points)` : '') +
-      (passed ? `. Level passed. Efficiency ${efficiencyScore}/100.` : `. Level not passed yet; you need ${level.scoring.passMark}.`),
+    message: tr({
+      en:
+        `Passed ${passCount} of ${testResults.length} tests. Correctness ${correctnessScore}/100` +
+        (errorCount > 0 ? ` (${errorCount} problem${errorCount === 1 ? '' : 's'} cost ${errorCount * level.scoring.anomalyPenaltyPoints} points)` : '') +
+        (passed ? `. Level passed. Efficiency ${efficiencyScore}/100.` : `. Level not passed yet; you need ${level.scoring.passMark}.`),
+      vi:
+        `Đạt ${passCount}/${testResults.length} bài kiểm tra. Độ chính xác ${correctnessScore}/100` +
+        (errorCount > 0 ? ` (${errorCount} vấn đề bị trừ ${errorCount * level.scoring.anomalyPenaltyPoints} điểm)` : '') +
+        (passed ? `. Đã qua cấp độ. Hiệu quả ${efficiencyScore}/100.` : `. Chưa qua cấp độ; bạn cần ${level.scoring.passMark}.`),
+    }),
   });
   for (const a of staticFindings) {
     logs.push({ level: a.severity === 'ERROR' ? 'ERROR' : 'WARN', message: a.message, ...(a.nodeId !== undefined ? { nodeId: a.nodeId } : {}) });

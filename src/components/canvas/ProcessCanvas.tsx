@@ -1,3 +1,4 @@
+import { flowAriaLabels } from '../../i18n/flowAria';
 import { t } from '../../i18n/t';
 import { useCallback, useEffect, type DragEvent } from 'react';
 import {
@@ -92,6 +93,7 @@ export function ProcessCanvas() {
   return (
     <div className="relative h-full w-full" data-testid="process-canvas" style={timingVars(playbackMs)}>
       <ReactFlow<ProcessFlowNode, ProcessFlowEdge>
+        ariaLabelConfig={flowAriaLabels()}
         key={`${levelId}:${epoch}`}
         nodes={nodes}
         edges={edges}
@@ -124,7 +126,7 @@ export function ProcessCanvas() {
           position="top-left"
           pannable
           zoomable
-          ariaLabel="Overview of the whole diagram"
+          ariaLabel={t('Overview of the whole diagram')}
           maskColor="rgba(9, 13, 22, 0.75)"
           style={{ background: '#0d1424', border: '1px solid #1e293b' }}
           nodeStrokeWidth={3}

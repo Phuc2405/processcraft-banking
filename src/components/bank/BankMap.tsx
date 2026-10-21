@@ -1,5 +1,6 @@
 import { tr } from '../../i18n/locale';
 import { t } from '../../i18n/t';
+import { feedText } from '../../i18n/feedVi';
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { beatMs, SPEEDS, type Phase } from '../../sim/clock';
 import { formatMoney } from '../../sim/kpis';
@@ -398,7 +399,7 @@ const StationCard = memo(function StationCard({
             {name}
           </span>
           {worst && !focus && (
-            <span className={`ml-auto grid h-[13px] w-[13px] shrink-0 place-items-center rounded-full text-[9px] font-black text-slate-950 ${worst === 'crit' ? 'animate-pulse bg-rose-400' : 'bg-amber-300'}`} title={sv.alerts[0]?.text} data-testid={`alert-badge-${id}`}>
+            <span className={`ml-auto grid h-[13px] w-[13px] shrink-0 place-items-center rounded-full text-[9px] font-black text-slate-950 ${worst === 'crit' ? 'animate-pulse bg-rose-400' : 'bg-amber-300'}`} title={sv.alerts[0] ? feedText(sv.alerts[0].text) : undefined} data-testid={`alert-badge-${id}`}>
               !
             </span>
           )}
@@ -469,8 +470,8 @@ function WorkerButton({
       type="button"
       onClick={() => (touring ? spotlightFocus(station) : select({ kind: 'worker', station, workerId: id }))}
       aria-pressed={selected}
-      aria-label={`${name}, ${role}`}
-      title={tr({ en: `${name} · ${role} · fatigue ${Math.round(fatigue)}`, vi: `${name} · ${role} · mệt mỏi ${Math.round(fatigue)}` })}
+      aria-label={`${t(name)}, ${t(role)}`}
+      title={tr({ en: `${name} · ${role} · fatigue ${Math.round(fatigue)}`, vi: `${t(name)} · ${t(role)} · mệt mỏi ${Math.round(fatigue)}` })}
       data-testid={`worker-${id}`}
       className={`pointer-events-auto rounded-full transition hover:scale-125 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${touring && lit ? 'bk-worker-glow' : ''}`}
     >
@@ -630,14 +631,17 @@ function Wires({ moves, tick, focus, flow }: { moves: readonly Move[]; tick: num
           </g>
         );
       })}
-      {BANK_WIRES.filter((w) => w.label && w.showLabel).map((w) => (
-        <g key={`label-${w.id}`} transform={`translate(${w.labelAt[0]} ${w.labelAt[1]})`} opacity={(!focus || focus.scope.wires.has(w.id)) && (!flow || flow.scope.wires.has(w.id)) ? 1 : 0.15}>
-          <rect x={-(w.label as string).length * 2.7 - 4} y="-7" width={(w.label as string).length * 5.4 + 8} height="14" rx="4" fill="#060912" stroke="#1e293b" />
-          <text textAnchor="middle" y="3.2" fontSize="9" fill="#94a3b8" style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
-            {w.label}
-          </text>
-        </g>
-      ))}
+      {BANK_WIRES.filter((w) => w.label && w.showLabel).map((w) => {
+        const label = t(w.label as string);
+        return (
+          <g key={`label-${w.id}`} transform={`translate(${w.labelAt[0]} ${w.labelAt[1]})`} opacity={(!focus || focus.scope.wires.has(w.id)) && (!flow || flow.scope.wires.has(w.id)) ? 1 : 0.15}>
+            <rect x={-label.length * 2.7 - 4} y="-7" width={label.length * 5.4 + 8} height="14" rx="4" fill="#060912" stroke="#1e293b" />
+            <text textAnchor="middle" y="3.2" fontSize="9" fill="#94a3b8" style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
+              {label}
+            </text>
+          </g>
+        );
+      })}
     </svg>
   );
 }

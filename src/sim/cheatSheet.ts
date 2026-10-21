@@ -8,7 +8,7 @@ import { activeLocale, pick, type Locale, type Localized } from '../i18n/locale'
 import type { AccountType } from '../types/processLearning';
 import { ACADEMY_CHAPTERS, localChapter } from './academyCatalog';
 import { LESSON_EXTRAS } from './lessonExtras';
-import { accountName, GL_PLAIN_BOOK, RC_BOOK } from './plainLanguage';
+import { ACCOUNT_DESC_VI_BY_CODE as ACCOUNT_DESC_VI, accountName, GL_PLAIN_BOOK, RC_BOOK } from './plainLanguage';
 
 interface SheetWords {
   title: string;
@@ -108,30 +108,6 @@ const WORDS: Localized<SheetWords> = {
     types: { ASSET: 'Tài sản', LIABILITY: 'Nợ phải trả', INCOME: 'Thu nhập', EXPENSE: 'Chi phí' },
     sides: { DEBIT: 'Nợ', CREDIT: 'Có' },
   },
-};
-
-/** Vietnamese account descriptions; the English ones come from the chart of accounts. */
-const ACCOUNT_DESC_VI: Readonly<Record<string, string>> = {
-  '2010': 'Số tiền ngân hàng nợ khách hàng trong tài khoản thanh toán và tiết kiệm. Ghi Nợ ở đây là tiền rời khỏi khách hàng.',
-  '1110': 'Tiền được giữ trên tài khoản thanh toán của khách cho giao dịch thẻ đã cấp phép nhưng chưa quyết toán.',
-  '1120': 'Hạn mức thẻ tín dụng được giữ cho giao dịch đã cấp phép nhưng chưa quyết toán.',
-  '1130': 'Giá trị trên thẻ trả trước được giữ cho giao dịch đã cấp phép nhưng chưa quyết toán.',
-  '1150': 'Số tiền chủ thẻ tín dụng nợ ngân hàng. Giao dịch mua làm tăng khoản này khi quyết toán.',
-  '2020': 'Số tiền ngân hàng nợ khách hàng đã nạp vào thẻ trả trước.',
-  '2110': 'Số tiền ngân hàng nợ tổ chức thẻ cho các giao dịch đã cấp phép mà chưa thanh toán.',
-  '1210': 'Tài khoản tiền của ngân hàng dùng để quyết toán với tổ chức thẻ. Ghi Có ở đây là tiền chi ra.',
-  '1910': 'Nơi giữ các mục không khớp lúc cuối ngày. Không mục nào nằm lại lâu: nhân viên vận hành tìm nguyên nhân và xử lý.',
-  '2920': 'Chênh lệch tỷ giá có lợi cho ngân hàng, chờ bộ phận ngân quỹ ghi nhận.',
-  '1920': 'Chênh lệch tỷ giá bất lợi cho ngân hàng, chờ bộ phận ngân quỹ ghi nhận.',
-  '1310': 'Ba kỳ trả góp còn lại khách sẽ trả, sau khi ngân hàng đã trả đủ cho cửa hàng.',
-  '1410': 'Tài khoản quyết toán của ngân hàng trên kênh thanh toán tức thì. Ghi Có ở đây là giá trị đã gửi đi.',
-  '1420': 'Tài khoản quyết toán của ngân hàng tại ngân hàng trung ương cho thanh toán giá trị cao. Ghi Có ở đây là giá trị đã gửi đi.',
-  '1015': 'Tiền mặt nạp trong máy ATM của ngân hàng. Ghi Có ở đây là tiền đã ra khỏi máy, phải khớp với số trừ của khách.',
-  '2410': 'Tiền của khách cho các lệnh đang chờ trong hàng đợi cổng thanh toán và chưa được giải phóng.',
-  '2510': 'Tiền của khách bị phong tỏa trong lúc bộ phận tuân thủ xem xét. Tiền vẫn thuộc về khách nhưng không được dùng.',
-  '2420': 'Các khoản ngân hàng đã giải phóng cho khách nhưng chưa quyết toán với ngân hàng nhận.',
-  '1510': 'Tiền ngân hàng đã ứng trước cho chủ thẻ và dự kiến đòi lại từ tổ chức thẻ qua tra soát.',
-  '5010': 'Gian lận ngân hàng phải tự chịu vì không ai khác có trách nhiệm: không thể tra soát.',
 };
 
 const esc = (s: string): string => s.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');

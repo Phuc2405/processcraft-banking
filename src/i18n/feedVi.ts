@@ -66,6 +66,14 @@ const NOTE_VI: Readonly<Record<string, string>> = {
 
 const lower = (s: string): string => s.toLowerCase();
 
+/** "not eligible, score 471 is below 600 and down payment is 20% of the amount, below 25%." in Vietnamese. */
+const ineligibleVi = (reason: string): string =>
+  reason
+    .replace(/^not eligible, /, 'không đủ điều kiện, ')
+    .replace(/score (\d+) is below (\d+)/, 'điểm $1 dưới $2')
+    .replace(/down payment is (\d+)% of the amount, below (\d+)%/, 'khoản trả trước là $1% số tiền, dưới $2%')
+    .replace(/ and /, ' và ');
+
 const RULES: readonly Rule[] = [
   // Chaos Monkey
   [/^Chaos Monkey: (.+) injected\.$/, (m) => `Chaos Monkey: đã gây ${lower(CHAOS_VI[m[1]!] ?? m[1]!)}.`],
@@ -147,7 +155,8 @@ const RULES: readonly Rule[] = [
   [/^Checking (.+) against the (balance|credit line): over the limit, declined$/, (m) => `Đang kiểm tra ${m[1]} so với ${m[2] === 'balance' ? 'số dư' : 'hạn mức tín dụng'}: vượt hạn mức, từ chối`],
   [/^Checking (.+) against the (balance|credit line): not enough, declined$/, (m) => `Đang kiểm tra ${m[1]} so với ${m[2] === 'balance' ? 'số dư' : 'hạn mức tín dụng'}: không đủ, từ chối`],
   [/^Underwriting (.+) \(score (\d+)\): plan approved, (\$[\d,.]+) due today$/, (m) => `Đang thẩm định ${m[1]} (điểm ${m[2]}): duyệt kế hoạch, hôm nay phải trả ${m[3]}`],
-  [/^Underwriting (.+) \(score (\d+)\): (.+) Falling back to a normal card payment$/, (m) => `Đang thẩm định ${m[1]} (điểm ${m[2]}): ${m[3]} Chuyển sang thanh toán thẻ thông thường`],
+  [/^Underwriting (.+) \(score (\d+)\): (.+) Falling back to a normal card payment$/, (m) => `Đang thẩm định ${m[1]} (điểm ${m[2]}): ${ineligibleVi(m[3]!)} Chuyển sang thanh toán thẻ thông thường`],
+  [/^Desk closed\. (\d+) items wait for tomorrow$/, (m) => `Quầy đã đóng. ${m[1]} mục chờ tới ngày mai`],
   [/^Adding (.+) \((\$[\d,.]+)\) to tonight’s clearing file$/, (m) => `Đang thêm ${m[1]} (${m[2]}) vào tệp bù trừ đêm nay`],
   [/^Presenting (.+) \((\$[\d,.]+)\) to Visa and agreeing the net settlement$/, (m) => `Đang trình ${m[1]} (${m[2]}) cho Visa và thống nhất quyết toán ròng`],
   [/^Matching Visa clearing batch vs GL and acquirer report for (.+) \((\$[\d,.]+)\): (.+)$/, (m) => `Đang khớp lô bù trừ Visa với sổ cái và báo cáo ngân hàng thanh toán cho ${m[1]} (${m[2]}): ${({ matched: 'khớp', 'amount break': 'lệch số tiền', 'a leg is missing': 'thiếu một vế', 'presented twice': 'bị trình hai lần', checked: 'đã kiểm tra' } as Record<string, string>)[m[3]!] ?? m[3]}`],
@@ -173,6 +182,10 @@ const IDLE_VI: Readonly<Record<string, string>> = {
   'Watching the instant-payment feed': 'Đang theo dõi luồng thanh toán tức thì',
   'Waiting for the next card at the sidewalk ATM': 'Đang chờ thẻ tiếp theo tại ATM vỉa hè',
   'Cash cassettes loaded, waiting for a withdrawal': 'Hộp tiền đã nạp, đang chờ lượt rút',
+  'Morning briefing and systems check': 'Giao ban buổi sáng và kiểm tra hệ thống',
+  'Off shift until 22:30': 'Nghỉ ca tới 22:30',
+  'Off shift until 08:00': 'Nghỉ ca tới 08:00',
+  'Desk closed until 09:00': 'Quầy đóng tới 09:00',
 };
 
 /** One line of the feed, an alert or a desk's activity, in the active language. */

@@ -300,7 +300,7 @@ export class ProcessRunner {
   private spawnRoot(): void {
     const start = this.graph.nodes.find((n) => this.kindOf(n).type === 'EVENT_START');
     if (!start) {
-      this.addAnomaly('MISSING_START_EVENT', 'The diagram has no Start event, so nothing can run.');
+      this.addAnomaly('MISSING_START_EVENT', tr({ en: 'The diagram has no Start event, so nothing can run.', vi: 'Sơ đồ không có sự kiện Bắt đầu, nên không gì chạy được.' }));
       this.finalize();
       return;
     }

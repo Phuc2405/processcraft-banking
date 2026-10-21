@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from 'react';
 import { useLocale } from '../../i18n/locale';
-import { accountName } from '../../sim/plainLanguage';
+import { accountDescription, accountName } from '../../sim/plainLanguage';
 import { ledgerUi, postingKindLabel } from '../../data/ledgerCopy';
 import { CHART_OF_ACCOUNTS, groupByTransaction, isBalanced, trialBalance, type TrialBalance as Trial } from '../../engine/ledger';
 import { formatAud } from '../../engine/money';
@@ -45,7 +45,7 @@ function AccountName({ id }: { id: AccountId }) {
   const def = CHART_OF_ACCOUNTS[id];
   const locale = useLocale();
   return (
-    <span title={def.description} className="block min-w-0 truncate">
+    <span title={accountDescription(id, locale)} className="block min-w-0 truncate">
       <span className="mr-1.5 font-mono text-[10.5px] text-slate-500">{def.code}</span>
       {accountName(id, locale)}
     </span>
