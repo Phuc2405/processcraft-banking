@@ -4,7 +4,9 @@ import { AcademySplitToggle } from './components/academy/AcademySplitLayout';
 import { LivingBank } from './components/bank/LivingBank';
 import { AcademyButton } from './components/bank/CourseCatalog';
 import { ModeToggle } from './components/bank/ViewControls';
-import { SwitchModeButton, WelcomeModal } from './components/bank/WelcomeModal';
+import { WelcomeModal } from './components/bank/WelcomeModal';
+import { SearchBar } from './components/nav/SearchBar';
+import { SwitchModeButton } from './components/nav/SwitchModeButton';
 import { AmlButton, BenchmarkButton, ChaosButton } from './components/ops/OpsButtons';
 import { LanguageToggle } from './components/shell/LanguageToggle';
 import { SmallScreenBanner } from './components/shell/SmallScreenBanner';
@@ -87,7 +89,7 @@ function TopBar({ view, onView }: { view: View; onView: (v: View) => void }) {
     { id: 'lab', label: tr({ en: 'Build Lab', vi: 'Phòng dựng quy trình' }), hint: tr({ en: 'Build each process yourself from the parts and get graded', vi: 'Tự dựng từng quy trình từ các thành phần và được chấm điểm' }) },
   ];
   return (
-    <header className="flex h-12 shrink-0 items-center gap-5 border-b border-slate-800 bg-slate-950 px-4">
+    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-slate-800 bg-slate-950 px-4">
       <div className="flex items-center gap-2">
         <span className="grid h-7 w-7 place-items-center rounded-md bg-gradient-to-br from-lime-300 to-sky-500 text-[13px] font-black text-slate-950" aria-hidden="true">
           P
@@ -112,6 +114,7 @@ function TopBar({ view, onView }: { view: View; onView: (v: View) => void }) {
         ))}
       </nav>
       <SwitchModeButton />
+      <SearchBar onBeforeGo={() => view !== 'bank' && onView('bank')} />
       <div className="flex-1" />
       <div className="flex items-center gap-2">
         {view === 'bank' && <AcademySplitToggle />}

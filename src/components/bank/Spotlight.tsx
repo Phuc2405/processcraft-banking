@@ -1,15 +1,13 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { LESSONS } from '../../sim/learning';
 import type { PacketKind } from '../../sim/types';
-import type { PlaceId } from '../../sim/topology';
 import { prefersReducedMotion } from '../canvas/timing';
 import { TokenShape } from '../canvas/tokens/TokenGlyph';
-import { Kickoff, StepCard } from '../education/GuidedWalkthrough';
-import { PLACE_BOX, STAGE } from './layout';
+import { Kickoff } from '../education/GuidedWalkthrough';
+import { DockedStepCard } from '../education/WalkDock';
 import { pointAlong, polylineLength, restPoint, tokenPolyline, travelMs, type Pt } from './tokenPath';
 import { lookOfKind } from './ui';
 import { useSpotlightFocus, useTourPlayback, type Focus } from './useSpotlight';
-import { useStageScale } from './stage';
 import { useBankStore } from '../../store/bankStore';
 
 /**
@@ -89,8 +87,6 @@ interface Rect {
   bottom: number;
 }
 
-const inflate = (r: Rect, by: number): Rect => ({ left: r.left - by, top: r.top - by, right: r.right + by, bottom: r.bottom + by });
-
 const overlap = (a: Rect, b: Rect): number => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
 
 export interface PlaceOptions {
@@ -149,42 +145,14 @@ export function placeCallout(desk: Rect, card: { w: number; h: number }, bounds:
   return best;
 }
 
-/** The briefing, the explanation card and the auto-play timer. Sits over the map in screen pixels. */
+/** The briefing over the map, then the step card in the left dock once the token arrives; drives auto-play. */
 export function SpotlightOverlay() {
   const focus = useSpotlightFocus();
-  const scale = useStageScale();
   const collapsed = useBankStore((s) => s.walkCollapsed);
-  const [size, setSize] = useState({ w: 400, h: 360 });
-  const cardRef = useRef<HTMLDivElement>(null);
-
-  const index = focus?.index ?? 0;
-  const intro = focus?.tour.intro ?? true;
-  const plan = focus?.plan;
-
-  // The card appears once the token has arrived. This counts the same travel time the token takes.
+  // Same travel time the token takes.
   const arrived = useTourPlayback(focus, (f) => (prefersReducedMotion() ? 0 : travelMs(tokenPolyline(f.current.route))));
-
-  useLayoutEffect(() => {
-    const el = cardRef.current;
-    if (!el) return;
-    const measure = (): void => setSize({ w: el.offsetWidth, h: el.offsetHeight });
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [arrived, index, plan, focus?.answer]);
-
   if (!focus) return null;
-  if (intro) return <Kickoff focus={focus} />;
+  if (focus.tour.intro) return <Kickoff focus={focus} />;
   if (!arrived || collapsed) return null;
-
-  const rectOf = (place: PlaceId): Rect => {
-    const box = PLACE_BOX[place];
-    return { left: (box.cx - box.w / 2) * scale, top: (box.cy - box.h / 2) * scale, right: (box.cx + box.w / 2) * scale, bottom: (box.cy + box.h / 2) * scale };
-  };
-  const here = focus.current.place;
-  const upNext = focus.plan.steps[index + 1]?.place;
-  const lit = [...focus.scope.places].filter((p) => p !== here && p !== upNext).map(rectOf);
-  const spot = placeCallout(inflate(rectOf(here), 16), size, { w: STAGE.width * scale, h: STAGE.height * scale }, { next: upNext && upNext !== here ? rectOf(upNext) : null, lit });
-  return <StepCard ref={cardRef} focus={focus} style={{ left: spot.left, top: spot.top }} side={spot.side} />;
+  return <DockedStepCard focus={focus} />;
 }

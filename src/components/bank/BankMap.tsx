@@ -1,7 +1,7 @@
 import { tr } from '../../i18n/locale';
 import { t } from '../../i18n/t';
 import { feedText } from '../../i18n/feedVi';
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
+import { memo, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { beatMs, SPEEDS, type Phase } from '../../sim/clock';
 import { formatMoney } from '../../sim/kpis';
 import { LESSONS, type ProcessId } from '../../sim/learning';
@@ -16,222 +16,19 @@ import { StepPreviewBody } from './StepPreview';
 import { useDockInset } from './ViewportControls';
 import { PathTraveller } from '../canvas/edges/PathTraveller';
 import { WorkstationGraphic } from '../canvas/nodes/WorkstationGraphic';
-import { BANK_WIRES, CARD, DEPT_BOX, pathOfWire, PLACE_BOX, STAGE, TIP_SIDE, type TipSide } from './layout';
+import { BANK_WIRES, CARD, DEPT_BOX, EDGE_PAD, pathOfWire, PLACE_BOX, STAGE, TIP_SIDE, type TipSide } from './layout';
 import { SpotlightOverlay, SpotlightToken } from './Spotlight';
 import { StageScaleContext, useStageScale } from './stage';
 import { lookOfKind, RUN_STATUS, STATUS_DOT_CLASS, STATUS_TEXT_CLASS, statusLabel, WorkerFace } from './ui';
 import { useSpotlightFocus, type Focus } from './useSpotlight';
 import { useTerms, type Terms } from './useTerms';
-import { clampZoom, wheelZoom, ZOOM_STEP, zoomStore } from '../../store/zoomStore';
-import { useSmartZoom, type SmartView, type SmartZoomCamera } from '../../hooks/useSmartZoom';
+import { useSmartZoom, type ViewInsets } from '../../hooks/useSmartZoom';
+import { useFitScale, useZoomPan } from '../../hooks/useZoomPan';
+import { useNavStore } from '../../store/navStore';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scaling the stage to the space it is given
 // ─────────────────────────────────────────────────────────────────────────────
-
-const MIN_SCALE = 0.5;
-const MAX_SCALE = 1.3;
-
-function useFitScale(topInset: number, bottomInset: number): { ref: RefObject<HTMLDivElement>; scale: number } {
-  const ref = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.8);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const measure = (): void => {
-      const w = el.clientWidth - 24;
-      const h = el.clientHeight - 12 - topInset - bottomInset;
-      if (w <= 0 || h <= 0) return;
-      setScale(Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.min(w / STAGE.width, h / STAGE.height))));
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [topInset, bottomInset]);
-  return { ref, scale };
-}
-
-/**
- * Zoom and pan on top of the fitted scale. The mouse wheel zooms about the cursor (the point under it stays put), a drag on the
- * empty background pans, and the floating toolbar's +, − and Fit arrive through zoomStore. Returns the zoom (a multiple of the
- * fitted size), the ref of the content box, and whether the last pointer press was a pan (so it is not taken for a click).
- */
-function useZoomPan(
-  frame: RefObject<HTMLDivElement>,
-  fit: number,
-  insets: { top: number; bottom: number },
-): { zoom: number; content: RefObject<HTMLDivElement>; panned: RefObject<boolean>; camera: SmartZoomCamera } {
-  const [zoom, setZoom] = useState(1);
-  // Bumped per flight frame so a pan-only frame still re-scrolls.
-  const [nudge, setNudge] = useState(0);
-  const flight = useRef<number | null>(null);
-  const insetsRef = useRef(insets);
-  insetsRef.current = insets;
-  const stopFlight = (): void => {
-    if (flight.current !== null) cancelAnimationFrame(flight.current);
-    flight.current = null;
-  };
-  const content = useRef<HTMLDivElement>(null);
-  const panned = useRef(false);
-  const zoomRef = useRef(zoom);
-  zoomRef.current = zoom;
-  const fitRef = useRef(fit);
-  fitRef.current = fit;
-  /** The stage point that must end up under (cx, cy) of the frame once the new scale has been drawn. */
-  const anchor = useRef<{ sx: number; sy: number; cx: number; cy: number } | null>(null);
-
-  const zoomAbout = (next: number, cx: number, cy: number): void => {
-    const el = frame.current;
-    const box = content.current;
-    const target = clampZoom(next);
-    if (!el || !box || target === zoomRef.current) return;
-    const scale = fitRef.current * zoomRef.current;
-    anchor.current = { sx: (el.scrollLeft + cx - box.offsetLeft) / scale, sy: (el.scrollTop + cy - box.offsetTop) / scale, cx, cy };
-    setZoom(target);
-  };
-
-  // The wheel listener must be non-passive to stop the page scrolling while it zooms.
-  useEffect(() => {
-    const el = frame.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent): void => {
-      if (e.deltaY === 0) return;
-      e.preventDefault();
-      stopFlight();
-      const r = el.getBoundingClientRect();
-      zoomAbout(wheelZoom(zoomRef.current, e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY), e.clientX - r.left, e.clientY - r.top);
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => {
-      el.removeEventListener('wheel', onWheel);
-      stopFlight();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // After the new scale is drawn, scroll so the anchored stage point is back under the cursor.
-  useLayoutEffect(() => {
-    const el = frame.current;
-    const box = content.current;
-    const a = anchor.current;
-    if (!el || !box || !a) return;
-    anchor.current = null;
-    const scale = fit * zoom;
-    el.scrollLeft = box.offsetLeft + a.sx * scale - a.cx;
-    el.scrollTop = box.offsetTop + a.sy * scale - a.cy;
-  }, [zoom, fit, frame, nudge]);
-
-  // The toolbar's commands, and the percentage it shows.
-  useEffect(
-    () =>
-      zoomStore.subscribe((s, prev) => {
-        const c = s.command;
-        if (!c || c === prev.command) return;
-        const el = frame.current;
-        if (!el) return;
-        stopFlight();
-        if (c.kind === 'fit') {
-          anchor.current = null;
-          setZoom(1);
-          el.scrollTo({ left: 0, top: 0 });
-          return;
-        }
-        zoomAbout(zoomRef.current * (c.kind === 'in' ? ZOOM_STEP : 1 / ZOOM_STEP), el.clientWidth / 2, el.clientHeight / 2);
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-  useEffect(() => {
-    zoomStore.getState().report(fit * zoom * 100);
-  }, [fit, zoom]);
-
-  // Drag on the empty background to pan.
-  useEffect(() => {
-    const el = frame.current;
-    if (!el) return;
-    let start: { x: number; y: number; left: number; top: number; id: number } | null = null;
-    const onDown = (e: PointerEvent): void => {
-      const t = e.target as HTMLElement;
-      const background = t === el || t.dataset.testid === 'bank-stage' || t === content.current;
-      panned.current = false;
-      if (e.button !== 0 || !background) return;
-      stopFlight();
-      start = { x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop, id: e.pointerId };
-    };
-    const onMove = (e: PointerEvent): void => {
-      if (!start || e.pointerId !== start.id) return;
-      const dx = e.clientX - start.x;
-      const dy = e.clientY - start.y;
-      if (!panned.current && Math.hypot(dx, dy) < 4) return;
-      if (!panned.current) {
-        panned.current = true;
-        el.setPointerCapture?.(e.pointerId);
-        el.style.cursor = 'grabbing';
-      }
-      el.scrollLeft = start.left - dx;
-      el.scrollTop = start.top - dy;
-    };
-    const onUp = (e: PointerEvent): void => {
-      if (!start || e.pointerId !== start.id) return;
-      start = null;
-      el.style.cursor = '';
-      if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId);
-    };
-    el.addEventListener('pointerdown', onDown);
-    el.addEventListener('pointermove', onMove);
-    el.addEventListener('pointerup', onUp);
-    el.addEventListener('pointercancel', onUp);
-    return () => {
-      el.removeEventListener('pointerdown', onDown);
-      el.removeEventListener('pointermove', onMove);
-      el.removeEventListener('pointerup', onUp);
-      el.removeEventListener('pointercancel', onUp);
-    };
-  }, [frame]);
-
-  // Smart-zoom camera: glide zoom (log-eased) and centre together.
-  const flyTo = (to: SmartView, ms: number): void => {
-    const el = frame.current;
-    const box = content.current;
-    if (!el || !box) return;
-    stopFlight();
-    const { top, bottom } = insetsRef.current;
-    const vx = el.clientWidth / 2;
-    const vy = top + (el.clientHeight - top - bottom) / 2;
-    const z0 = zoomRef.current;
-    const s0 = fitRef.current * z0;
-    const x0 = (el.scrollLeft + vx - box.offsetLeft) / s0;
-    const y0 = (el.scrollTop + vy - box.offsetTop) / s0;
-    const t0 = performance.now();
-    const frameAt = (now: number): void => {
-      const u = ms > 0 ? Math.min(1, (now - t0) / ms) : 1;
-      const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
-      anchor.current = { sx: x0 + (to.cx - x0) * e, sy: y0 + (to.cy - y0) * e, cx: vx, cy: vy };
-      setZoom(clampZoom(z0 * Math.pow(to.zoom / z0, e)));
-      setNudge((n) => n + 1);
-      flight.current = u < 1 ? requestAnimationFrame(frameAt) : null;
-    };
-    if (ms > 0) flight.current = requestAnimationFrame(frameAt);
-    else frameAt(t0);
-  };
-
-  const camera: SmartZoomCamera = {
-    fit,
-    viewport: () => {
-      const el = frame.current;
-      if (!el) return null;
-      const { top, bottom } = insetsRef.current;
-      const w = el.clientWidth - 24;
-      const h = el.clientHeight - 12 - top - bottom;
-      return w > 0 && h > 0 ? { w, h } : null;
-    },
-    flyTo,
-    home: (ms) => flyTo({ zoom: 1, cx: STAGE.width / 2, cy: STAGE.height / 2 }, ms),
-  };
-
-  return { zoom, content, panned, camera };
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Who is on shift
@@ -736,12 +533,36 @@ function Travellers({ moves, tick, phase, speedIndex, className = '' }: { moves:
 const STATION_LIST = Object.values(STATIONS);
 const EXTERNALS: readonly ExternalId[] = ['CUSTOMER_OTP', 'OUT_APPROVED', 'OUT_DECLINED', 'OUT_SETTLED'];
 
+// px reserved on the right for the floating zoom toolbar.
+const ZOOM_TOOLBAR_GUTTER = 64;
+
+/** The 2-second ring around a place reached from the search bar. */
+function SearchGlow() {
+  const target = useNavStore((s) => s.target);
+  if (!target) return null;
+  const b = PLACE_BOX[target.place];
+  if (!b) return null;
+  return (
+    <div
+      key={target.serial}
+      className="bk-search-glow pointer-events-none absolute z-30 rounded-xl"
+      style={{ left: b.cx - b.w / 2 - 8, top: b.cy - b.h / 2 - 8, width: b.w + 16, height: b.h + 16 }}
+      data-testid="search-glow"
+      data-place={target.place}
+      aria-hidden="true"
+    />
+  );
+}
+
 function BankMapView() {
   const inset = useDockInset();
   // The preset bar of a guided flow floats at the bottom of the map: the blueprint stops above it.
   const bottomInset = useBankStore((s) => (activeFlowOf(s) ? 64 : 0));
   const { ref, scale: fit } = useFitScale(inset, bottomInset);
-  const { zoom, content, panned, camera } = useZoomPan(ref, fit, { top: inset, bottom: bottomInset });
+  // The zoom toolbar (and the inspector, when open) float over the right edge.
+  const rightInset = useBankStore((s) => ZOOM_TOOLBAR_GUTTER + (s.selection.kind !== 'none' ? s.inspectorWidth : 0));
+  const insets = useMemo<ViewInsets>(() => ({ top: inset, right: rightInset, bottom: bottomInset, left: 0 }), [inset, rightInset, bottomInset]);
+  const { zoom, content, panned, camera } = useZoomPan(ref, fit, insets);
   useSmartZoom(camera);
   const scale = fit * zoom;
   const view = useBankStore((s) => s.view);
@@ -769,6 +590,8 @@ function BankMapView() {
   return (
     <StageScaleContext.Provider value={scale}>
       <div ref={ref} className="relative h-full w-full overflow-auto" onClick={(e) => e.target === e.currentTarget && !panned.current && clearSelection()} data-testid="bank-map" data-zoom={Math.round(scale * 100)} data-phase={view.phase} data-day={view.day} data-touring={focus ? 'yes' : 'no'} data-spot={spotlit ?? undefined} data-flow={flow?.flow ?? undefined}>
+        {/* Zoomed in, the scroll area reaches past the stage edges so an edge cluster can be centred clear of the chrome. */}
+        <div data-pan-bg="" style={zoom > 1.001 ? { width: 'max-content', minWidth: '100%', paddingRight: rightInset + EDGE_PAD.right, paddingBottom: bottomInset } : undefined}>
         <div ref={content} className="relative mx-auto" style={{ width: STAGE.width * scale, height: STAGE.height * scale, marginTop: inset }}>
           <div
             className={`bk-stage relative ${night ? 'bk-night' : ''} ${focus ? 'bk-touring' : ''}`}
@@ -795,8 +618,10 @@ function BankMapView() {
               </div>
             )}
             {focus && <SpotlightToken focus={focus} />}
+            <SearchGlow />
           </div>
           <SpotlightOverlay />
+        </div>
         </div>
       </div>
     </StageScaleContext.Provider>

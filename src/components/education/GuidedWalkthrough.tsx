@@ -206,7 +206,7 @@ export function QuizGate({ focus }: { focus: Focus }) {
 // The explanation at a desk
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const StepCard = forwardRef<HTMLDivElement, { focus: Focus; style?: React.CSSProperties; side?: string }>(function StepCard({ focus, style, side }, ref) {
+export const StepCard = forwardRef<HTMLDivElement, { focus: Focus; style?: React.CSSProperties; side?: string; docked?: boolean }>(function StepCard({ focus, style, side, docked = false }, ref) {
   const ui = walkUi();
   const terms = useTerms();
   const { step } = focus.current;
@@ -220,12 +220,12 @@ export const StepCard = forwardRef<HTMLDivElement, { focus: Focus; style?: React
       role="region"
       aria-label={terms.t(step.title)}
       aria-live="polite"
-      className="bk-callout absolute z-40 w-[400px] max-w-[calc(100%-16px)] overflow-y-auto rounded-xl border bg-[#0b1120]/95 p-3 shadow-2xl"
-      style={{ ...style, maxHeight: 'calc(100% - 16px)', borderColor: focus.accent, boxShadow: `0 0 0 1px ${focus.accent}44, 0 10px 40px #000a, 0 0 32px ${focus.accent}33` }}
+      className={docked ? 'relative w-full rounded-xl border bg-[#0b1120] p-3' : 'bk-callout absolute z-40 w-[400px] max-w-[calc(100%-16px)] overflow-y-auto rounded-xl border bg-[#0b1120]/95 p-3 shadow-2xl'}
+      style={docked ? { ...style, borderColor: `${focus.accent}88` } : { ...style, maxHeight: 'calc(100% - 16px)', borderColor: focus.accent, boxShadow: `0 0 0 1px ${focus.accent}44, 0 10px 40px #000a, 0 0 32px ${focus.accent}33` }}
       data-testid="walk-callout"
       data-step={focus.index}
       data-node={step.nodeId}
-      data-side={side}
+      data-side={docked ? 'dock' : side}
     >
       <div className="flex items-center gap-2">
         <span className="rounded-full px-2 py-0.5 text-[10.5px] font-bold tabular-nums text-slate-950" style={{ background: focus.accent }} data-testid="walk-step-count">
@@ -236,7 +236,7 @@ export const StepCard = forwardRef<HTMLDivElement, { focus: Focus; style?: React
           type="button"
           onClick={() => bankStore.getState().setWalkCollapsed(true)}
           aria-label={tr({ en: 'Minimise the step card', vi: 'Thu nhỏ thẻ bước' })}
-          title={tr({ en: 'Minimise: fold this card into a small badge so the whole map can be seen', vi: 'Thu nhỏ: gập thẻ này thành một huy hiệu nhỏ để thấy toàn bộ bản đồ' })}
+          title={tr({ en: 'Minimise: fold this panel into a small badge so the whole map can be seen', vi: 'Thu nhỏ: gập bảng này thành một huy hiệu nhỏ để thấy toàn bộ bản đồ' })}
           data-testid="walk-collapse"
           className="ml-auto grid h-6 w-6 shrink-0 place-items-center rounded-md text-[15px] font-bold leading-none text-slate-300 ring-1 ring-slate-700 transition hover:bg-slate-800 hover:text-white"
         >
