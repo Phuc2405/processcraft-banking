@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { tr } from '../../i18n/locale';
 import { bankStore, useBankStore } from '../../store/bankStore';
-import { uiStore, useUiStore } from '../../store/uiStore';
+import { useUiStore } from '../../store/uiStore';
 
 /**
  * "Choose Your Experience Mode": one question, three answers. It opens by itself on the first visit (uiStore remembers that it
@@ -156,18 +156,3 @@ export function WelcomeModal({ onOpenAcademy, onChooseBank }: { onOpenAcademy: (
   );
 }
 
-/** [🔄 Switch Experience Mode]: brings the chooser back at any time. */
-export function SwitchModeButton() {
-  return (
-    <button
-      type="button"
-      onClick={() => uiStore.getState().openWelcome()}
-      data-testid="switch-mode"
-      title={tr({ en: 'Back to the Choose Your Experience Mode screen', vi: 'Quay lại màn hình Chọn chế độ trải nghiệm' })}
-      className="flex items-center gap-1.5 whitespace-nowrap rounded-md bg-slate-900 px-2.5 py-1.5 text-[12px] font-semibold text-slate-100 ring-1 ring-slate-700 transition hover:bg-slate-800"
-    >
-      <span aria-hidden="true">🔄</span>
-      {tr({ en: 'Switch Experience Mode', vi: 'Đổi chế độ trải nghiệm' })}
-    </button>
-  );
-}

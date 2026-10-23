@@ -755,3 +755,21 @@ body,
     transform: none;
   }
 }
+
+/* Search jump: 2 s ring around the target place. */
+@keyframes bk-search-glow-kf {
+  0% { box-shadow: 0 0 0 0 #38bdf8cc, 0 0 0 2px #7dd3fc; opacity: 0; }
+  12% { opacity: 1; }
+  45% { box-shadow: 0 0 0 10px #38bdf800, 0 0 0 3px #7dd3fc, 0 0 36px 6px #38bdf888; }
+  70% { box-shadow: 0 0 0 0 #38bdf8aa, 0 0 0 3px #7dd3fc, 0 0 30px 4px #38bdf866; opacity: 1; }
+  100% { box-shadow: 0 0 0 14px #38bdf800, 0 0 0 2px #7dd3fc00, 0 0 0 0 #38bdf800; opacity: 0; }
+}
+.bk-search-glow {
+  animation: bk-search-glow-kf 2s ease-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bk-search-glow {
+    animation: none;
+    box-shadow: 0 0 0 3px #7dd3fc, 0 0 30px 4px #38bdf866;
+  }
+}

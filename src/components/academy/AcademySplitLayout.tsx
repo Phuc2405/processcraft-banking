@@ -66,9 +66,13 @@ function ChapterCard({ chapter, open, onOpen }: { chapter: AcademyChapter; open:
   const status = chapterStatus(chapter, completed, started);
   // Opening a chapter that sits partly below the fold brings it into view.
   const card = useRef<HTMLElement>(null);
+  // ...and the chosen level inside it (search jumps land here).
+  const levelHere = open && chapter.levels.some((l) => l.id === activeLevel) ? activeLevel : null;
   useEffect(() => {
-    if (open) card.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
-  }, [open]);
+    if (!open) return;
+    const row = levelHere ? card.current?.querySelector<HTMLElement>(`[data-testid="level-${levelHere}"]`) : null;
+    (row ?? card.current)?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+  }, [open, levelHere]);
   const done = chapter.levels.filter((l) => completed[l.id]).length;
   return (
     <section ref={card} className="rounded-xl border bg-slate-900/60 transition-colors" style={{ borderColor: open ? `${chapter.accent}88` : '#1e293b' }} data-testid={`chapter-${chapter.id}`} data-status={status}>

@@ -16,6 +16,11 @@ export const BUILDING = { width: 1080, height: 810 } as const;
 // 2D stage (Phase 1A compact grid: EOD moved under the outcome column).
 export const STAGE = { width: 1320, height: 900 } as const;
 
+// Right-side clusters (Flows 3 and 4): `right` px of extra free space so the zoom toolbar never covers them and the camera
+// never parks against the edge. Triggered by an edge within `band` of the stage's right side, or a centre past `centre`.
+export const EDGE_PAD = { right: 120, band: 240, centre: 0.55 } as const;
+export const needsRightPad = (r: { x0: number; x1: number }): boolean => r.x1 >= STAGE.width - EDGE_PAD.band || (r.x0 + r.x1) / 2 >= STAGE.width * EDGE_PAD.centre;
+
 export const CARD = { w: 160, h: 92 } as const;
 
 export interface PlaceBox {

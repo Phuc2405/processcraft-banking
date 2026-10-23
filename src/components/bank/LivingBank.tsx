@@ -5,6 +5,7 @@ import { activeFlowOf, useBankStore } from '../../store/bankStore';
 import { useAcademyStore } from '../../store/academyStore';
 import { AcademySplitLayout } from '../academy/AcademySplitLayout';
 import { GuidedBar, ResumeWalkthrough, WalkBadge } from '../education/GuidedWalkthrough';
+import { WalkDock } from '../education/WalkDock';
 import { BankMap } from './BankMap';
 import { BankSidebar } from './BankSidebar';
 import { ClockBar } from './ClockBar';
@@ -131,7 +132,9 @@ export function LivingBank() {
           <main className="flex min-w-0 flex-1 flex-col bg-[#070b14]" aria-label={t('Bank map')}>
             {/* The map has a fixed size: the inspector and the ledger float over it, so opening them never resizes the scene. */}
             {/* overflow-clip, not hidden: nothing (a focus, a scroll-into-view) may scroll this frame and slide the floating docks off it. */}
-            <div className="relative min-h-0 flex-1 overflow-clip">
+            <div className="flex min-h-0 flex-1">
+            <WalkDock />
+            <div className="relative min-h-0 min-w-0 flex-1 overflow-clip">
               {viewMode === '3d' ? (
                 <OfficeLoadBoundary onBack={() => setViewMode('2d')}>
                   <Suspense fallback={<OfficeLoading />}>
@@ -150,6 +153,7 @@ export function LivingBank() {
               <ResumeWalkthrough />
               <Notice />
               <Inspector />
+            </div>
             </div>
             <GuidedBar />
           </main>
