@@ -23,6 +23,7 @@ import { lookOfKind, RUN_STATUS, STATUS_DOT_CLASS, STATUS_TEXT_CLASS, statusLabe
 import { useSpotlightFocus, type Focus } from './useSpotlight';
 import { useTerms, type Terms } from './useTerms';
 import { clampZoom, wheelZoom, ZOOM_STEP, zoomStore } from '../../store/zoomStore';
+import { useSmartZoom, type SmartView, type SmartZoomCamera } from '../../hooks/useSmartZoom';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scaling the stage to the space it is given
@@ -56,8 +57,21 @@ function useFitScale(topInset: number, bottomInset: number): { ref: RefObject<HT
  * empty background pans, and the floating toolbar's +, − and Fit arrive through zoomStore. Returns the zoom (a multiple of the
  * fitted size), the ref of the content box, and whether the last pointer press was a pan (so it is not taken for a click).
  */
-function useZoomPan(frame: RefObject<HTMLDivElement>, fit: number): { zoom: number; content: RefObject<HTMLDivElement>; panned: RefObject<boolean> } {
+function useZoomPan(
+  frame: RefObject<HTMLDivElement>,
+  fit: number,
+  insets: { top: number; bottom: number },
+): { zoom: number; content: RefObject<HTMLDivElement>; panned: RefObject<boolean>; camera: SmartZoomCamera } {
   const [zoom, setZoom] = useState(1);
+  // Bumped per flight frame so a pan-only frame still re-scrolls.
+  const [nudge, setNudge] = useState(0);
+  const flight = useRef<number | null>(null);
+  const insetsRef = useRef(insets);
+  insetsRef.current = insets;
+  const stopFlight = (): void => {
+    if (flight.current !== null) cancelAnimationFrame(flight.current);
+    flight.current = null;
+  };
   const content = useRef<HTMLDivElement>(null);
   const panned = useRef(false);
   const zoomRef = useRef(zoom);
@@ -84,11 +98,15 @@ function useZoomPan(frame: RefObject<HTMLDivElement>, fit: number): { zoom: numb
     const onWheel = (e: WheelEvent): void => {
       if (e.deltaY === 0) return;
       e.preventDefault();
+      stopFlight();
       const r = el.getBoundingClientRect();
       zoomAbout(wheelZoom(zoomRef.current, e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY), e.clientX - r.left, e.clientY - r.top);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      stopFlight();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -102,7 +120,7 @@ function useZoomPan(frame: RefObject<HTMLDivElement>, fit: number): { zoom: numb
     const scale = fit * zoom;
     el.scrollLeft = box.offsetLeft + a.sx * scale - a.cx;
     el.scrollTop = box.offsetTop + a.sy * scale - a.cy;
-  }, [zoom, fit, frame]);
+  }, [zoom, fit, frame, nudge]);
 
   // The toolbar's commands, and the percentage it shows.
   useEffect(
@@ -112,6 +130,7 @@ function useZoomPan(frame: RefObject<HTMLDivElement>, fit: number): { zoom: numb
         if (!c || c === prev.command) return;
         const el = frame.current;
         if (!el) return;
+        stopFlight();
         if (c.kind === 'fit') {
           anchor.current = null;
           setZoom(1);
@@ -137,6 +156,7 @@ function useZoomPan(frame: RefObject<HTMLDivElement>, fit: number): { zoom: numb
       const background = t === el || t.dataset.testid === 'bank-stage' || t === content.current;
       panned.current = false;
       if (e.button !== 0 || !background) return;
+      stopFlight();
       start = { x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop, id: e.pointerId };
     };
     const onMove = (e: PointerEvent): void => {
@@ -170,7 +190,47 @@ function useZoomPan(frame: RefObject<HTMLDivElement>, fit: number): { zoom: numb
     };
   }, [frame]);
 
-  return { zoom, content, panned };
+  // Smart-zoom camera: glide zoom (log-eased) and centre together.
+  const flyTo = (to: SmartView, ms: number): void => {
+    const el = frame.current;
+    const box = content.current;
+    if (!el || !box) return;
+    stopFlight();
+    const { top, bottom } = insetsRef.current;
+    const vx = el.clientWidth / 2;
+    const vy = top + (el.clientHeight - top - bottom) / 2;
+    const z0 = zoomRef.current;
+    const s0 = fitRef.current * z0;
+    const x0 = (el.scrollLeft + vx - box.offsetLeft) / s0;
+    const y0 = (el.scrollTop + vy - box.offsetTop) / s0;
+    const t0 = performance.now();
+    const frameAt = (now: number): void => {
+      const u = ms > 0 ? Math.min(1, (now - t0) / ms) : 1;
+      const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+      anchor.current = { sx: x0 + (to.cx - x0) * e, sy: y0 + (to.cy - y0) * e, cx: vx, cy: vy };
+      setZoom(clampZoom(z0 * Math.pow(to.zoom / z0, e)));
+      setNudge((n) => n + 1);
+      flight.current = u < 1 ? requestAnimationFrame(frameAt) : null;
+    };
+    if (ms > 0) flight.current = requestAnimationFrame(frameAt);
+    else frameAt(t0);
+  };
+
+  const camera: SmartZoomCamera = {
+    fit,
+    viewport: () => {
+      const el = frame.current;
+      if (!el) return null;
+      const { top, bottom } = insetsRef.current;
+      const w = el.clientWidth - 24;
+      const h = el.clientHeight - 12 - top - bottom;
+      return w > 0 && h > 0 ? { w, h } : null;
+    },
+    flyTo,
+    home: (ms) => flyTo({ zoom: 1, cx: STAGE.width / 2, cy: STAGE.height / 2 }, ms),
+  };
+
+  return { zoom, content, panned, camera };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -681,7 +741,8 @@ function BankMapView() {
   // The preset bar of a guided flow floats at the bottom of the map: the blueprint stops above it.
   const bottomInset = useBankStore((s) => (activeFlowOf(s) ? 64 : 0));
   const { ref, scale: fit } = useFitScale(inset, bottomInset);
-  const { zoom, content, panned } = useZoomPan(ref, fit);
+  const { zoom, content, panned, camera } = useZoomPan(ref, fit, { top: inset, bottom: bottomInset });
+  useSmartZoom(camera);
   const scale = fit * zoom;
   const view = useBankStore((s) => s.view);
   const selection = useBankStore((s) => s.selection);
@@ -729,7 +790,7 @@ function BankMapView() {
               <ExternalNode key={id} id={id} focus={focus} flow={flow} flowHere={flowHereAt === id || academyAt === id} terms={terms} />
             ))}
             {night && !focus && (
-              <div className="pointer-events-none absolute z-20 flex items-center gap-1.5 rounded-full bg-amber-400/15 px-2 py-0.5 text-[10.5px] font-semibold text-amber-200" style={{ left: DEPT_BOX.EOD.x + DEPT_BOX.EOD.w - 200, top: DEPT_BOX.EOD.y + 8 }}>
+              <div className="pointer-events-none absolute z-20 flex items-center gap-1.5 rounded-full bg-amber-400/15 px-2 py-0.5 text-[10.5px] font-semibold text-amber-200" style={{ left: DEPT_BOX.EOD.x + 8, top: DEPT_BOX.EOD.y + DEPT_BOX.EOD.h - 26 }}>
                 <MoonIcon /> {t('night cycle running')}
               </div>
             )}

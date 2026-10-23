@@ -22,7 +22,10 @@ import {
   ISO_POLAR,
   LANES,
   ORBIT_RANGE,
-  ZOOM_LIMITS,
+  clampZoom3d,
+  isCameraResetKey,
+  ZOOM_3D,
+  zoomBounds3d,
   clampTarget,
   departmentFloor,
   deskPose,
@@ -94,6 +97,10 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
   const focusRef = useRef<CamFocus | null>(focus);
   focusRef.current = focus;
   const wasFocused = useRef(false);
+  const fit = fitZoom(size.width, size.height);
+  const fitRef = useRef(fit);
+  fitRef.current = fit;
+  const bounds = zoomBounds3d(fit);
 
   /** The point the home view looks at: the middle of the office and the pavement in front of it. */
   const homeTarget = (): Vector3 => new Vector3(HOME_TARGET[0], 0, HOME_TARGET[1]);
@@ -165,6 +172,7 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey]);
   useEffect(() => {
+    camera.updateProjectionMatrix();
     const was = home.current;
     if (was.w === 0 || was.h === 0 || focusRef.current) return;
     if (!touched.current || Math.abs(size.width - was.w) / was.w > 0.35 || Math.abs(size.height - was.h) / was.h > 0.35) placeHome(false);
@@ -185,7 +193,7 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
         }
         touched.current = true;
         const az = Math.atan2(camera.position.x - c.target.x, camera.position.z - c.target.z);
-        const next = Math.min(ZOOM_LIMITS.max, Math.max(ZOOM_LIMITS.min, camera.zoom * (cmd.kind === 'in' ? ZOOM_STEP : 1 / ZOOM_STEP)));
+        const next = clampZoom3d(camera.zoom * (cmd.kind === 'in' ? ZOOM_STEP : 1 / ZOOM_STEP), fitRef.current);
         glideTo(c.target.x, c.target.z, az, next, 220);
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -205,9 +213,20 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusKey]);
 
+  // R / Esc: instant reset to the isometric home framing.
+  const placeHomeRef = useRef(placeHome);
+  placeHomeRef.current = placeHome;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (!isCameraResetKey(e, e.target as HTMLElement | null)) return;
+      placeHomeRef.current(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   // The percentage the toolbar shows: the camera's zoom against the zoom that fits the whole office.
   useFrame(() => {
-    const fit = fitZoom(size.width, size.height);
     if (fit > 0) zoomStore.getState().report((camera.zoom / fit) * 100);
   });
 
@@ -231,6 +250,9 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
     const c = controls.current;
     if (!c) return;
     const onChange = (): void => {
+      const zoom = clampZoom3d(camera.zoom, fitRef.current);
+      if (zoom !== camera.zoom) camera.zoom = zoom;
+      camera.updateProjectionMatrix();
       const [gx, gz] = viewGround([camera.position.x, camera.position.y, camera.position.z], [c.target.x, c.target.y, c.target.z]);
       const [x, z] = clampTarget(gx, gz);
       const dx = x - gx;
@@ -269,11 +291,12 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
       maxAzimuthAngle={ISO_AZIMUTH + ORBIT_RANGE}
       screenSpacePanning
       panSpeed={1}
-      zoomSpeed={0.9}
+      enableZoom
+      zoomSpeed={ZOOM_3D.speed}
       // The wheel zooms towards the point under the cursor, not the middle of the screen.
       zoomToCursor
-      minZoom={ZOOM_LIMITS.min}
-      maxZoom={ZOOM_LIMITS.max}
+      minZoom={bounds.min}
+      maxZoom={bounds.max}
       mouseButtons={{ LEFT: MOUSE.PAN, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.ROTATE }}
       touches={{ ONE: TOUCH.PAN, TWO: TOUCH.DOLLY_PAN }}
     />

@@ -13,7 +13,8 @@ import { edgeId, WIRES, type DepartmentId, type PlaceId } from '../../sim/topolo
  * its wires run up, is the extra STAGE area around it.
  */
 export const BUILDING = { width: 1080, height: 810 } as const;
-export const STAGE = { width: 1120, height: 980 } as const;
+// 2D stage (Phase 1A compact grid: EOD moved under the outcome column).
+export const STAGE = { width: 1320, height: 900 } as const;
 
 export const CARD = { w: 160, h: 92 } as const;
 
@@ -39,16 +40,17 @@ export const PLACE_BOX: Record<PlaceId, PlaceBox> = {
   // The two ledger desks sit 48 units apart (not 38), so their borders, badges and staff never crowd each other.
   LEDGER_DEBIT: card(780, 240),
   LEDGER_CREDIT: card(780, 380),
-  EOD_BATCH: card(100, 728),
-  EOD_VISA: card(320, 728),
-  RECON: card(540, 728),
-  SUSPENSE: card(760, 728),
-  GATE_ATM: card(580, 890),
-  ATM_CASH: card(780, 890),
+  // Night cycle: 2x2 snake under the outcomes (Approved ↓ Batch → Visa ↓ Recon → Suspense, both ↓ Settled).
+  EOD_BATCH: card(1000, 548),
+  EOD_VISA: card(1210, 548),
+  SUSPENSE: card(1000, 680),
+  RECON: card(1210, 680),
+  GATE_ATM: card(580, 700),
+  ATM_CASH: card(780, 700),
   CUSTOMER_OTP: { cx: 500, cy: 312, w: 150, h: 62 },
   OUT_DECLINED: { cx: 1000, cy: 150, w: 110, h: 100 },
   OUT_APPROVED: { cx: 1000, cy: 354, w: 110, h: 100 },
-  OUT_SETTLED: { cx: 985, cy: 728, w: 110, h: 92 },
+  OUT_SETTLED: { cx: 1105, cy: 802, w: 110, h: 92 },
 };
 
 export interface DeptBox {
@@ -63,8 +65,8 @@ export const DEPT_BOX: Record<DepartmentId, DeptBox> = {
   SECURITY: { x: 208, y: 36, w: 384, h: 396 },
   LEDGER: { x: 688, y: 160, w: 184, h: 280 },
   BNPL: { x: 208, y: 460, w: 184, h: 140 },
-  EOD: { x: 10, y: 646, w: 1060, h: 140 },
-  ATM: { x: 480, y: 826, w: 400, h: 142 },
+  EOD: { x: 910, y: 466, w: 390, h: 416 },
+  ATM: { x: 480, y: 626, w: 400, h: 142 },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -75,7 +77,7 @@ type Side = 'l' | 'r' | 't' | 'b';
 type Port = readonly [Side, number?];
 type Pt = readonly [number, number];
 
-interface RouteSpec {
+export interface RouteSpec {
   from: Port;
   to: Port;
   /** Where the vertical run of a horizontal-vertical-horizontal wire goes. */
@@ -87,7 +89,7 @@ interface RouteSpec {
   quiet?: boolean;
 }
 
-const R = (from: Port, to: Port, extra: Partial<RouteSpec> = {}): RouteSpec => ({ from, to, ...extra });
+export const R = (from: Port, to: Port, extra: Partial<RouteSpec> = {}): RouteSpec => ({ from, to, ...extra });
 
 const ROUTES: Record<string, RouteSpec> = {
   // Virtual cards
@@ -121,23 +123,21 @@ const ROUTES: Record<string, RouteSpec> = {
   'LEDGER_CREDIT>OUT_APPROVED': R(['r', -10], ['l', 10]),
   'LEDGER_CREDIT>OUT_DECLINED': R(['r', 10], ['l', 15], { bendX: 925 }),
   // Night cycle
-  'OUT_APPROVED>EOD_BATCH': R(['b'], ['t'], { via: [[1000, 604], [100, 604]], labelAt: [560, 604] }),
+  'OUT_APPROVED>EOD_BATCH': R(['b'], ['t'], { labelAt: [1000, 428] }),
   'EOD_BATCH>EOD_VISA': R(['r'], ['l']),
-  'EOD_VISA>RECON': R(['r'], ['l']),
-  'RECON>OUT_SETTLED': R(['t'], ['t'], { via: [[540, 664], [985, 664]], labelAt: [760, 664] }),
-  'RECON>SUSPENSE': R(['r'], ['l']),
-  'SUSPENSE>OUT_SETTLED': R(['r'], ['l']),
-  // The sidewalk ATM. A jam goes straight up into the suspense account. Declines join the lane the 3DS rejections already take up the
-  // right-hand margin; cash paid out gets a lane of its own beside it.
+  'EOD_VISA>RECON': R(['b'], ['t']),
+  'RECON>OUT_SETTLED': R(['b'], ['r']),
+  'RECON>SUSPENSE': R(['l'], ['r']),
+  'SUSPENSE>OUT_SETTLED': R(['b'], ['l']),
+  // Sidewalk ATM. Declines join the 3DS lane (y 446); cash paid out takes its own lane (y 455) into Approved.
   'GATE_ATM>ATM_CASH': R(['r'], ['l'], { quiet: true }),
-  'GATE_ATM>OUT_DECLINED': R(['b', -30], ['r'], { via: [[550, 956], [1066, 956], [1066, 150]], labelAt: [680, 956] }),
-  'ATM_CASH>OUT_DECLINED': R(['b', 30], ['r'], { via: [[810, 946], [1066, 946], [1066, 150]], quiet: true }),
-  'ATM_CASH>OUT_APPROVED': R(['r', -10], ['r', 30], { via: [[1090, 880], [1090, 384]], labelAt: [970, 880] }),
-  'ATM_CASH>SUSPENSE': R(['t'], ['b', 20]),
+  'GATE_ATM>OUT_DECLINED': R(['t', -30], ['r'], { via: [[550, 446], [1066, 446], [1066, 150]], labelAt: [640, 446] }),
+  'ATM_CASH>OUT_DECLINED': R(['t', -30], ['r'], { via: [[750, 446], [1066, 446], [1066, 150]], quiet: true }),
+  'ATM_CASH>OUT_APPROVED': R(['t', 40], ['b', -35], { via: [[820, 455], [965, 455]], labelAt: [820, 560] }),
+  'ATM_CASH>SUSPENSE': R(['r'], ['l'], { bendX: 890 }),
 };
 
-function anchor(place: PlaceId, [side, d = 0]: Port): Pt {
-  const b = PLACE_BOX[place];
+function anchor(b: PlaceBox, [side, d = 0]: Port): Pt {
   switch (side) {
     case 'l':
       return [b.cx - b.w / 2, b.cy + d];
@@ -150,9 +150,9 @@ function anchor(place: PlaceId, [side, d = 0]: Port): Pt {
   }
 }
 
-function pointsOf(from: PlaceId, to: PlaceId, spec: RouteSpec): Pt[] {
-  const a = anchor(from, spec.from);
-  const b = anchor(to, spec.to);
+function pointsOf(boxes: Record<PlaceId, PlaceBox>, from: PlaceId, to: PlaceId, spec: RouteSpec): Pt[] {
+  const a = anchor(boxes[from], spec.from);
+  const b = anchor(boxes[to], spec.to);
   if (spec.via) return [a, ...spec.via, b];
   if (a[1] === b[1] || a[0] === b[0]) return [a, b];
   if (spec.bendX !== undefined) return [a, [spec.bendX, a[1]], [spec.bendX, b[1]], b];
@@ -211,13 +211,18 @@ function midOfLongestRun(points: readonly Pt[]): Pt {
   return best;
 }
 
-export const BANK_WIRES: Wire[] = WIRES.map(([from, to, label]) => {
-  const id = edgeId(from, to);
-  const spec = ROUTES[id];
-  if (!spec) throw new Error(`No route drawn for the wire ${id}`);
-  const points = pointsOf(from, to, spec);
-  return { id, from, to, label: label ?? null, path: roundedPath(points), points, labelAt: spec.labelAt ?? midOfLongestRun(points), showLabel: !spec.quiet };
-});
+/** Routes every topology wire over a given floor plan (shared by the 2D map and the frozen 3D plan). */
+export function buildWires(boxes: Record<PlaceId, PlaceBox>, routes: Record<string, RouteSpec>): Wire[] {
+  return WIRES.map(([from, to, label]) => {
+    const id = edgeId(from, to);
+    const spec = routes[id];
+    if (!spec) throw new Error(`No route drawn for the wire ${id}`);
+    const points = pointsOf(boxes, from, to, spec);
+    return { id, from, to, label: label ?? null, path: roundedPath(points), points, labelAt: spec.labelAt ?? midOfLongestRun(points), showLabel: !spec.quiet };
+  });
+}
+
+export const BANK_WIRES: Wire[] = buildWires(PLACE_BOX, ROUTES);
 
 const BY_ID = new Map(BANK_WIRES.map((w) => [w.id, w]));
 

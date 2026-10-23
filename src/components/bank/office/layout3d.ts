@@ -1,9 +1,8 @@
 /**
  * Where everything stands in the 3D office. Pure numbers and no three.js, so the placement can be tested without a GPU.
  *
- * The office is the same bank as the 2D blueprint. Every desk, department and wire comes from layout.ts (the
- * data files are not touched): a position on the 2D stage maps to a position on the office floor, so the two views
- * always agree about who sits where, and a packet follows the same lane in both.
+ * Desks, departments and wires come from officePlan.ts, a frozen copy of the original 2D stage geometry, so 2D layout
+ * changes never move the 3D rooms.
  *
  *   world x  = (stage x - stage width / 2) / WORLD_SCALE      to the right on the 2D map
  *   world z  = (stage y - stage height / 2) / WORLD_SCALE     down the 2D map (towards the viewer)
@@ -14,7 +13,8 @@
 
 import { DEPARTMENTS, STATION_IDS, STATIONS, type DepartmentId, type PlaceId, type StationId } from '../../../sim/topology';
 import type { StationStatus } from '../../../sim/types';
-import { BANK_WIRES, BUILDING, DEPT_BOX, PLACE_BOX, wireById } from '../layout';
+import { BUILDING } from '../layout';
+import { OFFICE_DEPT_BOX as DEPT_BOX, OFFICE_PLACE_BOX as PLACE_BOX, OFFICE_WIRES as BANK_WIRES, officeWireById as wireById } from './officePlan';
 
 /** Stage units per world unit. A 160-wide desk card is four world units wide. */
 export const WORLD_SCALE = 40;
@@ -239,6 +239,27 @@ export function hopTiming(at: number, beatMs: number): { delayMs: number; durati
 export const CAMERA_DIRECTION: V2 = [-1, 1];
 export const CAMERA_DISTANCE = 60;
 export const ZOOM_LIMITS = { min: 12, max: 110 } as const;
+/** Learner zoom range, as multiples of the fitted zoom (20%–500% on the toolbar). */
+export const ZOOM_3D = { min: 0.2, max: 5.0, speed: 1.2 } as const;
+
+/** Absolute OrbitControls bounds for a fitted zoom. */
+export function zoomBounds3d(fit: number): { min: number; max: number } {
+  const f = Number.isFinite(fit) && fit > 0 ? fit : 28;
+  return { min: f * ZOOM_3D.min, max: f * ZOOM_3D.max };
+}
+
+export const clampZoom3d = (zoom: number, fit: number): number => {
+  const { min, max } = zoomBounds3d(fit);
+  return Math.min(max, Math.max(min, zoom));
+};
+
+/** True when a key event should reset the 3D camera (R or Esc, not while typing or with modifiers). */
+export function isCameraResetKey(e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey' | 'defaultPrevented' | 'repeat'>, target: { tagName?: string; isContentEditable?: boolean } | null): boolean {
+  if (e.defaultPrevented || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return false;
+  if (e.key !== 'r' && e.key !== 'R' && e.key !== 'Escape') return false;
+  const tag = target?.tagName?.toUpperCase();
+  return !(target?.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT');
+}
 
 /** How many pixels per world unit shows the whole office and its pavement in a container of this size. */
 export function fitZoom(width: number, height: number): number {
