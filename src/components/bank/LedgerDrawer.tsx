@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { tr } from '../../i18n/locale';
+import { localizeScenarioText } from '../../sim/scenarios';
 import { formatAud } from '../../engine/money';
 import { ledgerUi } from '../../data/ledgerCopy';
 import { everyTransactionBalances } from '../../engine/ledger';
@@ -87,7 +88,7 @@ export function LedgerDrawer() {
     return batchesFrom(chronological, (txId) => {
       const first = chronological.find((e) => e.txId === txId);
       // A payment's title says what it was for ("🛒 Supermarket Groceries ($62.80)"); its id stays in the subtitle so it can still be traced.
-      const what = ledger.scenarios[txId];
+      const what = localizeScenarioText(ledger.scenarios[txId] ?? '');
       const posted = first ? ui.postedAt(formatClock(minuteOf(first.timestamp))) : '';
       return what ? { title: what, subtitle: [ui.payment(txId), posted].filter(Boolean).join(' · ') } : { title: ui.payment(txId), ...(posted ? { subtitle: posted } : {}) };
     }).reverse();

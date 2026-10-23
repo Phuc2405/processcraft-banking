@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { noteText } from '../../../i18n/notesVi';
+import { alarmText, noteText } from '../../../i18n/notesVi';
 import { tr } from '../../../i18n/locale';
 import type { DroppedMarker, NodeAlarm, NodeRuntime } from '../../../store/liveSimulation';
 import { TokenGlyph } from '../tokens/TokenGlyph';
@@ -209,7 +209,7 @@ export function AlarmBadge({ alarm, className = '' }: { alarm: NodeAlarm; classN
       } ${className}`}
     >
       <span className={loud ? 'pc-siren' : ''}><Siren size={13} /></span>
-      {alarm.text}
+      {alarmText(alarm.text)}
     </div>
   );
 }

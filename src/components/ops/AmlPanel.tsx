@@ -4,7 +4,7 @@ import { amlTestCustomer, AML_THRESHOLD_CENTS, isBotBurst, SAR_ACTIVITIES, SAR_M
 import { formatClock, WORK_END } from '../../sim/clock';
 import { formatMoney } from '../../sim/kpis';
 import { rcLabel } from '../../sim/plainLanguage';
-import { scenarioLabel } from '../../sim/scenarios';
+import { localizeScenarioText, scenarioLabel } from '../../sim/scenarios';
 import type { TxRecord } from '../../sim/types';
 import { amlStore, useAmlStore, type AmlCase } from '../../store/amlStore';
 import { bankStore, useBankStore } from '../../store/bankStore';
@@ -65,8 +65,8 @@ function defaultNarrative(a: AmlAlert, day: number, locale: 'en' | 'vi'): string
   const time = formatClock(Math.floor(a.minute));
   if (a.kind === 'LARGE_VALUE') {
     return locale === 'vi'
-      ? `Ngày ${day} lúc ${time}, khách hàng thực hiện giao dịch ${a.scenario} trị giá ${formatMoney(a.amountCents)}, vượt ngưỡng ${formatMoney(AML_THRESHOLD_CENTS)}. Giao dịch không phù hợp với hồ sơ thông thường của khách hàng và nguồn tiền chưa được giải trình.`
-      : `On day ${day} at ${time} the customer made a ${a.scenario} payment of ${formatMoney(a.amountCents)}, above the ${formatMoney(AML_THRESHOLD_CENTS)} threshold. The payment does not fit the customer's usual profile and the source of funds has not been explained.`;
+      ? `Ngày ${day} lúc ${time}, khách hàng thực hiện giao dịch ${localizeScenarioText(a.scenario, 'vi')} trị giá ${formatMoney(a.amountCents)}, vượt ngưỡng ${formatMoney(AML_THRESHOLD_CENTS)}. Giao dịch không phù hợp với hồ sơ thông thường của khách hàng và nguồn tiền chưa được giải trình.`
+      : `On day ${day} at ${time} the customer made a ${localizeScenarioText(a.scenario, 'en')} payment of ${formatMoney(a.amountCents)}, above the ${formatMoney(AML_THRESHOLD_CENTS)} threshold. The payment does not fit the customer's usual profile and the source of funds has not been explained.`;
   }
   return locale === 'vi'
     ? `Ngày ${day} từ ${time}, ${a.count} giao dịch trực tuyến từ $5.00 trở xuống (tổng ${formatMoney(a.amountCents)}) được thực hiện trên nhiều thẻ khác nhau trong ${VELOCITY_WINDOW_MIN} phút, ${a.approved} giao dịch được duyệt. Mẫu hình phù hợp với hoạt động dò thẻ tự động bằng thẻ bị đánh cắp.`
@@ -274,8 +274,8 @@ export function AmlPanel() {
                           {tr(KIND_TEXT[a.kind].label)}
                         </span>
                       </td>
-                      <td className="max-w-[16rem] truncate px-3 py-2" title={a.scenario}>
-                        {a.kind === 'VELOCITY_BURST' ? tr({ en: `${a.count} payments${isBotBurst(a, log) ? ' (botnet)' : ''}`, vi: `${a.count} giao dịch${isBotBurst(a, log) ? ' (botnet)' : ''}` }) : a.scenario}
+                      <td className="max-w-[16rem] truncate px-3 py-2" title={localizeScenarioText(a.scenario)}>
+                        {a.kind === 'VELOCITY_BURST' ? tr({ en: `${a.count} payments${isBotBurst(a, log) ? ' (botnet)' : ''}`, vi: `${a.count} giao dịch${isBotBurst(a, log) ? ' (botnet)' : ''}` }) : localizeScenarioText(a.scenario)}
                       </td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums">{formatMoney(a.amountCents)}</td>
                       <td className="px-3 py-2 text-right">

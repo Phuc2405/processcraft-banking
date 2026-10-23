@@ -87,7 +87,7 @@ export const QUIZZES: Readonly<Record<ChapterId, readonly QuizQuestion[]>> = {
   3: [
     { id: '3-a', prompt: 'In the four-party model, who is the issuer?', options: ['The merchant’s bank', 'The card scheme', 'The cardholder’s bank', 'The shop'], answer: 2, explanation: 'The issuer is the cardholder’s bank. The acquirer is the merchant’s bank.' },
     { id: '3-b', prompt: 'Under 3DS 2.0, what happens to a medium-risk online payment?', options: ['It goes straight through', 'The customer is challenged, for example with an OTP', 'It is always declined', 'It waits for the night batch'], answer: 1, explanation: 'Low risk is frictionless, medium risk is challenged, high risk is declined.' },
-    { id: '3-c', prompt: 'What does tokenization achieve?', options: ['The shop sees the real card number', 'A stolen token is useless outside its device or merchant', 'Payments settle instantly', 'Fees disappear'], answer: 1, explanation: 'The token stands in for the card and works only where it was issued for.' },
+    { id: '3-c', prompt: 'What does tokenisation achieve?', options: ['The shop sees the real card number', 'A stolen token is useless outside its device or merchant', 'Payments settle instantly', 'Fees disappear'], answer: 1, explanation: 'The token stands in for the card and works only where it was issued for.' },
     { id: '3-d', prompt: 'What is the difference between authorisation and capture?', options: ['They are the same step', 'Authorisation holds the money; capture claims it for the merchant', 'Capture happens first', 'Authorisation moves the money'], answer: 1, explanation: 'Authorisation holds funds. Capture claims the held amount and settlement moves the money.' },
   ],
   4: [

@@ -92,20 +92,20 @@ function allText(): Array<readonly [string, string]> {
 
 describe('the three duplicated labels of the brief', () => {
   it('reads "Virtual Card & Token Vault", not "Virtual Card card masking"', () => {
-    expect(plainText('Virtual Card Tokenization & dCVV Masking')).toBe('Virtual Card & Token Vault');
-    expect(plainText('Virtual Card Tokenization & Dynamic CVV Flow')).toBe('Virtual Card & Token Vault');
-    expect(plainText('Virtual Card tokenization')).toBe('Virtual Card & Token Vault');
+    expect(plainText('Virtual Card Tokenisation & dCVV Masking')).toBe('Virtual Card & Token Vault');
+    expect(plainText('Virtual Card Tokenisation & Dynamic CVV Flow')).toBe('Virtual Card & Token Vault');
+    expect(plainText('Virtual Card tokenisation')).toBe('Virtual Card & Token Vault');
     expect(plainText('Virtual Card Token Vault')).not.toMatch(/virtual card.*virtual card/i);
-    expect(plainText('Virtual Card tokenization')).not.toMatch(/card card/i);
+    expect(plainText('Virtual Card tokenisation')).not.toMatch(/card card/i);
   });
 
-  it('reads "BNPL Pay-in-4 Installments", not "Buy Now Pay Later Buy Now Pay Later (4-split payment)"', () => {
-    expect(plainText('BNPL Pay-in-4 Underwriting & Card Fallback')).toBe('BNPL Pay-in-4 Installments');
-    expect(plainText('BNPL Pay-in-4 Installments')).toBe('BNPL Pay-in-4 Installments');
+  it('reads "BNPL Pay-in-4 Instalments", not "Buy Now Pay Later Buy Now Pay Later (4-split payment)"', () => {
+    expect(plainText('BNPL Pay-in-4 Underwriting & Card Fallback')).toBe('BNPL Pay-in-4 Instalments');
+    expect(plainText('BNPL Pay-in-4 Instalments')).toBe('BNPL Pay-in-4 Instalments');
     expect(stutter(plainText('BNPL Pay-in-4'))).toBeNull();
     expect(plainText('Buy Now Pay Later (Pay-in-4)')).not.toMatch(/Buy Now Pay Later.*Buy Now Pay Later/i);
     expect(plainText('BNPL (Pay-in-4)')).not.toMatch(/Buy Now Pay Later.*Buy Now Pay Later/i);
-    expect(plainText(PROCESS_SHORT.C)).toBe('BNPL Pay-in-4 Installments');
+    expect(plainText(PROCESS_SHORT.C)).toBe('BNPL Pay-in-4 Instalments');
   });
 
   it('reads "3DS Identity & Risk Check", not "The extra identity check Risk Engine"', () => {
@@ -128,7 +128,7 @@ describe('the three duplicated labels of the brief', () => {
   it('is stable: a curated name passes through the switch a second time untouched', () => {
     for (const name of [
       'Virtual Card & Token Vault',
-      'BNPL Pay-in-4 Installments',
+      'BNPL Pay-in-4 Instalments',
       '3DS Identity & Risk Check',
       'Night Books Match & Holding Box',
       'Instant Bank-to-Bank Transfers',

@@ -11,7 +11,7 @@
  * Pure functions over the transaction log the simulation already keeps.
  */
 
-import { BOT_SCENARIO_ID, AML_TEST_SCENARIO_ID, scenarioLabel } from './scenarios';
+import { BOT_SCENARIO_ID, AML_TEST_SCENARIO_ID, scenarioLabelEn } from './scenarios';
 import { makeCustomer } from './traffic';
 import type { Customer, DayEvent, TxRecord } from './types';
 
@@ -57,7 +57,7 @@ export function scanForAml(log: readonly TxRecord[]): AmlAlert[] {
       amountCents: t.amountCents,
       count: 1,
       txIds: [t.id],
-      scenario: scenarioLabel(t.scenario),
+      scenario: scenarioLabelEn(t.scenario),
       riskScore: Math.min(99, Math.round(55 + over * 10 + (t.isFraud ? 20 : 0))),
       approved: t.status === 'APPROVED' ? 1 : 0,
     });
@@ -83,7 +83,7 @@ export function scanForAml(log: readonly TxRecord[]): AmlAlert[] {
       amountCents: sorted.reduce((n, t) => n + t.amountCents, 0),
       count: sorted.length,
       txIds: sorted.map((t) => t.id),
-      scenario: scenarioLabel(first.scenario),
+      scenario: scenarioLabelEn(first.scenario),
       riskScore: Math.min(99, 60 + sorted.length * 3),
       approved: sorted.filter((t) => t.status === 'APPROVED').length,
     });

@@ -9,7 +9,7 @@ import { formatClock } from './clock';
 import { DECLINE_LABEL, DECLINE_REASONS, formatMoney, pct, pnl } from './kpis';
 import type { ProcessId } from './learning';
 import { STATIONS } from './topology';
-import { scenarioLabel } from './scenarios';
+import { scenarioLabelEn } from './scenarios';
 import type { DayReport, DeclineReason, PacketKind, TxRecord } from './types';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -292,7 +292,7 @@ export function transactionsCsv(records: readonly TxRecord[]): string {
       t.recon,
       t.kind,
       t.kind === 'A2A' ? 'ACCOUNT' : t.cardType,
-      scenarioLabel(t.scenario),
+      scenarioLabelEn(t.scenario),
       t.id,
     ]);
   return `\uFEFF${[TX_CSV_HEADER, ...rows].map((row) => row.map(cell).join(',')).join('\r\n')}\r\n`;

@@ -537,7 +537,7 @@ const EVENT_VI: Readonly<Record<DayEventId, { title: string; blurb: string; watc
   FRAUD_RING: {
     title: 'Đường dây gian lận hoạt động',
     blurb: 'Bộ phận tình báo gian lận báo có một đường dây đang thử số thẻ bị đánh cắp trên mạng và dùng lại mã một lần đã bị bắt được.',
-    watch: 'Bao nhiêu gian lận lọt qua luồng không ma sát, và siết ngưỡng 3DS sẽ khiến khách hàng thật trả giá thế nào?',
+    watch: 'Bao nhiêu gian lận lọt qua luồng xác thực liền mạch, và siết ngưỡng 3DS sẽ khiến khách hàng thật trả giá thế nào?',
   },
   VISA_GLITCH: {
     title: 'Lỗi tệp Visa',

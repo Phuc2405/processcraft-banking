@@ -15,6 +15,7 @@ import { WorkstationGraphic } from '../canvas/nodes/WorkstationGraphic';
 import { MentalModelCard } from '../education/MentalModelCard';
 import { useTerms } from './useTerms';
 import { feedText } from '../../i18n/feedVi';
+import { localizeScenarioText } from '../../sim/scenarios';
 import { lessonText } from '../../sim/learningVi';
 import { TransactionPanel } from './TransactionPanel';
 import { FatigueBar, fatigueLook, PacketGlyph, RUN_STATUS, SEVERITY_BOX, SEVERITY_DOT, SEVERITY_TEXT, SectionTitle, Sparkline, Stat, STATUS_DOT_CLASS, statusLabel, STATUS_TEXT_CLASS, WorkerFace, waitText, kindLabel } from './ui';
@@ -258,8 +259,8 @@ function QueueList({ sv }: { sv: StationView }) {
         <li key={q.id} className="flex items-center gap-2.5 rounded-lg border border-slate-800 bg-slate-900/50 px-2 py-1.5">
           <PacketGlyph kind={q.kind} cardType={q.cardType} width={26} />
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[12px] font-medium text-slate-100" title={q.scenario || undefined}>
-              {q.scenario || `${kindLabel(q.kind)} · ${formatMoney(q.amountCents)}`}
+            <span className="block truncate text-[12px] font-medium text-slate-100" title={q.scenario ? localizeScenarioText(q.scenario) : undefined}>
+              {(q.scenario && localizeScenarioText(q.scenario)) || `${kindLabel(q.kind)} · ${formatMoney(q.amountCents)}`}
             </span>
             <span className="block truncate text-[11px] text-slate-400">{detailText(q.detail)}</span>
           </span>

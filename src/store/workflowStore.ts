@@ -15,6 +15,7 @@
 import { nodeDefLabel, portLabel } from '../i18n/catalogVi';
 import { localChallenge } from '../i18n/challengeVi';
 import { labLabel } from '../i18n/labText';
+import { alarmText } from '../i18n/notesVi';
 import { tr } from '../i18n/locale';
 import { createContext, useContext } from 'react';
 import { useStore } from 'zustand';
@@ -473,7 +474,7 @@ export function createWorkflowStore(config: WorkflowStoreConfig = {}): WorkflowS
         return line ? [line] : [];
       });
       for (const { alarm } of detectAlarms(events, runner.tokens, tick)) {
-        if (alarm.kind !== 'RECON_BREAK') lines.push({ tick, kind: 'anomaly', text: tr({ en: `ALARM: ${alarm.text}.`, vi: `CẢNH BÁO: ${alarm.text}.` }) });
+        if (alarm.kind !== 'RECON_BREAK') lines.push({ tick, kind: 'anomaly', text: tr({ en: `ALARM: ${alarm.text}.`, vi: `CẢNH BÁO: ${alarmText(alarm.text)}.` }) });
       }
 
       let simulation = s.simulation;

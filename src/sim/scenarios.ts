@@ -10,7 +10,7 @@
  */
 
 import { formatAud } from '../engine/money';
-import { activeLocale } from '../i18n/locale';
+import { activeLocale, type Locale } from '../i18n/locale';
 import type { MinorUnits } from '../types/processLearning';
 import type { CheckoutKind } from './types';
 
@@ -132,20 +132,53 @@ export const SCENARIO_TITLE_VI: Readonly<Record<string, string>> = {
   'Large Business Transfer': 'Chuyển khoản doanh nghiệp lớn',
 };
 
-/** A scenario's title in the active language. */
-export const scenarioTitle = (x: Scenario): string => (activeLocale() === 'vi' ? (SCENARIO_TITLE_VI[x.title] ?? x.title) : x.title);
+/** A scenario's title in English: the canonical text the simulation, the exports and the stores keep. Never depends on the language. */
+export const scenarioTitleEn = (x: Scenario): string => x.title;
 
-/** "☕ Corner Cafe Tap ($4.50)": the one-line form used in badges, logs and ledger titles. */
-export function scenarioLabel(scenario: Scenario | string | null | undefined): string {
+/** "☕ Corner Cafe Tap ($4.50)" in English, whatever language is on screen. Simulation and export code writes this and nothing else. */
+export function scenarioLabelEn(scenario: Scenario | string | null | undefined): string {
   const x = typeof scenario === 'string' ? scenarioById(scenario) : scenario;
-  return x ? `${x.emoji} ${scenarioTitle(x)} (${formatAud(x.amountCents)})` : '';
+  return x ? `${x.emoji} ${x.title} (${formatAud(x.amountCents)})` : '';
 }
+
+/** "☕ Corner Cafe Tap" in English: the same without the price. */
+export function scenarioShortEn(scenario: Scenario | string | null | undefined): string {
+  const x = typeof scenario === 'string' ? scenarioById(scenario) : scenario;
+  return x ? `${x.emoji} ${x.title}` : '';
+}
+
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** One find-all pattern per direction. Longest title first, so "Practice Swipe, Big Basket" is never cut short by "Practice Swipe". */
+function titleSwapper(table: ReadonlyMap<string, string>): (text: string) => string {
+  const keys = [...table.keys()].sort((a, b) => b.length - a.length);
+  const re = new RegExp(keys.map(escapeRe).join('|'), 'g');
+  return (text) => text.replace(re, (hit) => table.get(hit) ?? hit);
+}
+
+const EN_TO_VI = new Map(Object.entries(SCENARIO_TITLE_VI));
+const VI_TO_EN = new Map(Object.entries(SCENARIO_TITLE_VI).map(([en, vi]) => [vi, en] as const));
+const swapToVi = titleSwapper(EN_TO_VI);
+const swapToEn = titleSwapper(VI_TO_EN);
+
+/**
+ * Shows the scenario names inside a piece of simulation text in the chosen language. The simulation writes English
+ * ("Debiting 💬 QR Bill Split ($18.50) from the account…"), so this is the single place the names change language.
+ * It works both ways: Vietnamese names found in English text are put back, so a line can never come out half and half.
+ */
+export function localizeScenarioText(text: string, locale: Locale = activeLocale()): string {
+  if (!text) return text;
+  return locale === 'vi' ? swapToVi(text) : swapToEn(text);
+}
+
+/** A scenario's title in the active language. */
+export const scenarioTitle = (x: Scenario): string => localizeScenarioText(x.title);
+
+/** "☕ Corner Cafe Tap ($4.50)": the one-line form used in badges, logs and ledger titles, in the active language. */
+export const scenarioLabel = (scenario: Scenario | string | null | undefined): string => localizeScenarioText(scenarioLabelEn(scenario));
 
 /** "☕ Corner Cafe Tap": the same without the price, for tight spaces where the amount is already shown. */
-export function scenarioShort(scenario: Scenario | string | null | undefined): string {
-  const x = typeof scenario === 'string' ? scenarioById(scenario) : scenario;
-  return x ? `${x.emoji} ${scenarioTitle(x)}` : '';
-}
+export const scenarioShort = (scenario: Scenario | string | null | undefined): string => localizeScenarioText(scenarioShortEn(scenario));
 
 /** The scenarios a channel can draw from, genuine customers or fraudsters. */
 export function scenariosFor(kind: CheckoutKind, fraud: boolean): Array<readonly [Scenario, number]> {

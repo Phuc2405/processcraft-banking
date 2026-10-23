@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef } from 'react';
 import type { BufferGeometry, Group, Mesh } from 'three';
 import { beatMs, SPEEDS } from '../../../sim/clock';
+import { localizeScenarioText } from '../../../sim/scenarios';
 import type { Move, PacketKind } from '../../../sim/types';
 import { bankStore, useBankStore } from '../../../store/bankStore';
 import { CustomerFigure, phaseOf } from './Avatars';
@@ -115,7 +116,7 @@ export const Packets = memo(function Packets() {
       if (!lane) continue;
       const { delayMs, durationMs } = hopTiming(m.at, beat);
       const list = flights.current[m.kind];
-      list.push({ lane, length: laneLength(lane), start: t0 + delayMs, duration: durationMs, label: m.scenario, kind: m.kind });
+      list.push({ lane, length: laneLength(lane), start: t0 + delayMs, duration: durationMs, label: localizeScenarioText(m.scenario), kind: m.kind });
       if (list.length > POOL[m.kind]) list.splice(0, list.length - POOL[m.kind]);
     }
   }, [tick]);

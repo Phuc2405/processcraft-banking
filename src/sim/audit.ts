@@ -14,7 +14,7 @@ import { trialBalance } from '../engine/ledger';
 import type { GLEntry } from '../types/processLearning';
 import { formatClock } from './clock';
 import { clockWithSeconds } from './reportSummary';
-import { scenarioLabel } from './scenarios';
+import { scenarioLabelEn } from './scenarios';
 import type { DayReport, TxRecord } from './types';
 
 export type AuditFlag = 'FRAUD_APPROVED' | 'FRAUD_BLOCKED' | 'CHAOS_DECLINE' | 'TIMEOUT' | 'BOT' | 'MISAPPROVED' | 'SUSPENSE' | 'DISPUTED' | 'HIGH_VALUE';
@@ -99,7 +99,7 @@ export function buildAudit(report: DayReport, log: readonly TxRecord[], ledger: 
       txId: t.txId,
       id: t.id,
       channel: t.deposit ? 'CASH_DEPOSIT' : t.kind,
-      scenario: scenarioLabel(t.scenario),
+      scenario: scenarioLabelEn(t.scenario),
       amountCents: t.amountCents,
       status: t.status,
       responseCode: t.responseCode ?? (t.status === 'APPROVED' ? '00' : ''),

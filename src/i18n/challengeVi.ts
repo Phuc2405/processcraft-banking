@@ -48,7 +48,7 @@ const LEVEL_VI: Readonly<Record<Id, LevelText>> = {
   lvl_02_three_ds_routing: {
     title: 'Định tuyến theo rủi ro 3DS 2.x',
     problemDescription:
-      'Giao dịch không xuất trình thẻ đi qua **3-D Secure 2.x**. Thay vì thử thách mọi người, ngân hàng phát hành định tuyến theo rủi ro để khách tốt không bị chậm.\n\n**Chính sách của ngân hàng phát hành**\n\n| Điểm rủi ro | Nhánh | Kết quả |\n|---|---|---|\n| dưới 40 | Không ma sát | Đi tiếp tới kiểm tra tiền |\n| 40 đến 79, chưa thử thách | Thử thách | Trả lời **CHALLENGE_REQUIRED** để khách được chuyển tới màn hình OTP |\n| 40 đến 79, đã hoàn tất thử thách | Đã xác thực | Đi tiếp tới kiểm tra tiền |\n| 40 đến 79, thử thách bị bỏ dở, quá hạn hoặc thất bại | Rơi rụng | **Từ chối** |\n| 80 trở lên | Từ chối | **Từ chối**, kể cả khi đã hoàn tất thử thách |\n\n**Ngoài ra**\n- Yêu cầu bị từ chối hoặc rơi rụng không được chạm vào sổ cái lõi.\n- Yêu cầu đã xác thực chỉ được chấp thuận nếu kiểm tra sổ cái cho thấy đủ tiền.\n- Ngân hàng không thấy được giao dịch có thật sự gian lận không. Bạn bắt gian lận qua điểm rủi ro, nên điều kiện không được đọc `isFraud`.\n\nTrong thực tế, mỗi yêu cầu được đánh giá hai lần: một lần trước thử thách và một lần sau. Ở đây, mỗi bài kiểm tra là một trong hai lần đó.',
+      'Giao dịch không xuất trình thẻ đi qua **3-D Secure 2.x**. Thay vì thử thách mọi người, ngân hàng phát hành định tuyến theo rủi ro để khách tốt không bị chậm.\n\n**Chính sách của ngân hàng phát hành**\n\n| Điểm rủi ro | Nhánh | Kết quả |\n|---|---|---|\n| dưới 40 | Xác thực liền mạch | Đi tiếp tới kiểm tra tiền |\n| 40 đến 79, chưa thử thách | Thử thách | Trả lời **CHALLENGE_REQUIRED** để khách được chuyển tới màn hình OTP |\n| 40 đến 79, đã hoàn tất thử thách | Đã xác thực | Đi tiếp tới kiểm tra tiền |\n| 40 đến 79, thử thách bị bỏ dở, quá hạn hoặc thất bại | Rơi rụng | **Từ chối** |\n| 80 trở lên | Từ chối | **Từ chối**, kể cả khi đã hoàn tất thử thách |\n\n**Ngoài ra**\n- Yêu cầu bị từ chối hoặc rơi rụng không được chạm vào sổ cái lõi.\n- Yêu cầu đã xác thực chỉ được chấp thuận nếu kiểm tra sổ cái cho thấy đủ tiền.\n- Ngân hàng không thấy được giao dịch có thật sự gian lận không. Bạn bắt gian lận qua điểm rủi ro, nên điều kiện không được đọc `isFraud`.\n\nTrong thực tế, mỗi yêu cầu được đánh giá hai lần: một lần trước thử thách và một lần sau. Ở đây, mỗi bài kiểm tra là một trong hai lần đó.',
     learningObjectives: [
       'Định tuyến một giao dịch tới ba kết quả khác nhau bằng một cổng XOR',
       'Dùng độ ưu tiên và một cạnh mặc định để mọi trường hợp đều có nơi đến',
@@ -61,8 +61,8 @@ const LEVEL_VI: Readonly<Record<Id, LevelText>> = {
       'Xem các bài kiểm tra được đánh dấu không được chạm vào sổ cái trước khi bạn nghĩ tới cổng AND.',
     ],
     tests: {
-      'L2-T01': { name: 'Không ma sát: rủi ro thấp' },
-      'L2-T02': { name: 'Không ma sát: đỉnh của dải (rủi ro 39)' },
+      'L2-T01': { name: 'Xác thực liền mạch: rủi ro thấp' },
+      'L2-T02': { name: 'Xác thực liền mạch: đỉnh của dải (rủi ro 39)' },
       'L2-T03': { name: 'Thử thách: đáy của dải (rủi ro 40)' },
       'L2-T04': { name: 'Thử thách: rủi ro trung bình, lượt đầu' },
       'L2-T05': { name: 'Đã hoàn tất thử thách: nhập OTP đúng', description: 'Chủ thẻ quay lại sau thử thách với OTP thành công.' },
@@ -70,7 +70,7 @@ const LEVEL_VI: Readonly<Record<Id, LevelText>> = {
       'L2-T07': { name: 'Rơi rụng thử thách: OTP hết hạn', description: 'Mã được gửi tới điện thoại của chủ thẻ thật, nên không ai nhập. Đây là dáng vẻ của kẻ gian chỉ có số thẻ: chấp thuận nó là để lọt gian lận.' },
       'L2-T08': { name: 'Bắt gian lận: rủi ro rất cao', description: 'Thẻ bị đánh cắp, 6 lần thử thất bại từ cùng một thiết bị trong 10 phút. Không làm việc với sổ cái cho yêu cầu bị từ chối.' },
       'L2-T09': { name: 'Bắt gian lận: OTP đã hoàn tất không thể vượt qua lệnh từ chối', description: 'Gian lận đổi SIM. OTP đã hoàn tất, nhưng điểm rủi ro vượt ngưỡng từ chối.' },
-      'L2-T10': { name: 'Không ma sát nhưng không đủ tiền', description: 'Xác thực ổn. Chỉ là tài khoản không đủ chi trả.' },
+      'L2-T10': { name: 'Xác thực liền mạch nhưng không đủ tiền', description: 'Xác thực ổn. Chỉ là tài khoản không đủ chi trả.' },
     },
   },
   lvl_03_eod_recon_suspense: {
@@ -157,7 +157,7 @@ const LEVEL_VI: Readonly<Record<Id, LevelText>> = {
   lvl_06_card_testing: {
     title: 'Dò thẻ lúc nửa đêm',
     problemDescription:
-      'Mỗi đêm khoảng nửa đêm, bot chạy qua danh sách số thẻ bị đánh cắp bằng **các giao dịch rất nhỏ** ($1, $0.50) để tìm thẻ nào còn sống. Đây là **dò thẻ**. Ngân hàng muốn chặn nó **mà không bắt khách thật phải vượt rào**. Mỗi thử thách OTP không cần thiết là một khách có thể bỏ giỏ hàng.\n\n**Chính sách**\n\n| Tình huống | Kết quả |\n|---|---|\n| **Dò thẻ**: 5 lần thử trở lên trên thẻ trong 10 phút (`recentAttempts >= 5`) **và** số tiền từ $5.00 trở xuống | **Từ chối** với lý do `CARD_TESTING`. Làm việc này **trước khi** tốn một lần gọi 3DS hay kiểm tra sổ cái. |\n| Đã xác thực bằng 3DS (không ma sát, hoặc đã hoàn tất thử thách) | Kiểm tra tiền |\n| Trong dải thử thách, và **dưới $30.00** | **Miễn trừ giá trị thấp**: không thử thách, đi tới kiểm tra tiền |\n| Trong dải thử thách, **từ $30.00 trở lên** | **CHALLENGE_REQUIRED** |\n| Mọi thứ khác (bị từ chối, hoặc thử thách thất bại) | **Từ chối** |\n\nSau kiểm tra tiền: chấp thuận nếu `SUFFICIENT`, nếu không thì từ chối.\n\n**Vì sao quy tắc dồn dập đi trước.** Giao dịch dò thẻ có giá trị nhỏ, đúng thứ mà miễn trừ giá trị thấp cho qua không cần thử thách. Không có quy tắc dồn dập, miễn trừ trở thành bạn thân của kẻ gian. Và một bot có điểm rủi ro thấp 18 thì điểm rủi ro hoàn toàn không bắt được.\n\nSự kiện bắt đầu đã có trên canvas. Bạn dựng phần còn lại, kể cả các sự kiện kết thúc.',
+      'Mỗi đêm khoảng nửa đêm, bot chạy qua danh sách số thẻ bị đánh cắp bằng **các giao dịch rất nhỏ** ($1, $0.50) để tìm thẻ nào còn sống. Đây là **dò thẻ**. Ngân hàng muốn chặn nó **mà không bắt khách thật phải vượt rào**. Mỗi thử thách OTP không cần thiết là một khách có thể bỏ giỏ hàng.\n\n**Chính sách**\n\n| Tình huống | Kết quả |\n|---|---|\n| **Dò thẻ**: 5 lần thử trở lên trên thẻ trong 10 phút (`recentAttempts >= 5`) **và** số tiền từ $5.00 trở xuống | **Từ chối** với lý do `CARD_TESTING`. Làm việc này **trước khi** tốn một lần gọi 3DS hay kiểm tra sổ cái. |\n| Đã xác thực bằng 3DS (xác thực liền mạch, hoặc đã hoàn tất thử thách) | Kiểm tra tiền |\n| Trong dải thử thách, và **dưới $30.00** | **Miễn trừ giá trị thấp**: không thử thách, đi tới kiểm tra tiền |\n| Trong dải thử thách, **từ $30.00 trở lên** | **CHALLENGE_REQUIRED** |\n| Mọi thứ khác (bị từ chối, hoặc thử thách thất bại) | **Từ chối** |\n\nSau kiểm tra tiền: chấp thuận nếu `SUFFICIENT`, nếu không thì từ chối.\n\n**Vì sao quy tắc dồn dập đi trước.** Giao dịch dò thẻ có giá trị nhỏ, đúng thứ mà miễn trừ giá trị thấp cho qua không cần thử thách. Không có quy tắc dồn dập, miễn trừ trở thành bạn thân của kẻ gian. Và một bot có điểm rủi ro thấp 18 thì điểm rủi ro hoàn toàn không bắt được.\n\nSự kiện bắt đầu đã có trên canvas. Bạn dựng phần còn lại, kể cả các sự kiện kết thúc.',
     learningObjectives: [
       'Kết hợp hai điều kiện bằng && để mô tả một mẫu hình (nhiều lần thử và số tiền nhỏ)',
       'Đặt bước kiểm tra rẻ trước bước tốn kém, và chặn lưu lượng xấu từ sớm',
@@ -319,7 +319,7 @@ const LEVEL_VI: Readonly<Record<Id, LevelText>> = {
       'L10-T06': { name: 'Phản hồi của cửa hàng: bằng chứng yếu, chuyển cấp', description: 'Ngân hàng không chấp nhận câu trả lời của cửa hàng, nên nó lên tiền trọng tài.' },
       'L10-T07': { name: 'Phản hồi của cửa hàng: bằng chứng thuyết phục, cửa hàng thắng', description: 'Khoản ghi có tạm thời bị thu lại từ chủ thẻ.' },
       'L10-T08': { name: 'Tiền trọng tài: cửa hàng bỏ cuộc' },
-      'L10-T09': { name: 'Chuyển dịch trách nhiệm: khiếu nại gian lận trên giao dịch không ma sát', description: 'Chủ thẻ nói họ chưa bao giờ thực hiện giao dịch $189.00. Nhưng 3-D Secure đã xác thực nó (rủi ro 12, không ma sát), nên trách nhiệm gian lận chuyển sang ngân hàng phát hành. Tổ chức thẻ không cho phép tra soát với cửa hàng. Ngân hàng hoàn tiền cho chủ thẻ và ghi nhận tổn thất.' },
+      'L10-T09': { name: 'Chuyển dịch trách nhiệm: khiếu nại gian lận trên giao dịch xác thực liền mạch', description: 'Chủ thẻ nói họ chưa bao giờ thực hiện giao dịch $189.00. Nhưng 3-D Secure đã xác thực nó (rủi ro 12, xác thực liền mạch), nên trách nhiệm gian lận chuyển sang ngân hàng phát hành. Tổ chức thẻ không cho phép tra soát với cửa hàng. Ngân hàng hoàn tiền cho chủ thẻ và ghi nhận tổn thất.' },
       'L10-T10': { name: 'Chuyển dịch trách nhiệm: khiếu nại gian lận sau thử thách đã hoàn tất', description: 'Rủi ro 55, chủ thẻ đã nhập OTP. Đó cũng là xác thực.' },
       'L10-T11': { name: 'Không chuyển dịch trách nhiệm: khiếu nại gian lận trên giao dịch chưa xác thực', description: 'Rủi ro 65 và chưa từng có thử thách (cửa hàng bỏ qua 3DS). Cửa hàng vẫn chịu trách nhiệm, nên khiếu nại bắt đầu đi theo nhánh tra soát.' },
       'L10-T12': { name: 'Quá muộn: 150 ngày sau giao dịch' },
@@ -442,7 +442,7 @@ export function stageText(stage: { stage: number; title: string; blurb: string }
 
 const TAG_VI: Readonly<Record<string, string>> = {
   'happy-path': 'đường suôn sẻ', boundary: 'biên', expiry: 'hết hạn', mismatch: 'không khớp', exception: 'ngoại lệ', funds: 'tiền',
-  frictionless: 'không ma sát', challenge: 'thử thách', completed: 'đã hoàn tất', 'drop-off': 'rơi rụng', fraud: 'gian lận', match: 'khớp',
+  frictionless: 'xác thực liền mạch', challenge: 'thử thách', completed: 'đã hoàn tất', 'drop-off': 'rơi rụng', fraud: 'gian lận', match: 'khớp',
   tolerance: 'biên sai số', break: 'sai lệch', 'missing-leg': 'thiếu vế', duplicate: 'trùng lặp', bnpl: 'BNPL', 'down-payment': 'trả trước',
   decline: 'từ chối', credit: 'tín dụng', fallback: 'dự phòng', 'hard-decline': 'từ chối cứng', graceful: 'từ chối lịch sự', prepaid: 'trả trước (thẻ)',
   genuine: 'khách thật', exemption: 'miễn trừ', 'card-testing': 'dò thẻ', retry: 'thử lại', burst: 'dồn dập', 'big-ticket': 'giá trị lớn',

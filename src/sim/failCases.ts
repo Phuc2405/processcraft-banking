@@ -288,8 +288,8 @@ const VI: FailBook = {
       'Trang thanh toán không gửi dữ liệu mà 3DS cần (thiết bị, địa chỉ). Ngân hàng phải đoán, và nó đoán một cách thận trọng.',
     ],
     n_3ds: [
-      'Ngưỡng không ma sát đặt quá cao. Gian lận đi thẳng vào mà không bị hỏi gì.',
-      'Ngưỡng không ma sát đặt quá thấp. Ai cũng bị thử thách, và khách thật bỏ cuộc ở màn hình nhập mã.',
+      'Ngưỡng xác thực liền mạch đặt quá cao. Gian lận đi thẳng vào mà không bị hỏi gì.',
+      'Ngưỡng xác thực liền mạch đặt quá thấp. Ai cũng bị thử thách, và khách thật bỏ cuộc ở màn hình nhập mã.',
       'Ngưỡng từ chối quá thấp. Khách tốt bị từ chối thẳng, không có cơ hội chứng minh danh tính.',
     ],
     n_xor_3ds: [

@@ -10,7 +10,7 @@
  * app root is keyed by the locale so every `pick()` reader below it redraws in the new language.
  */
 
-import { useStore } from 'zustand';
+import { useSyncExternalStore } from 'react';
 import { createStore } from 'zustand/vanilla';
 
 export const LOCALES = ['en', 'vi'] as const;
@@ -74,7 +74,9 @@ export function setActiveLocale(locale: Locale): void {
 }
 
 /** The current language, re-rendering the caller when it changes. */
-export const useLocale = (): Locale => useStore(localeStore, (s) => s.locale);
+// The live locale is also the server snapshot: the language is never "initial" when something renders (tests, previews).
+const currentLocale = (): Locale => localeStore.getState().locale;
+export const useLocale = (): Locale => useSyncExternalStore(localeStore.subscribe, currentLocale, currentLocale);
 
 /** The entry for a language, falling back to English when a table has not been translated yet. */
 export function pick<T>(table: Localized<T>, locale: Locale = activeLocale()): T {

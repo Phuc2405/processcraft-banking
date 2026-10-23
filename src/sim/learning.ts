@@ -154,14 +154,14 @@ const bnpl = (score: number, downPct: number, over: Partial<BankingPayload> = {}
 
 const LESSON_A: Lesson = {
   id: 'A',
-  title: 'Virtual Card Tokenization & dCVV Masking',
+  title: 'Virtual Card Tokenisation & dCVV Masking',
   subtitle: 'Virtual Cards Gate → Token Vault → dCVV → Ledger',
   graph: 'virtual',
   chapter: 1,
   accent: '#a3e635',
   desks: ['GATE_VIRTUAL', 'SEC_VAULT', 'SEC_DCVV', 'LEDGER_DEBIT'],
   intro: [
-    'A virtual card is a stand-in. The 16-digit number the shopper types (the DPAN) means nothing on its own: only the bank’s Token Vault knows which real card, and which account, it points to. That is tokenization.',
+    'A virtual card is a stand-in. The 16-digit number the shopper types (the DPAN) means nothing on its own: only the bank’s Token Vault knows which real card, and which account, it points to. That is tokenisation.',
     'Its security code changes every few minutes (a dynamic CVV, or dCVV). A criminal who copies the number and the code gets a few minutes at best. The bank must check that the code is the right one and still fresh, and it must do that before it spends any effort on the ledger.',
   ],
   steps: {
