@@ -1,4 +1,6 @@
 import type { CSSProperties } from 'react';
+import { portLabel } from '../../../i18n/catalogVi';
+import { tr } from '../../../i18n/locale';
 import { Handle, Position, useNodeId } from '@xyflow/react';
 import { useWorkflowStore } from '../../../store/workflowStore';
 import type { Port } from '../../../types/processLearning';
@@ -36,7 +38,7 @@ export function PortHandle({ port, side, accent, style, caption }: Props) {
         id={port.id}
         type={isInput ? 'target' : 'source'}
         position={side}
-        title={`${port.label}${port.role === 'ERROR' ? ' (error path)' : ''}`}
+        title={`${portLabel(port.label)}${port.role === 'ERROR' ? tr({ en: ' (error path)', vi: ' (nhánh lỗi)' }) : ''}`}
         className="pc-handle"
         style={{
           width: 13,

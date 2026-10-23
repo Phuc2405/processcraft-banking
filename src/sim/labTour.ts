@@ -13,6 +13,9 @@
 import { capabilityText, endText, factLabel, gatewayText, labUi, outcomeText, startText } from '../data/labTourCopy';
 import { CONDITION_VARIABLES, NODE_CATALOG } from '../data/seedChallenges';
 import { formatAud } from '../engine/money';
+import { labLabel } from '../i18n/labText';
+import { activeLocale, tr } from '../i18n/locale';
+import { noteText } from '../i18n/notesVi';
 import { pacs008From, pacs008Xml, type Rail } from '../engine/iso20022';
 import { postTestResult } from '../engine/postings';
 import { ProcessRunner, type RunResult } from '../engine/processRunner';
@@ -117,16 +120,75 @@ export function plainWords(code: string): string {
 
 /** "ledgerDecision" -> money? number? word? The one place a fact becomes text. */
 export function valueText(name: string, value: unknown): string {
-  if (value === undefined || value === null) return 'not set';
-  if (typeof value === 'boolean') return value ? 'yes' : 'no';
+  if (value === undefined || value === null) return tr({ en: 'not set', vi: 'chưa đặt' });
+  if (typeof value === 'boolean') return value ? tr({ en: 'yes', vi: 'có' }) : tr({ en: 'no', vi: 'không' });
   if (typeof value === 'number') {
     if (MONEY_FACTS.has(name)) return formatAud(value);
     if (name === 'downPaymentPct') return `${value}%`;
-    if (name === 'amlMatchScore') return `${value} out of 100`;
+    if (name === 'amlMatchScore') return tr({ en: `${value} out of 100`, vi: `${value}/100` });
     return String(value);
   }
-  return plainWords(String(value));
+  const words = plainWords(String(value));
+  return activeLocale() === 'vi' ? (VALUE_WORDS_VI[words] ?? words) : words;
 }
+
+/** The values a fact can take, as a Vietnamese reader would say them. Keyed by the English words plainWords gives. */
+const VALUE_WORDS_VI: Readonly<Record<string, string>> = {
+  valid: 'hợp lệ',
+  expired: 'hết hạn',
+  mismatch: 'không khớp',
+  'not applicable': 'không áp dụng',
+  resolved: 'đã tra được',
+  suspended: 'tạm ngưng',
+  debit: 'ghi nợ',
+  credit: 'tín dụng',
+  prepaid: 'trả trước',
+  frictionless: 'không ma sát',
+  challenge: 'thử thách',
+  'challenge passed': 'đã qua thử thách',
+  'challenge failed': 'thử thách thất bại',
+  reject: 'từ chối',
+  issuer: 'ngân hàng phát hành',
+  merchant: 'cửa hàng',
+  sufficient: 'đủ',
+  'insufficient funds': 'không đủ tiền',
+  'over limit': 'vượt hạn mức',
+  matched: 'khớp',
+  'break amount': 'sai lệch số tiền',
+  'break missing leg': 'sai lệch thiếu vế',
+  'break duplicate': 'sai lệch trùng lặp',
+  eligible: 'đủ điều kiện',
+  ineligible: 'không đủ điều kiện',
+  'fx rate': 'tỷ giá',
+  unexplained: 'không giải thích được',
+  gain: 'lãi',
+  loss: 'lỗ',
+  instant: 'tức thì',
+  priority: 'ưu tiên',
+  normal: 'thường',
+  open: 'mở',
+  congested: 'nghẽn',
+  shortfall: 'thiếu hụt',
+  clear: 'sạch',
+  structuring: 'chia nhỏ giao dịch',
+  'pep hit': 'trùng PEP',
+  'sanction hit': 'trùng cấm vận',
+  none: 'không có',
+  'false positive': 'cảnh báo sai',
+  'true match': 'trùng thật',
+  inconclusive: 'chưa kết luận',
+  'retrieval request': 'yêu cầu chứng từ',
+  'first chargeback': 'tra soát lần đầu',
+  representment: 'phản hồi của cửa hàng',
+  'pre arbitration': 'tiền trọng tài',
+  'resolved cardholder': 'chủ thẻ thắng',
+  'resolved merchant': 'cửa hàng thắng',
+  pos: 'POS',
+  ecommerce: 'thương mại điện tử',
+  'mobile wallet': 'ví di động',
+  'in app': 'trong ứng dụng',
+  'virtual dpan': 'thẻ ảo (DPAN)',
+};
 
 /** The facts a desk wrote, as label and value, in the order the catalog lists them. */
 function factsOf(written: Partial<DerivedFacts>): TourFact[] {
@@ -203,7 +265,7 @@ const kindOf = (n: ProcessNode): StepKind => (n.type === 'EVENT_START' ? 'start'
 function wireName(graph: ProcessGraph, edge: ProcessEdge): string {
   if (edge.label) return `“${edge.label}”`;
   const target = graph.nodes.find((n) => n.id === edge.targetNodeId);
-  return target ? `the wire to “${target.label}”` : 'the wire';
+  return target ? tr({ en: `the wire to “${target.label}”`, vi: `dây tới “${labLabel(target.label)}”` }) : tr({ en: 'the wire', vi: 'dây này' });
 }
 
 /**
@@ -216,7 +278,9 @@ function describeDecision(graph: ProcessGraph, node: ProcessNode, taken: Process
   const reading = read.length > 0 ? `${read.join(', ')}.` : '';
   if (!taken) return reading;
   const name = wireName(graph, taken);
-  const middle = taken.isDefault ? `No other rule matched, so it took the default wire, ${name}.` : `The rule ${taken.conditionExpression ?? 'on this wire'} is true, so it took ${name}.`;
+  const middle = taken.isDefault
+    ? tr({ en: `No other rule matched, so it took the default wire, ${name}.`, vi: `Không quy tắc nào khác khớp, nên nó đi dây mặc định, ${name}.` })
+    : tr({ en: `The rule ${taken.conditionExpression ?? 'on this wire'} is true, so it took ${name}.`, vi: `Quy tắc ${taken.conditionExpression ?? 'trên dây này'} đúng, nên nó đi ${name}.` });
   return reading ? `${reading} ${middle}` : middle;
 }
 
@@ -246,12 +310,19 @@ function toneOfFacts(w: Partial<DerivedFacts>): StepTone {
 
 const toneOfOutcome = (o: Outcome | 'NO_OUTCOME'): StepTone => (o === 'APPROVED' ? 'good' : o === 'DECLINED' ? 'bad' : o === 'NO_OUTCOME' ? 'bad' : 'warn');
 
-const OUTCOME_WORD: Record<Outcome, string> = {
+const OUTCOME_WORD_EN: Record<Outcome, string> = {
   APPROVED: 'Approved',
   DECLINED: 'Declined',
   ROUTED_TO_SUSPENSE: 'Parked in suspense',
   CHALLENGE_REQUIRED: 'More information needed',
 };
+const OUTCOME_WORD_VI: Record<Outcome, string> = {
+  APPROVED: 'Chấp thuận',
+  DECLINED: 'Từ chối',
+  ROUTED_TO_SUSPENSE: 'Đưa vào tài khoản treo',
+  CHALLENGE_REQUIRED: 'Cần thêm thông tin',
+};
+const outcomeWord = (o: Outcome): string => (activeLocale() === 'vi' ? OUTCOME_WORD_VI[o] : OUTCOME_WORD_EN[o]);
 
 const reasonWords = (code: string | null): string => (code ? plainWords(code) : '');
 
@@ -279,8 +350,8 @@ export function buildLabTour(level: ChallengeLevel, graph: ProcessGraph, test: T
     const factsBefore: DerivedFacts = { ...facts };
     Object.assign(facts, raw.factsWritten);
 
-    let text = { title: node.label, what: '', why: '', fails: [] as string[] };
-    let happened = raw.note ?? '';
+    let text = { title: labLabel(node.label), what: '', why: '', fails: [] as string[] };
+    let happened = noteText(raw.note ?? '');
     let tone: StepTone = 'neutral';
     let outcome: Outcome | undefined;
     let reasonCode: string | null | undefined;
@@ -289,26 +360,28 @@ export function buildLabTour(level: ChallengeLevel, graph: ProcessGraph, test: T
 
     if (kind === 'start') {
       text = { ...startText(payload.a2a !== undefined) };
-      happened = payload.a2a ? `A ${formatAud(payload.amount)} payment instruction arrives as a pacs.008 message.` : `A ${formatAud(payload.amount)} payment arrives.`;
+      happened = payload.a2a
+        ? tr({ en: `A ${formatAud(payload.amount)} payment instruction arrives as a pacs.008 message.`, vi: `Một lệnh thanh toán ${formatAud(payload.amount)} đến dưới dạng thông điệp pacs.008.` })
+        : tr({ en: `A ${formatAud(payload.amount)} payment arrives.`, vi: `Một giao dịch ${formatAud(payload.amount)} đến.` });
       if (wire) message = { title: labUi().messageArrives, xml: pacs008Xml(wire) };
     } else if (kind === 'task' && node.bankingCapability) {
       text = { ...capabilityText(node.bankingCapability) };
       tone = toneOfFacts(raw.factsWritten);
-      if (raw.note?.startsWith('Raised')) tone = 'bad';
+      if (raw.note?.startsWith('Raised') || raw.note?.startsWith('Phát sinh')) tone = 'bad';
       const rail = raw.factsWritten.a2aRail;
       if (wire && node.bankingCapability === 'A2A_GATEWAY' && (rail === 'INSTANT' || rail === 'RTGS')) message = { title: labUi().messageStamped, xml: pacs008Xml(wire, rail as Rail) };
     } else if (kind === 'gateway') {
-      text = { ...gatewayText(), title: node.label ? `${node.label}` : gatewayText().title };
+      text = { ...gatewayText(), title: node.label ? labLabel(node.label) : gatewayText().title };
       const next = path[i + 1];
-      happened = node.type === 'GATEWAY_XOR' ? describeDecision(graph, node, next?.viaEdgeId ? edgeById.get(next.viaEdgeId) : undefined, factsBefore, payload) : (raw.note ?? '');
+      happened = node.type === 'GATEWAY_XOR' ? describeDecision(graph, node, next?.viaEdgeId ? edgeById.get(next.viaEdgeId) : undefined, factsBefore, payload) : noteText(raw.note ?? '');
     } else if (kind === 'end') {
       const cfg = node.configParams;
       outcome = (typeof cfg.outcome === 'string' ? cfg.outcome : undefined) as Outcome | undefined;
       reasonCode = typeof cfg.reasonCode === 'string' && cfg.reasonCode !== '' ? cfg.reasonCode : null;
-      text = { ...endText(), title: node.label };
+      text = { ...endText(), title: labLabel(node.label) };
       if (outcome) {
         tone = toneOfOutcome(outcome);
-        happened = `${OUTCOME_WORD[outcome]}${reasonCode ? ` (${reasonWords(reasonCode)})` : ''}. ${outcomeText(outcome)}`;
+        happened = `${outcomeWord(outcome)}${reasonCode ? ` (${reasonWords(reasonCode)})` : ''}. ${outcomeText(outcome)}`;
       }
     }
 
@@ -346,13 +419,16 @@ export function buildLabTour(level: ChallengeLevel, graph: ProcessGraph, test: T
   const verdict: TourVerdict = {
     outcome: result.outcome,
     reasonCode: actualReason,
-    headline: result.outcome === 'NO_OUTCOME' ? 'No outcome' : `${OUTCOME_WORD[result.outcome]}${actualReason ? `: ${reasonWords(actualReason)}` : ''}`,
+    headline: result.outcome === 'NO_OUTCOME' ? tr({ en: 'No outcome', vi: 'Không có kết quả' }) : `${outcomeWord(result.outcome)}${actualReason ? `: ${reasonWords(actualReason)}` : ''}`,
     detail:
       result.outcome === 'NO_OUTCOME'
-        ? 'The payment never reached an End event.'
+        ? tr({ en: 'The payment never reached an End event.', vi: 'Giao dịch không bao giờ tới sự kiện kết thúc.' })
         : matchesExpected
           ? outcomeText(result.outcome)
-          : `The test expects ${OUTCOME_WORD[test.expectedOutcome].toLowerCase()}${test.expectedReasonCode ? ` (${reasonWords(test.expectedReasonCode)})` : ''}, so this diagram would fail it.`,
+          : tr({
+              en: `The test expects ${outcomeWord(test.expectedOutcome).toLowerCase()}${test.expectedReasonCode ? ` (${reasonWords(test.expectedReasonCode)})` : ''}, so this diagram would fail it.`,
+              vi: `Bài kiểm tra mong đợi ${outcomeWord(test.expectedOutcome).toLowerCase()}${test.expectedReasonCode ? ` (${test.expectedReasonCode})` : ''}, nên sơ đồ này sẽ không đạt.`,
+            }),
     tone: result.outcome === 'NO_OUTCOME' ? 'bad' : matchesExpected ? toneOfOutcome(result.outcome) : 'bad',
     matchesExpected,
   };
@@ -452,10 +528,11 @@ const compareEdges = (a: ProcessEdge, b: ProcessEdge): number => {
 /** Where a wire leads, in a few plain words. */
 function destination(graph: ProcessGraph, edge: ProcessEdge): string {
   const target = graph.nodes.find((n) => n.id === edge.targetNodeId);
-  if (!target) return 'Nowhere';
-  if (target.type === 'EVENT_END') return `End: ${target.label}`;
-  if (target.type === 'TASK') return `On to ${target.label}`;
-  return `On to the next decision (${target.label})`;
+  if (!target) return tr({ en: 'Nowhere', vi: 'Không đâu cả' });
+  const name = labLabel(target.label);
+  if (target.type === 'EVENT_END') return tr({ en: `End: ${target.label}`, vi: `Kết thúc: ${name}` });
+  if (target.type === 'TASK') return tr({ en: `On to ${target.label}`, vi: `Tiếp tới ${name}` });
+  return tr({ en: `On to the next decision (${target.label})`, vi: `Tiếp tới quyết định kế tiếp (${name})` });
 }
 
 /** The variables a gateway's rules read, in the order they first appear. */
@@ -479,30 +556,30 @@ function readVariable(name: string, facts: DerivedFacts, payload: BankingPayload
 
 /** Questions the generic builder cannot ask as well as a person would. Keyed by level and gateway box. */
 const PROMPTS: Readonly<Record<string, (c: { payload: BankingPayload; facts: DerivedFacts }) => string>> = {
-  'lvl_01_virtual_card_dcvv/n_xor_dcvv': ({ facts }) => `The dCVV check says the code is ${valueText('dcvvStatus', facts.dcvvStatus)}. Does the payment go on to the ledger?`,
-  'lvl_02_three_ds_routing/n_xor_3ds': ({ payload }) => `Risk score is ${payload.riskScore}. Does the customer need to enter an OTP?`,
+  'lvl_01_virtual_card_dcvv/n_xor_dcvv': ({ facts }) => tr({ en: `The dCVV check says the code is ${valueText('dcvvStatus', facts.dcvvStatus)}. Does the payment go on to the ledger?`, vi: `Kiểm tra dCVV cho biết mã ${valueText('dcvvStatus', facts.dcvvStatus)}. Giao dịch có đi tiếp tới sổ cái không?` }),
+  'lvl_02_three_ds_routing/n_xor_3ds': ({ payload }) => tr({ en: `Risk score is ${payload.riskScore}. Does the customer need to enter an OTP?`, vi: `Điểm rủi ro là ${payload.riskScore}. Khách có cần nhập OTP không?` }),
   'lvl_03_eod_recon_suspense/n_xor_recon': ({ payload }) => {
     const s = payload.settlement;
-    const leg = (v: number | null | undefined): string => (v == null ? 'missing' : formatAud(v));
-    return `The bank’s ledger says ${leg(s?.ledgerAmount)}, the scheme says ${leg(s?.clearingAmount)} and the shop’s bank says ${leg(s?.switchAmount)}. What does the desk do?`;
+    const leg = (v: number | null | undefined): string => (v == null ? tr({ en: 'missing', vi: 'thiếu' }) : formatAud(v));
+    return tr({ en: `The bank’s ledger says ${leg(s?.ledgerAmount)}, the scheme says ${leg(s?.clearingAmount)} and the shop’s bank says ${leg(s?.switchAmount)}. What does the desk do?`, vi: `Sổ cái ngân hàng ghi ${leg(s?.ledgerAmount)}, tổ chức thẻ ghi ${leg(s?.clearingAmount)} và ngân hàng của cửa hàng ghi ${leg(s?.switchAmount)}. Quầy sẽ làm gì?` });
   },
   'lvl_04_bnpl_pay_in_4/n_xor_plan': ({ payload }) => {
     const b = payload.bnpl;
-    return `The customer’s score is ${b?.underwritingScore ?? '—'} and they put ${b ? formatAud(b.downPaymentMinor) : '—'} down. Is the plan approved?`;
+    return tr({ en: `The customer’s score is ${b?.underwritingScore ?? '—'} and they put ${b ? formatAud(b.downPaymentMinor) : '—'} down. Is the plan approved?`, vi: `Điểm của khách là ${b?.underwritingScore ?? '—'} và họ trả trước ${b ? formatAud(b.downPaymentMinor) : '—'}. Kế hoạch có được duyệt không?` });
   },
-  'lvl_06_card_testing/n_xor_burst': ({ payload }) => `This is attempt ${payload.recentAttempts ?? 1} on the card in ten minutes, for ${formatAud(payload.amount)}. Is it a bot testing stolen cards?`,
-  'lvl_06_card_testing/n_xor_route': ({ payload, facts }) => `The 3DS desk chose “${valueText('threeDsPath', facts.threeDsPath)}” for a ${formatAud(payload.amount)} payment. Where does it go?`,
-  'lvl_07_a2a_iso20022/n_xor_checks': ({ facts }) => `The gateway says: message valid ${valueText('a2aValid', facts.a2aValid)}, liquidity ${valueText('a2aLiquidity', facts.a2aLiquidity)}, queue ${valueText('a2aQueue', facts.a2aQueue)}, priority ${valueText('a2aPriority', facts.a2aPriority)}. Can the payment go?`,
-  'lvl_07_a2a_iso20022/n_xor_rail': ({ payload, facts }) => `The payment is ${formatAud(payload.amount)} and the gateway picked the ${valueText('a2aRail', facts.a2aRail)} rail. Which end does it reach?`,
-  'lvl_08_fx_breaks/n_xor_status': ({ facts }) => `Reconciliation says ${valueText('reconStatus', facts.reconStatus)}. Is the payment settled?`,
-  'lvl_08_fx_breaks/n_xor_cause': ({ facts }) => `The amounts disagree. The desk says the cause is ${valueText('reconCause', facts.reconCause)}${facts.fxDirection ? ` and the difference is an FX ${valueText('fxDirection', facts.fxDirection)}` : ''}. Where is the gap parked?`,
-  'lvl_09_sanctions_storm/n_xor_hit': ({ facts }) => `The best name match scored ${valueText('amlMatchScore', facts.amlMatchScore)} against the ${valueText('amlList', facts.amlList)} list${facts.amlStructuring ? ', and the deposits look like structuring' : ''}. Does this payment need an investigation?`,
-  'lvl_09_sanctions_storm/n_xor_verdict': ({ facts }) => `The investigator found ${facts.caseEvidenceCount ?? 0} verified identity item${facts.caseEvidenceCount === 1 ? '' : 's'} and the verdict is ${valueText('caseVerdict', facts.caseVerdict)}. What does the bank do?`,
-  'lvl_10_chargeback_warfare/n_xor_gate': ({ facts }) => `The claim window is ${valueText('disputeWindow', facts.disputeWindow)} and the loss falls on the ${valueText('disputeLiability', facts.disputeLiability)}. Can the dispute go ahead?`,
-  'lvl_10_chargeback_warfare/n_xor_stage': ({ facts }) => `The dispute moves to ${valueText('disputeNext', facts.disputeNext)}. Where does the diagram send it?`,
+  'lvl_06_card_testing/n_xor_burst': ({ payload }) => tr({ en: `This is attempt ${payload.recentAttempts ?? 1} on the card in ten minutes, for ${formatAud(payload.amount)}. Is it a bot testing stolen cards?`, vi: `Đây là lần thử thứ ${payload.recentAttempts ?? 1} trên thẻ trong mười phút, với ${formatAud(payload.amount)}. Đây có phải bot đang dò thẻ bị đánh cắp không?` }),
+  'lvl_06_card_testing/n_xor_route': ({ payload, facts }) => tr({ en: `The 3DS desk chose “${valueText('threeDsPath', facts.threeDsPath)}” for a ${formatAud(payload.amount)} payment. Where does it go?`, vi: `Quầy 3DS chọn “${valueText('threeDsPath', facts.threeDsPath)}” cho giao dịch ${formatAud(payload.amount)}. Nó đi đâu?` }),
+  'lvl_07_a2a_iso20022/n_xor_checks': ({ facts }) => tr({ en: `The gateway says: message valid ${valueText('a2aValid', facts.a2aValid)}, liquidity ${valueText('a2aLiquidity', facts.a2aLiquidity)}, queue ${valueText('a2aQueue', facts.a2aQueue)}, priority ${valueText('a2aPriority', facts.a2aPriority)}. Can the payment go?`, vi: `Cổng cho biết: thông điệp hợp lệ ${valueText('a2aValid', facts.a2aValid)}, thanh khoản ${valueText('a2aLiquidity', facts.a2aLiquidity)}, hàng chờ ${valueText('a2aQueue', facts.a2aQueue)}, ưu tiên ${valueText('a2aPriority', facts.a2aPriority)}. Giao dịch có đi được không?` }),
+  'lvl_07_a2a_iso20022/n_xor_rail': ({ payload, facts }) => tr({ en: `The payment is ${formatAud(payload.amount)} and the gateway picked the ${valueText('a2aRail', facts.a2aRail)} rail. Which end does it reach?`, vi: `Giao dịch là ${formatAud(payload.amount)} và cổng chọn kênh ${valueText('a2aRail', facts.a2aRail)}. Nó tới sự kiện kết thúc nào?` }),
+  'lvl_08_fx_breaks/n_xor_status': ({ facts }) => tr({ en: `Reconciliation says ${valueText('reconStatus', facts.reconStatus)}. Is the payment settled?`, vi: `Đối soát cho biết ${valueText('reconStatus', facts.reconStatus)}. Giao dịch có được quyết toán không?` }),
+  'lvl_08_fx_breaks/n_xor_cause': ({ facts }) => tr({ en: `The amounts disagree. The desk says the cause is ${valueText('reconCause', facts.reconCause)}${facts.fxDirection ? ` and the difference is an FX ${valueText('fxDirection', facts.fxDirection)}` : ''}. Where is the gap parked?`, vi: `Các số tiền không khớp. Quầy cho biết nguyên nhân là ${valueText('reconCause', facts.reconCause)}${facts.fxDirection ? ` và khoản chênh là ${valueText('fxDirection', facts.fxDirection)} tỷ giá` : ''}. Khoản chênh được treo ở đâu?` }),
+  'lvl_09_sanctions_storm/n_xor_hit': ({ facts }) => tr({ en: `The best name match scored ${valueText('amlMatchScore', facts.amlMatchScore)} against the ${valueText('amlList', facts.amlList)} list${facts.amlStructuring ? ', and the deposits look like structuring' : ''}. Does this payment need an investigation?`, vi: `Lần trùng tên tốt nhất đạt ${valueText('amlMatchScore', facts.amlMatchScore)} so với danh sách ${valueText('amlList', facts.amlList)}${facts.amlStructuring ? ', và các lần nộp trông như chia nhỏ giao dịch' : ''}. Giao dịch này có cần điều tra không?` }),
+  'lvl_09_sanctions_storm/n_xor_verdict': ({ facts }) => tr({ en: `The investigator found ${facts.caseEvidenceCount ?? 0} verified identity item${facts.caseEvidenceCount === 1 ? '' : 's'} and the verdict is ${valueText('caseVerdict', facts.caseVerdict)}. What does the bank do?`, vi: `Điều tra viên tìm thấy ${facts.caseEvidenceCount ?? 0} mục danh tính đã xác minh và kết luận là ${valueText('caseVerdict', facts.caseVerdict)}. Ngân hàng làm gì?` }),
+  'lvl_10_chargeback_warfare/n_xor_gate': ({ facts }) => tr({ en: `The claim window is ${valueText('disputeWindow', facts.disputeWindow)} and the loss falls on the ${valueText('disputeLiability', facts.disputeLiability)}. Can the dispute go ahead?`, vi: `Thời hạn khiếu nại đang ${valueText('disputeWindow', facts.disputeWindow)} và tổn thất thuộc về ${valueText('disputeLiability', facts.disputeLiability)}. Khiếu nại có tiếp tục được không?` }),
+  'lvl_10_chargeback_warfare/n_xor_stage': ({ facts }) => tr({ en: `The dispute moves to ${valueText('disputeNext', facts.disputeNext)}. Where does the diagram send it?`, vi: `Khiếu nại chuyển sang ${valueText('disputeNext', facts.disputeNext)}. Sơ đồ gửi nó tới đâu?` }),
 };
 
-const FUNDS_PROMPT = ({ payload }: { payload: BankingPayload }): string => `The payment is ${formatAud(payload.amount)} and the customer can spend ${formatAud(payload.availableBalance)}. Does the bank approve it?`;
+const FUNDS_PROMPT = ({ payload }: { payload: BankingPayload }): string => tr({ en: `The payment is ${formatAud(payload.amount)} and the customer can spend ${formatAud(payload.availableBalance)}. Does the bank approve it?`, vi: `Giao dịch là ${formatAud(payload.amount)} và khách có thể chi ${formatAud(payload.availableBalance)}. Ngân hàng có chấp thuận không?` });
 for (const key of ['lvl_01_virtual_card_dcvv/n_xor_ledger', 'lvl_02_three_ds_routing/n_xor_ledger', 'lvl_05_first_swipes/n_xor_funds', 'lvl_06_card_testing/n_xor_funds']) {
   (PROMPTS as Record<string, (c: { payload: BankingPayload; facts: DerivedFacts }) => string>)[key] = FUNDS_PROMPT;
 }
@@ -525,7 +602,7 @@ export function quizFor(tour: LabTour, index: number): LabQuiz | null {
   const options = out.map((e, i) => {
     const text = base[i] ?? '';
     if (base.filter((b) => b === text).length === 1) return text;
-    return e.label ? `${text} (${e.label})` : `${text} (${e.isDefault ? 'otherwise' : e.conditionExpression ?? 'this rule'})`;
+    return e.label ? `${text} (${e.label})` : `${text} (${e.isDefault ? tr({ en: 'otherwise', vi: 'trường hợp khác' }) : e.conditionExpression ?? tr({ en: 'this rule', vi: 'quy tắc này' })})`;
   });
 
   const bespoke = PROMPTS[`${tour.levelId}/${node.id}`];
@@ -536,7 +613,10 @@ export function quizFor(tour: LabTour, index: number): LabQuiz | null {
 
 function genericPrompt(label: string, names: string[], facts: DerivedFacts, payload: BankingPayload): string {
   const known = names.map((n) => `${factLabel(n)}: ${valueText(n, readVariable(n, facts, payload))}`);
-  return known.length > 0 ? `${known.join(', ')}. Which way does “${label}” send the payment?` : `Which way does “${label}” send this payment?`;
+  const name = labLabel(label);
+  return known.length > 0
+    ? tr({ en: `${known.join(', ')}. Which way does “${label}” send the payment?`, vi: `${known.join(', ')}. “${name}” gửi giao dịch đi hướng nào?` })
+    : tr({ en: `Which way does “${label}” send this payment?`, vi: `“${name}” gửi giao dịch này đi hướng nào?` });
 }
 
 /** Every question a tour asks, in order. */

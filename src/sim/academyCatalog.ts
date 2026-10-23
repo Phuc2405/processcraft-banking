@@ -12,6 +12,8 @@
 import type { FlowId } from '../types/viewport';
 import { flowPlaces, GUIDED_FLOWS, type FlowNodeId, type FlowStep } from './guidedFlows';
 import { lessonContentFor, type LessonContent } from './academyLessons';
+import { activeLocale, type Locale } from '../i18n/locale';
+import { CHAPTER_TEXT_VI, LESSON_CONTENT_VI, LEVEL_TEXT_VI, TRACK_TEXT_VI } from '../i18n/academyVi';
 import type { PlaceId } from './topology';
 
 export type { EdgeCase, FlowStepLine, LessonContent } from './academyLessons';
@@ -188,4 +190,39 @@ export function chapterStatus(c: AcademyChapter, completed: Readonly<Record<stri
   const done = c.levels.filter((l) => completed[l.id]).length;
   if (done === c.levels.length) return 'completed';
   return done > 0 || c.levels.some((l) => started[l.id]) ? 'in-progress' : 'not-started';
+}
+
+const CHAPTER_STATUS_BADGE_VI: Record<ChapterStatus, string> = {
+  'not-started': '[Chưa bắt đầu]',
+  'in-progress': '[Đang học]',
+  completed: '[Hoàn thành ✓]',
+};
+
+/** The status badge in the active language. */
+export const chapterStatusBadge = (status: ChapterStatus, locale: Locale = activeLocale()): string => (locale === 'vi' ? CHAPTER_STATUS_BADGE_VI : CHAPTER_STATUS_BADGE)[status];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Language
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A level with its title, goal and four-section lesson in the active language. Ids, flow, node and place never change. */
+export function localLevel(level: AcademyLevel, locale: Locale = activeLocale()): AcademyLevel {
+  if (locale === 'en') return level;
+  const text = LEVEL_TEXT_VI[level.id];
+  const lesson = LESSON_CONTENT_VI[level.id];
+  return { ...level, ...(text ?? {}), ...(lesson ?? {}) };
+}
+
+/** A chapter with its title, topic and levels in the active language. */
+export function localChapter(c: AcademyChapter, locale: Locale = activeLocale()): AcademyChapter {
+  if (locale === 'en') return c;
+  const text = CHAPTER_TEXT_VI[c.id];
+  return { ...c, ...(text ?? {}), levels: c.levels.map((l) => localLevel(l, locale)) };
+}
+
+/** A knowledge track with its title and blurb in the active language. */
+export function localTrack(t: AcademyTrack, locale: Locale = activeLocale()): AcademyTrack {
+  if (locale === 'en') return t;
+  const text = TRACK_TEXT_VI[t.id];
+  return { ...t, ...(text ?? {}) };
 }

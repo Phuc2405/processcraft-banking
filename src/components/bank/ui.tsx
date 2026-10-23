@@ -3,6 +3,8 @@
  * a sparkline, and the words for things.
  */
 
+import { t } from '../../i18n/t';
+import { activeLocale } from '../../i18n/locale';
 import type { ReactNode } from 'react';
 import type { TokenLook } from '../../store/liveSimulation';
 import type { CardType } from '../../types/processLearning';
@@ -14,6 +16,12 @@ import { TokenGlyph } from '../canvas/tokens/TokenGlyph';
 // ─────────────────────────────────────────────────────────────────────────────
 // Words
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** The label of a kind of payment in the active language. */
+export const kindLabel = (kind: PacketKind): string => t(KIND_LABEL[kind]);
+
+/** The label of a desk status in the active language. */
+export const statusLabel = (s: StationStatus): string => t(STATUS_LABEL[s]);
 
 export const KIND_LABEL: Record<PacketKind, string> = {
   VIRTUAL: 'Virtual card',
@@ -89,7 +97,10 @@ export function PacketGlyph({ kind, cardType, width = 26 }: { kind: PacketKind; 
 
 export const clock = formatClock;
 
-export const waitText = (minutes: number): string => (minutes < 1 ? '<1 min' : minutes < 60 ? `${Math.round(minutes)} min` : `${(minutes / 60).toFixed(1)} h`);
+export const waitText = (minutes: number): string => {
+  const vi = activeLocale() === 'vi';
+  return minutes < 1 ? (vi ? '<1 phút' : '<1 min') : minutes < 60 ? `${Math.round(minutes)} ${vi ? 'phút' : 'min'}` : `${(minutes / 60).toFixed(1)} ${vi ? 'giờ' : 'h'}`;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fatigue
@@ -104,16 +115,16 @@ export interface FatigueLook {
 
 /** 0 fresh, 100 spent. The bank starts to feel it above 60 (slips and redoes), and is in trouble above 85. */
 export function fatigueLook(fatigue: number): FatigueLook {
-  if (fatigue >= 85) return { label: 'Exhausted', hex: '#fb7185', text: 'text-rose-300', bar: 'bg-rose-500' };
-  if (fatigue >= 60) return { label: 'Tired', hex: '#fb923c', text: 'text-orange-300', bar: 'bg-orange-400' };
-  if (fatigue >= 35) return { label: 'Warming up', hex: '#fbbf24', text: 'text-amber-300', bar: 'bg-amber-400' };
-  return { label: 'Fresh', hex: '#34d399', text: 'text-emerald-300', bar: 'bg-emerald-400' };
+  if (fatigue >= 85) return { label: t('Exhausted'), hex: '#fb7185', text: 'text-rose-300', bar: 'bg-rose-500' };
+  if (fatigue >= 60) return { label: t('Tired'), hex: '#fb923c', text: 'text-orange-300', bar: 'bg-orange-400' };
+  if (fatigue >= 35) return { label: t('Warming up'), hex: '#fbbf24', text: 'text-amber-300', bar: 'bg-amber-400' };
+  return { label: t('Fresh'), hex: '#34d399', text: 'text-emerald-300', bar: 'bg-emerald-400' };
 }
 
 export function FatigueBar({ fatigue, className = '' }: { fatigue: number; className?: string }) {
   const look = fatigueLook(fatigue);
   return (
-    <div className={`relative h-1.5 overflow-hidden rounded-full bg-slate-800 ${className}`} role="meter" aria-label="Fatigue" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(fatigue)}>
+    <div className={`relative h-1.5 overflow-hidden rounded-full bg-slate-800 ${className}`} role="meter" aria-label={t('Fatigue')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(fatigue)}>
       <div className={`h-full rounded-full transition-[width] duration-500 ${look.bar}`} style={{ width: `${Math.max(2, Math.min(100, fatigue))}%` }} />
       {/* where the slips begin */}
       <div className="absolute inset-y-0 w-px bg-slate-950/70" style={{ left: '60%' }} />

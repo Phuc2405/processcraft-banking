@@ -1,4 +1,6 @@
 import type { CSSProperties } from 'react';
+import { noteText } from '../../../i18n/notesVi';
+import { tr } from '../../../i18n/locale';
 import type { DroppedMarker, NodeAlarm, NodeRuntime } from '../../../store/liveSimulation';
 import { TokenGlyph } from '../tokens/TokenGlyph';
 
@@ -107,8 +109,8 @@ export function CongestionBadges({ runtime, className = '' }: { runtime: NodeRun
   return (
     <div
       role="status"
-      aria-label={`Congested: ${runtime.load} transactions are in line at a desk that handles ${capacity} at a time`}
-      title={`${runtime.load} transactions in line. This desk handles ${capacity} at a time.`}
+      aria-label={tr({ en: `Congested: ${runtime.load} transactions are in line at a desk that handles ${capacity} at a time`, vi: `Nghẽn: ${runtime.load} giao dịch đang xếp hàng ở quầy chỉ xử lý ${capacity} cùng lúc` })}
+      title={tr({ en: `${runtime.load} transactions in line. This desk handles ${capacity} at a time.`, vi: `${runtime.load} giao dịch đang xếp hàng. Quầy này xử lý ${capacity} cùng lúc.` })}
       data-testid="congestion"
       className={`pointer-events-none absolute z-20 flex items-center ${className}`}
     >
@@ -137,7 +139,9 @@ export function CongestionBadges({ runtime, className = '' }: { runtime: NodeRun
 /** Ice over the whole desk, and a badge that says what it is waiting for. */
 export function FrostOverlay({ shape, runtime, className = '' }: { shape: NodeShape; runtime: NodeRuntime; className?: string }) {
   const join = runtime.joinWaiting;
-  const text = join ? `Deadlock: ${join.arrived} of ${join.expected} branches arrived` : 'Deadlock';
+  const text = join
+    ? tr({ en: `Deadlock: ${join.arrived} of ${join.expected} branches arrived`, vi: `Bế tắc: ${join.arrived}/${join.expected} nhánh đã tới` })
+    : tr({ en: 'Deadlock', vi: 'Bế tắc' });
   return (
     <>
       <div
@@ -152,7 +156,7 @@ export function FrostOverlay({ shape, runtime, className = '' }: { shape: NodeSh
       <div
         role="status"
         data-testid="frost-badge"
-        title={runtime.note ?? text}
+        title={runtime.note ? noteText(runtime.note) : text}
         className={`pc-pop pointer-events-none absolute z-20 flex items-center gap-1 whitespace-nowrap rounded-full border border-sky-200/80 bg-sky-950/95 px-2 py-0.5 text-[10.5px] font-semibold text-sky-100 shadow-[0_0_16px_rgba(125,211,252,0.55)] ${className}`}
       >
         <Snowflake size={12} />
@@ -262,7 +266,7 @@ export function DroppedToken({ marker, anchorClass = '-top-8 left-3', crossClass
         className={`pc-cross absolute grid h-6 w-6 place-items-center rounded-full bg-red-600 text-white shadow-[0_0_14px_rgba(239,68,68,0.8)] ring-2 ring-slate-950 ${crossClass}`}
         title={`Dropped: ${marker.reason}`}
         role="img"
-        aria-label={`Transaction dropped here: ${marker.reason}`}
+        aria-label={tr({ en: `Transaction dropped here: ${marker.reason}`, vi: `Giao dịch bị rơi ở đây: ${marker.reason}` })}
       >
         <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
           <path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />

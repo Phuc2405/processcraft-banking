@@ -39,6 +39,8 @@
  */
 
 import { CONDITION_VARIABLES, NODE_CATALOG } from '../data/seedChallenges';
+import { labLabel as L } from '../i18n/labText';
+import { tr } from '../i18n/locale';
 import type {
   BankingCapability,
   ConditionVariable,
@@ -298,7 +300,7 @@ export class ProcessRunner {
   private spawnRoot(): void {
     const start = this.graph.nodes.find((n) => this.kindOf(n).type === 'EVENT_START');
     if (!start) {
-      this.addAnomaly('MISSING_START_EVENT', 'The diagram has no Start event, so nothing can run.');
+      this.addAnomaly('MISSING_START_EVENT', tr({ en: 'The diagram has no Start event, so nothing can run.', vi: 'Sơ đồ không có sự kiện Bắt đầu, nên không gì chạy được.' }));
       this.finalize();
       return;
     }
@@ -425,8 +427,8 @@ export class ProcessRunner {
     const node = token.currentNodeId !== null ? this.nodes.get(token.currentNodeId) : undefined;
     if (!node) {
       const where = token.currentNodeId ?? '(unknown)';
-      this.fault(token, 'DEADLOCKED', 'DEAD_END', where, `The token is on '${where}', which is not in the diagram.`);
-      this.addAnomaly('DEAD_END', `The token is on '${where}', which is not in the diagram.`);
+      this.fault(token, 'DEADLOCKED', 'DEAD_END', where, tr({ en: `The token is on '${where}', which is not in the diagram.`, vi: `Token đang ở '${where}', không có trong sơ đồ.` }));
+      this.addAnomaly('DEAD_END', tr({ en: `The token is on '${where}', which is not in the diagram.`, vi: `Token đang ở '${where}', không có trong sơ đồ.` }));
       return null;
     }
 
@@ -495,7 +497,7 @@ export class ProcessRunner {
   private advance(token: SimulationToken, node: ProcessNode, isAnd: boolean): void {
     const edges = this.flowEdges(node);
     if (edges.length === 0) {
-      this.deadEnd(token, node, `'${node.label}' has no outgoing edge, so the transaction stops there.`);
+      this.deadEnd(token, node, tr({ en: `'${node.label}' has no outgoing edge, so the transaction stops there.`, vi: `'${L(node.label)}' không có cạnh ra, nên giao dịch dừng ở đó.` }));
     } else if (edges.length === 1 || !isAnd) {
       this.move(token, edges[0]!, 'FLOW');
     } else {
@@ -505,7 +507,7 @@ export class ProcessRunner {
 
   private fork(token: SimulationToken, node: ProcessNode, edges: ProcessEdge[]): void {
     if (this.allTokens.length + edges.length > this.cfg.maxTokensPerTest) {
-      const message = `'${node.label}' keeps splitting the transaction: more than ${this.cfg.maxTokensPerTest} parallel tokens.`;
+      const message = tr({ en: `'${node.label}' keeps splitting the transaction: more than ${this.cfg.maxTokensPerTest} parallel tokens.`, vi: `'${L(node.label)}' liên tục tách giao dịch: hơn ${this.cfg.maxTokensPerTest} token song song.` });
       this.fault(token, 'EXCEPTION', 'STEP_LIMIT_EXCEEDED', node.id, message);
       this.addAnomaly('INFINITE_LOOP', message, { nodeId: node.id });
       return;
@@ -532,7 +534,7 @@ export class ProcessRunner {
   private runTask(token: SimulationToken, node: ProcessNode, kind: NodeKind, step: ExecutionStep): void {
     const handler = kind.capability ? CAPABILITY_HANDLERS[kind.capability] : undefined;
     if (!handler) {
-      const message = `'${node.label}' is a task with no banking capability, so it has nothing to run.`;
+      const message = tr({ en: `'${node.label}' is a task with no banking capability, so it has nothing to run.`, vi: `'${L(node.label)}' là một tác vụ không có năng lực ngân hàng, nên không có gì để chạy.` });
       step.note = message;
       this.log(token, step);
       this.fault(token, 'EXCEPTION', 'INVALID_CONFIG', node.id, message);
@@ -551,14 +553,14 @@ export class ProcessRunner {
     if (!result.ok) {
       const handledBy = this.errorEdge(node);
       step.note = handledBy
-        ? `Raised ${result.code}: ${result.message}. Handled by the error port.`
-        : `Raised ${result.code}: ${result.message}. Nothing is connected to the error port.`;
+        ? tr({ en: `Raised ${result.code}: ${result.message}. Handled by the error port.`, vi: `Phát sinh ${result.code}: ${result.message}. Được xử lý qua cổng lỗi.` })
+        : tr({ en: `Raised ${result.code}: ${result.message}. Nothing is connected to the error port.`, vi: `Phát sinh ${result.code}: ${result.message}. Không có gì nối vào cổng lỗi.` });
       this.log(token, step);
       if (handledBy) {
         this.move(token, handledBy, 'ERROR_PORT');
       } else {
-        this.fault(token, 'EXCEPTION', result.code, node.id, `${node.label}: ${result.message}`);
-        this.addAnomaly('UNHANDLED_EXCEPTION', `${node.label}: ${result.message} (${result.code}), and its error port is not connected.`, {
+        this.fault(token, 'EXCEPTION', result.code, node.id, `${L(node.label)}: ${result.message}`);
+        this.addAnomaly('UNHANDLED_EXCEPTION', tr({ en: `${node.label}: ${result.message} (${result.code}), and its error port is not connected.`, vi: `${L(node.label)}: ${result.message} (${result.code}), và cổng lỗi của nó chưa được nối.` }), {
           nodeId: node.id,
         });
       }
@@ -602,7 +604,7 @@ export class ProcessRunner {
     const edges = this.flowEdges(node);
     if (edges.length === 0) {
       this.log(token, step);
-      this.deadEnd(token, node, `The decision '${node.label}' has no outgoing edges, so the transaction stops there.`);
+      this.deadEnd(token, node, tr({ en: `The decision '${node.label}' has no outgoing edges, so the transaction stops there.`, vi: `Quyết định '${L(node.label)}' không có cạnh ra, nên giao dịch dừng ở đó.` }));
       return;
     }
 
@@ -611,7 +613,7 @@ export class ProcessRunner {
       if (edge.conditionExpression === undefined) continue;
       const compiled = this.compile(edge);
       if (!compiled.ok) {
-        const message = `Condition on edge ${edge.id} out of '${node.label}' is not valid: ${compiled.error}`;
+        const message = tr({ en: `Condition on edge ${edge.id} out of '${node.label}' is not valid: ${compiled.error}`, vi: `Điều kiện trên cạnh ${edge.id} rời '${L(node.label)}' không hợp lệ: ${compiled.error}` });
         step.note = message;
         this.log(token, step);
         this.fault(token, 'EXCEPTION', 'INVALID_EXPRESSION', node.id, message);
@@ -650,7 +652,7 @@ export class ProcessRunner {
       }
     } catch (e) {
       if (!(e instanceof ExpressionError)) throw e;
-      const message = `A condition out of '${node.label}' could not be evaluated: ${e.message}`;
+      const message = tr({ en: `A condition out of '${node.label}' could not be evaluated: ${e.message}`, vi: `Một điều kiện rời '${L(node.label)}' không đánh giá được: ${e.message}` });
       step.note = message;
       this.log(token, step);
       this.fault(token, 'EXCEPTION', 'INVALID_EXPRESSION', node.id, message);
@@ -664,7 +666,7 @@ export class ProcessRunner {
     }
     const facts = seen.length ? `${seen.join(', ')}. ` : '';
     if (!chosen) {
-      const message = `No branch out of '${node.label}' matched and it has no default edge.`;
+      const message = tr({ en: `No branch out of '${node.label}' matched and it has no default edge.`, vi: `Không nhánh nào rời '${L(node.label)}' khớp và nó không có cạnh mặc định.` });
       step.note = `${facts}${message}`;
       this.log(token, step);
       this.fault(token, 'EXCEPTION', 'NO_MATCHING_BRANCH', node.id, message);
@@ -674,10 +676,10 @@ export class ProcessRunner {
 
     step.note =
       reason === 'DEFAULT'
-        ? `${facts}No condition matched, so it took the default edge ${chosen.id}.`
+        ? `${facts}${tr({ en: `No condition matched, so it took the default edge ${chosen.id}.`, vi: `Không điều kiện nào khớp, nên đi cạnh mặc định ${chosen.id}.` })}`
         : chosen.conditionExpression !== undefined
-          ? `${facts}Took ${chosen.id} because ${chosen.conditionExpression}.`
-          : `${facts}Took ${chosen.id} (no condition).`;
+          ? `${facts}${tr({ en: `Took ${chosen.id} because ${chosen.conditionExpression}.`, vi: `Đi ${chosen.id} vì ${chosen.conditionExpression}.` })}`
+          : `${facts}${tr({ en: `Took ${chosen.id} (no condition).`, vi: `Đi ${chosen.id} (không điều kiện).` })}`;
     this.log(token, step);
     this.move(token, chosen, reason);
   }
@@ -685,7 +687,7 @@ export class ProcessRunner {
   private runAnd(token: SimulationToken, node: ProcessNode, step: ExecutionStep): void {
     const incoming = this.inEdges.get(node.id) ?? [];
     if (incoming.length < 2) {
-      if (this.flowEdges(node).length > 1) step.note = 'Fork: every outgoing branch starts now.';
+      if (this.flowEdges(node).length > 1) step.note = tr({ en: 'Fork: every outgoing branch starts now.', vi: 'Tách: mọi nhánh ra bắt đầu ngay.' });
       this.log(token, step);
       this.advance(token, node, true);
       return;
@@ -699,7 +701,7 @@ export class ProcessRunner {
     token.state = 'WAITING_JOIN';
 
     const arrived = incoming.filter((e) => (byEdge.get(e.id)?.length ?? 0) > 0).length;
-    step.note = `Join: ${arrived} of ${incoming.length} incoming branches have arrived.`;
+    step.note = tr({ en: `Join: ${arrived} of ${incoming.length} incoming branches have arrived.`, vi: `Gộp: ${arrived}/${incoming.length} nhánh vào đã tới.` });
     this.log(token, step);
     this.emit({ type: 'JOIN_WAITING', tokenId: token.id, nodeId: node.id, arrived, expected: incoming.length });
     if (arrived < incoming.length) return;
@@ -721,7 +723,7 @@ export class ProcessRunner {
       enteredAtMs: elapsedMs,
       durationMs: 0,
       factsWritten: {},
-      note: `Joined ${sources.length} branches. Waited for the slowest, at ${elapsedMs} ms.`,
+      note: tr({ en: `Joined ${sources.length} branches. Waited for the slowest, at ${elapsedMs} ms.`, vi: `Đã gộp ${sources.length} nhánh. Đã chờ nhánh chậm nhất, ở ${elapsedMs} ms.` }),
     });
     for (const t of sources) t.state = 'COMPLETED'; // retired into the merged token
     this.emit({ type: 'JOIN_RELEASED', nodeId: node.id, mergedTokenId: merged.id, sourceTokenIds: sources.map((t) => t.id), elapsedMs });
@@ -732,7 +734,7 @@ export class ProcessRunner {
   private runEnd(token: SimulationToken, node: ProcessNode, kind: NodeKind, step: ExecutionStep): void {
     const outcome = kind.config.outcome;
     if (typeof outcome !== 'string' || !OUTCOMES.includes(outcome as Outcome)) {
-      const message = `The end event '${node.label}' has no valid outcome (got ${JSON.stringify(outcome)}).`;
+      const message = tr({ en: `The end event '${node.label}' has no valid outcome (got ${JSON.stringify(outcome)}).`, vi: `Sự kiện kết thúc '${L(node.label)}' không có kết quả hợp lệ (nhận ${JSON.stringify(outcome)}).` });
       step.note = message;
       this.log(token, step);
       this.fault(token, 'EXCEPTION', 'INVALID_CONFIG', node.id, message);
@@ -743,7 +745,9 @@ export class ProcessRunner {
     token.state = 'COMPLETED';
     token.finalOutcome = outcome as Outcome;
     token.finalReasonCode = reason;
-    step.note = reason ? `Ended with ${outcome} (reason code ${reason}).` : `Ended with ${outcome}.`;
+    step.note = reason
+      ? tr({ en: `Ended with ${outcome} (reason code ${reason}).`, vi: `Kết thúc với ${outcome} (mã lý do ${reason}).` })
+      : tr({ en: `Ended with ${outcome}.`, vi: `Kết thúc với ${outcome}.` });
     this.log(token, step);
     this.emit({ type: 'TOKEN_COMPLETED', tokenId: token.id, nodeId: node.id, outcome: outcome as Outcome, reasonCode: reason });
   }
@@ -759,9 +763,10 @@ export class ProcessRunner {
       const incoming = this.inEdges.get(nodeId) ?? [];
       const missing = incoming.filter((e) => (byEdge.get(e.id)?.length ?? 0) === 0);
       const from = missing.map((e) => `'${this.labelOf(e.sourceNodeId)}' (edge ${e.id})`).join(' and ');
-      const message =
-        `The parallel join '${this.labelOf(nodeId)}' is waiting for a branch from ${from}, and it never arrives. ` +
-        `An AND join needs a token on every incoming edge.`;
+      const message = tr({
+        en: `The parallel join '${this.labelOf(nodeId)}' is waiting for a branch from ${from}, and it never arrives. An AND join needs a token on every incoming edge.`,
+        vi: `Điểm gộp song song '${L(this.labelOf(nodeId))}' đang chờ một nhánh từ ${from}, và nó không bao giờ tới. Điểm gộp AND cần một token trên mọi cạnh vào.`,
+      });
       for (const t of stuck) this.fault(t, 'DEADLOCKED', 'DEAD_END', nodeId, message);
       this.addAnomaly('DEADLOCK', message, { nodeId });
     }
@@ -779,9 +784,9 @@ export class ProcessRunner {
         topId = id;
       }
     }
-    return (
-      `The transaction kept circling: it ran over ${token.executionPathHistory.length} steps without finishing, ` +
-      `visiting '${this.labelOf(topId)}' ${top} times.`
-    );
+    return tr({
+      en: `The transaction kept circling: it ran over ${token.executionPathHistory.length} steps without finishing, visiting '${this.labelOf(topId)}' ${top} times.`,
+      vi: `Giao dịch cứ chạy vòng: nó chạy hơn ${token.executionPathHistory.length} bước mà không kết thúc, ghé '${L(this.labelOf(topId))}' ${top} lần.`,
+    });
   }
 }

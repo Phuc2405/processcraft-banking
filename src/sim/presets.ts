@@ -9,6 +9,7 @@ import type { FlowId } from '../types/viewport';
 import type { BankRules } from './rules';
 import type { CheckoutKind, Customer } from './types';
 import { scenarioById } from './scenarios';
+import { activeLocale } from '../i18n/locale';
 
 export type PresetVariant = 'success' | 'danger' | 'primary' | 'warning';
 
@@ -96,4 +97,18 @@ export function presetCustomer(id: PresetId, rules: BankRules): Customer | null 
     case 'eod':
       return null;
   }
+}
+
+const PRESET_VI: Readonly<Record<PresetId, { label: string; hint: string }>> = {
+  'pos-20': { label: 'Quẹt $20 (Chấp thuận 00)', hint: 'Thẻ ghi nợ, tài khoản dư dả: xem khoản khoanh giữ tại CASA và RC 00 trả về.' },
+  'pos-500': { label: 'Quẹt $500 (Từ chối 51 không đủ số dư)', hint: 'Tài khoản có $120: kiểm tra số dư thất bại và máy POS nhận RC 51, không đủ số dư.' },
+  'token-45': { label: 'Thanh toán bằng token ($45)', hint: 'Số thẻ ảo kèm CVV động còn mới: kho token đổi số, mã hợp lệ, giao dịch được duyệt.' },
+  'otp-250': { label: 'Thử thách OTP 3DS ($250)', hint: 'Điểm rủi ro nằm trong dải thử thách: khách nhận mã qua tin nhắn, nhập mã, và giao dịch được duyệt.' },
+  'cdm-200': { label: 'Nộp $200 tiền mặt', hint: 'Thẻ và PIN tại máy, $200 tiền giấy được đếm, và tài khoản được ghi có ngay tại chỗ.' },
+  eod: { label: 'Chạy cuối ngày qua đêm', hint: 'Chạy đồng hồ tới 23:00 và phát chu kỳ ban đêm: bù trừ theo lô, quyết toán Visa, đối soát 3 bên.' },
+};
+
+/** A preset's button label and tooltip in the active language. */
+export function presetText(p: PresetDef): { label: string; hint: string } {
+  return activeLocale() === 'vi' ? PRESET_VI[p.id] : { label: p.label, hint: p.hint };
 }

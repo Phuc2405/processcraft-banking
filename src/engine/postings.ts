@@ -52,6 +52,13 @@ export const holdAccountFor = (source: FundingSource): AccountId => HOLD_ACCOUNT
 export const fundingOf = (payload: Readonly<BankingPayload>, derived: Readonly<DerivedFacts>): FundingSource =>
   derived.fundingSource ?? (payload.cardType === 'VIRTUAL_DPAN' ? 'DEBIT' : payload.cardType);
 
+/**
+ * A chargeback raised from the live ledger: the amount the bank owed the merchant side for the purchase (2110) goes back to
+ * the cardholder's account (2010).
+ */
+export const chargebackReversal = (amount: MinorUnits): Draft =>
+  draft('CHARGEBACK_REVERSAL', 'CARD_CLEARING_PAYABLE', 'CUST_CASA', amount, `Chargeback: ${formatAud(amount)} owed to the merchant is reversed back to the cardholder’s account.`);
+
 /** An authorisation: reserve the customer's funds and record that the bank now owes the scheme. */
 export const authHold = (source: FundingSource, amount: MinorUnits): Draft =>
   draft('AUTH_HOLD', HOLD_ACCOUNT[source], 'CARD_CLEARING_PAYABLE', amount, `Reserves ${formatAud(amount)} on the ${accountName(HOLD_ACCOUNT[source])}; the bank now owes the card scheme the same amount.`);

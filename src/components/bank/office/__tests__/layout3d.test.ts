@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { STATION_IDS, STATIONS, WIRES, edgeId } from '../../../../sim/topology';
-import { DEPT_BOX, PLACE_BOX } from '../../layout';
+import { OFFICE_DEPT_BOX as DEPT_BOX, OFFICE_PLACE_BOX as PLACE_BOX } from '../officePlan';
 import {
   arrivalPath,
   ATM_ALCOVE,
@@ -78,7 +78,7 @@ describe('the office floor', () => {
     expect(toWorld(1080, 810)).toEqual([FLOOR.w / 2, FLOOR.d / 2]);
   });
 
-  it('puts every desk where the 2D map has it, keeping left, right, above and below', () => {
+  it('puts every desk where the frozen floor plan has it, keeping left, right, above and below', () => {
     for (const id of STATION_IDS) {
       const box = PLACE_BOX[id];
       const pose = deskPose(id);

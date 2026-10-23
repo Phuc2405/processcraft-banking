@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { ACADEMY_CHAPTERS, chapterById, type AcademyLevel, type ChapterId } from '../../sim/academyCatalog';
-import { glossaryFor, GLOSSARY, gradeQuiz, quizFor, type GlossaryEntry } from '../../sim/academyKnowledge';
+import { tr, useLocale } from '../../i18n/locale';
+import { ACADEMY_CHAPTERS, chapterById, localChapter, type AcademyLevel, type ChapterId } from '../../sim/academyCatalog';
+import { glossaryFor, GLOSSARY, gradeQuiz, localGlossary, localQuestion, quizFor, type GlossaryEntry } from '../../sim/academyKnowledge';
 import { sampleForLevel } from '../../sim/academySamples';
 import { formatAud } from '../../engine/money';
 import { GL_PLAIN, rcLabel } from '../../sim/plainLanguage';
@@ -8,10 +9,12 @@ import type { FlowId } from '../../types/viewport';
 import { academyStore, useAcademyStore } from '../../store/academyStore';
 import { simulateFlow } from '../../store/academySync';
 import { bankStore, useBankStore } from '../../store/bankStore';
+import { postingKindLabel } from '../../data/ledgerCopy';
+import type { PostingKind } from '../../types/processLearning';
 
 /**
  * The Academy's study views: flashcards and glossary, the chapter quizzes, the message and ledger inspector, and the
- * "[▶ Simulate this Flow]" button that hands a lesson over to the live map.
+ * "[▶ Simulate this Flow]" button that hands a lesson over to the live map. Every word follows the language switch.
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -25,12 +28,12 @@ export function SimulateButton({ flow, testId = 'simulate-flow' }: { flow: FlowI
       type="button"
       disabled={flow === null}
       onClick={() => flow !== null && simulateFlow(academyStore, bankStore, flow)}
-      title={flow === null ? 'No guided flow covers this desk yet' : 'Close the lessons and watch this flow run on the map'}
+      title={flow === null ? tr({ en: 'No guided flow covers this desk yet', vi: 'Chưa có luồng hướng dẫn cho quầy này' }) : tr({ en: 'Close the lessons and watch this flow run on the map', vi: 'Đóng bài học và xem luồng này chạy trên bản đồ' })}
       data-testid={testId}
       data-flow={flow ?? undefined}
       className="rounded-lg bg-sky-500 px-3 py-1.5 text-[12px] font-bold text-sky-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
     >
-      [▶ Simulate this Flow]
+      {tr({ en: '[▶ Simulate this Flow]', vi: '[▶ Mô phỏng luồng này]' })}
     </button>
   );
 }
@@ -40,16 +43,17 @@ export function SimulateButton({ flow, testId = 'simulate-flow' }: { flow: FlowI
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ChapterChips({ value, onChange, withAll, extra }: { value: ChapterId | 'all'; onChange: (v: ChapterId | 'all') => void; withAll?: boolean; extra?: (c: ChapterId) => string }) {
+  const locale = useLocale();
   const chip = (active: boolean) => `rounded-md px-2 py-1 text-[11.5px] font-semibold ring-1 transition-colors ${active ? 'bg-slate-100 text-slate-950 ring-slate-100' : 'text-slate-300 ring-slate-700 hover:bg-slate-800'}`;
   return (
-    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Chapter">
+    <div className="flex flex-wrap gap-1.5" role="group" aria-label={tr({ en: 'Chapter', vi: 'Chương' })}>
       {withAll && (
         <button type="button" className={chip(value === 'all')} aria-pressed={value === 'all'} onClick={() => onChange('all')} data-testid="chip-all">
-          All
+          {tr({ en: 'All', vi: 'Tất cả' })}
         </button>
       )}
       {ACADEMY_CHAPTERS.map((c) => (
-        <button key={c.id} type="button" className={chip(value === c.id)} aria-pressed={value === c.id} onClick={() => onChange(c.id)} title={c.title} data-testid={`chip-${c.id}`}>
+        <button key={c.id} type="button" className={chip(value === c.id)} aria-pressed={value === c.id} onClick={() => onChange(c.id)} title={localChapter(c, locale).title} data-testid={`chip-${c.id}`}>
           {c.id}
           {extra ? <span className="ml-1 font-mono font-normal opacity-70">{extra(c.id)}</span> : null}
         </button>
@@ -68,14 +72,14 @@ function Flashcard({ entry, flipped, onFlip }: { entry: GlossaryEntry; flipped: 
     <button
       type="button"
       onClick={onFlip}
-      aria-label={flipped ? `${entry.term}: definition. Press to see the term again.` : `${entry.term}. Press to see the definition.`}
+      aria-label={flipped ? tr({ en: `${entry.term}: definition. Press to see the term again.`, vi: `${entry.term}: định nghĩa. Nhấn để xem lại thuật ngữ.` }) : tr({ en: `${entry.term}. Press to see the definition.`, vi: `${entry.term}. Nhấn để xem định nghĩa.` })}
       data-testid="flashcard"
       data-flipped={flipped}
       className="flex min-h-[9.5rem] w-full flex-col justify-between rounded-xl border bg-slate-900 p-4 text-left transition hover:bg-slate-800/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
       style={{ borderColor: `${chapter.accent}88` }}
     >
       <span className="text-[10.5px] font-semibold uppercase tracking-wider" style={{ color: chapter.accent }}>
-        Chapter {chapter.id} · {flipped ? 'Definition' : 'Term'}
+        {tr({ en: `Chapter ${chapter.id} · ${flipped ? 'Definition' : 'Term'}`, vi: `Chương ${chapter.id} · ${flipped ? 'Định nghĩa' : 'Thuật ngữ'}` })}
       </span>
       {flipped ? (
         <span className="mt-2 text-[12.5px] leading-relaxed text-slate-200" data-testid="flashcard-back">
@@ -86,24 +90,30 @@ function Flashcard({ entry, flipped, onFlip }: { entry: GlossaryEntry; flipped: 
           {entry.term}
         </span>
       )}
-      <span className="mt-3 text-[11px] text-slate-500">{flipped ? 'Click to flip back' : 'Click to flip'}</span>
+      <span className="mt-3 text-[11px] text-slate-500">{flipped ? tr({ en: 'Click to flip back', vi: 'Nhấn để lật lại' }) : tr({ en: 'Click to flip', vi: 'Nhấn để lật' })}</span>
     </button>
   );
 }
 
+/**
+ * The flashcards, one at a time or as a glossary list. The chapter filter lives in the academy store, so a lesson's
+ * [📇 Practice in Flashcards Tab] can open this tab already filtered to its chapter.
+ */
 export function FlashcardsView() {
-  const [chapter, setChapter] = useState<ChapterId | 'all'>('all');
+  const locale = useLocale();
+  const chapter = useAcademyStore((s) => s.cardsChapter);
+  const setChapter = useAcademyStore((s) => s.setCardsChapter);
   const [mode, setMode] = useState<'cards' | 'list'>('cards');
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
-  const entries = useMemo(() => (chapter === 'all' ? GLOSSARY : glossaryFor(chapter)), [chapter]);
+  const entries = useMemo(() => (chapter === 'all' ? GLOSSARY : glossaryFor(chapter)).map((g) => localGlossary(g, locale)), [chapter, locale]);
   const entry = entries[Math.min(index, entries.length - 1)];
   const go = (delta: number): void => {
     setIndex((i) => (i + delta + entries.length) % entries.length);
     setFlipped(false);
   };
   return (
-    <div className="space-y-3" data-testid="flashcards-view">
+    <div className="space-y-3" data-testid="flashcards-view" data-chapter={chapter}>
       <div className="flex items-center gap-2">
         <div className="flex-1">
           <ChapterChips
@@ -116,10 +126,10 @@ export function FlashcardsView() {
             }}
           />
         </div>
-        <div className="flex shrink-0 overflow-hidden rounded-md ring-1 ring-slate-700" role="group" aria-label="View">
+        <div className="flex shrink-0 overflow-hidden rounded-md ring-1 ring-slate-700" role="group" aria-label={tr({ en: 'View', vi: 'Kiểu xem' })}>
           {(['cards', 'list'] as const).map((m) => (
             <button key={m} type="button" aria-pressed={mode === m} onClick={() => setMode(m)} data-testid={`mode-${m}`} className={`px-2 py-1 text-[11.5px] font-semibold capitalize ${mode === m ? 'bg-slate-100 text-slate-950' : 'text-slate-300 hover:bg-slate-800'}`}>
-              {m === 'cards' ? 'Cards' : 'Glossary'}
+              {m === 'cards' ? tr({ en: 'Cards', vi: 'Thẻ' }) : tr({ en: 'Glossary', vi: 'Thuật ngữ' })}
             </button>
           ))}
         </div>
@@ -130,13 +140,13 @@ export function FlashcardsView() {
           <Flashcard entry={entry} flipped={flipped} onFlip={() => setFlipped((f) => !f)} />
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => go(-1)} data-testid="flashcard-prev" className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-slate-300 ring-1 ring-slate-700 hover:bg-slate-800">
-              Back
+              {tr({ en: 'Back', vi: 'Trước' })}
             </button>
             <span className="flex-1 text-center font-mono text-[11px] text-slate-400" data-testid="flashcard-count">
               {Math.min(index, entries.length - 1) + 1} / {entries.length}
             </span>
             <button type="button" onClick={() => go(1)} data-testid="flashcard-next" className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-slate-300 ring-1 ring-slate-700 hover:bg-slate-800">
-              Next
+              {tr({ en: 'Next', vi: 'Tiếp' })}
             </button>
           </div>
           <SimulateButton flow={chapterById(entry.chapter).flow} testId="flashcard-simulate" />
@@ -147,7 +157,7 @@ export function FlashcardsView() {
             <li key={g.id}>
               <details className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
                 <summary className="cursor-pointer text-[12.5px] font-semibold text-slate-100">
-                  {g.term} <span className="font-mono text-[10.5px] font-normal text-slate-500">ch {g.chapter}</span>
+                  {g.term} <span className="font-mono text-[10.5px] font-normal text-slate-500">{tr({ en: `ch ${g.chapter}`, vi: `ch. ${g.chapter}` })}</span>
                 </summary>
                 <p className="mt-1.5 text-[12px] leading-relaxed text-slate-300">{g.definition}</p>
               </details>
@@ -164,12 +174,13 @@ export function FlashcardsView() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function QuizView() {
+  const locale = useLocale();
   const [chapter, setChapter] = useState<ChapterId>(1);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [checked, setChecked] = useState(false);
   const scores = useAcademyStore((s) => s.quizScores);
   const record = useAcademyStore((s) => s.recordQuiz);
-  const questions = quizFor(chapter);
+  const questions = useMemo(() => quizFor(chapter).map((q) => localQuestion(q, locale)), [chapter, locale]);
   const result = checked ? gradeQuiz(chapter, answers) : null;
   const complete = questions.every((q) => answers[q.id] !== undefined);
   const reset = (c: ChapterId): void => {
@@ -187,9 +198,7 @@ export function QuizView() {
           return sc ? `${sc.best}/${sc.total}` : '';
         }}
       />
-      <h3 className="text-[13px] font-bold text-slate-50">
-        Chapter {chapter} quiz · {chapterById(chapter).title}
-      </h3>
+      <h3 className="text-[13px] font-bold text-slate-50">{tr({ en: `Chapter ${chapter} quiz · ${localChapter(chapterById(chapter), locale).title}`, vi: `Câu hỏi chương ${chapter} · ${localChapter(chapterById(chapter), locale).title}` })}</h3>
       <ol className="space-y-3">
         {questions.map((q, qi) => {
           const missed = result?.missed.includes(q.id);
@@ -212,7 +221,7 @@ export function QuizView() {
               </div>
               {result && (
                 <p className={`mt-2 text-[11.5px] leading-snug ${missed ? 'text-rose-300' : 'text-lime-300'}`}>
-                  {missed ? 'Not quite. ' : 'Correct. '}
+                  {missed ? tr({ en: 'Not quite. ', vi: 'Chưa đúng. ' }) : tr({ en: 'Correct. ', vi: 'Chính xác. ' })}
                   <span className="text-slate-300">{q.explanation}</span>
                 </p>
               )}
@@ -223,11 +232,11 @@ export function QuizView() {
       {result ? (
         <div className="space-y-2">
           <p className="text-[13px] font-bold text-slate-50" role="status" data-testid="quiz-score">
-            Score: {result.score}/{result.total}
+            {tr({ en: 'Score', vi: 'Điểm' })}: {result.score}/{result.total}
           </p>
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => reset(chapter)} data-testid="quiz-retry" className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-slate-300 ring-1 ring-slate-700 hover:bg-slate-800">
-              Try again
+              {tr({ en: 'Try again', vi: 'Làm lại' })}
             </button>
             <SimulateButton flow={chapterById(chapter).flow} testId="quiz-simulate" />
           </div>
@@ -243,7 +252,7 @@ export function QuizView() {
           data-testid="quiz-check"
           className="w-full rounded-lg bg-lime-400 px-3 py-1.5 text-[12px] font-bold text-slate-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {complete ? 'Check answers' : 'Answer every question to check'}
+          {complete ? tr({ en: 'Check answers', vi: 'Kiểm tra đáp án' }) : tr({ en: 'Answer every question to check', vi: 'Trả lời mọi câu hỏi để kiểm tra' })}
         </button>
       )}
     </div>
@@ -259,24 +268,25 @@ export function MessageInspector({ level }: { level: Pick<AcademyLevel, 'flow'> 
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'iso' | 'gl'>('iso');
   const beginner = useBankStore((s) => s.termMode === 'beginner');
+  const locale = useLocale();
   // The example is played only when the learner opens the inspector.
   const sample = useMemo(() => (open ? sampleForLevel(level) : null), [open, level]);
   if (level.flow === null) return null;
   return (
     <details className="mt-2 rounded-lg border border-slate-800 bg-slate-900/60" onToggle={(e) => setOpen(e.currentTarget.open)} data-testid="inspector">
-      <summary className="cursor-pointer px-2.5 py-1.5 text-[12px] font-semibold text-slate-200">Inspect the message and the ledger</summary>
+      <summary className="cursor-pointer px-2.5 py-1.5 text-[12px] font-semibold text-slate-200">{tr({ en: 'Inspect the message and the ledger', vi: 'Xem thông điệp và sổ cái' })}</summary>
       {sample && (
         <div className="space-y-2 px-2.5 pb-2.5">
           <p className="text-[11px] text-slate-400">
-            Example: {sample.label} · {beginner ? 'answer' : 'response code'}{' '}
+            {tr({ en: 'Example', vi: 'Ví dụ' })}: {sample.label} · {beginner ? tr({ en: 'answer', vi: 'phản hồi' }) : tr({ en: 'response code', vi: 'mã phản hồi' })}{' '}
             <span className={beginner ? 'text-slate-200' : 'font-mono text-slate-200'} data-testid="inspector-rc">
               {beginner ? rcLabel(sample.responseCode, 'beginner') : sample.responseCode}
             </span>
           </p>
-          <div className="flex gap-1.5" role="tablist" aria-label="Inspector">
+          <div className="flex gap-1.5" role="tablist" aria-label={tr({ en: 'Inspector', vi: 'Bộ xem' })}>
             {(['iso', 'gl'] as const).map((t) => (
               <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)} data-testid={`inspector-tab-${t}`} className={`rounded-md px-2 py-1 text-[11.5px] font-semibold ring-1 ${tab === t ? 'bg-slate-100 text-slate-950 ring-slate-100' : 'text-slate-300 ring-slate-700 hover:bg-slate-800'}`}>
-                {t === 'iso' ? 'ISO 8583 message' : 'GL journal'}
+                {t === 'iso' ? tr({ en: 'ISO 8583 message', vi: 'Bản tin ISO 8583' }) : tr({ en: 'GL journal', vi: 'Nhật ký sổ cái' })}
               </button>
             ))}
           </div>
@@ -286,19 +296,23 @@ export function MessageInspector({ level }: { level: Pick<AcademyLevel, 'flow'> 
             </pre>
           ) : (
             <ul className="space-y-1" data-testid="inspector-gl">
-              {sample.journal.length === 0 ? <li className="text-[11.5px] text-slate-400">This payment posted nothing to the ledger.</li> : null}
+              {sample.journal.length === 0 ? <li className="text-[11.5px] text-slate-400">{tr({ en: 'This payment posted nothing to the ledger.', vi: 'Giao dịch này không ghi gì vào sổ cái.' })}</li> : null}
               {sample.journal.map((l, i) => (
                 <li key={i} className="rounded-md bg-slate-950 px-2 py-1.5 font-mono text-[10.5px] leading-snug text-slate-300">
                   {beginner ? (
                     <>
-                      <span className="font-bold text-emerald-300">Debit</span> {GL_PLAIN[l.debit.code] ?? l.debit.name} {formatAud(l.amountCents)} · <span className="font-bold text-sky-300">Credit</span> {GL_PLAIN[l.credit.code] ?? l.credit.name}
+                      <span className="font-bold text-emerald-300">{tr({ en: 'Debit', vi: 'Nợ' })}</span> {GL_PLAIN[l.debit.code] ?? l.debit.name} {formatAud(l.amountCents)} · <span className="font-bold text-sky-300">{tr({ en: 'Credit', vi: 'Có' })}</span> {GL_PLAIN[l.credit.code] ?? l.credit.name}
+                    </>
+                  ) : locale === 'vi' ? (
+                    <>
+                      <span className="font-bold text-emerald-300">Nợ</span> {l.debit.code}-{GL_PLAIN[l.debit.code] ?? l.debit.name} {formatAud(l.amountCents)} · <span className="font-bold text-sky-300">Có</span> {l.credit.code}-{GL_PLAIN[l.credit.code] ?? l.credit.name}
                     </>
                   ) : (
                     <>
                       <span className="font-bold text-emerald-300">DR</span> {sample.journalText[i]?.replace(/^DR: /, '').replace(' | CR: ', '  ·  CR ')}
                     </>
                   )}
-                  <span className="mt-0.5 block uppercase tracking-wide text-slate-500">{l.kind.replace(/_/g, ' ')}</span>
+                  <span className="mt-0.5 block uppercase tracking-wide text-slate-500">{locale === 'vi' ? postingKindLabel(l.kind as PostingKind) : l.kind.replace(/_/g, ' ')}</span>
                 </li>
               ))}
             </ul>

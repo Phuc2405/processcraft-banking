@@ -1,18 +1,32 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ledgerUi } from '../../data/ledgerCopy';
+import { localChallenge } from '../../i18n/challengeVi';
+import { pick, type Localized } from '../../i18n/locale';
+import { t } from '../../i18n/t';
 import { postTestResult } from '../../engine/postings';
 import { useWorkflowStore, type PlaybackLogLine } from '../../store/workflowStore';
 import type { EvaluationResult, FeedbackLog, GLEntry, TestFailureReason } from '../../types/processLearning';
 import { LedgerView, type LedgerBatch } from '../ledger/LedgerView';
 
-const REASON_TEXT: Record<TestFailureReason, string> = {
-  WRONG_OUTCOME: 'wrong outcome',
-  WRONG_REASON_CODE: 'wrong reason code',
-  LATENCY_EXCEEDED: 'too slow',
-  MISSING_REQUIRED_CAPABILITY: 'skipped a required check',
-  FORBIDDEN_CAPABILITY_VISITED: 'ran a check it should have skipped',
-  DEADLOCK: 'got stuck',
-  EXCEPTION: 'unhandled error',
+const REASON_TEXT: Localized<Record<TestFailureReason, string>> = {
+  en: {
+    WRONG_OUTCOME: 'wrong outcome',
+    WRONG_REASON_CODE: 'wrong reason code',
+    LATENCY_EXCEEDED: 'too slow',
+    MISSING_REQUIRED_CAPABILITY: 'skipped a required check',
+    FORBIDDEN_CAPABILITY_VISITED: 'ran a check it should have skipped',
+    DEADLOCK: 'got stuck',
+    EXCEPTION: 'unhandled error',
+  },
+  vi: {
+    WRONG_OUTCOME: 'sai kết quả',
+    WRONG_REASON_CODE: 'sai mã lý do',
+    LATENCY_EXCEEDED: 'quá chậm',
+    MISSING_REQUIRED_CAPABILITY: 'bỏ qua một bước kiểm tra bắt buộc',
+    FORBIDDEN_CAPABILITY_VISITED: 'chạy một bước kiểm tra lẽ ra phải bỏ qua',
+    DEADLOCK: 'bị kẹt',
+    EXCEPTION: 'lỗi chưa được xử lý',
+  },
 };
 
 const FEEDBACK_STYLE: Record<FeedbackLog['level'], string> = {
@@ -32,7 +46,35 @@ const LOG_STYLE: Record<PlaybackLogLine['kind'], string> = {
   anomaly: 'text-rose-300',
 };
 
+/** `t` under another name, for the result rows where `t` is the test result. */
+const tt = t;
+
 const pretty = (s: string): string => s.replace(/_/g, ' ').toLowerCase();
+
+/** An outcome or an anomaly type as a short phrase, in the active language. */
+const PHRASE_VI: Readonly<Record<string, string>> = {
+  approved: 'chấp thuận',
+  declined: 'từ chối',
+  'routed to suspense': 'chuyển vào tài khoản treo',
+  'challenge required': 'cần thử thách',
+  'no outcome': 'không có kết quả',
+  'invalid structure': 'cấu trúc không hợp lệ',
+  'missing start event': 'thiếu sự kiện bắt đầu',
+  'palette violation': 'vi phạm bảng nút',
+  'invalid config': 'cấu hình không hợp lệ',
+  'invalid expression': 'biểu thức không hợp lệ',
+  'unreachable node': 'nút không tới được',
+  'dead end': 'ngõ cụt',
+  deadlock: 'bế tắc',
+  'infinite loop': 'vòng lặp vô hạn',
+  'no matching branch': 'không nhánh nào khớp',
+  'unhandled exception': 'ngoại lệ chưa xử lý',
+  'fraud leakage': 'lọt gian lận',
+};
+const phrase = (s: string): string => {
+  const p = pretty(s);
+  return pick({ en: p, vi: PHRASE_VI[p] ?? p });
+};
 
 function ScoreBar({ label, value, shown, tone }: { label: string; value: number; shown: string; tone: 'good' | 'warn' | 'idle' }) {
   const fill = tone === 'good' ? 'bg-emerald-400' : tone === 'warn' ? 'bg-amber-400' : 'bg-slate-600';
@@ -50,7 +92,7 @@ function ScoreBar({ label, value, shown, tone }: { label: string; value: number;
 }
 
 function Results({ result, stale }: { result: EvaluationResult; stale: boolean }) {
-  const level = useWorkflowStore((s) => s.level);
+  const level = localChallenge(useWorkflowStore((s) => s.level));
   const nameOf = (id: string): string => level.testSuite.find((t) => t.id === id)?.name ?? id;
   const isHidden = (id: string): boolean => level.testSuite.find((t) => t.id === id)?.hidden === true;
   const errors = result.detectedAnomalies.filter((a) => a.severity === 'ERROR');
@@ -59,7 +101,7 @@ function Results({ result, stale }: { result: EvaluationResult; stale: boolean }
     <div className="space-y-4 p-4">
       {stale && (
         <p className="rounded-lg border border-amber-500/40 bg-amber-950/60 px-3 py-2 text-[12px] text-amber-200">
-          You have changed the diagram since this was graded. Press <strong>Submit</strong> to grade it again.
+          {t('You have changed the diagram since this was graded. Press')} <strong>{t('Submit')}</strong> {t('to grade it again.')}
         </p>
       )}
 
@@ -67,27 +109,27 @@ function Results({ result, stale }: { result: EvaluationResult; stale: boolean }
         <span
           className={`rounded-full px-3 py-1 text-[12px] font-semibold ring-1 ${result.passed ? 'bg-emerald-400/10 text-emerald-300 ring-emerald-400/40' : 'bg-amber-400/10 text-amber-300 ring-amber-400/40'}`}
         >
-          {result.passed ? 'Level passed' : 'Not passing yet'}
+          {result.passed ? t('Level passed') : t('Not passing yet')}
         </span>
-        <ScoreBar label="Correctness" value={result.correctnessScore} shown={`${result.correctnessScore}%`} tone={result.passed ? 'good' : 'warn'} />
+        <ScoreBar label={t('Correctness')} value={result.correctnessScore} shown={`${result.correctnessScore}%`} tone={result.passed ? 'good' : 'warn'} />
         <ScoreBar
-          label="Efficiency"
+          label={t('Efficiency')}
           value={result.efficiencyScore}
           shown={result.passed ? `${result.efficiencyScore}%` : '–'}
           tone={result.passed ? 'good' : 'idle'}
         />
         <p className="text-[12px] text-slate-400">
-          <span className="font-semibold text-emerald-300">{result.passCount}</span> passed · <span className="font-semibold text-rose-300">{result.failCount}</span> failed
+          <span className="font-semibold text-emerald-300">{result.passCount}</span> {t('passed')} · <span className="font-semibold text-rose-300">{result.failCount}</span> {t('failed')}
         </p>
       </div>
 
       {errors.length > 0 && (
-        <section aria-label="Problems found">
-          <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Problems in the diagram</h3>
+        <section aria-label={t('Problems found')}>
+          <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t('Problems in the diagram')}</h3>
           <ul className="space-y-1">
             {errors.map((a, i) => (
               <li key={`${a.type}-${a.nodeId ?? ''}-${a.edgeId ?? ''}-${i}`} className="flex gap-2 rounded-md border border-rose-500/30 bg-rose-950/30 px-2.5 py-1.5 text-[12px] text-rose-100">
-                <code className="shrink-0 rounded bg-rose-950 px-1.5 text-[10px] font-semibold leading-5 text-rose-300">{pretty(a.type)}</code>
+                <code className="shrink-0 rounded bg-rose-950 px-1.5 text-[10px] font-semibold leading-5 text-rose-300">{phrase(a.type)}</code>
                 <span>{a.message}</span>
               </li>
             ))}
@@ -95,36 +137,36 @@ function Results({ result, stale }: { result: EvaluationResult; stale: boolean }
         </section>
       )}
 
-      <section aria-label="Test results">
-        <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tests</h3>
+      <section aria-label={t('Test results')}>
+        <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t('Tests')}</h3>
         <ul className="divide-y divide-slate-800 overflow-hidden rounded-lg border border-slate-800">
           {result.testResults.map((t) => (
             <li key={t.testCaseId} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 bg-slate-900/60 px-3 py-1.5 text-[12px]">
-              <span className={`w-4 text-center font-bold ${t.passed ? 'text-emerald-400' : 'text-rose-400'}`} aria-label={t.passed ? 'passed' : 'failed'}>
+              <span className={`w-4 text-center font-bold ${t.passed ? 'text-emerald-400' : 'text-rose-400'}`} aria-label={t.passed ? tt('passed') : tt('failed')}>
                 {t.passed ? '✓' : '✕'}
               </span>
               <span className="min-w-0 flex-1 truncate text-slate-100">
                 {nameOf(t.testCaseId)}
-                {isHidden(t.testCaseId) && <span className="ml-2 rounded bg-slate-800 px-1.5 py-px text-[10px] uppercase tracking-wide text-slate-400">hidden</span>}
+                {isHidden(t.testCaseId) && <span className="ml-2 rounded bg-slate-800 px-1.5 py-px text-[10px] uppercase tracking-wide text-slate-400">{tt('hidden')}</span>}
               </span>
               <span className="text-slate-400">
-                wanted <span className="text-slate-200">{pretty(t.expectedOutcome)}</span>
+                {tt('wanted')} <span className="text-slate-200">{phrase(t.expectedOutcome)}</span>
                 {!t.passed && (
                   <>
-                    , got <span className="text-rose-300">{pretty(t.actualOutcome)}</span>
+                    , {tt('got')} <span className="text-rose-300">{phrase(t.actualOutcome)}</span>
                   </>
                 )}
               </span>
               <span className="w-16 text-right font-mono text-slate-500">{t.latencyMs} ms</span>
-              {!t.passed && t.failureReasons.length > 0 && <span className="w-full pl-7 text-[11px] text-rose-300">{t.failureReasons.map((r) => REASON_TEXT[r]).join(', ')}</span>}
+              {!t.passed && t.failureReasons.length > 0 && <span className="w-full pl-7 text-[11px] text-rose-300">{t.failureReasons.map((r) => pick(REASON_TEXT)[r]).join(', ')}</span>}
             </li>
           ))}
         </ul>
       </section>
 
       {result.feedbackLogs.length > 0 && (
-        <section aria-label="Feedback">
-          <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Feedback</h3>
+        <section aria-label={t('Feedback')}>
+          <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t('Feedback')}</h3>
           <ul className="space-y-1.5">
             {result.feedbackLogs.map((f, i) => (
               <li key={i} className={`rounded-md border-l-2 bg-slate-900/60 px-3 py-1.5 text-[12px] leading-snug ${FEEDBACK_STYLE[f.level]}`}>
@@ -146,7 +188,7 @@ function RunLog() {
   }, [log.length]);
 
   if (log.length === 0) {
-    return <p className="p-4 text-[12px] text-slate-400">Press play on the canvas toolbar. Every step a token takes is listed here.</p>;
+    return <p className="p-4 text-[12px] text-slate-400">{t('Press play on the canvas toolbar. Every step a token takes is listed here.')}</p>;
   }
   return (
     <ol className="space-y-0.5 p-3 font-mono text-[11.5px]">
@@ -169,15 +211,15 @@ type LedgerSource = 'replay' | 'graded';
  */
 function LedgerTab() {
   const ui = ledgerUi();
-  const level = useWorkflowStore((s) => s.level);
+  const level = localChallenge(useWorkflowStore((s) => s.level));
   const replay = useWorkflowStore((s) => s.ledgerEntries);
   const simulation = useWorkflowStore((s) => s.simulation);
   const result = useWorkflowStore((s) => s.lastEvaluationResult);
   const [source, setSource] = useState<LedgerSource>('replay');
 
   const replayBatches = useMemo<LedgerBatch[]>(
-    () => (replay.length === 0 ? [] : [{ id: replay[0]?.txId ?? 'replay', title: simulation?.testName ?? 'Replay', subtitle: replay[0]?.txId, entries: replay }]),
-    [replay, simulation],
+    () => (replay.length === 0 ? [] : [{ id: replay[0]?.txId ?? 'replay', title: (simulation ? (level.testSuite.find((x) => x.id === simulation.testCaseId)?.name ?? simulation.testName) : null) ?? t('Replay'), subtitle: replay[0]?.txId, entries: replay }]),
+    [replay, simulation, level],
   );
   const gradedBatches = useMemo<LedgerBatch[]>(() => {
     if (!result) return [];
@@ -254,20 +296,20 @@ export function EvaluationPanel() {
     `rounded-md px-3 py-1 text-[12px] font-medium ${active ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-200'}`;
 
   return (
-    <section aria-label="Results" className={`flex shrink-0 flex-col border-t border-slate-800 bg-slate-950 ${open ? 'h-[270px]' : 'h-10'}`}>
+    <section aria-label={t('Results')} className={`flex shrink-0 flex-col border-t border-slate-800 bg-slate-950 ${open ? 'h-[270px]' : 'h-10'}`}>
       <header className="flex h-10 shrink-0 items-center gap-1 px-3">
         <button type="button" role="tab" aria-selected={tab === 'results'} onClick={() => { setTab('results'); setOpen(true); }} className={tabClass(tab === 'results')}>
-          Results
+          {t('Results')}
           {result && <span className={`ml-2 font-mono ${result.passed ? 'text-emerald-300' : 'text-amber-300'}`}>{result.correctnessScore}%</span>}
         </button>
         <button type="button" role="tab" aria-selected={tab === 'log'} onClick={() => { setTab('log'); setOpen(true); }} className={tabClass(tab === 'log')}>
-          Replay log
+          {t('Replay log')}
         </button>
         <button type="button" role="tab" aria-selected={tab === 'ledger'} onClick={() => { setTab('ledger'); setOpen(true); }} data-testid="tab-ledger" className={tabClass(tab === 'ledger')}>
-          Ledger
+          {t('Ledger')}
           {ledgerLines > 0 && <span className="ml-2 font-mono text-sky-300">{ledgerLines}</span>}
         </button>
-        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={open ? 'Collapse results' : 'Expand results'} className="ml-auto grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-100">
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={open ? t('Collapse results') : t('Expand results')} className="ml-auto grid h-7 w-7 place-items-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-100">
           <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" className={open ? '' : 'rotate-180'}>
             <path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -279,7 +321,9 @@ export function EvaluationPanel() {
             result ? (
               <Results result={result} stale={stale} />
             ) : (
-              <p className="p-4 text-[12px] text-slate-400">Press <strong className="text-slate-200">Submit</strong> to grade your diagram against every test, including the hidden ones.</p>
+              <p className="p-4 text-[12px] text-slate-400">
+                {t('Press')} <strong className="text-slate-200">{t('Submit')}</strong> {t('to grade your diagram against every test, including the hidden ones.')}
+              </p>
             )
           ) : tab === 'log' ? (
             <RunLog />

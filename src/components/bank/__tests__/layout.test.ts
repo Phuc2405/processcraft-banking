@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEPARTMENT_IDS, EXTERNAL_IDS, STATION_IDS, WIRES, edgeId, type PlaceId } from '../../../sim/topology';
+import { OFFICE_PLACE_BOX } from '../office/officePlan';
+import { deskPose, toWorld } from '../office/layout3d';
 import { BANK_WIRES, CARD, DEPT_BOX, PLACE_BOX, STAGE, TIP_SIDE, pathOfWire, roundedPath, tipRect, wireById } from '../layout';
 
 describe('the bank map', () => {
@@ -121,9 +123,9 @@ describe('where a desk’s description opens', () => {
     }
   });
 
-  it('covers no other desk at all, except the four gate-column and corner desks the map leaves no clear side for', () => {
+  it('covers no other desk, except gate-column desks and the compact night grid', () => {
     const crowded = places.filter((id) => cost(id, TIP_SIDE[id]) > 0).sort();
-    expect(crowded).toEqual(['EOD_BATCH', 'GATE_A2A', 'GATE_ECOM', 'GATE_VIRTUAL']);
+    expect(crowded).toEqual(['EOD_VISA', 'GATE_A2A', 'GATE_ECOM', 'GATE_VIRTUAL', 'RECON', 'SUSPENSE']);
   });
 
   it('opens the everyday-account desk’s description away from the credit-card desk under it', () => {
@@ -143,5 +145,46 @@ describe('where a desk’s description opens', () => {
       }
     }
     expect(PLACE_BOX.LEDGER_CREDIT.cy - PLACE_BOX.LEDGER_DEBIT.cy - CARD.h).toBeGreaterThanOrEqual(48);
+  });
+});
+
+describe('Phase 1A compact grid', () => {
+  const EOD = ['EOD_BATCH', 'EOD_VISA', 'RECON', 'SUSPENSE', 'OUT_SETTLED'] as const;
+  const outBottom = Math.max(PLACE_BOX.OUT_APPROVED.cy + PLACE_BOX.OUT_APPROVED.h / 2, PLACE_BOX.OUT_DECLINED.cy + PLACE_BOX.OUT_DECLINED.h / 2);
+
+  it('stacks the night cluster in the right column under Approved/Declined', () => {
+    const col = PLACE_BOX.OUT_APPROVED.cx;
+    expect(PLACE_BOX.EOD_BATCH.cx).toBe(col);
+    for (const id of EOD) {
+      const b = PLACE_BOX[id];
+      expect(b.cy - b.h / 2, id).toBeGreaterThan(outBottom);
+      expect(b.cx - b.w / 2, id).toBeGreaterThanOrEqual(DEPT_BOX.EOD.x);
+      expect(b.cx + b.w / 2, id).toBeLessThanOrEqual(DEPT_BOX.EOD.x + DEPT_BOX.EOD.w);
+      expect(b.cy + b.h / 2, id).toBeLessThanOrEqual(DEPT_BOX.EOD.y + DEPT_BOX.EOD.h);
+    }
+    expect(DEPT_BOX.EOD.x).toBeGreaterThan(DEPT_BOX.LEDGER.x + DEPT_BOX.LEDGER.w);
+  });
+
+  it('keeps department frames from overlapping', () => {
+    const ds = Object.entries(DEPT_BOX);
+    for (const [a, A] of ds)
+      for (const [b, B] of ds) {
+        if (a >= b) continue;
+        const ox = Math.min(A.x + A.w, B.x + B.w) - Math.max(A.x, B.x);
+        const oy = Math.min(A.y + A.h, B.y + B.h) - Math.max(A.y, B.y);
+        expect(ox > 0 && oy > 0, `${a} / ${b}`).toBe(false);
+      }
+  });
+
+  it('is more landscape than the old 1120x980 stage', () => {
+    expect(STAGE.width / STAGE.height).toBeGreaterThan(1120 / 980);
+    expect(STAGE.height).toBeLessThan(980);
+  });
+
+  it('leaves the 3D rooms where they were', () => {
+    expect(OFFICE_PLACE_BOX.EOD_BATCH).toMatchObject({ cx: 100, cy: 728 });
+    const [x, z] = toWorld(OFFICE_PLACE_BOX.RECON.cx, OFFICE_PLACE_BOX.RECON.cy);
+    expect(deskPose('RECON')).toMatchObject({ x, z });
+    expect(OFFICE_PLACE_BOX.RECON).not.toEqual(PLACE_BOX.RECON);
   });
 });

@@ -245,7 +245,240 @@ const EN: FailBook = {
 
 };
 
-export const FAIL_CASES: Localized<FailBook> = { en: EN };
+const VI: FailBook = {
+  A: {
+    n_start: [
+      'Trang thanh toán gửi thông điệp sai định dạng (thiếu dấu thời gian, hoặc số tiền âm). Không bước nào phía sau đáng tin, nên giao dịch phải bị từ chối ngay tại đây.',
+      'Cùng một yêu cầu đến hai lần vì người mua bấm đúp. Không có kiểm tra trùng lặp, hai giao dịch sẽ được thực hiện.',
+    ],
+    n_vault: [
+      'Số ảo không có trong kho token (số đoán bừa, hoặc thẻ đã bị hủy). Giao dịch bị từ chối ở đây và không làm phiền bước nào khác.',
+      'Kho token chậm hoặc ngừng hoạt động. Mọi giao dịch thẻ ảo trong ngân hàng phải xếp hàng chờ nó.',
+      'Một token bị lộ trong vụ rò rỉ dữ liệu. Nếu nó vẫn còn hiệu lực, kẻ gian có thể thử cho tới khi dCVV chặn lại.',
+    ],
+    n_dcvv: [
+      'Mã đúng nhưng đã cũ (người gõ chậm, hoặc phát lại mã bị bắt được). Cửa sổ thời gian là sự đánh đổi giữa hai trường hợp đó.',
+      'Mã sai (gõ nhầm, hoặc đoán). Nhiều mã sai liên tiếp trên một thẻ là dấu hiệu của tấn công dò mã.',
+      'Đồng hồ của ngân hàng và của cửa hàng lệch nhau, nên mã đúng trông như đã hết hạn.',
+    ],
+    n_xor_dcvv: [
+      'Quy tắc viết sai và một mã lỗi lọt tới sổ cái: tiền bị khoanh giữ cho một giao dịch lẽ ra không ai được tin.',
+      'Thiếu nhánh “mọi trường hợp khác”, nên một trạng thái mã bất ngờ làm giao dịch bị kẹt, không có lối đi.',
+    ],
+    n_ledger: [
+      'Khách hàng có ít tiền hơn số cần trả. Giao dịch bị từ chối do thiếu tiền, đó không phải lỗi của ngân hàng và không phải dấu hiệu gian lận.',
+      'Hai giao dịch đến cùng lúc trên một số dư. Không có khoanh giữ, cả hai có thể được duyệt và tài khoản bị âm.',
+      'Sổ cái chậm vào cuối tháng, và các giao dịch bị quá thời gian.',
+    ],
+    n_xor_ledger: [
+      'Coi “không đủ tiền” là gian lận. Khách hàng trung thực bị gắn cờ, và số liệu gian lận trông tệ hơn thực tế.',
+    ],
+    n_end_approved: [
+      'Giao dịch được duyệt nhưng là gian lận. Giờ ngân hàng phải hoàn tiền: đây chính là chi phí mà các bước kiểm tra trước đó tồn tại để ngăn chặn.',
+      'Giao dịch đã duyệt không bao giờ được đưa vào lô đêm nay, nên tiền không bao giờ dịch chuyển.',
+    ],
+    n_end_declined: [
+      'Một khách hàng tốt bị từ chối bởi một quy tắc (mã hết hạn). Đó là một đơn hàng mất và một khách hàng không vui.',
+      'Lý do từ chối bị mất, nên đội ngũ không phân biệt được từ chối do gian lận với từ chối do thiếu tiền.',
+    ],
+  },
+  B: {
+    n_start: [
+      'Điểm rủi ro bị thiếu hoặc nằm ngoài khoảng. Quy tắc đọc nó không quyết định được, và giao dịch không có lối đi hợp lệ.',
+      'Trang thanh toán không gửi dữ liệu mà 3DS cần (thiết bị, địa chỉ). Ngân hàng phải đoán, và nó đoán một cách thận trọng.',
+    ],
+    n_3ds: [
+      'Ngưỡng không ma sát đặt quá cao. Gian lận đi thẳng vào mà không bị hỏi gì.',
+      'Ngưỡng không ma sát đặt quá thấp. Ai cũng bị thử thách, và khách thật bỏ cuộc ở màn hình nhập mã.',
+      'Ngưỡng từ chối quá thấp. Khách tốt bị từ chối thẳng, không có cơ hội chứng minh danh tính.',
+    ],
+    n_xor_3ds: [
+      'Ba khoảng điểm chồng lên nhau hoặc để hở. Một điểm không khớp khoảng nào thì không có nhánh để đi.',
+      'Thiếu nhánh mặc định, nên một điểm số bất thường thành giao dịch bị kẹt.',
+    ],
+    n_end_challenge: [
+      'Mã được gửi tới số điện thoại đã cũ. Khách thật không bao giờ nhận được.',
+      'SMS đến muộn. Lúc mã được nhập thì người mua đã bỏ đi.',
+    ],
+    syn_phone: [
+      'Khách bỏ dở màn hình nhập mã. Đó là một đơn hàng mất mà không ai từ chối.',
+      'Kẻ gian đã trộm điện thoại, hoặc chiếm SIM, nhập mã. Mã một lần chỉ chứng minh việc đang cầm điện thoại.',
+      'Khách đang đi du lịch và SMS không tới được.',
+    ],
+    n_ledger: [
+      'Qua 3DS làm giao dịch đáng tin, chứ không làm nó đủ tiền. Khách vẫn có thể không đủ số dư.',
+    ],
+    n_xor_ledger: [
+      'Một giao dịch đã hoàn tất thử thách bị gửi nhầm về điểm đầu và bị thử thách lần thứ hai.',
+    ],
+    n_end_approved: [
+      'Giao dịch gian lận đã được xác thực: khi 3DS thành công, trách nhiệm gian lận chuyển sang ngân hàng phát hành. Ngân hàng phải trả.',
+      'Giao dịch gian lận bỏ qua 3DS: trách nhiệm vẫn thuộc về cửa hàng.',
+    ],
+    n_end_declined: [
+      'Một khách thật bị từ chối vì rủi ro. Họ có thể không bao giờ quay lại.',
+      'Từ chối do điểm rủi ro bị đếm chung với từ chối do thiếu tiền, nên đội ngũ không biết nên vặn núm nào.',
+    ],
+  },
+  C: {
+    n_start: [
+      'Giỏ hàng và kế hoạch không khớp (khoản trả trước lớn hơn giá). Hồ sơ bị từ chối trước khi ai xem điểm.',
+      'Hồ sơ được nộp đi nộp lại cho tới khi một lần được duyệt (tấn công “dò ngưỡng” vào mức điểm).',
+    ],
+    n_bnpl: [
+      'Điểm tối thiểu đặt quá thấp. Ngân hàng duyệt cho người sẽ không trả ba kỳ cuối.',
+      'Điểm tối thiểu quá cao. Khách tốt bị loại khỏi kế hoạch, và cửa hàng mất những giỏ hàng giá trị lớn hơn.',
+      'Điểm đã cũ. Hoàn cảnh của khách đã thay đổi kể từ khi điểm được tính.',
+    ],
+    n_xor_plan: [
+      'Thiếu nhánh cho trường hợp không được duyệt. Khách bị từ chối trả góp đơn giản là rời trang thanh toán và đơn hàng bị mất.',
+      'Nhánh đưa người bị từ chối vào kết cục từ chối trong khi thẻ có thể trả đủ giá.',
+    ],
+    n_ledger_dp: [
+      'Khách không đủ tiền ngay cả cho khoản trả trước. Kế hoạch được duyệt nhưng không thu được gì, và không có kế hoạch nào tồn tại.',
+      'Khoản trả trước đã thu nhưng các kỳ sau thất bại vì thẻ hết hạn hoặc tài khoản trống.',
+    ],
+    n_ledger_card: [
+      'Thẻ cũng không trả đủ giá. Đơn hàng mất hai lần: một lần vì điểm, một lần vì tiền.',
+    ],
+    n_xor_funds: [
+      'Từ chối do thiếu tiền bị lẫn với từ chối do rủi ro tín dụng, nên không ai biết vấn đề là ở điểm hay ở tiền của khách.',
+    ],
+    n_end_bnpl: [
+      'Ngân hàng gánh rủi ro ba kỳ chưa trả. Một làn sóng trễ hạn là khoản lỗ mà phí của cửa hàng có thể không bù đủ.',
+    ],
+    n_end_card: [
+      'Khách được chuyển về trả đủ giá vẫn có thể bỏ giỏ hàng ở màn hình thẻ.',
+    ],
+    n_end_dp_declined: [
+      'Khách thấy chữ “từ chối” cho một kế hoạch mà họ vừa được báo là đủ điều kiện. Trải nghiệm gây khó hiểu.',
+    ],
+    n_end_card_declined: [
+      'Đơn hàng bị mất. Đây là kết cục duy nhất mà không quy tắc nào cứu được.',
+    ],
+  },
+  D: {
+    syn_batch: [
+      'Lô chạy khi vài giao dịch vẫn đang xử lý. Các mục bị thiếu trong tệp đêm nay và hiện thành sai lệch.',
+      'Lô hỏng giữa chừng và không ai để ý. Sáng mai hàng nghìn giao dịch đã duyệt vẫn chưa được gửi đi.',
+    ],
+    syn_visa: [
+      'Tệp của tổ chức thẻ đến muộn hoặc bị lỗi. Ngân hàng không đối soát được gì cho tới khi sửa xong.',
+      'Tổ chức thẻ trình cùng một giao dịch hai lần. Không có kiểm tra trùng lặp, cửa hàng được trả hai lần.',
+    ],
+    n_start: [
+      'Một bản ghi đến thiếu một vế. Không có gì để so sánh, nên cả giao dịch trở thành sai lệch.',
+    ],
+    n_recon: [
+      'Biên sai số quá chặt. Sai số làm tròn tràn vào tài khoản treo và chôn vùi các lỗi thật.',
+      'Biên sai số quá lỏng. Một lỗi thật bị khớp mất, và không ai xem lại nó.',
+      'Hai loại tiền được so mà không quy đổi. Mọi giao dịch ngoại tệ trông như sai lệch.',
+    ],
+    n_xor_recon: [
+      'Các loại sai lệch khác nhau bị đưa vào một nhánh, nên nhân viên không biết bắt đầu tìm từ đâu.',
+      'Một sai lệch bị ép cho khớp để bảng điều khiển xanh. Lỗi vẫn còn đó; chỉ bị giấu đi.',
+    ],
+    n_end_settled: [
+      'Một lỗi thật nằm trong biên sai số bị quyết toán nhầm. Nó sẽ không bị phát hiện cho tới khi khách hàng hoặc kiểm toán viên tìm ra.',
+    ],
+    n_end_amount: [
+      'Khoản chênh được treo lại nhưng không ai phụ trách. Nó cứ nằm lâu trong tài khoản treo.',
+    ],
+    n_end_missing: [
+      'Bản ghi thiếu không bao giờ đến. Giao dịch nằm treo cho tới khi có người hỏi tổ chức thẻ.',
+    ],
+    n_end_dup: [
+      'Khoản trùng lặp được chi trả trước khi đảo bút toán. Tiền đã rời ngân hàng.',
+    ],
+    syn_suspense: [
+      'Số dư tài khoản treo cứ tăng. Quy tắc ca đêm không phù hợp với dữ liệu, hoặc đội ca ngày đang quá tải.',
+      'Một mục được treo mà không có mã lý do, nên điều tra viên bắt đầu từ con số không.',
+    ],
+    syn_cleared: [
+      'Bút toán điều chỉnh ghi nhầm tài khoản. Sai lệch được xử lý, nhưng sổ sách giờ sai ở chỗ khác.',
+    ],
+  },
+  E: {
+    n_start: [
+      'Ứng dụng gửi thông điệp hai lần vì khách bấm hai lần. Không có kiểm tra trùng lặp, tiền đi hai lần, và chuyển khoản tức thì không thể thu hồi.',
+      'Thông điệp đến theo định dạng cũ. Cổng không đọc được và lệnh chuyển bị từ chối trước khi quy tắc nào chạy.',
+    ],
+    n_gateway: [
+      'Thiếu EndToEndId. Giao dịch không thể truy vết giữa hai ngân hàng, nên phải bị từ chối.',
+      'Mã ngân hàng bị cắt cụt. Không tìm được ngân hàng nhận, và nếu vẫn gửi thì tiền sẽ không đi đâu hoặc đi sai chỗ.',
+      'Số tiền quyết toán và số tiền chỉ thị không khớp. Một trong hai sai, và dù thế nào một bên sổ sách cũng không cân.',
+    ],
+    n_xor_valid: [
+      'Quy tắc viết ngược và thông điệp lỗi đi tiếp tới sổ cái: ghi nợ cho một giao dịch mà ngân hàng nhận sẽ trả về.',
+      'Thiếu nhánh “mọi trường hợp khác”, nên thông điệp có lỗi bất ngờ bị kẹt, không có lối đi.',
+    ],
+    n_ledger: [
+      'Hai lệnh chuyển đến cùng lúc trên một số dư. Không trích giữ tiền ngay, cả hai có thể cùng đi.',
+      'Sổ cái chậm khi mọi người cùng được trả lương, và chuyển khoản tức thì phải xếp hàng. Tức thì không còn tức thì.',
+    ],
+    n_xor_funds: ['Coi “không đủ tiền” là thông điệp lỗi. Lập trình viên ứng dụng bị đổ lỗi cho tài khoản trống của khách.'],
+    n_end_approved: [
+      'Lệnh chuyển được kẻ gian ủy quyền bằng thông tin đăng nhập bị trộm. Tức thì nghĩa là không thể đảo: tiền đã đi và khách mong ngân hàng giải thích.',
+      'Lệnh chuyển đã giải phóng không được báo cho ngân hàng nhận, và tiền rời đi mà không ai nhận.',
+    ],
+    n_end_invalid: ['Lý do từ chối mơ hồ. Lập trình viên không biết trường nào sai và cứ gửi lại cùng một thông điệp lỗi.'],
+    n_end_declined: ['Khách bị báo “thất bại” mà không biết vì sao, và thử lại, rồi lại thử.'],
+  },
+  F: {
+    n_start: [
+      'Hồ sơ khách hàng đã cũ: ngày sinh hoặc quốc tịch lưu trữ bị sai, nên khách tốt trông giống người khác còn kẻ xấu trông trong sạch.',
+      'Danh sách theo dõi đã cũ một tuần. Người mới bị cấm vận đi thẳng qua.',
+    ],
+    n_aml: [
+      'Ngưỡng trùng khớp quá thấp. Mọi khách có tên phổ biến đều bị cảnh báo, và chuyên viên chìm trong cảnh báo sai.',
+      'Ngưỡng quá cao. Người bị cấm vận với tên viết khác đi lọt qua.',
+      'Tiền nộp được chia ra nhiều tài khoản. Xem từng tài khoản một sẽ không thấy được mẫu hình.',
+    ],
+    n_xor_hit: [
+      'Một khách trong sạch bị đưa vào Điều tra hồ sơ. Thời gian chuyên viên bị lãng phí và khách tốt phải chờ.',
+      'Chia nhỏ giao dịch được kiểm tra trước trùng tên, và người bị cấm vận đồng thời chia nhỏ tiền nộp bị báo cáo nhưng không bao giờ được điều tra.',
+    ],
+    n_case: [
+      'Kết luận chỉ dựa vào tên. Hai người khác nhau trùng tên bị coi là một.',
+      'Nhật ký kiểm toán không có kiểm tra danh tính, nên không chứng minh được gì. Câu trả lời trung thực là chưa kết luận được, không phải đoán.',
+      'Chuyên viên tin vào giấy tờ do khách cung cấp thay vì giấy tờ ngân hàng đã xác minh.',
+    ],
+    n_xor_verdict: [
+      'Một cảnh báo sai bị chặn. Một khách VIP lâu năm bị phong tỏa, và quan hệ với ngân hàng bị tổn hại.',
+      'Một trường hợp trùng cấm vận thật được giải phóng vì quy tắc coi mọi trùng khớp thật như người có ảnh hưởng chính trị.',
+    ],
+    n_end_released: ['Giao dịch được giải phóng dù hồ sơ khách hàng chưa được cập nhật. Sàng lọc đúng, nhưng trên thông tin cũ.'],
+    n_end_cleared: ['Lý do giải tỏa không được ghi lại. Ở lần kiểm toán sau không ai nói được vì sao một cái tên giống người bị cấm vận lại được cho qua.'],
+    n_end_sar: ['Báo cáo nộp muộn, hoặc khách hàng bị báo rằng họ đang bị báo cáo. Cả hai đều là vi phạm.'],
+    n_end_sanctions: ['Giao dịch bị chặn nhưng tài khoản không bị phong tỏa, nên khách thử lại bằng đường khác.'],
+    n_end_edd: ['Yêu cầu giải trình nguồn tiền không được trả lời. Khách phải chờ mà không có thời hạn.'],
+    n_end_escalate: ['Hồ sơ chuyển cấp không có người phụ trách. Giao dịch nằm trong hàng chờ không ai xử lý.'],
+    n_3ds: [
+      'Bộ đánh giá không chạy trước quầy tra soát. Quầy không thấy kết quả xác thực, nên một giao dịch đã chuyển trách nhiệm sang ngân hàng phát hành bị tra soát nhầm sang cửa hàng.',
+      'Điểm rủi ro được ghi lúc mua, nhưng kết quả thử thách bị mất. Giao dịch đã xác thực trông như chưa xác thực.',
+    ],
+    n_desk: [
+      'Thời hạn khiếu nại được tính từ sai ngày. Khiếu nại còn hạn bị từ chối, hoặc khiếu nại quá hạn lại được chấp nhận.',
+      'Lý do bị ghi nhầm là gian lận trong khi thực ra là trừ tiền trùng, và quy tắc chuyển trách nhiệm bị áp dụng cho sai loại khiếu nại.',
+    ],
+    n_xor_gate: [
+      'Trách nhiệm được kiểm tra trước thời hạn. Một khiếu nại quá hạn bị tranh cãi nhiều tuần trước khi ai đó nhận ra nó đã hết hiệu lực.',
+      'Giao dịch đã xác thực vẫn bị tra soát sang cửa hàng, và cửa hàng khiếu nại lại, hoàn toàn có lý.',
+    ],
+    n_xor_stage: ['Một giai đoạn bị bỏ qua. Tra soát lần đầu được nộp mà không yêu cầu cửa hàng xuất trình hóa đơn, và một giao dịch hợp pháp bị đảo.'],
+    n_xor_result: ['Kết quả được ghi cho sai bên, nên tổn thất rơi vào khách hàng hoặc cửa hàng không làm gì sai.'],
+    n_end_retrieval: ['Yêu cầu được gửi nhầm đầu mối của cửa hàng, và ngày tháng cứ trôi qua.'],
+    n_end_filed: ['Tra soát được nộp với sai mã lý do và tổ chức thẻ từ chối.'],
+    n_end_represent: ['Bằng chứng của cửa hàng được chấp nhận mà không được đọc, vì hàng chờ quá dài.'],
+    n_end_prearb: ['Vụ việc được chuyển cấp sau thời hạn. Quyền chuyển cấp bị mất.'],
+    n_end_refunded: ['Chủ thẻ được hoàn tiền hai lần: một lần tạm thời và một lần lúc kết thúc.'],
+    n_end_absorbed: ['Ngân hàng tự chịu một khoản lỗ lẽ ra thu hồi được, vì kết quả xác thực không được ghi đúng.'],
+    n_end_merchant: ['Khoản ghi có tạm thời bị thu lại từ chủ thẻ mà không báo trước, và họ khiếu nại sao kê của ngân hàng.'],
+    n_end_barred: ['Khách còn trong hạn bị báo là quá hạn, vì đồng hồ bắt đầu tính từ sai ngày.'],
+  },
+};
+
+export const FAIL_CASES: Localized<FailBook> = { en: EN, vi: VI };
 
 /** What can go wrong at one box of one process. An empty list when the box has nothing to say. */
 export function failCasesFor(process: ProcessId, nodeId: string): string[] {

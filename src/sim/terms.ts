@@ -16,7 +16,7 @@
  * The words themselves sit in one `Localized` table so another language is a data change (see i18n/locale.ts).
  */
 
-import { pick, type Localized } from '../i18n/locale';
+import { activeLocale, pick, type Localized } from '../i18n/locale';
 import { DEPARTMENTS, STATIONS, type DepartmentId, type ExternalId, type PlaceId, type StationId, isStation } from './topology';
 
 export type TermMode = 'expert' | 'beginner';
@@ -236,7 +236,189 @@ const EN: TermBook = {
   ],
 };
 
-export const TERMS: Localized<TermBook> = { en: EN };
+const VI: TermBook = {
+  modeLabel: { expert: 'Chuyên gia Fintech', beginner: 'Khám phá khái niệm' },
+  modeHint: {
+    expert: 'Dùng thuật ngữ của đội ngũ thanh toán: Token Vault, dCVV, 3DS, đối soát EOD.',
+    beginner: 'Khám phá khái niệm: tên dễ hiểu cho mọi quầy, kèm một câu giải thích khi bạn rê chuột.',
+  },
+  stations: {
+    GATE_VIRTUAL: {
+      plain: 'Cổng vào thẻ ảo',
+      short: 'Cổng vào thẻ ảo',
+      tip: 'Đây là cửa vào cho các giao dịch dùng số thẻ ảo dùng một lần.',
+    },
+    GATE_POS: {
+      plain: 'Cổng vào máy quẹt thẻ tại cửa hàng',
+      short: 'Cổng vào máy POS',
+      tip: 'Đây là nơi các giao dịch chạm hoặc quẹt trên máy đọc thẻ của cửa hàng đi vào.',
+    },
+    GATE_ECOM: {
+      plain: 'Cổng vào mua sắm trực tuyến',
+      short: 'Cổng vào mua sắm online',
+      tip: 'Đây là nơi các đơn thanh toán trực tuyến, kể cả yêu cầu Mua trước Trả sau, đi vào.',
+    },
+    SEC_VAULT: {
+      plain: 'Kho che giấu thẻ ảo (giấu số thẻ thật)',
+      short: 'Kho che giấu thẻ ảo',
+      tip: 'Nó đổi số thẻ ảo giả thành thẻ thật đằng sau, để cửa hàng không bao giờ thấy số thật.',
+    },
+    SEC_DCVV: {
+      plain: 'Kiểm tra mã bảo mật động (đổi mỗi phút)',
+      short: 'Kiểm tra mã bảo mật động',
+      tip: 'Nó kiểm tra mã bảo mật 3 chữ số khớp và còn mới, vì mã thay đổi mỗi phút.',
+    },
+    SEC_3DS: {
+      plain: 'Kiểm tra gian lận & mã OTP qua SMS',
+      short: 'Kiểm tra gian lận & OTP',
+      tip: 'Nó chấm điểm mức rủi ro của giao dịch trực tuyến, rồi cho qua, nhắn mã cho khách, hoặc chặn lại.',
+    },
+    LEDGER_DEBIT: {
+      plain: 'Kiểm tra số dư tài khoản thanh toán',
+      short: 'Kiểm tra số dư tài khoản',
+      tip: 'Nó kiểm tra khách có đủ tiền trong tài khoản thanh toán và khoanh giữ số tiền đó cho giao dịch này.',
+    },
+    LEDGER_CREDIT: {
+      plain: 'Kiểm tra hạn mức thẻ tín dụng',
+      short: 'Kiểm tra hạn mức tín dụng',
+      tip: 'Nó kiểm tra thẻ tín dụng còn đủ hạn mức và khoanh giữ số tiền đó cho giao dịch này.',
+    },
+    BNPL: {
+      plain: 'Mua trước Trả sau 4 kỳ',
+      short: 'Mua trước Trả sau 4 kỳ',
+      tip: 'Nó quyết định khách có được trả làm bốn phần bằng nhau thay vì trả một lần.',
+    },
+    EOD_BATCH: {
+      plain: 'Gom giao dịch ban đêm',
+      short: 'Gom giao dịch ban đêm',
+      tip: 'Lúc 23:00 nó gom mọi giao dịch được duyệt hôm nay vào một tệp để gửi Visa.',
+    },
+    EOD_VISA: {
+      plain: 'Bàn giao tiền với Visa',
+      short: 'Bàn giao tiền với Visa',
+      tip: 'Nó trao đổi tệp của ngày với Visa và thống nhất số tiền chuyển giao.',
+    },
+    RECON: {
+      plain: 'Đối chiếu sổ sách ban đêm',
+      short: 'Đối chiếu sổ sách đêm',
+      tip: 'Nó so sánh ba bộ hồ sơ cho từng giao dịch và đánh dấu những giao dịch không khớp.',
+    },
+    SUSPENSE: {
+      plain: 'Két giữ tiền lệch',
+      short: 'Két giữ tiền lệch',
+      tip: 'Tiền không khớp nằm chờ ở đây cho tới khi nhân viên tìm ra nguyên nhân.',
+    },
+    GATE_A2A: {
+      plain: 'Cổng vào chuyển khoản tức thì',
+      short: 'Cổng chuyển khoản tức thì',
+      tip: 'Đây là nơi chuyển khoản tức thì giữa các ngân hàng, như chia hóa đơn qua QR hay trả tiền nhà, đi vào và được kiểm tra trước khi tiền dịch chuyển.',
+    },
+    GATE_ATM: {
+      plain: 'Khe thẻ & bàn phím PIN của máy ATM',
+      short: 'Thẻ & PIN máy ATM',
+      tip: 'Khe thẻ và bàn phím của máy ATM ngoài vỉa hè, nơi nhập sai PIN ba lần liên tiếp thì máy sẽ nuốt thẻ.',
+    },
+    ATM_CASH: {
+      plain: 'Bộ nhả tiền của máy ATM',
+      short: 'Bộ nhả tiền ATM',
+      tip: 'Nó đếm tiền ra và trừ tiền trong tài khoản; nếu tiền bị kẹt, khoản tiền nằm chờ trong két tiền lệch cho tới khi kiểm quỹ chứng minh điều gì đã xảy ra.',
+    },
+  },
+  departments: {
+    GATES: { plain: 'Các cổng thanh toán', short: 'Các cổng thanh toán', tip: 'Nơi mọi giao dịch đi vào ngân hàng: thẻ ảo, máy quẹt thẻ, thanh toán trực tuyến và chuyển khoản tức thì.' },
+    SECURITY: { plain: 'Kiểm tra bảo mật & danh tính', short: 'Bảo mật & danh tính', tip: 'Nơi ngân hàng kiểm tra thẻ và người dùng thẻ là thật.' },
+    LEDGER: { plain: 'Kiểm tra số dư & tín dụng', short: 'Số dư & tín dụng', tip: 'Nơi ngân hàng kiểm tra tiền thật sự có và khoanh giữ lại.' },
+    BNPL: { plain: 'Mua trước Trả sau 4 kỳ', short: 'Mua trước Trả sau 4 kỳ', tip: 'Nơi ngân hàng quyết định ai được chia một giao dịch thành bốn kỳ thanh toán.' },
+    EOD: { plain: 'Phòng sổ sách ca đêm', short: 'Phòng sổ sách ca đêm', tip: 'Ca đêm kiểm tra mọi hồ sơ khớp nhau và treo lại những hồ sơ không khớp.' },
+    ATM: { plain: 'Máy ATM vỉa hè', short: 'Máy ATM vỉa hè', tip: 'Hai máy ATM màu xanh trên vỉa hè trước chi nhánh.' },
+  },
+  externals: {
+    CUSTOMER_OTP: {
+      plain: 'Điện thoại của khách (mã SMS)',
+      short: 'Điện thoại của khách',
+      sub: 'đang chờ mã SMS',
+      tip: 'Khách nhận tin nhắn có mã và nhập vào để chứng minh đúng là mình.',
+    },
+    OUT_APPROVED: { plain: 'Đã duyệt', short: 'Đã duyệt', sub: 'chờ tới đêm nay', tip: 'Các giao dịch ngân hàng đã đồng ý, đang chờ đối chiếu sổ sách đêm nay.' },
+    OUT_DECLINED: { plain: 'Từ chối', short: 'Từ chối', sub: 'hôm nay', tip: 'Các giao dịch ngân hàng đã từ chối hôm nay.' },
+    OUT_SETTLED: { plain: 'Tiền đã chuyển & xác nhận', short: 'Tiền đã chuyển', sub: 'ca chạy đêm nay', tip: 'Các giao dịch có mọi hồ sơ khớp nhau, nên tiền đã thật sự dịch chuyển.' },
+  },
+  glossary: [
+    ['virtual card tokenization & dynamic cvv flow', 'Thẻ ảo & Kho token'],
+    ['virtual card tokenization & dcvv masking', 'Thẻ ảo & Kho token'],
+    ['virtual card tokenization', 'Thẻ ảo & Kho token'],
+    ['virtual card tokenisation', 'Thẻ ảo & Kho token'],
+    ['3-d secure 2.x risk engine (challenge vs frictionless)', 'Kiểm tra danh tính & rủi ro 3DS'],
+    ['3-d secure 2.x risk engine (frictionless vs challenge otp)', 'Kiểm tra danh tính & rủi ro 3DS'],
+    ['3-d secure 2.x risk engine', 'Kiểm tra danh tính & rủi ro 3DS'],
+    ['3-d secure risk engine', 'Kiểm tra danh tính & rủi ro 3DS'],
+    ['3ds risk engine', 'Kiểm tra danh tính & rủi ro 3DS'],
+    ['bnpl pay-in-4 underwriting & card fallback', 'Mua trước Trả sau 4 kỳ'],
+    ['bnpl pay-in-4 underwriting', 'Mua trước Trả sau 4 kỳ'],
+    ['bnpl pay-in-4 installments', 'Mua trước Trả sau 4 kỳ'],
+    ['bnpl pay-in-4', 'Mua trước Trả sau 4 kỳ'],
+    ['eod 3-way reconciliation & suspense accounting', 'Đối chiếu sổ đêm & Két tiền lệch'],
+    ['eod 3-way reconciliation & suspense account handling', 'Đối chiếu sổ đêm & Két tiền lệch'],
+    ['instant account-to-account transfers (a2a & pacs.008)', 'Chuyển khoản tức thì liên ngân hàng'],
+    ['instant account-to-account transfers', 'Chuyển khoản tức thì liên ngân hàng'],
+    ['instant a2a transfers', 'Chuyển khoản tức thì liên ngân hàng'],
+    ['aml screening & chargeback dispute resolution', 'Kiểm tra tiền đáng ngờ & Khiếu nại hoàn tiền'],
+    ['aml & chargebacks', 'Kiểm tra tiền đáng ngờ & Khiếu nại hoàn tiền'],
+    ['3-d secure 2.x', 'bước xác minh danh tính bổ sung'],
+    ['3-d secure', 'bước xác minh danh tính bổ sung'],
+    ['3ds', 'xác minh danh tính bổ sung'],
+    ['token vault', 'kho che giấu thẻ ảo'],
+    ['tokenization', 'che giấu số thẻ'],
+    ['tokenisation', 'che giấu số thẻ'],
+    ['dynamic cvv', 'mã bảo mật động'],
+    ['dcvv', 'mã bảo mật động'],
+    ['cvv', 'mã bảo mật'],
+    ['dpan', 'số thẻ ảo'],
+    ['fpan', 'số thẻ thật'],
+    ['otp', 'mã SMS dùng một lần'],
+    ['casa', 'tài khoản thanh toán'],
+    ['bnpl', 'Mua trước Trả sau'],
+    ['pay-in-4', 'trả làm 4 kỳ'],
+    ['underwriting', 'thẩm định duyệt'],
+    ['3-way reconciliation', 'đối chiếu sổ đêm 3 bên'],
+    ['reconciliation', 'đối chiếu sổ đêm'],
+    ['suspense account', 'két giữ tiền lệch'],
+    ['suspense', 'két tiền lệch'],
+    ['settlement', 'bàn giao tiền'],
+    ['acquirer', 'ngân hàng của cửa hàng'],
+    ['issuer', 'ngân hàng của khách'],
+    ['frictionless', 'không phiền hà'],
+    ['liability shift', 'ai chịu nếu là gian lận'],
+    ['eod', 'cuối ngày'],
+    ['pos', 'máy quẹt thẻ'],
+    ['iso 20022', 'chuẩn thông điệp ngân hàng hiện đại'],
+    ['pacs.008', 'thông điệp thanh toán liên ngân hàng'],
+    ['endtoendid', 'mã tham chiếu giao dịch'],
+    ['rtgs', 'hệ thống thanh toán giá trị cao'],
+    ['a2a', 'liên ngân hàng'],
+    ['aml', 'phòng chống rửa tiền'],
+    ['ofac', 'danh sách cấm vận'],
+    ['politically exposed person', 'người giữ chức vụ công'],
+    ['pep', 'người giữ chức vụ công'],
+    ['structuring', 'chia nhỏ tiền nộp để né báo cáo'],
+    ['fx', 'ngoại tệ'],
+    ['chargeback', 'hoàn tiền bắt buộc'],
+    ['representment', 'phản hồi của cửa hàng'],
+    ['pre-arbitration', 'cảnh báo cuối trước khi tổ chức thẻ phân xử'],
+    ['retrieval request', 'yêu cầu xuất trình hóa đơn'],
+    ['double-entry', 'ghi sổ kép'],
+  ],
+  keep: [
+    'Thẻ ảo & Kho token',
+    'Kiểm tra danh tính & rủi ro 3DS',
+    'Mua trước Trả sau 4 kỳ',
+    'Đối chiếu sổ đêm & Két tiền lệch',
+    'Chuyển khoản tức thì liên ngân hàng',
+    'Kiểm tra tiền đáng ngờ & Khiếu nại hoàn tiền',
+  ],
+};
+
+export const TERMS: Localized<TermBook> = { en: EN, vi: VI };
 
 const book = (): TermBook => pick(TERMS);
 
@@ -247,31 +429,65 @@ const book = (): TermBook => pick(TERMS);
 export const modeLabel = (mode: TermMode): string => book().modeLabel[mode];
 export const modeHint = (mode: TermMode): string => book().modeHint[mode];
 
+/**
+ * The professional (Fintech Expert) names in Vietnamese: the Vietnamese banking term, with the industry name kept where a
+ * Vietnamese bank would keep it too (Token Vault, dCVV, 3DS, CASA).
+ */
+const EXPERT_STATION_VI: Readonly<Record<StationId, { name: string; blurb: string }>> = {
+  GATE_VIRTUAL: { name: 'Cổng thẻ ảo', blurb: 'Nhận các giao dịch thanh toán bằng số thẻ ảo kèm CVV động.' },
+  GATE_POS: { name: 'Cổng POS', blurb: 'Nhận giao dịch chip-và-PIN và chạm thẻ từ máy POS tại cửa hàng.' },
+  GATE_ECOM: { name: 'Cổng thương mại điện tử', blurb: 'Nhận giao dịch thẻ trực tuyến và hồ sơ trả góp 4 kỳ từ website cửa hàng.' },
+  SEC_VAULT: { name: 'Token Vault', blurb: 'Chuyển số thẻ ảo (DPAN) về thẻ thật và tài khoản cấp vốn cho nó.' },
+  SEC_DCVV: { name: 'Xác minh dCVV', blurb: 'Kiểm tra mã bảo mật luân phiên khớp và còn trong cửa sổ hiệu lực.' },
+  SEC_3DS: { name: 'Bàn rủi ro 3DS', blurb: 'Chấm điểm mỗi giao dịch trực tuyến và chọn không ma sát, thử thách (OTP) hay từ chối.' },
+  LEDGER_DEBIT: { name: 'Ghi nợ CASA', blurb: 'Kiểm tra số dư khả dụng trên tài khoản thanh toán, tiết kiệm và ví trả trước, rồi khoanh giữ.' },
+  LEDGER_CREDIT: { name: 'Hạn mức tín dụng tuần hoàn', blurb: 'Kiểm tra hạn mức còn lại so với hạn mức thẻ tín dụng, rồi khoanh giữ.' },
+  BNPL: { name: 'Thẩm định trả góp 4 kỳ', blurb: 'Đọc điểm thẩm định của khách và quyết định có đưa ra kế hoạch bốn kỳ hay không.' },
+  EOD_BATCH: { name: 'Bù trừ theo lô', blurb: 'Lúc 23:00 gom mọi giao dịch được duyệt trong ngày vào tệp bù trừ.' },
+  EOD_VISA: { name: 'Quyết toán Visa', blurb: 'Trao đổi tệp bù trừ với tổ chức thẻ và thống nhất vị thế quyết toán ròng.' },
+  RECON: { name: 'Đối soát 3 bên', blurb: 'Khớp bút toán sổ cái, tệp bù trừ của tổ chức thẻ và báo cáo của ngân hàng thanh toán, từng bản ghi một.' },
+  SUSPENSE: { name: 'Tài khoản treo', blurb: 'Giữ mọi bản ghi không khớp cho tới khi nhân viên vận hành tìm ra nguyên nhân và xử lý.' },
+  GATE_A2A: { name: 'Cổng chuyển khoản A2A', blurb: 'Nhận chuyển khoản tức thì (chia hóa đơn QR, tiền thuê, liên ngân hàng) dạng thông điệp pacs.008 và kiểm tra định dạng trước khi động tới tiền.' },
+  GATE_ATM: { name: 'Thẻ & PIN ATM', blurb: 'Đầu đọc thẻ và bàn phím PIN của ATM vỉa hè. Khách có ba lần thử; sai lần thứ ba máy khóa phiên và giữ thẻ.' },
+  ATM_CASH: { name: 'Bộ nhả tiền ATM', blurb: 'Kiểm tra số dư, đếm tiền ra và trừ tài khoản. Nếu kẹt tiền khi khách đã bị trừ, khoản tiền được treo cho tới khi kiểm quỹ chứng minh điều gì đã xảy ra.' },
+};
+
+const EXPERT_DEPARTMENT_VI: Readonly<Record<DepartmentId, { name: string; blurb: string }>> = {
+  GATES: { name: 'Cổng tiếp nhận', blurb: 'Nơi giao dịch đi vào ngân hàng: thẻ ảo, máy POS, thanh toán trực tuyến và chuyển khoản tức thì.' },
+  SECURITY: { name: 'Bảo mật & Kho rủi ro 3DS', blurb: 'Tra cứu thẻ ảo, kiểm tra CVV động và quyết định ai phải chứng minh danh tính.' },
+  LEDGER: { name: 'Sổ cái ngân hàng lõi', blurb: 'Kiểm tra tiền có đủ và khoanh giữ: tài khoản ghi nợ và hạn mức tín dụng tuần hoàn.' },
+  BNPL: { name: 'Bàn trả góp 4 kỳ BNPL', blurb: 'Thẩm định hồ sơ Mua trước Trả sau và đặt khoản trả trước.' },
+  EOD: { name: 'Bàn đối soát cuối ngày & tài khoản treo', blurb: 'Chu kỳ đêm: bù trừ theo lô, quyết toán Visa, đối soát 3 bên, và tài khoản treo cho những gì không khớp.' },
+  ATM: { name: 'ATM vỉa hè', blurb: 'Hai buồng ATM màu xanh trên vỉa hè trước chi nhánh: buồng thẻ và PIN, rồi buồng tiền mặt. Nếu kẹt tiền sau khi khách bị trừ, khoản tiền vào thẳng tài khoản treo.' },
+};
+
+const vi = (): boolean => activeLocale() === 'vi';
+
 /** The name on a desk card. */
 export function stationName(id: StationId, mode: TermMode): string {
-  return mode === 'beginner' ? book().stations[id].short : STATIONS[id].name;
+  return mode === 'beginner' ? book().stations[id].short : vi() ? EXPERT_STATION_VI[id].name : STATIONS[id].name;
 }
 
 /** The full name, for headings and tooltips. */
 export function stationTitle(id: StationId, mode: TermMode): string {
-  return mode === 'beginner' ? book().stations[id].plain : STATIONS[id].name;
+  return mode === 'beginner' ? book().stations[id].plain : vi() ? EXPERT_STATION_VI[id].name : STATIONS[id].name;
 }
 
 /** The one-sentence "what is this" for a desk. */
 export function stationTip(id: StationId, mode: TermMode): string {
-  return mode === 'beginner' ? book().stations[id].tip : STATIONS[id].blurb;
+  return mode === 'beginner' ? book().stations[id].tip : vi() ? EXPERT_STATION_VI[id].blurb : STATIONS[id].blurb;
 }
 
 export const stationBlurb = stationTip;
 
 export function departmentName(id: DepartmentId, mode: TermMode): string {
-  return mode === 'beginner' ? book().departments[id].short : DEPARTMENTS[id].name;
+  return mode === 'beginner' ? book().departments[id].short : vi() ? EXPERT_DEPARTMENT_VI[id].name : DEPARTMENTS[id].name;
 }
 
 export const departmentTitle = departmentName;
 
 export function departmentTip(id: DepartmentId, mode: TermMode): string {
-  return mode === 'beginner' ? book().departments[id].tip : DEPARTMENTS[id].blurb;
+  return mode === 'beginner' ? book().departments[id].tip : vi() ? EXPERT_DEPARTMENT_VI[id].blurb : DEPARTMENTS[id].blurb;
 }
 
 const EXPERT_EXTERNAL: Record<ExternalId, ExternalTerm> = {
@@ -281,7 +497,14 @@ const EXPERT_EXTERNAL: Record<ExternalId, ExternalTerm> = {
   OUT_SETTLED: { plain: 'Settled & cleared', short: 'Settled & cleared', sub: 'tonight’s run', tip: 'Payments whose three records matched in tonight’s reconciliation.' },
 };
 
-const externalTerm = (id: ExternalId, mode: TermMode): ExternalTerm => (mode === 'beginner' ? book().externals[id] : EXPERT_EXTERNAL[id]);
+const EXPERT_EXTERNAL_VI: Record<ExternalId, ExternalTerm> = {
+  CUSTOMER_OTP: { plain: 'Điện thoại của khách', short: 'Điện thoại của khách', sub: 'đang trên điện thoại', tip: 'Khách nhận OTP và nhập vào để hoàn tất thử thách 3DS.' },
+  OUT_APPROVED: { plain: 'Đã duyệt', short: 'Đã duyệt', sub: 'chờ tới đêm nay', tip: 'Các giao dịch đã cấp phép, chờ bù trừ theo lô đêm nay.' },
+  OUT_DECLINED: { plain: 'Từ chối', short: 'Từ chối', sub: 'hôm nay', tip: 'Các giao dịch bị từ chối hôm nay, do rủi ro hoặc do thiếu tiền.' },
+  OUT_SETTLED: { plain: 'Đã quyết toán & bù trừ', short: 'Đã quyết toán', sub: 'ca chạy đêm nay', tip: 'Các giao dịch có ba bản ghi khớp nhau trong lần đối soát đêm nay.' },
+};
+
+const externalTerm = (id: ExternalId, mode: TermMode): ExternalTerm => (mode === 'beginner' ? book().externals[id] : vi() ? EXPERT_EXTERNAL_VI[id] : EXPERT_EXTERNAL[id]);
 
 export const externalLabel = (id: ExternalId, mode: TermMode): string => externalTerm(id, mode).short;
 export const externalSub = (id: ExternalId, mode: TermMode): string => externalTerm(id, mode).sub;

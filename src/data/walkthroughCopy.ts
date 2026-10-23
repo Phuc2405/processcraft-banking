@@ -129,7 +129,81 @@ const EN: WalkBook = {
   },
 };
 
-export const WALK_COPY: Localized<WalkBook> = { en: EN };
+const VI: WalkBook = {
+  scenes: {
+    A: {
+      chapter: 'Thẻ ảo: một con số không phải là thẻ thật',
+      scene:
+        'Khách hàng An vừa mua một chiếc áo trên mạng. Cô không nhập số thẻ thật mà dùng thẻ ảo từ ứng dụng ngân hàng, một số thay thế chỉ có hiệu lực vài phút. Trang thanh toán của cửa hàng gửi số đó cùng mã bảo mật về ngân hàng. Trong vài giây, ngân hàng phải quyết định đây có thật là An hay không.',
+      lookFor: ['Thẻ thật được cất giấu ở đâu.', 'Vì sao mã bảo mật được kiểm tra trước khi ai đó nhìn vào số dư của cô.', 'Người gõ chậm và kẻ gian có điểm gì chung.'],
+    },
+    B: {
+      chapter: 'Người gác cổng: chỉ gây phiền khi đáng',
+      scene:
+        'Khách hàng An mua một chiếc túi trên mạng bằng thẻ thường ngày. Trang thanh toán gửi giao dịch kèm điểm rủi ro, từ 0 (bình thường) đến 100 (báo động). Ngân hàng có một tích tắc để quyết định: cho qua luôn, chặn lại và gửi mã về điện thoại, hay từ chối ngay tại cửa.',
+      lookFor: ['Ai được cho qua mà không phải trả lời câu hỏi nào.', 'Điều gì xảy ra trên điện thoại của khách.', 'Ai chịu thiệt nếu giao dịch đã qua bước kiểm tra này hóa ra là gian lận.'],
+    },
+    C: {
+      chapter: 'Trả làm bốn kỳ: tin tưởng, nhưng có phương án B',
+      scene:
+        'Khách hàng An muốn mua áo khoác nhưng muốn trả làm bốn lần. Cô đăng ký Mua trước Trả sau ngay tại trang thanh toán. Ngân hàng phải quyết định có tin cô với một kế hoạch trả góp hay không, và làm gì với đơn hàng nếu câu trả lời là không.',
+      lookFor: ['Hai bài kiểm tra mà một kế hoạch phải vượt qua.', 'Một lời “không” vẫn có thể giữ được đơn hàng như thế nào.', 'Một kế hoạch được duyệt vẫn có thể thất bại ra sao.'],
+    },
+    D: {
+      chapter: 'Ca đêm: ba bộ sổ có khớp nhau không?',
+      scene:
+        'Bây giờ là 23:00. Các cửa hàng đã đóng cửa, và mọi giao dịch được duyệt hôm nay đang chờ ở ô Đã duyệt. Đêm nay ngân hàng phải chứng minh ba bộ hồ sơ độc lập khớp nhau cho từng giao dịch, và đưa những giao dịch không khớp vào tài khoản treo.',
+      lookFor: ['Ba bộ hồ sơ, và ai giữ từng bộ.', 'Đâu là sai số vụn vặt và đâu là sai lệch thật.', 'Vì sao giao dịch lệch được treo lại, không bao giờ bị ép cho khớp.'],
+    },
+    E: {
+      chapter: 'Chuyển khoản tức thì: không thẻ, không có cơ hội thứ hai',
+      scene:
+        'Mia đang ăn tối. Cô quét mã QR trên hóa đơn và bấm gửi: $18.50 cho một người bạn dùng ngân hàng khác. Không có thẻ và không có chu kỳ đêm để sửa sai: ngay khi ngân hàng đồng ý, tiền đã đi. Vì vậy ngân hàng đọc từng dòng thông điệp mà ứng dụng của cô gửi đi, trước cả khi nhìn vào số dư.',
+      lookFor: ['Những trường mà cổng thanh toán bắt buộc phải có.', 'Vì sao một thông điệp lỗi không bao giờ chạm tới sổ cái.', '“Tức thì” lấy đi điều gì của ngân hàng.'],
+    },
+    F: {
+      chapter: 'Sau giao dịch: tiền này dành cho ai, và ai chịu nếu có sự cố?',
+      scene:
+        'Chương này có hai câu chuyện. Trong câu chuyện thứ nhất, một khách hàng lâu năm chuyển $25,000.00 và hệ thống sàng lọc cho rằng tên anh giống một người trong danh sách cấm vận. Trong câu chuyện thứ hai, một chủ thẻ nói rằng một giao dịch không phải do cô thực hiện. Chọn ví dụ bắt đầu bằng “AML:” hoặc “Dispute:” để đi qua sơ đồ thật.',
+      lookFor: ['Khác biệt giữa một nghi vấn và một kết luận.', 'Chuyên viên tin vào bằng chứng nào.', 'Vì sao thời hạn khiếu nại được kiểm tra trước trách nhiệm.'],
+    },
+  },
+  ui: {
+    tour: 'Học & Khám phá',
+    chapter: 'Chương',
+    thisRun: 'Lần chạy này',
+    lookFor: 'Hãy chú ý',
+    example: 'Giao dịch mẫu',
+    start: 'Bắt đầu tham quan',
+    startHint: 'Mã giao dịch bắt đầu di chuyển. Nó dừng ở mỗi quầy để giải thích, và ở mỗi điểm quyết định để hỏi bạn một câu.',
+    stepOf: (n, total) => `Bước ${n} / ${total}`,
+    whatHappens: 'Chuyện gì đang diễn ra ở đây?',
+    forThisPayment: 'Với giao dịch này',
+    takeaway: 'Điều cần nhớ',
+    canGoWrong: 'Điều gì có thể sai',
+    thinkOfItLike: 'Hãy hình dung như',
+    previous: 'Bước trước',
+    next: 'Bước tiếp',
+    autoPlay: 'Tự chạy',
+    pause: 'Tạm dừng',
+    resume: 'Tiếp tục',
+    replay: 'Chạy lại',
+    exit: 'Thoát hướng dẫn',
+    ruleLab: 'Mở phòng thử quy tắc',
+    speedLocked: 'Tốc độ khóa ở 0.25×',
+    quizTitle: 'Kiểm tra nhanh',
+    quizAsk: 'Trả lời để mã giao dịch đi tiếp.',
+    quizLocked: 'Trả lời câu hỏi để đi tiếp.',
+    correct: 'Chính xác!',
+    notQuite: 'Chưa đúng.',
+    rightAnswer: 'Đáp án',
+    tourDone: 'Kết thúc chuyến tham quan',
+    score: (right, total) => `Kiểm tra nhanh: đúng ${right} / ${total}`,
+    noQuestions: 'Lần chạy này không có câu hỏi kiểm tra',
+  },
+};
+
+export const WALK_COPY: Localized<WalkBook> = { en: EN, vi: VI };
 
 export const walkUi = (): WalkUi => pick(WALK_COPY).ui;
 export const sceneOf = (process: ProcessId): Scene => pick(WALK_COPY).scenes[process];

@@ -1,7 +1,9 @@
 import { forwardRef, useEffect, useRef, type ReactNode } from 'react';
 import { modelCopy, modelForStation } from '../../data/mentalModels';
 import { sceneOf, walkUi } from '../../data/walkthroughCopy';
-import { LESSONS, PROCESS_SHORT } from '../../sim/learning';
+import { factLabel, factValue } from '../../i18n/factsVi';
+import { tr } from '../../i18n/locale';
+import { lessonOf, processShort } from '../../sim/learningVi';
 import { isStation } from '../../sim/topology';
 import { quizzesOf } from '../../sim/walkQuiz';
 import type { StepTone } from '../../sim/walkthrough';
@@ -47,7 +49,7 @@ export function Kickoff({ focus }: { focus: Focus }) {
   const begin = useBankStore((s) => s.beginSpotlight);
   const setExample = useBankStore((s) => s.setSpotlightExample);
   const exit = useBankStore((s) => s.exitSpotlight);
-  const lesson = LESSONS[focus.tour.process];
+  const lesson = lessonOf(focus.tour.process);
   const scene = sceneOf(focus.tour.process);
   const example = lesson.examples.find((e) => e.id === focus.tour.exampleId);
 
@@ -96,8 +98,8 @@ export function Kickoff({ focus }: { focus: Focus }) {
             <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
               {focus.plan.walk.carries.map((f) => (
                 <div key={f.label} className="text-[11.5px]">
-                  <dt className="inline text-slate-500">{f.label}: </dt>
-                  <dd className="inline font-medium tabular-nums text-slate-200">{f.value}</dd>
+                  <dt className="inline text-slate-500">{factLabel(f.label)}: </dt>
+                  <dd className="inline font-medium tabular-nums text-slate-200">{factValue(f.value)}</dd>
                 </div>
               ))}
             </dl>
@@ -233,8 +235,8 @@ export const StepCard = forwardRef<HTMLDivElement, { focus: Focus; style?: React
         <button
           type="button"
           onClick={() => bankStore.getState().setWalkCollapsed(true)}
-          aria-label="Minimise the step card"
-          title="Minimise: fold this card into a small badge so the whole map can be seen"
+          aria-label={tr({ en: 'Minimise the step card', vi: 'Thu nhỏ thẻ bước' })}
+          title={tr({ en: 'Minimise: fold this card into a small badge so the whole map can be seen', vi: 'Thu nhỏ: gập thẻ này thành một huy hiệu nhỏ để thấy toàn bộ bản đồ' })}
           data-testid="walk-collapse"
           className="ml-auto grid h-6 w-6 shrink-0 place-items-center rounded-md text-[15px] font-bold leading-none text-slate-300 ring-1 ring-slate-700 transition hover:bg-slate-800 hover:text-white"
         >
@@ -257,8 +259,8 @@ export const StepCard = forwardRef<HTMLDivElement, { focus: Focus; style?: React
           <dl className="mt-1.5 flex flex-wrap gap-1">
             {step.facts.map((f) => (
               <div key={f.label} className="rounded bg-slate-800/80 px-1.5 py-0.5 text-[11px]">
-                <dt className="inline text-slate-400">{f.label}: </dt>
-                <dd className="inline font-medium text-slate-100">{f.value}</dd>
+                <dt className="inline text-slate-400">{factLabel(f.label)}: </dt>
+                <dd className="inline font-medium text-slate-100">{factValue(f.value)}</dd>
               </div>
             ))}
           </dl>
@@ -333,7 +335,7 @@ export function GuidedBar() {
 
   if (!focus) return null;
   const { tour } = focus;
-  const lesson = LESSONS[tour.process];
+  const lesson = lessonOf(tour.process);
   const total = focus.plan.steps.length;
   const quizzes = quizzesOf(focus.plan);
   const quizSteps = new Set(quizzes.map((q) => q.step));
@@ -351,9 +353,9 @@ export function GuidedBar() {
             {lesson.chapter}
           </span>
           <div className="min-w-0 leading-tight">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{ui.chapter} {lesson.chapter} · Walkthrough</div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{ui.chapter} {lesson.chapter} · {tr({ en: 'Walkthrough', vi: 'Hướng dẫn từng bước' })}</div>
             <div className="truncate text-[12.5px] font-semibold text-slate-100" title={lesson.title}>
-              {terms.t(PROCESS_SHORT[tour.process])}
+              {terms.t(processShort(tour.process))}
             </div>
           </div>
         </div>
@@ -420,12 +422,12 @@ export function GuidedBar() {
             );
           })}
         </ol>
-        <span className="flex items-center gap-1 whitespace-nowrap" title="The clock is stopped and the speed is locked while the tour runs." data-testid="walk-lock">
+        <span className="flex items-center gap-1 whitespace-nowrap" title={tr({ en: 'The clock is stopped and the speed is locked while the tour runs.', vi: 'Đồng hồ dừng và tốc độ bị khóa trong khi chạy hướng dẫn.' })} data-testid="walk-lock">
           <span aria-hidden="true">🔒</span> {ui.speedLocked}
         </span>
         <span className="whitespace-nowrap tabular-nums" data-testid="walk-score">
           {quizzes.length === 0 ? ui.noQuestions : ui.score(rightCount, quizzes.length)}
-          {quizzes.length > 0 && answered.length < quizzes.length ? ` (${answered.length}/${quizzes.length} answered)` : ''}
+          {quizzes.length > 0 && answered.length < quizzes.length ? tr({ en: ` (${answered.length}/${quizzes.length} answered)`, vi: ` (đã trả lời ${answered.length}/${quizzes.length})` }) : ''}
         </span>
         <label className="ml-auto flex items-center gap-2 whitespace-nowrap">
           <span>{ui.example}</span>
@@ -457,21 +459,21 @@ export function WalkBadge() {
   const collapsed = useBankStore((s) => s.walkCollapsed);
   const expand = useBankStore((s) => s.setWalkCollapsed);
   if (!focus || !collapsed || focus.tour.intro) return null;
-  const chapter = LESSONS[focus.tour.process].chapter;
+  const chapter = lessonOf(focus.tour.process).chapter;
   return (
     <button
       type="button"
       onClick={() => expand(false)}
-      title="Show the step card again"
+      title={tr({ en: 'Show the step card again', vi: 'Hiện lại thẻ bước' })}
       data-testid="walk-badge"
       className="absolute bottom-3 left-3 z-40 flex items-center gap-2 rounded-full border bg-slate-900/95 px-3 py-1.5 text-[12px] font-semibold text-slate-100 shadow-xl transition hover:bg-slate-800"
       style={{ borderColor: focus.accent, boxShadow: `0 0 18px ${focus.accent}44` }}
     >
       <span aria-hidden="true">📖</span>
       <span className="tabular-nums">
-        Chapter {chapter}: Step {focus.index + 1}/{focus.plan.steps.length}
+        {tr({ en: `Chapter ${chapter}: Step ${focus.index + 1}/${focus.plan.steps.length}`, vi: `Chương ${chapter}: Bước ${focus.index + 1}/${focus.plan.steps.length}` })}
       </span>
-      {focus.blocked && <span className="rounded-full bg-amber-400/20 px-1.5 text-[10.5px] text-amber-200">question waiting</span>}
+      {focus.blocked && <span className="rounded-full bg-amber-400/20 px-1.5 text-[10.5px] text-amber-200">{tr({ en: 'question waiting', vi: 'câu hỏi đang chờ' })}</span>}
       <span aria-hidden="true" className="text-slate-400">▴</span>
     </button>
   );
@@ -484,21 +486,21 @@ export function ResumeWalkthrough() {
   const resume = useBankStore((s) => s.resumeSpotlight);
   const dismiss = useBankStore((s) => s.dismissResume);
   if (!left || touring) return null;
-  const lesson = LESSONS[left.process];
+  const lesson = lessonOf(left.process);
   return (
     <div className="absolute bottom-3 left-3 z-40 flex items-center overflow-hidden rounded-full border border-slate-700 bg-slate-900/95 shadow-xl" data-testid="walk-resume-box">
       <button
         type="button"
         onClick={resume}
-        title={`Back to Chapter ${lesson.chapter}, step ${left.step + 1}`}
+        title={tr({ en: `Back to Chapter ${lesson.chapter}, step ${left.step + 1}`, vi: `Quay lại Chương ${lesson.chapter}, bước ${left.step + 1}` })}
         data-testid="walk-resume"
         className="flex items-center gap-2 py-1.5 pl-3 pr-2.5 text-[12px] font-semibold text-slate-950 transition hover:brightness-110"
         style={{ background: lesson.accent }}
       >
-        <span aria-hidden="true">🎓</span> Resume Walkthrough
-        <span className="font-medium text-slate-900/70">Ch {lesson.chapter} · Step {left.step + 1}</span>
+        <span aria-hidden="true">🎓</span> {tr({ en: 'Resume Walkthrough', vi: 'Tiếp tục hướng dẫn' })}
+        <span className="font-medium text-slate-900/70">{tr({ en: `Ch ${lesson.chapter} · Step ${left.step + 1}`, vi: `Ch. ${lesson.chapter} · Bước ${left.step + 1}` })}</span>
       </button>
-      <button type="button" onClick={dismiss} aria-label="Dismiss" title="Dismiss" data-testid="walk-resume-dismiss" className="px-2.5 py-1.5 text-[13px] text-slate-400 transition hover:text-white">
+      <button type="button" onClick={dismiss} aria-label={tr({ en: 'Dismiss', vi: 'Bỏ qua' })} title={tr({ en: 'Dismiss', vi: 'Bỏ qua' })} data-testid="walk-resume-dismiss" className="px-2.5 py-1.5 text-[13px] text-slate-400 transition hover:text-white">
         ×
       </button>
     </div>

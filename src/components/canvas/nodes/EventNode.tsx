@@ -1,4 +1,6 @@
+import { t } from '../../../i18n/t';
 import { memo } from 'react';
+import { labLabel } from '../../../i18n/labText';
 import { Position, type NodeProps } from '@xyflow/react';
 import type { ProcessFlowNode } from '../../../store/graphConversion';
 import { IDLE_RUNTIME, useWorkflowStore } from '../../../store/workflowStore';
@@ -27,14 +29,14 @@ function EventNodeView({ id, data, selected }: NodeProps<ProcessFlowNode>) {
   const reached = runtime.status === 'DONE';
 
   // Name the result first. If the learner renamed the node, keep their name as the subtitle.
-  const title = isStart ? node.label : (theme?.label ?? node.label);
+  const title = isStart ? labLabel(node.label) : theme ? t(theme.label) : labLabel(node.label);
   const subtitle = isStart
-    ? 'a customer payment arrives'
+    ? t('a customer payment arrives')
     : node.label !== theme?.label && node.label !== 'End: Outcome'
-      ? node.label
+      ? labLabel(node.label)
       : reasonCode
         ? reasonCode
-        : 'end of the process';
+        : t('end of the process');
 
   return (
     <div
@@ -66,8 +68,8 @@ function EventNodeView({ id, data, selected }: NodeProps<ProcessFlowNode>) {
       </div>
 
       {node.locked && (
-        <span className="absolute -top-2 left-4 rounded-full bg-slate-800 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-slate-400 ring-1 ring-slate-700" title="Part of the starter diagram">
-          fixed
+        <span className="absolute -top-2 left-4 rounded-full bg-slate-800 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-slate-400 ring-1 ring-slate-700" title={t('Part of the starter diagram')}>
+          {t('fixed')}
         </span>
       )}
 

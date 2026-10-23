@@ -10,6 +10,7 @@
  *   - The last step of a run happens where the payment ends up: Approved, Declined, Settled, or the holding box.
  */
 
+import { activeLocale } from '../i18n/locale';
 import { LESSONS, type ProcessId } from './learning';
 import { DEFAULT_RULES, type BankRules } from './rules';
 import { STATIONS, WIRES, edgeId, isStation, type DepartmentId, type PlaceId, type StationId } from './topology';
@@ -139,7 +140,8 @@ function resolvePlace(process: ProcessId, step: WalkStep, previous: PlaceId | nu
 const planCache = new Map<string, SpotPlan>();
 
 export function spotPlan(process: ProcessId, exampleId: string, rules: Partial<BankRules> = DEFAULT_RULES): SpotPlan {
-  const key = `${process}|${exampleId}|${JSON.stringify(rules)}`;
+  // The plan carries the words of the lesson, so each language has its own.
+  const key = `${activeLocale()}|${process}|${exampleId}|${JSON.stringify(rules)}`;
   const hit = planCache.get(key);
   if (hit) return hit;
 

@@ -1,3 +1,6 @@
+import { flowAriaLabels } from '../../i18n/flowAria';
+import { localChallenge } from '../../i18n/challengeVi';
+import { t } from '../../i18n/t';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Background, BackgroundVariant, ReactFlow, ReactFlowProvider, useReactFlow, useStore as useFlowStore } from '@xyflow/react';
 import { labUi } from '../../data/labTourCopy';
@@ -151,6 +154,7 @@ function LabFlow() {
   return (
     <div className="relative h-full w-full" data-testid="lab-canvas" style={timingVars(playbackMs)}>
       <ReactFlow<ProcessFlowNode, ProcessFlowEdge>
+        ariaLabelConfig={flowAriaLabels()}
         nodes={shown}
         edges={wires}
         nodeTypes={nodeTypes}
@@ -364,7 +368,7 @@ function LabBar({ accent }: { accent: string }) {
             );
           })}
         </ol>
-        <span className="flex items-center gap-1 whitespace-nowrap" title="The speed is locked while the tour runs." data-testid="lab-lock">
+        <span className="flex items-center gap-1 whitespace-nowrap" title={t('The speed is locked while the tour runs.')} data-testid="lab-lock">
           <span aria-hidden="true">🔒</span> {ui.speedLocked}
         </span>
         <span className="whitespace-nowrap tabular-nums" data-testid="lab-score">
@@ -394,7 +398,7 @@ function LabBar({ accent }: { accent: string }) {
 const labTourAuto = (): boolean => labTourStore.getState().auto;
 function testsFor(levelId: string): Array<{ id: string; name: string }> {
   const level = LEVELS.find((l) => l.id === levelId);
-  return level ? playableTests(level).map((t) => ({ id: t.id, name: t.name })) : [];
+  return level ? playableTests(localChallenge(level)).map((tc) => ({ id: tc.id, name: tc.name })) : [];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

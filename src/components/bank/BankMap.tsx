@@ -1,7 +1,11 @@
+import { tr } from '../../i18n/locale';
+import { t } from '../../i18n/t';
+import { feedText } from '../../i18n/feedVi';
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { beatMs, SPEEDS, type Phase } from '../../sim/clock';
 import { formatMoney } from '../../sim/kpis';
-import { LESSONS, PROCESS_SHORT, type ProcessId } from '../../sim/learning';
+import { LESSONS, type ProcessId } from '../../sim/learning';
+import { processShort } from '../../sim/learningVi';
 import { wiresOfRoute } from '../../sim/spotlightPlan';
 import { DEPARTMENTS, DEPARTMENT_IDS, STATIONS, type DepartmentId, type ExternalId, type PlaceId, type StationId } from '../../sim/topology';
 import type { Move, StationView } from '../../sim/types';
@@ -15,9 +19,11 @@ import { WorkstationGraphic } from '../canvas/nodes/WorkstationGraphic';
 import { BANK_WIRES, CARD, DEPT_BOX, pathOfWire, PLACE_BOX, STAGE, TIP_SIDE, type TipSide } from './layout';
 import { SpotlightOverlay, SpotlightToken } from './Spotlight';
 import { StageScaleContext, useStageScale } from './stage';
-import { lookOfKind, RUN_STATUS, STATUS_DOT_CLASS, STATUS_LABEL, STATUS_TEXT_CLASS, WorkerFace } from './ui';
+import { lookOfKind, RUN_STATUS, STATUS_DOT_CLASS, STATUS_TEXT_CLASS, statusLabel, WorkerFace } from './ui';
 import { useSpotlightFocus, type Focus } from './useSpotlight';
 import { useTerms, type Terms } from './useTerms';
+import { clampZoom, wheelZoom, ZOOM_STEP, zoomStore } from '../../store/zoomStore';
+import { useSmartZoom, type SmartView, type SmartZoomCamera } from '../../hooks/useSmartZoom';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scaling the stage to the space it is given
@@ -46,6 +52,187 @@ function useFitScale(topInset: number, bottomInset: number): { ref: RefObject<HT
   return { ref, scale };
 }
 
+/**
+ * Zoom and pan on top of the fitted scale. The mouse wheel zooms about the cursor (the point under it stays put), a drag on the
+ * empty background pans, and the floating toolbar's +, − and Fit arrive through zoomStore. Returns the zoom (a multiple of the
+ * fitted size), the ref of the content box, and whether the last pointer press was a pan (so it is not taken for a click).
+ */
+function useZoomPan(
+  frame: RefObject<HTMLDivElement>,
+  fit: number,
+  insets: { top: number; bottom: number },
+): { zoom: number; content: RefObject<HTMLDivElement>; panned: RefObject<boolean>; camera: SmartZoomCamera } {
+  const [zoom, setZoom] = useState(1);
+  // Bumped per flight frame so a pan-only frame still re-scrolls.
+  const [nudge, setNudge] = useState(0);
+  const flight = useRef<number | null>(null);
+  const insetsRef = useRef(insets);
+  insetsRef.current = insets;
+  const stopFlight = (): void => {
+    if (flight.current !== null) cancelAnimationFrame(flight.current);
+    flight.current = null;
+  };
+  const content = useRef<HTMLDivElement>(null);
+  const panned = useRef(false);
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  const fitRef = useRef(fit);
+  fitRef.current = fit;
+  /** The stage point that must end up under (cx, cy) of the frame once the new scale has been drawn. */
+  const anchor = useRef<{ sx: number; sy: number; cx: number; cy: number } | null>(null);
+
+  const zoomAbout = (next: number, cx: number, cy: number): void => {
+    const el = frame.current;
+    const box = content.current;
+    const target = clampZoom(next);
+    if (!el || !box || target === zoomRef.current) return;
+    const scale = fitRef.current * zoomRef.current;
+    anchor.current = { sx: (el.scrollLeft + cx - box.offsetLeft) / scale, sy: (el.scrollTop + cy - box.offsetTop) / scale, cx, cy };
+    setZoom(target);
+  };
+
+  // The wheel listener must be non-passive to stop the page scrolling while it zooms.
+  useEffect(() => {
+    const el = frame.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent): void => {
+      if (e.deltaY === 0) return;
+      e.preventDefault();
+      stopFlight();
+      const r = el.getBoundingClientRect();
+      zoomAbout(wheelZoom(zoomRef.current, e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY), e.clientX - r.left, e.clientY - r.top);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      stopFlight();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // After the new scale is drawn, scroll so the anchored stage point is back under the cursor.
+  useLayoutEffect(() => {
+    const el = frame.current;
+    const box = content.current;
+    const a = anchor.current;
+    if (!el || !box || !a) return;
+    anchor.current = null;
+    const scale = fit * zoom;
+    el.scrollLeft = box.offsetLeft + a.sx * scale - a.cx;
+    el.scrollTop = box.offsetTop + a.sy * scale - a.cy;
+  }, [zoom, fit, frame, nudge]);
+
+  // The toolbar's commands, and the percentage it shows.
+  useEffect(
+    () =>
+      zoomStore.subscribe((s, prev) => {
+        const c = s.command;
+        if (!c || c === prev.command) return;
+        const el = frame.current;
+        if (!el) return;
+        stopFlight();
+        if (c.kind === 'fit') {
+          anchor.current = null;
+          setZoom(1);
+          el.scrollTo({ left: 0, top: 0 });
+          return;
+        }
+        zoomAbout(zoomRef.current * (c.kind === 'in' ? ZOOM_STEP : 1 / ZOOM_STEP), el.clientWidth / 2, el.clientHeight / 2);
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  useEffect(() => {
+    zoomStore.getState().report(fit * zoom * 100);
+  }, [fit, zoom]);
+
+  // Drag on the empty background to pan.
+  useEffect(() => {
+    const el = frame.current;
+    if (!el) return;
+    let start: { x: number; y: number; left: number; top: number; id: number } | null = null;
+    const onDown = (e: PointerEvent): void => {
+      const t = e.target as HTMLElement;
+      const background = t === el || t.dataset.testid === 'bank-stage' || t === content.current;
+      panned.current = false;
+      if (e.button !== 0 || !background) return;
+      stopFlight();
+      start = { x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop, id: e.pointerId };
+    };
+    const onMove = (e: PointerEvent): void => {
+      if (!start || e.pointerId !== start.id) return;
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      if (!panned.current && Math.hypot(dx, dy) < 4) return;
+      if (!panned.current) {
+        panned.current = true;
+        el.setPointerCapture?.(e.pointerId);
+        el.style.cursor = 'grabbing';
+      }
+      el.scrollLeft = start.left - dx;
+      el.scrollTop = start.top - dy;
+    };
+    const onUp = (e: PointerEvent): void => {
+      if (!start || e.pointerId !== start.id) return;
+      start = null;
+      el.style.cursor = '';
+      if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId);
+    };
+    el.addEventListener('pointerdown', onDown);
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
+    return () => {
+      el.removeEventListener('pointerdown', onDown);
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onUp);
+      el.removeEventListener('pointercancel', onUp);
+    };
+  }, [frame]);
+
+  // Smart-zoom camera: glide zoom (log-eased) and centre together.
+  const flyTo = (to: SmartView, ms: number): void => {
+    const el = frame.current;
+    const box = content.current;
+    if (!el || !box) return;
+    stopFlight();
+    const { top, bottom } = insetsRef.current;
+    const vx = el.clientWidth / 2;
+    const vy = top + (el.clientHeight - top - bottom) / 2;
+    const z0 = zoomRef.current;
+    const s0 = fitRef.current * z0;
+    const x0 = (el.scrollLeft + vx - box.offsetLeft) / s0;
+    const y0 = (el.scrollTop + vy - box.offsetTop) / s0;
+    const t0 = performance.now();
+    const frameAt = (now: number): void => {
+      const u = ms > 0 ? Math.min(1, (now - t0) / ms) : 1;
+      const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+      anchor.current = { sx: x0 + (to.cx - x0) * e, sy: y0 + (to.cy - y0) * e, cx: vx, cy: vy };
+      setZoom(clampZoom(z0 * Math.pow(to.zoom / z0, e)));
+      setNudge((n) => n + 1);
+      flight.current = u < 1 ? requestAnimationFrame(frameAt) : null;
+    };
+    if (ms > 0) flight.current = requestAnimationFrame(frameAt);
+    else frameAt(t0);
+  };
+
+  const camera: SmartZoomCamera = {
+    fit,
+    viewport: () => {
+      const el = frame.current;
+      if (!el) return null;
+      const { top, bottom } = insetsRef.current;
+      const w = el.clientWidth - 24;
+      const h = el.clientHeight - 12 - top - bottom;
+      return w > 0 && h > 0 ? { w, h } : null;
+    },
+    flyTo,
+    home: (ms) => flyTo({ zoom: 1, cx: STAGE.width / 2, cy: STAGE.height / 2 }, ms),
+  };
+
+  return { zoom, content, panned, camera };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Who is on shift
 // ─────────────────────────────────────────────────────────────────────────────
@@ -67,8 +254,8 @@ function ProcessChip({ process, accent }: { process: ProcessId; accent: string }
     <button
       type="button"
       onClick={() => startSpotlight(process)}
-      title={`Chapter ${LESSONS[process].chapter}: ${PROCESS_SHORT[process]}`}
-      aria-label={`Start Chapter ${LESSONS[process].chapter}: ${PROCESS_SHORT[process]}`}
+      title={tr({ en: `Chapter ${LESSONS[process].chapter}: ${processShort(process)}`, vi: `Chương ${LESSONS[process].chapter}: ${processShort(process)}` })}
+      aria-label={tr({ en: `Start Chapter ${LESSONS[process].chapter}: ${processShort(process)}`, vi: `Bắt đầu Chương ${LESSONS[process].chapter}: ${processShort(process)}` })}
       data-testid={`chip-process-${process}`}
       className="pointer-events-auto grid h-[17px] w-[17px] place-items-center rounded-[5px] text-[10px] font-black leading-none text-slate-950 transition hover:scale-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
       style={{ background: accent }}
@@ -239,7 +426,7 @@ const StationCard = memo(function StationCard({
   const flowLit = flow ? flow.scope.places.has(id) : false;
   const dim = !focus && !flowLit && sv.status === 'IDLE' && sv.queueLength === 0 && !isOnShift(id, phase);
   const worst = sv.alerts.some((a) => a.severity === 'crit' && a.live) ? 'crit' : sv.alerts.length > 0 ? 'warn' : null;
-  const unit = def.kind === 'ACCOUNT' ? 'items' : 'waiting';
+  const unit = def.kind === 'ACCOUNT' ? t('items') : t('waiting');
   const name = terms.station(id);
   const title = terms.stationTitle(id);
   // A long plain-English name takes two lines, so the desk art gives up a little height for it.
@@ -260,7 +447,7 @@ const StationCard = memo(function StationCard({
         type="button"
         onClick={() => (focus ? spotlightFocus(id) : select({ kind: 'station', id }))}
         aria-pressed={selected}
-        aria-label={`${title}: ${STATUS_LABEL[sv.status]}, ${sv.queueLength} ${unit}`}
+        aria-label={`${title}: ${statusLabel(sv.status)}, ${sv.queueLength} ${unit}`}
         data-testid={`station-${id}`}
         data-status={sv.status}
         className={`absolute inset-0 rounded-xl border bg-gradient-to-b from-slate-900 to-[#0b1120] transition hover:border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${lit && focus ? 'bk-spot-lit' : flowLit ? 'bk-flow-lit' : border} ${flowHere ? 'bk-flow-here' : ''} ${selected ? 'ring-2 ring-sky-400' : ''} ${sv.status === 'CONGESTED' && !focus ? 'bk-congested' : ''}`}
@@ -272,7 +459,7 @@ const StationCard = memo(function StationCard({
             {name}
           </span>
           {worst && !focus && (
-            <span className={`ml-auto grid h-[13px] w-[13px] shrink-0 place-items-center rounded-full text-[9px] font-black text-slate-950 ${worst === 'crit' ? 'animate-pulse bg-rose-400' : 'bg-amber-300'}`} title={sv.alerts[0]?.text} data-testid={`alert-badge-${id}`}>
+            <span className={`ml-auto grid h-[13px] w-[13px] shrink-0 place-items-center rounded-full text-[9px] font-black text-slate-950 ${worst === 'crit' ? 'animate-pulse bg-rose-400' : 'bg-amber-300'}`} title={sv.alerts[0] ? feedText(sv.alerts[0].text) : undefined} data-testid={`alert-badge-${id}`}>
               !
             </span>
           )}
@@ -287,7 +474,7 @@ const StationCard = memo(function StationCard({
             <div className="mt-0.5 truncate text-[9.5px] leading-tight">
               <span className="uppercase tracking-wide text-slate-500">{unit}</span>
               <span className="text-slate-600"> · </span>
-              <span className={`font-medium ${STATUS_TEXT_CLASS[sv.status]}`}>{STATUS_LABEL[sv.status]}</span>
+              <span className={`font-medium ${STATUS_TEXT_CLASS[sv.status]}`}>{statusLabel(sv.status)}</span>
             </div>
           </div>
         </div>
@@ -343,8 +530,8 @@ function WorkerButton({
       type="button"
       onClick={() => (touring ? spotlightFocus(station) : select({ kind: 'worker', station, workerId: id }))}
       aria-pressed={selected}
-      aria-label={`${name}, ${role}`}
-      title={`${name} · ${role} · fatigue ${Math.round(fatigue)}`}
+      aria-label={`${t(name)}, ${t(role)}`}
+      title={tr({ en: `${name} · ${role} · fatigue ${Math.round(fatigue)}`, vi: `${t(name)} · ${t(role)} · mệt mỏi ${Math.round(fatigue)}` })}
       data-testid={`worker-${id}`}
       className={`pointer-events-auto rounded-full transition hover:scale-125 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${touring && lit ? 'bk-worker-glow' : ''}`}
     >
@@ -391,14 +578,14 @@ function ExternalNode({ id, focus, flow, flowHere, terms }: { id: ExternalId; fo
   const startSpotlight = useBankStore((s) => s.startSpotlight);
   const spotlightFocus = useBankStore((s) => s.spotlightFocus);
   const box = PLACE_BOX[id];
-  const t = EXTERNAL_THEME[id];
+  const theme = EXTERNAL_THEME[id];
   const lit = focus ? focus.scope.places.has(id) : false;
   const here = focus ? focus.current.place === id && !focus.tour.intro : false;
   const big = id !== 'CUSTOMER_OTP';
   const body = (
     <>
-      <div className={`flex items-start gap-1.5 ${t.text}`}>
-        <span className="mt-px shrink-0">{t.icon}</span>
+      <div className={`flex items-start gap-1.5 ${theme.text}`}>
+        <span className="mt-px shrink-0">{theme.icon}</span>
         <span className="line-clamp-2 text-[11px] font-semibold leading-[1.15]">{terms.external(id)}</span>
       </div>
       <div className="mt-0.5 flex items-baseline justify-between gap-1">
@@ -412,7 +599,7 @@ function ExternalNode({ id, focus, flow, flowHere, terms }: { id: ExternalId; fo
   );
   const flowLit = flow ? flow.scope.places.has(id) : false;
   const style: CSSProperties = { left: box.cx - box.w / 2, top: box.cy - box.h / 2, width: box.w, height: box.h, ...neon(focus), ...flowVar(flow) };
-  const klass = `group absolute z-20 hover:z-[45] has-[:focus-visible]:z-[45] rounded-xl border bg-gradient-to-b p-2 text-left ${lit && focus ? 'bk-spot-lit' : flowLit ? 'bk-flow-lit' : t.border} ${t.bg} ${dimClass(focus, lit)} ${flowDim(flow, flowLit)} ${here ? 'bk-spot-here' : ''} ${flowHere ? 'bk-flow-here' : ''}`;
+  const klass = `group absolute z-20 hover:z-[45] has-[:focus-visible]:z-[45] rounded-xl border bg-gradient-to-b p-2 text-left ${lit && focus ? 'bk-spot-lit' : flowLit ? 'bk-flow-lit' : theme.border} ${theme.bg} ${dimClass(focus, lit)} ${flowDim(flow, flowLit)} ${here ? 'bk-spot-here' : ''} ${flowHere ? 'bk-flow-here' : ''}`;
   if (id === 'CUSTOMER_OTP') {
     return (
       <button
@@ -420,7 +607,7 @@ function ExternalNode({ id, focus, flow, flowHere, terms }: { id: ExternalId; fo
         onClick={() => (focus ? spotlightFocus(id) : startSpotlight('B'))}
         className={`${klass} transition hover:border-violet-300`}
         style={style}
-        title={focus || (flow && flowLit) ? undefined : 'Chapter 2: the 3DS challenge sends the customer here'}
+        title={focus || (flow && flowLit) ? undefined : t('Chapter 2: the 3DS challenge sends the customer here')}
         data-testid="external-CUSTOMER_OTP-box"
         data-here={here || undefined}
         data-lit={flow ? flowLit : undefined}
@@ -504,14 +691,17 @@ function Wires({ moves, tick, focus, flow }: { moves: readonly Move[]; tick: num
           </g>
         );
       })}
-      {BANK_WIRES.filter((w) => w.label && w.showLabel).map((w) => (
-        <g key={`label-${w.id}`} transform={`translate(${w.labelAt[0]} ${w.labelAt[1]})`} opacity={(!focus || focus.scope.wires.has(w.id)) && (!flow || flow.scope.wires.has(w.id)) ? 1 : 0.15}>
-          <rect x={-(w.label as string).length * 2.7 - 4} y="-7" width={(w.label as string).length * 5.4 + 8} height="14" rx="4" fill="#060912" stroke="#1e293b" />
-          <text textAnchor="middle" y="3.2" fontSize="9" fill="#94a3b8" style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
-            {w.label}
-          </text>
-        </g>
-      ))}
+      {BANK_WIRES.filter((w) => w.label && w.showLabel).map((w) => {
+        const label = t(w.label as string);
+        return (
+          <g key={`label-${w.id}`} transform={`translate(${w.labelAt[0]} ${w.labelAt[1]})`} opacity={(!focus || focus.scope.wires.has(w.id)) && (!flow || flow.scope.wires.has(w.id)) ? 1 : 0.15}>
+            <rect x={-label.length * 2.7 - 4} y="-7" width={label.length * 5.4 + 8} height="14" rx="4" fill="#060912" stroke="#1e293b" />
+            <text textAnchor="middle" y="3.2" fontSize="9" fill="#94a3b8" style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
+              {label}
+            </text>
+          </g>
+        );
+      })}
     </svg>
   );
 }
@@ -550,7 +740,10 @@ function BankMapView() {
   const inset = useDockInset();
   // The preset bar of a guided flow floats at the bottom of the map: the blueprint stops above it.
   const bottomInset = useBankStore((s) => (activeFlowOf(s) ? 64 : 0));
-  const { ref, scale } = useFitScale(inset, bottomInset);
+  const { ref, scale: fit } = useFitScale(inset, bottomInset);
+  const { zoom, content, panned, camera } = useZoomPan(ref, fit, { top: inset, bottom: bottomInset });
+  useSmartZoom(camera);
+  const scale = fit * zoom;
   const view = useBankStore((s) => s.view);
   const selection = useBankStore((s) => s.selection);
   const speedIndex = useBankStore((s) => s.speedIndex);
@@ -575,14 +768,14 @@ function BankMapView() {
 
   return (
     <StageScaleContext.Provider value={scale}>
-      <div ref={ref} className="relative h-full w-full overflow-auto" onClick={(e) => e.target === e.currentTarget && clearSelection()} data-testid="bank-map" data-phase={view.phase} data-day={view.day} data-touring={focus ? 'yes' : 'no'} data-spot={spotlit ?? undefined} data-flow={flow?.flow ?? undefined}>
-        <div className="relative mx-auto" style={{ width: STAGE.width * scale, height: STAGE.height * scale, marginTop: inset }}>
+      <div ref={ref} className="relative h-full w-full overflow-auto" onClick={(e) => e.target === e.currentTarget && !panned.current && clearSelection()} data-testid="bank-map" data-zoom={Math.round(scale * 100)} data-phase={view.phase} data-day={view.day} data-touring={focus ? 'yes' : 'no'} data-spot={spotlit ?? undefined} data-flow={flow?.flow ?? undefined}>
+        <div ref={content} className="relative mx-auto" style={{ width: STAGE.width * scale, height: STAGE.height * scale, marginTop: inset }}>
           <div
             className={`bk-stage relative ${night ? 'bk-night' : ''} ${focus ? 'bk-touring' : ''}`}
             style={{ width: STAGE.width, height: STAGE.height, transform: `scale(${scale})`, transformOrigin: 'top left' }}
             data-testid="bank-stage"
             data-phase={view.phase}
-            onClick={(e) => e.target === e.currentTarget && clearSelection()}
+            onClick={(e) => e.target === e.currentTarget && !panned.current && clearSelection()}
           >
             {DEPARTMENT_IDS.map((id) => (
               <DepartmentFrame key={id} id={id} focus={focus} flow={flow} terms={terms} />
@@ -597,8 +790,8 @@ function BankMapView() {
               <ExternalNode key={id} id={id} focus={focus} flow={flow} flowHere={flowHereAt === id || academyAt === id} terms={terms} />
             ))}
             {night && !focus && (
-              <div className="pointer-events-none absolute z-20 flex items-center gap-1.5 rounded-full bg-amber-400/15 px-2 py-0.5 text-[10.5px] font-semibold text-amber-200" style={{ left: DEPT_BOX.EOD.x + DEPT_BOX.EOD.w - 200, top: DEPT_BOX.EOD.y + 8 }}>
-                <MoonIcon /> night cycle running
+              <div className="pointer-events-none absolute z-20 flex items-center gap-1.5 rounded-full bg-amber-400/15 px-2 py-0.5 text-[10.5px] font-semibold text-amber-200" style={{ left: DEPT_BOX.EOD.x + 8, top: DEPT_BOX.EOD.y + DEPT_BOX.EOD.h - 26 }}>
+                <MoonIcon /> {t('night cycle running')}
               </div>
             )}
             {focus && <SpotlightToken focus={focus} />}

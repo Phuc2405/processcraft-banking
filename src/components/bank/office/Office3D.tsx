@@ -1,3 +1,4 @@
+import { t } from '../../../i18n/t';
 import { Canvas } from '@react-three/fiber';
 import { Component, memo, useCallback, useState, type ErrorInfo, type ReactNode } from 'react';
 import { useAcademyStore } from '../../../store/academyStore';
@@ -19,7 +20,7 @@ class OfficeBoundary extends Component<{ onBack: () => void; children: ReactNode
   override state = { error: null as string | null };
 
   static getDerivedStateFromError(error: unknown): { error: string } {
-    return { error: error instanceof Error ? error.message : 'The 3D view could not start.' };
+    return { error: error instanceof Error ? error.message : t('The 3D view could not start.') };
   }
 
   override componentDidCatch(error: unknown, info: ErrorInfo): void {
@@ -36,11 +37,11 @@ function Unavailable({ reason, onBack }: { reason: string; onBack: () => void })
   return (
     <div className="grid h-full place-items-center bg-slate-950 p-8" role="alert" data-testid="office-3d-failed">
       <div className="max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 text-center">
-        <h2 className="text-[16px] font-bold text-slate-50">The 3D office could not start</h2>
-        <p className="mt-2 text-[13px] leading-relaxed text-slate-300">Your browser or graphics driver would not give us a 3D surface. Nothing is lost: the 2D blueprint shows the same bank.</p>
+        <h2 className="text-[16px] font-bold text-slate-50">{t('The 3D office could not start')}</h2>
+        <p className="mt-2 text-[13px] leading-relaxed text-slate-300">{t('Your browser or graphics driver would not give us a 3D surface. Nothing is lost: the 2D blueprint shows the same bank.')}</p>
         <p className="mt-2 break-words text-[11px] text-slate-500">{reason}</p>
         <button type="button" onClick={onBack} className="mt-4 rounded-lg bg-lime-400 px-4 py-2 text-[13px] font-bold text-slate-950 hover:bg-lime-300">
-          Back to the 2D blueprint
+          {t('Back to the 2D blueprint')}
         </button>
       </div>
     </div>
@@ -99,16 +100,16 @@ function Office3DView() {
 
       <div className={`pointer-events-none absolute bottom-3 left-3 z-30 ${touring || resumeOffered || flowOn ? 'hidden' : 'flex'} flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-white bg-white/90 px-3 py-1.5 text-[11px] text-slate-500 shadow-md`} data-testid="office-hint">
         <span>
-          <b className="font-semibold text-slate-800">Drag</b> to pan
+          <b className="font-semibold text-slate-800">{t('Drag')}</b>{t(' to pan')}
         </span>
         <span>
-          <b className="font-semibold text-slate-800">Scroll</b> to zoom
+          <b className="font-semibold text-slate-800">{t('Scroll')}</b>{t(' to zoom')}
         </span>
         <span>
-          <b className="font-semibold text-slate-800">Right-drag</b> to turn
+          <b className="font-semibold text-slate-800">{t('Right-drag')}</b>{t(' to turn')}
         </span>
         <span>
-          <b className="font-semibold text-slate-800">Click</b> a desk or a person to inspect it
+          <b className="font-semibold text-slate-800">{t('Click')}</b>{t(' a desk or a person to inspect it')}
         </span>
       </div>
       {/* Beside the Academy panel the map is narrow, so these controls step down below the viewport dock instead of sharing its row. */}
@@ -118,9 +119,9 @@ function Office3DView() {
           onClick={() => setResetKey((n) => n + 1)}
           data-testid="office-reset"
           className="rounded-lg border border-white bg-white/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-700 shadow-md transition hover:bg-white"
-          title={touring ? 'Glide back to the desk the tour is at' : 'Glide back to the whole office'}
+          title={touring ? t('Glide back to the desk the tour is at') : t('Glide back to the whole office')}
         >
-          Reset view
+          {t('Reset view')}
         </button>
         <button
           type="button"
@@ -128,9 +129,9 @@ function Office3DView() {
           data-testid="office-labels"
           aria-pressed={labelMode === 'hover'}
           className="rounded-lg border border-white bg-white/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-700 shadow-md transition hover:bg-white"
-          title={labelMode === 'always' ? 'Hide the floating name badges until you point at a workstation' : 'Show a floating name badge over every workstation'}
+          title={labelMode === 'always' ? t('Hide the floating name badges until you point at a workstation') : t('Show a floating name badge over every workstation')}
         >
-          Labels: {labelMode === 'always' ? 'Always Show' : 'Hover Only'}
+          {t('Labels:')} {labelMode === 'always' ? t('Always Show') : t('Hover Only')}
         </button>
       </div>
     </div>

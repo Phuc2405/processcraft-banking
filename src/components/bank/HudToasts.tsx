@@ -1,3 +1,4 @@
+import { t } from '../../i18n/t';
 import { useEffect, useRef, useState } from 'react';
 import { useBankStore } from '../../store/bankStore';
 import { HUD_EVENTS, HUD_TTL_MS, newEvents, pushToasts, type DeclineCounts, type HudToast } from './hudToastLogic';
@@ -40,14 +41,14 @@ export function HudToasts() {
   if (toasts.length === 0) return null;
   return (
     <div className="pointer-events-none absolute right-3 top-16 z-30 flex w-[230px] flex-col items-end gap-1.5" aria-live="polite" data-testid="hud-toasts">
-      {toasts.map((t) => {
-        const meta = META[t.kind];
+      {toasts.map((toast) => {
+        const meta = META[toast.kind];
         if (!meta) return null;
         return (
-          <div key={t.id} className={`bk-hud-toast pointer-events-none flex items-center gap-2 rounded-full border px-3 py-1 text-[11.5px] font-semibold shadow-lg ${TONE[meta.tone]}`} data-testid={`hud-toast-${t.kind}`} role="status">
+          <div key={toast.id} className={`bk-hud-toast pointer-events-none flex items-center gap-2 rounded-full border px-3 py-1 text-[11.5px] font-semibold shadow-lg ${TONE[meta.tone]}`} data-testid={`hud-toast-${toast.kind}`} role="status">
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--dot)]" aria-hidden="true" />
-            {meta.title}
-            {t.count > 1 && <span className="tabular-nums opacity-75">×{t.count}</span>}
+            {t(meta.title)}
+            {toast.count > 1 && <span className="tabular-nums opacity-75">×{toast.count}</span>}
           </div>
         );
       })}

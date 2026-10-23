@@ -1,4 +1,7 @@
+import { t } from '../../../i18n/t';
 import { memo } from 'react';
+import { labLabel } from '../../../i18n/labText';
+import { tr } from '../../../i18n/locale';
 import { Position, type NodeProps } from '@xyflow/react';
 import type { ProcessFlowNode } from '../../../store/graphConversion';
 import { IDLE_RUNTIME, useWorkflowStore } from '../../../store/workflowStore';
@@ -74,15 +77,15 @@ function GatewayNodeView({ id, data, selected }: NodeProps<ProcessFlowNode>) {
 
       {/* caption sits below the diamond, outside the measured box so it never moves the handles */}
       <div className="pointer-events-none absolute left-1/2 top-full mt-2 w-[170px] -translate-x-1/2 text-center">
-        <p className="truncate text-[12px] font-semibold text-slate-100" title={node.label}>
-          {node.label}
+        <p className="truncate text-[12px] font-semibold text-slate-100" title={labLabel(node.label)}>
+          {labLabel(node.label)}
         </p>
         <p className={`text-[10px] ${runtime.status === 'FROZEN' ? 'font-semibold text-sky-200' : runtime.joinWaiting ? 'font-semibold text-orange-300' : 'text-slate-500'}`}>
           {runtime.status === 'FROZEN'
-            ? 'frozen: a branch never arrives'
+            ? t('frozen: a branch never arrives')
             : runtime.joinWaiting
-              ? `waiting: ${runtime.joinWaiting.arrived} of ${runtime.joinWaiting.expected} arrived`
-              : role}
+              ? tr({ en: `waiting: ${runtime.joinWaiting.arrived} of ${runtime.joinWaiting.expected} arrived`, vi: `đang chờ: ${runtime.joinWaiting.arrived}/${runtime.joinWaiting.expected} đã tới` })
+              : t(role)}
         </p>
       </div>
 

@@ -1,5 +1,6 @@
+import { t } from '../../i18n/t';
 import { memo, useEffect, useState, type ReactNode } from 'react';
-import { GUIDED_FLOWS } from '../../sim/guidedFlows';
+import { flowText, GUIDED_FLOWS } from '../../sim/guidedFlows';
 import { FLOW_IDS, type DataDepth, type Dimension, type FlowId, type Scope } from '../../types/viewport';
 import { dataDepthOf, useBankStore } from '../../store/bankStore';
 import { webglAvailable } from './office/webgl';
@@ -63,17 +64,17 @@ const IsoBoxIcon = () => (
 
 const Dot = ({ color }: { color: string }) => <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />;
 
-const SCOPE_OPTIONS: readonly [Option<Scope>, Option<Scope>] = [
-  { id: 'beginner', label: <><Dot color="#4ade80" />Beginner</>, title: 'Guided: one payment flow at a time is lit, everything else fades back' },
-  { id: 'advanced', label: <><Dot color="#c084fc" />Advanced</>, title: 'The whole Living Bank, every desk and wire lit' },
+const SCOPE_OPTIONS = (): readonly [Option<Scope>, Option<Scope>] => [
+  { id: 'beginner', label: <><Dot color="#4ade80" />{t('Beginner')}</>, title: t('Guided: one payment flow at a time is lit, everything else fades back') },
+  { id: 'advanced', label: <><Dot color="#c084fc" />{t('Advanced')}</>, title: t('The whole Living Bank, every desk and wire lit') },
 ];
-const DIMENSION_OPTIONS: readonly [Option<Dimension>, Option<Dimension>] = [
-  { id: '2d', label: <><SchematicIcon />2D</>, title: 'The flat blueprint map of departments and wires' },
-  { id: '3d', label: <><IsoBoxIcon />3D</>, title: 'The same bank as an isometric office: desks, staff and customers' },
+const DIMENSION_OPTIONS = (): readonly [Option<Dimension>, Option<Dimension>] => [
+  { id: '2d', label: <><SchematicIcon />2D</>, title: t('The flat blueprint map of departments and wires') },
+  { id: '3d', label: <><IsoBoxIcon />3D</>, title: t('The same bank as an isometric office: desks, staff and customers') },
 ];
-const DEPTH_OPTIONS: readonly [Option<DataDepth>, Option<DataDepth>] = [
-  { id: 'standard', label: <>Standard</>, title: 'Plain-English names and simple facts in the inspector' },
-  { id: 'expert', label: <><span className="font-mono text-[10.5px] text-lime-300">&lt;/&gt;</span>Expert</>, title: 'Fintech terms, ISO 8583 response codes, the raw message and the GL journal' },
+const DEPTH_OPTIONS = (): readonly [Option<DataDepth>, Option<DataDepth>] => [
+  { id: 'standard', label: <>{t('Standard')}</>, title: t('Plain-English names and simple facts in the inspector') },
+  { id: 'expert', label: <><span className="font-mono text-[10.5px] text-lime-300">&lt;/&gt;</span>{t('Expert')}</>, title: t('Fintech terms, ISO 8583 response codes, the raw message and the GL journal') },
 ];
 
 /** The four guided flows, under the dock while the Beginner scope is on. */
@@ -81,7 +82,7 @@ function FlowBar() {
   const flow = useBankStore((s) => s.flow);
   const setFlow = useBankStore((s) => s.setActiveFlow);
   return (
-    <nav aria-label="Guided flows" className="bk-slide-down mt-1.5 flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-950/95 p-1 shadow-xl" data-testid="flow-bar">
+    <nav aria-label={t('Guided flows')} className="bk-slide-down mt-1.5 flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-950/95 p-1 shadow-xl" data-testid="flow-bar">
       {FLOW_IDS.map((id: FlowId) => {
         const f = GUIDED_FLOWS[id];
         const on = flow === id;
@@ -91,13 +92,13 @@ function FlowBar() {
             type="button"
             onClick={() => setFlow(id)}
             aria-pressed={on}
-            title={f.blurb}
+            title={flowText(id).blurb}
             data-testid={`flow-${id}`}
             className={`whitespace-nowrap rounded-lg px-2.5 py-1 text-[11.5px] font-semibold transition ${on ? 'text-slate-950' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
             style={on ? { background: f.accent, boxShadow: `0 0 14px ${f.accent}66` } : undefined}
           >
             <span className={`mr-1 font-mono ${on ? 'text-slate-900/70' : 'text-slate-500'}`}>{f.code}.</span>
-            {f.title}
+            {flowText(id).title}
           </button>
         );
       })}
@@ -132,16 +133,16 @@ function ViewportControlsView() {
   const left = useMapCentre();
   return (
     <div className="pointer-events-none absolute top-3 z-40 flex -translate-x-1/2 flex-col items-center transition-[left] duration-200 ease-out" style={{ left }} data-testid="viewport-controls">
-      <div className={`pointer-events-auto flex items-center gap-3 rounded-2xl border border-slate-800 p-1.5 px-3 shadow-2xl ${solid ? 'bg-slate-900/95' : 'bg-slate-950/90 backdrop-blur-md'}`} role="toolbar" aria-label="Viewport">
-        <Pill<Scope> label="Scope" value={scope} options={SCOPE_OPTIONS} onChange={setScope} testPrefix="scope" accent={{ beginner: '#166534', advanced: '#6b21a8' }} />
+      <div className={`pointer-events-auto flex items-center gap-3 rounded-2xl border border-slate-800 p-1.5 px-3 shadow-2xl ${solid ? 'bg-slate-900/95' : 'bg-slate-950/90 backdrop-blur-md'}`} role="toolbar" aria-label={t('Viewport')}>
+        <Pill<Scope> label={t('Scope')} value={scope} options={SCOPE_OPTIONS()} onChange={setScope} testPrefix="scope" accent={{ beginner: '#166534', advanced: '#6b21a8' }} />
         <span className="h-5 w-px bg-slate-800" aria-hidden="true" />
-        <Pill<Dimension> label="Dimension" value={dimension} options={DIMENSION_OPTIONS} onChange={chooseDimension} testPrefix="dim" accent={{ '2d': '#0c4a6e', '3d': '#0c4a6e' }} />
+        <Pill<Dimension> label={t('Dimension')} value={dimension} options={DIMENSION_OPTIONS()} onChange={chooseDimension} testPrefix="dim" accent={{ '2d': '#0c4a6e', '3d': '#0c4a6e' }} />
         <span className="h-5 w-px bg-slate-800" aria-hidden="true" />
-        <Pill<DataDepth> label="Data depth" value={depth} options={DEPTH_OPTIONS} onChange={setDepth} testPrefix="depth" accent={{ standard: '#334155', expert: '#3f6212' }} />
+        <Pill<DataDepth> label={t('Data depth')} value={depth} options={DEPTH_OPTIONS()} onChange={setDepth} testPrefix="depth" accent={{ standard: '#334155', expert: '#3f6212' }} />
       </div>
       {noWebgl && (
         <p role="alert" className="pointer-events-auto mt-1.5 w-[270px] rounded-lg border border-amber-400/40 bg-amber-950/95 px-3 py-2 text-center text-[12px] leading-snug text-amber-100 shadow-xl" data-testid="view-no-webgl">
-          This browser cannot draw 3D (WebGL is off). The 2D map shows exactly the same bank.
+          {t('This browser cannot draw 3D (WebGL is off). The 2D map shows exactly the same bank.')}
         </p>
       )}
       {scope === 'beginner' && !touring && (

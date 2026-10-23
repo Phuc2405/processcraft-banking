@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { ProcessFlowEdge, ProcessFlowNode } from '../../store/graphConversion';
+import { configDescription, configLabel, nodeDefDescription } from '../../i18n/catalogVi';
+import { localChallenge } from '../../i18n/challengeVi';
+import { labLabel } from '../../i18n/labText';
+import { tr } from '../../i18n/locale';
+import { t } from '../../i18n/t';
 import { useWorkflowStore } from '../../store/workflowStore';
 import type { ConfigParamDef, ConfigValue } from '../../types/processLearning';
 import { NodeIcon } from '../canvas/icons';
@@ -27,7 +32,7 @@ function Field({ id, label, hint, children }: { id: string; label: string; hint?
 function NumberInput({ id, value, min, max, disabled, onCommit }: { id: string; value: number; min?: number; max?: number; disabled: boolean; onCommit: (n: number) => void }) {
   const [text, setText] = useState(String(value));
   useEffect(() => {
-    setText((t) => (Number(t) === value ? t : String(value)));
+    setText((prev) => (Number(prev) === value ? prev : String(value)));
   }, [value]);
   return (
     <input
@@ -53,14 +58,21 @@ function NumberInput({ id, value, min, max, disabled, onCommit }: { id: string; 
  * It is the same pacs.008 the gateway validates, so the learner can see which field a rule is about.
  */
 function A2aMessage() {
-  const payload = useWorkflowStore((s) => s.level.testSuite.find((t) => t.id === s.selectedTestId)?.inputPayload);
-  const testName = useWorkflowStore((s) => s.level.testSuite.find((t) => t.id === s.selectedTestId)?.name);
+  const payload = useWorkflowStore((s) => s.level.testSuite.find((tc) => tc.id === s.selectedTestId)?.inputPayload);
+  const level = useWorkflowStore((s) => s.level);
+  const selectedTestId = useWorkflowStore((s) => s.selectedTestId);
+  const testName = localChallenge(level).testSuite.find((tc) => tc.id === selectedTestId)?.name;
   const wire = payload ? pacs008From(payload) : null;
   if (!wire) return null;
   return (
     <div className="space-y-1">
-      <MessagePreview title="pacs.008 message" xml={pacs008Xml(wire)} testId="a2a-message" />
-      <p className="text-[11px] leading-snug text-slate-400">The message for the test chosen in the toolbar{testName ? `: ${testName}` : ''}. It travels with the payment.</p>
+      <MessagePreview title={t('pacs.008 message')} xml={pacs008Xml(wire)} testId="a2a-message" />
+      <p className="text-[11px] leading-snug text-slate-400">
+        {tr({
+          en: `The message for the test chosen in the toolbar${testName ? `: ${testName}` : ''}. It travels with the payment.`,
+          vi: `Thông điệp của bài kiểm tra được chọn trên thanh công cụ${testName ? `: ${testName}` : ''}. Nó đi cùng giao dịch.`,
+        })}
+      </p>
     </div>
   );
 }
@@ -68,18 +80,23 @@ function A2aMessage() {
 function ConfigField({ nodeId, def, value, locked }: { nodeId: string; def: ConfigParamDef; value: ConfigValue; locked: boolean }) {
   const update = useWorkflowStore((s) => s.updateNodeConfig);
   const id = `cfg-${nodeId}-${def.key}`;
-  const range = def.type === 'number' && (def.min !== undefined || def.max !== undefined) ? ` (${def.min ?? '…'} to ${def.max ?? '…'})` : '';
+  const range =
+    def.type === 'number' && (def.min !== undefined || def.max !== undefined)
+      ? tr({ en: ` (${def.min ?? '…'} to ${def.max ?? '…'})`, vi: ` (${def.min ?? '…'} đến ${def.max ?? '…'})` })
+      : '';
+  const label = configLabel(def.key, def.label);
+  const hint = configDescription(def.key, def.description);
 
   switch (def.type) {
     case 'number':
       return (
-        <Field id={id} label={`${def.label}${range}`} hint={def.description}>
+        <Field id={id} label={`${label}${range}`} hint={hint}>
           <NumberInput id={id} value={typeof value === 'number' ? value : Number(def.defaultValue)} {...(def.min !== undefined ? { min: def.min } : {})} {...(def.max !== undefined ? { max: def.max } : {})} disabled={locked} onCommit={(n) => update(nodeId, def.key, n)} />
         </Field>
       );
     case 'enum':
       return (
-        <Field id={id} label={def.label} hint={def.description}>
+        <Field id={id} label={label} hint={hint}>
           <select id={id} value={String(value)} disabled={locked} onChange={(e) => update(nodeId, def.key, e.target.value)} className={inputClass}>
             {(def.options ?? []).map((o) => (
               <option key={o} value={o}>
@@ -94,14 +111,14 @@ function ConfigField({ nodeId, def, value, locked }: { nodeId: string; def: Conf
         <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-700 bg-slate-900 p-2.5">
           <input type="checkbox" checked={value === true} disabled={locked} onChange={(e) => update(nodeId, def.key, e.target.checked)} className="mt-0.5 h-4 w-4 accent-sky-500" />
           <span>
-            <span className="block text-[12px] font-medium text-slate-100">{def.label}</span>
-            <span className="block text-[11px] leading-snug text-slate-400">{def.description}</span>
+            <span className="block text-[12px] font-medium text-slate-100">{label}</span>
+            <span className="block text-[11px] leading-snug text-slate-400">{hint}</span>
           </span>
         </label>
       );
     case 'string':
       return (
-        <Field id={id} label={def.label} hint={def.description}>
+        <Field id={id} label={label} hint={hint}>
           <input id={id} value={String(value)} disabled={locked} onChange={(e) => update(nodeId, def.key, e.target.value)} className={`${inputClass} font-mono`} />
         </Field>
       );
@@ -119,10 +136,10 @@ function NodeInspector({ node }: { node: ProcessFlowNode }) {
     <div className="space-y-4">
       {locked && (
         <p className="rounded-lg border border-slate-700 bg-slate-900 p-2.5 text-[11px] leading-snug text-slate-300">
-          This node is part of the level&apos;s starter diagram. You can move it, but not change or delete it.
+          {t('This node is part of the level&apos;s starter diagram. You can move it, but not change or delete it.')}
         </p>
       )}
-      <Field id={`label-${node.id}`} label="Name">
+      <Field id={`label-${node.id}`} label={t('Name')}>
         <input
           id={`label-${node.id}`}
           value={p.label}
@@ -131,7 +148,7 @@ function NodeInspector({ node }: { node: ProcessFlowNode }) {
           className={inputClass}
         />
       </Field>
-      {definition && <p className="text-[11px] leading-snug text-slate-400">{definition.description}</p>}
+      {definition && <p className="text-[11px] leading-snug text-slate-400">{nodeDefDescription(definition.id, definition.description)}</p>}
 
       {(node.data.node.definitionId === 'nd_start_a2a' || node.data.node.bankingCapability === 'A2A_GATEWAY') && <A2aMessage />}
 
@@ -143,7 +160,7 @@ function NodeInspector({ node }: { node: ProcessFlowNode }) {
         <dl className="space-y-2 text-[11px]">
           {definition.readsFacts.length > 0 && (
             <div>
-              <dt className="mb-1 font-medium uppercase tracking-wide text-slate-500">Reads</dt>
+              <dt className="mb-1 font-medium uppercase tracking-wide text-slate-500">{t('Reads')}</dt>
               <dd className="flex flex-wrap gap-1">
                 {definition.readsFacts.map((f) => (
                   <code key={f} className="rounded bg-slate-800 px-1.5 py-0.5 text-slate-300">
@@ -155,7 +172,7 @@ function NodeInspector({ node }: { node: ProcessFlowNode }) {
           )}
           {definition.writesFacts.length > 0 && (
             <div>
-              <dt className="mb-1 font-medium uppercase tracking-wide text-slate-500">Sets (usable in conditions after this node)</dt>
+              <dt className="mb-1 font-medium uppercase tracking-wide text-slate-500">{t('Sets (usable in conditions after this node)')}</dt>
               <dd className="flex flex-wrap gap-1">
                 {definition.writesFacts.map((f) => (
                   <code key={f} className="rounded bg-emerald-950 px-1.5 py-0.5 text-emerald-300">
@@ -174,7 +191,7 @@ function NodeInspector({ node }: { node: ProcessFlowNode }) {
           onClick={() => removeNode(node.id)}
           className="w-full rounded-md border border-rose-500/40 px-2 py-1.5 text-[12px] font-medium text-rose-300 hover:bg-rose-500/10"
         >
-          Delete node
+          {t('Delete node')}
         </button>
       )}
     </div>
@@ -193,13 +210,14 @@ function EdgeInspector({ edge }: { edge: ProcessFlowEdge }) {
       ) : (
         <>
           <p className="text-[11px] leading-snug text-slate-400">
-            This wire is always followed. Conditions only apply to wires that leave a <strong className="text-slate-200">Decision (XOR)</strong> gateway.
+            {t('This wire is always followed. Conditions only apply to wires that leave a')} <strong className="text-slate-200">{t('Decision (XOR)')}</strong>
+            {tr({ en: ' gateway.', vi: '.' })}
           </p>
-          <Field id={`label-${edge.id}`} label="Note">
+          <Field id={`label-${edge.id}`} label={t('Note')}>
             <input
               id={`label-${edge.id}`}
               value={edge.data?.label ?? ''}
-              placeholder="optional, shown on the wire"
+              placeholder={t('optional, shown on the wire')}
               onChange={(e) => updateEdge(edge.id, { label: e.target.value })}
               className={inputClass}
             />
@@ -211,7 +229,7 @@ function EdgeInspector({ edge }: { edge: ProcessFlowEdge }) {
         onClick={() => removeEdge(edge.id)}
         className="w-full rounded-md border border-rose-500/40 px-2 py-1.5 text-[12px] font-medium text-rose-300 hover:bg-rose-500/10"
       >
-        Delete wire
+        {t('Delete wire')}
       </button>
     </div>
   );
@@ -246,7 +264,7 @@ export function InspectorPanel() {
 
   return (
     <aside
-      aria-label={node ? 'Node settings' : 'Wire settings'}
+      aria-label={node ? t('Node settings') : t('Wire settings')}
       className="pointer-events-auto flex max-h-[calc(100vh-290px)] min-h-[160px] w-[320px] flex-col rounded-xl border border-slate-700 bg-slate-950/95 shadow-2xl"
     >
       <header className="flex items-center gap-2 border-b border-slate-800 px-3 py-2.5">
@@ -260,10 +278,10 @@ export function InspectorPanel() {
           )}
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-[13px] font-semibold text-slate-100">{node ? node.data.node.label : 'Wire'}</h2>
-          <p className="truncate text-[11px] text-slate-400">{node ? 'Node settings' : `${sourceLabel} → ${targetLabel}`}</p>
+          <h2 className="truncate text-[13px] font-semibold text-slate-100">{node ? labLabel(node.data.node.label) : t('Wire')}</h2>
+          <p className="truncate text-[11px] text-slate-400">{node ? t('Node settings') : `${labLabel(sourceLabel)} → ${labLabel(targetLabel)}`}</p>
         </div>
-        <button type="button" onClick={close} aria-label="Close settings" className="grid h-6 w-6 place-items-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-100">
+        <button type="button" onClick={close} aria-label={t('Close settings')} className="grid h-6 w-6 place-items-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-100">
           <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
             <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
           </svg>

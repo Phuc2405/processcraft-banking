@@ -19,7 +19,13 @@
  * can tell the learner that a decision is reading a fact that does not exist yet on that path.
  */
 
+import { variableDescription } from '../i18n/catalogVi';
+import { tr } from '../i18n/locale';
 import type { ConditionVariable } from '../types/processLearning';
+
+const TYPE_VI: Readonly<Record<string, string>> = { number: 'số', string: 'chuỗi', boolean: 'true/false', unknown: 'không rõ', undefined: 'không xác định', object: 'đối tượng' };
+/** A value type's name for a message: as is in English, in plain words in Vietnamese. */
+const ty = (type: string): string => tr({ en: type, vi: TYPE_VI[type] ?? type });
 
 export type Scalar = string | number | boolean;
 export type BinaryOp = '==' | '!=' | '<' | '<=' | '>' | '>=' | '&&' | '||';
@@ -78,7 +84,7 @@ function tokenize(src: string): Token[] {
     }
     if (c === "'" || c === '"') {
       const end = src.indexOf(c, i + 1);
-      if (end === -1) throw new ExpressionError(`The text starting at position ${i} is missing its closing ${c}`, i);
+      if (end === -1) throw new ExpressionError(tr({ en: `The text starting at position ${i} is missing its closing ${c}`, vi: `Đoạn văn bản bắt đầu ở vị trí ${i} thiếu dấu đóng ${c}` }), i);
       tokens.push({ kind: 'string', text: src.slice(i, end + 1), value: src.slice(i + 1, end), pos: i });
       i = end + 1;
       continue;
@@ -101,9 +107,9 @@ function tokenize(src: string): Token[] {
       i++;
       continue;
     }
-    if (c === '=') throw new ExpressionError("Use '==' (two equals signs) to compare values, not '='", i);
-    if (c === '&' || c === '|') throw new ExpressionError("Use '&&' for AND and '||' for OR", i);
-    throw new ExpressionError(`Unexpected character '${c}'`, i);
+    if (c === '=') throw new ExpressionError(tr({ en: "Use '==' (two equals signs) to compare values, not '='", vi: "Dùng '==' (hai dấu bằng) để so sánh giá trị, không phải '='" }), i);
+    if (c === '&' || c === '|') throw new ExpressionError(tr({ en: "Use '&&' for AND and '||' for OR", vi: "Dùng '&&' cho AND và '||' cho OR" }), i);
+    throw new ExpressionError(tr({ en: `Unexpected character '${c}'`, vi: `Ký tự không mong đợi '${c}'` }), i);
   }
   tokens.push({ kind: 'end', text: '', pos: src.length });
   return tokens;
@@ -116,7 +122,7 @@ function tokenize(src: string): Token[] {
 const WORD_OPERATORS: Record<string, string> = { and: '&&', or: '||', not: '!' };
 
 export function parseExpression(src: string): Ast {
-  if (src.trim() === '') throw new ExpressionError('The condition is empty');
+  if (src.trim() === '') throw new ExpressionError(tr({ en: 'The condition is empty', vi: 'Điều kiện đang trống' }));
   const toks = tokenize(src);
   let p = 0;
 
@@ -126,12 +132,12 @@ export function parseExpression(src: string): Ast {
 
   const parsePrimary = (): Ast => {
     const t = peek();
-    if (t.kind === 'end') throw new ExpressionError('The condition ends too early', t.pos);
+    if (t.kind === 'end') throw new ExpressionError(tr({ en: 'The condition ends too early', vi: 'Điều kiện kết thúc quá sớm' }), t.pos);
     if (isOp(t, '(')) {
       advance();
       const inner = parseOr();
       const close = peek();
-      if (!isOp(close, ')')) throw new ExpressionError("Missing a closing ')'", close.pos);
+      if (!isOp(close, ')')) throw new ExpressionError(tr({ en: "Missing a closing ')'", vi: "Thiếu dấu đóng ')'" }), close.pos);
       advance();
       return inner;
     }
@@ -141,13 +147,13 @@ export function parseExpression(src: string): Ast {
     }
     if (t.kind === 'identifier') {
       const word = WORD_OPERATORS[t.text.toLowerCase()];
-      if (word) throw new ExpressionError(`Use '${word}' instead of the word '${t.text}'`, t.pos);
+      if (word) throw new ExpressionError(tr({ en: `Use '${word}' instead of the word '${t.text}'`, vi: `Dùng '${word}' thay cho từ '${t.text}'` }), t.pos);
       advance();
       if (t.text === 'true') return { kind: 'literal', value: true };
       if (t.text === 'false') return { kind: 'literal', value: false };
       return { kind: 'identifier', name: t.text };
     }
-    throw new ExpressionError(`Unexpected '${t.text}'`, t.pos);
+    throw new ExpressionError(tr({ en: `Unexpected '${t.text}'`, vi: `Không mong đợi '${t.text}'` }), t.pos);
   };
 
   const parseUnary = (): Ast => {
@@ -191,7 +197,9 @@ export function parseExpression(src: string): Ast {
   if (rest.kind !== 'end') {
     const word = rest.kind === 'identifier' ? WORD_OPERATORS[rest.text.toLowerCase()] : undefined;
     throw new ExpressionError(
-      word ? `Use '${word}' instead of the word '${rest.text}'` : `Unexpected '${rest.text}'`,
+      word
+        ? tr({ en: `Use '${word}' instead of the word '${rest.text}'`, vi: `Dùng '${word}' thay cho từ '${rest.text}'` })
+        : tr({ en: `Unexpected '${rest.text}'`, vi: `Không mong đợi '${rest.text}'` }),
       rest.pos,
     );
   }
@@ -272,7 +280,7 @@ export function checkExpression(src: string, variables: readonly ConditionVariab
 
   const needs = (actual: StaticType, expected: StaticType, op: string): void => {
     if (actual !== 'unknown' && actual !== expected) {
-      errors.add(`'${op}' needs ${expected} values, but one side is a ${actual}`);
+      errors.add(tr({ en: `'${op}' needs ${expected} values, but one side is a ${actual}`, vi: `'${op}' cần giá trị ${ty(expected)}, nhưng một vế là ${ty(actual)}` }));
     }
   };
 
@@ -284,11 +292,11 @@ export function checkExpression(src: string, variables: readonly ConditionVariab
         const v = byName.get(node.name);
         if (!v) {
           const guess = closestName(node.name, visibleNames);
-          errors.add(`Unknown variable '${node.name}'.${guess ? ` Did you mean '${guess}'?` : ''}`);
+          errors.add(tr({ en: `Unknown variable '${node.name}'.${guess ? ` Did you mean '${guess}'?` : ''}`, vi: `Biến không xác định '${node.name}'.${guess ? ` Ý bạn là '${guess}'?` : ''}` }));
           return 'unknown';
         }
         if (!v.learnerVisible) {
-          errors.add(`'${node.name}' cannot be used in conditions. ${v.description}`);
+          errors.add(tr({ en: `'${node.name}' cannot be used in conditions. ${v.description}`, vi: `'${node.name}' không được dùng trong điều kiện. ${variableDescription(v.name, v.description)}` }));
           return 'unknown';
         }
         return v.type;
@@ -304,7 +312,7 @@ export function checkExpression(src: string, variables: readonly ConditionVariab
           needs(r, 'boolean', node.op);
         } else if (node.op === '==' || node.op === '!=') {
           if (l !== 'unknown' && r !== 'unknown' && l !== r) {
-            errors.add(`Cannot compare a ${l} with a ${r} using '${node.op}'`);
+            errors.add(tr({ en: `Cannot compare a ${l} with a ${r} using '${node.op}'`, vi: `Không thể so ${ty(l)} với ${ty(r)} bằng '${node.op}'` }));
           } else {
             checkEnumLiteral(node.left, node.right);
             checkEnumLiteral(node.right, node.left);
@@ -324,13 +332,16 @@ export function checkExpression(src: string, variables: readonly ConditionVariab
     if (!allowed || allowed.includes(litSide.value)) return;
     const guess = allowed.find((a) => a.toLowerCase() === String(litSide.value).toLowerCase());
     errors.add(
-      `'${idSide.name}' can only be ${allowed.join(', ')}, so '${litSide.value}' will never match.${guess ? ` Did you mean '${guess}'?` : ''}`,
+      tr({
+        en: `'${idSide.name}' can only be ${allowed.join(', ')}, so '${litSide.value}' will never match.${guess ? ` Did you mean '${guess}'?` : ''}`,
+        vi: `'${idSide.name}' chỉ có thể là ${allowed.join(', ')}, nên '${litSide.value}' sẽ không bao giờ khớp.${guess ? ` Ý bạn là '${guess}'?` : ''}`,
+      }),
     );
   };
 
   const resultType = infer(ast);
   if (resultType !== 'boolean' && resultType !== 'unknown') {
-    errors.add(`A condition must be true or false, but this evaluates to a ${resultType}. Compare it to something, for example riskScore < 40`);
+    errors.add(tr({ en: `A condition must be true or false, but this evaluates to a ${resultType}. Compare it to something, for example riskScore < 40`, vi: `Điều kiện phải là true hoặc false, nhưng biểu thức này cho ra ${ty(resultType)}. Hãy so nó với một giá trị, ví dụ riskScore < 40` }));
   }
   return { errors: [...errors], identifiers: collectIdentifiers(ast) };
 }
@@ -350,7 +361,7 @@ type Value = Scalar | undefined;
 function asBoolean(v: Value, op: string): boolean {
   if (v === undefined) return false;
   if (typeof v === 'boolean') return v;
-  throw new ExpressionError(`'${op}' only works on true/false values, not on a ${typeof v}`);
+  throw new ExpressionError(tr({ en: `'${op}' only works on true/false values, not on a ${typeof v}`, vi: `'${op}' chỉ dùng với giá trị true/false, không phải ${ty(typeof v)}` }));
 }
 
 function evalNode(node: Ast, scope: Readonly<Record<string, Value>>, unset: Set<string>): Value {
@@ -375,12 +386,12 @@ function evalNode(node: Ast, scope: Readonly<Record<string, Value>>, unset: Set<
       const r = evalNode(node.right, scope, unset);
       if (node.op === '==' || node.op === '!=') {
         if (l === undefined || r === undefined) return node.op === '!=';
-        if (typeof l !== typeof r) throw new ExpressionError(`Cannot compare a ${typeof l} with a ${typeof r}`);
+        if (typeof l !== typeof r) throw new ExpressionError(tr({ en: `Cannot compare a ${typeof l} with a ${typeof r}`, vi: `Không thể so ${ty(typeof l)} với ${ty(typeof r)}` }));
         return node.op === '==' ? l === r : l !== r;
       }
       if (l === undefined || r === undefined) return false;
       if (typeof l !== 'number' || typeof r !== 'number') {
-        throw new ExpressionError(`'${node.op}' needs numbers, not ${typeof l} and ${typeof r}`);
+        throw new ExpressionError(tr({ en: `'${node.op}' needs numbers, not ${typeof l} and ${typeof r}`, vi: `'${node.op}' cần số, không phải ${ty(typeof l)} và ${ty(typeof r)}` }));
       }
       switch (node.op) {
         case '<': return l < r;
@@ -396,7 +407,7 @@ export function evaluateExpression(ast: Ast, scope: Readonly<Record<string, Valu
   const unset = new Set<string>();
   const v = evalNode(ast, scope, unset);
   if (v !== undefined && typeof v !== 'boolean') {
-    throw new ExpressionError('The condition must evaluate to true or false');
+    throw new ExpressionError(tr({ en: 'The condition must evaluate to true or false', vi: 'Điều kiện phải cho ra true hoặc false' }));
   }
   return { value: v === true, unset: [...unset] };
 }

@@ -123,10 +123,80 @@ const EN: LedgerBook = {
     ATM_JAM: 'ATM jam parked in suspense',
     ATM_REFUND: 'ATM jam refunded',
     ATM_DEPOSIT: 'Cash deposited',
+    CHARGEBACK_REVERSAL: 'Chargeback reversal',
   },
 };
 
-export const LEDGER_COPY: Localized<LedgerBook> = { en: EN };
+const VI: LedgerBook = {
+  ui: {
+    title: 'Sổ cái kép trực tiếp',
+    lede: 'Mỗi lần tiền dịch chuyển được ghi hai lần: một bút Nợ vào một tài khoản và một bút Có vào tài khoản khác, cùng số tiền. Cộng tất cả bút Nợ và bút Có thì hai tổng phải bằng nhau.',
+    empty: 'Chưa có bút toán nào được ghi.',
+    emptyLab: 'Chạy lại một giao dịch thử trên sơ đồ, hoặc bấm Nộp bài. Khi giao dịch hoàn tất, các bút toán nó ghi vào sổ cái sẽ hiện ở đây.',
+    debit: 'Nợ',
+    credit: 'Có',
+    debitShort: 'Nợ',
+    creditShort: 'Có',
+    amount: 'Số tiền',
+    entries: (n) => `${n} bút toán`,
+    transaction: 'Giao dịch',
+    trialBalance: 'Bảng cân đối thử',
+    account: 'Tài khoản',
+    totalDebits: 'Tổng Nợ',
+    totalCredits: 'Tổng Có',
+    balanced: 'Cân bằng',
+    outOfBalance: 'Lệch',
+    everyLineBalances: 'Từng giao dịch đều tự cân bằng.',
+    replaySource: 'Lần chạy lại này',
+    gradedSource: 'Mọi bài kiểm tra đã chấm',
+    noGraded: 'Bấm Nộp bài để chấm sơ đồ. Các bút toán mà mỗi bài kiểm tra công khai sẽ ghi sẽ hiện ở đây.',
+    declinedNothing: 'Giao dịch này không làm dịch chuyển tiền nên không ghi bút toán nào.',
+    summary: (payments, lines) => `${payments} giao dịch, ${lines} bút toán`,
+    bank: {
+      button: 'Sổ cái',
+      buttonTitle: 'Mở sổ cái kép trực tiếp: mọi giao dịch hoàn tất hôm nay đều ghi bút toán vào đây',
+      close: 'Đóng sổ cái',
+      title: 'Sổ cái kép trực tiếp',
+      lede: 'Mỗi giao dịch hoàn tất ghi các dịch chuyển tiền của nó vào đây, một bút Nợ và một bút Có cùng số tiền. Bảng cân đối thử cộng dồn cả ngày và luôn phải khớp.',
+      quiet: 'Hôm nay chưa có giao dịch nào hoàn tất. Bấm chạy và các bút toán sẽ hiện ở đây khi khách hàng được duyệt, quyết toán hoặc bù trừ.',
+      showing: (shown, total) => (shown >= total ? `Toàn bộ ${total} bút toán đến lúc này.` : `Đang hiện ${shown} bút toán mới nhất trên tổng ${total}. Bảng cân đối thử cộng đủ cả ${total}.`),
+      payment: (txId) => {
+        const base = txId.replace(/-CLR$/, '').replace(/^tx_/, '');
+        if (txId.endsWith('-CLR')) return `Chi trả từ tài khoản treo cho ${base}`;
+        return txId.startsWith('tx_') ? `Quyết toán qua đêm của ${base}` : `Giao dịch ${base}`;
+      },
+      summary: (transactions, lines) => `${transactions.toLocaleString('vi-VN')} giao dịch, ${lines.toLocaleString('vi-VN')} bút toán`,
+      postedAt: (clock) => `ghi lúc ${clock}`,
+      allBalance: 'Từng giao dịch đều tự cân bằng, và cả ngày cũng vậy.',
+    },
+  },
+  kinds: {
+    AUTH_HOLD: 'Khoanh giữ cấp phép',
+    HOLD_RELEASE: 'Giải tỏa khoanh giữ',
+    BNPL_FINANCING: 'Tài trợ trả góp 4 kỳ',
+    CAPTURE: 'Đã ghi nhận',
+    SETTLEMENT: 'Đã quyết toán',
+    SUSPENSE_BREAK: 'Sai lệch đưa vào tài khoản treo',
+    FX_VARIANCE: 'Chênh lệch tỷ giá',
+    SUSPENSE_CLEARED: 'Đã xử lý tài khoản treo',
+    A2A_PAYMENT: 'Chuyển khoản liên ngân hàng',
+    A2A_QUEUED: 'Lệnh chuyển đang xếp hàng',
+    PAYMENT_EXECUTED: 'Đã gửi lệnh chuyển xếp hàng',
+    AML_RESTRAIN: 'Phong tỏa tiền',
+    AML_RELEASE: 'Giải tỏa tiền',
+    PROVISIONAL_CREDIT: 'Ghi có tạm thời',
+    DISPUTE_RECOVERY: 'Thu hồi từ tổ chức thẻ',
+    DISPUTE_REVERSAL: 'Đảo bút ghi có',
+    ISSUER_LOSS: 'Xóa sổ tổn thất',
+    ATM_DISPENSE: 'Rút tiền mặt ATM',
+    ATM_JAM: 'Kẹt tiền ATM đưa vào tài khoản treo',
+    ATM_REFUND: 'Hoàn tiền kẹt ATM',
+    ATM_DEPOSIT: 'Nộp tiền mặt',
+    CHARGEBACK_REVERSAL: 'Đảo tiền tra soát (chargeback)',
+  },
+};
+
+export const LEDGER_COPY: Localized<LedgerBook> = { en: EN, vi: VI };
 
 const book = (): LedgerBook => pick(LEDGER_COPY);
 

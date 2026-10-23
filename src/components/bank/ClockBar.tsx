@@ -1,5 +1,8 @@
+import { tr } from '../../i18n/locale';
+import { t } from '../../i18n/t';
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import { DAY_END, DAY_START, formatClock, PHASES, SPEEDS, type Phase } from '../../sim/clock';
+import { DAY_END, DAY_START, formatClock, PHASES, SPEEDS, speedNameText, type Phase } from '../../sim/clock';
+import { eventText } from '../../sim/traffic';
 import { SKIP_TARGETS, useBankStore } from '../../store/bankStore';
 import { LedgerButton } from './LedgerDrawer';
 import { fractionToMinute, keyStep, minuteToFraction, SEGMENT_WIDTH } from './timeline';
@@ -87,12 +90,12 @@ function Timeline({ minute, dayOver }: { minute: number; dayOver: boolean }) {
         ref={bar}
         role="slider"
         tabIndex={0}
-        aria-label="Bank time. Drag or click to jump to a time of day"
+        aria-label={t('Bank time. Drag or click to jump to a time of day')}
         aria-valuemin={DAY_START}
         aria-valuemax={DAY_END}
         aria-valuenow={shown}
         aria-valuetext={formatClock(shown)}
-        title="Drag or click to jump the bank to that time. Going back replays today from 08:00 with the same customers."
+        title={t('Drag or click to jump the bank to that time. Going back replays today from 08:00 with the same customers.')}
         data-testid="timeline-scrubber"
         data-dragging={drag !== null}
         onPointerDown={onPointerDown}
@@ -139,7 +142,7 @@ function Timeline({ minute, dayOver }: { minute: number; dayOver: boolean }) {
   );
 }
 
-const speedName = (index: number): string | undefined => SPEEDS[index]?.name;
+const speedName = (index: number): string | undefined => speedNameText(SPEEDS[index]?.name);
 
 const SAVE_COPY = {
   unavailable: { text: 'Not saved: browser blocks storage', dot: 'bg-amber-400' },
@@ -162,7 +165,7 @@ function SaveRow() {
     <div className="flex items-center gap-2 text-[11px] text-slate-400">
       <span className="flex items-center gap-1.5" role="status" data-testid="bank-save-status" data-status={status}>
         <span className={`h-1.5 w-1.5 rounded-full ${copy.dot}`} />
-        {copy.text}
+        {t(copy.text)}
       </span>
       <button
         type="button"
@@ -175,7 +178,7 @@ function SaveRow() {
         data-testid="bank-reset"
         className={`rounded px-1.5 py-0.5 transition ${armed ? 'bg-rose-500 font-semibold text-white' : 'text-slate-500 hover:bg-slate-800 hover:text-slate-200'}`}
       >
-        {armed ? 'Really start over?' : 'Start over'}
+        {armed ? t('Really start over?') : t('Start over')}
       </button>
     </div>
   );
@@ -205,15 +208,15 @@ export function ClockBar() {
 
   const style = PHASE_STYLE[phase];
   const skips: Array<{ id: string; label: string; target: number }> = [
-    { id: 'open', label: 'Open 09:00', target: SKIP_TARGETS.open },
-    { id: 'close', label: 'Close 17:00', target: SKIP_TARGETS.close },
+    { id: 'open', label: t('Open 09:00'), target: SKIP_TARGETS.open },
+    { id: 'close', label: t('Close 17:00'), target: SKIP_TARGETS.close },
   ];
 
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-2 border-b border-slate-800 bg-slate-950 px-4 py-2.5" data-testid="clock-bar">
       <div className="flex items-center gap-3">
         <div>
-          <div className="text-[10px] font-medium uppercase tracking-wider text-slate-500">Day</div>
+          <div className="text-[10px] font-medium uppercase tracking-wider text-slate-500">{t('Day')}</div>
           <div className="text-[26px] font-black leading-none tracking-tight text-slate-50" data-testid="day-number">
             {day}
           </div>
@@ -223,28 +226,28 @@ export function ClockBar() {
           <div className="font-mono text-[28px] font-semibold leading-none tabular-nums text-slate-50" data-testid="clock-time" aria-live="off">
             {formatClock(minute)}
           </div>
-          <div className="mt-1 text-[10px] uppercase tracking-wide text-slate-500">bank time</div>
+          <div className="mt-1 text-[10px] uppercase tracking-wide text-slate-500">{t('bank time')}</div>
         </div>
       </div>
 
       <div className="flex min-w-[280px] flex-1 basis-[300px] flex-col gap-1.5">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className={`whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${style.chip}`} data-testid="phase-label" data-phase={phase}>
-            {style.label}
+            {t(style.label)}
           </span>
           <span
             className={`max-w-full truncate whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${event.id === 'NORMAL' ? 'bg-slate-800/70 text-slate-300 ring-slate-700' : 'bg-fuchsia-400/10 text-fuchsia-200 ring-fuchsia-400/30'}`}
-            title={`${event.blurb} Watch: ${event.watch}`}
+            title={tr({ en: `${eventText(event).blurb} Watch: ${eventText(event).watch}`, vi: `${eventText(event).blurb} Theo dõi: ${eventText(event).watch}` })}
             data-testid="event-pill"
           >
-            {event.title}
+            {eventText(event).title}
           </span>
         </div>
         <Timeline minute={minute} dayOver={dayOver} />
       </div>
 
       <div className="flex items-center gap-1.5">
-        <IconButton label={playing ? 'Pause the bank' : 'Run the bank'} onClick={toggle} disabled={dayOver} tone="primary" testId="bank-play">
+        <IconButton label={playing ? t('Pause the bank') : t('Run the bank')} onClick={toggle} disabled={dayOver} tone="primary" testId="bank-play">
           {playing ? (
             <svg {...icon}>
               <rect x="3.5" y="2.5" width="3" height="11" rx="0.8" />
@@ -256,7 +259,7 @@ export function ClockBar() {
             </svg>
           )}
         </IconButton>
-        <IconButton label="Advance one beat" onClick={step} disabled={dayOver} testId="bank-step">
+        <IconButton label={t('Advance one beat')} onClick={step} disabled={dayOver} testId="bank-step">
           <svg {...icon}>
             <path d="M3 2.5v11l7-5.5z" />
             <rect x="11" y="2.5" width="2.2" height="11" rx="0.8" />
@@ -266,8 +269,8 @@ export function ClockBar() {
         <div
             className={`ml-1 flex rounded-lg bg-slate-800 p-0.5 ${touring ? 'ring-1 ring-sky-400/40' : ''}`}
             role="group"
-            aria-label="Speed"
-            title={touring ? 'The speed is locked to 0.25× while a guided tour runs, so nothing moves ahead of the explanation.' : 'How fast the bank day plays. 1× Relaxed is one tick every 1.5 seconds.'}
+            aria-label={t('Speed')}
+            title={touring ? t('The speed is locked to 0.25× while a guided tour runs, so nothing moves ahead of the explanation.') : t('How fast the bank day plays. 1× Relaxed is one tick every 1.5 seconds.')}
             data-testid="bank-speeds"
             data-locked={touring}
           >
@@ -278,8 +281,8 @@ export function ClockBar() {
                 onClick={() => setSpeed(i)}
                 disabled={touring}
                 aria-pressed={i === speedIndex}
-                aria-label={sp.name ? `${sp.label} ${sp.name}` : sp.label}
-                title={sp.name ? `${sp.label} ${sp.name}` : undefined}
+                aria-label={sp.name ? `${sp.label} ${speedNameText(sp.name)}` : sp.label}
+                title={sp.name ? `${sp.label} ${speedNameText(sp.name)}` : undefined}
                 data-testid={`bank-speed-${i}`}
                 className={`rounded-md px-2 py-1.5 text-[11px] font-semibold tabular-nums transition disabled:cursor-not-allowed ${i === speedIndex ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-slate-100 disabled:opacity-40 disabled:hover:text-slate-400'}`}
               >
@@ -302,7 +305,7 @@ export function ClockBar() {
             onClick={() => skipTo(s.target)}
             disabled={dayOver || minute >= s.target}
             data-testid={`bank-skip-${s.id}`}
-            title={`Jump the clock forward to ${formatClock(s.target)}`}
+            title={tr({ en: `Jump the clock forward to ${formatClock(s.target)}`, vi: `Đưa đồng hồ tới ${formatClock(s.target)}` })}
             className="rounded-md bg-slate-800/80 px-2 py-1.5 text-[11px] font-medium text-slate-300 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-35"
           >
             {s.label}
@@ -313,20 +316,20 @@ export function ClockBar() {
           onClick={jumpToEod}
           disabled={dayOver || minute >= SKIP_TARGETS.night}
           data-testid="bank-jump-eod"
-          title="Jump the clock to 23:00 and keep playing, to watch the night cycle: batch clearing, Visa settlement, reconciliation"
+          title={t('Jump the clock to 23:00 and keep playing, to watch the night cycle: batch clearing, Visa settlement, reconciliation')}
           className="rounded-md bg-amber-400/15 px-2 py-1.5 text-[11px] font-semibold text-amber-200 ring-1 ring-amber-400/30 transition hover:bg-amber-400/25 disabled:cursor-not-allowed disabled:opacity-35"
         >
-          Jump to EOD (23:00)
+          {t('Jump to EOD (23:00)')}
         </button>
         <button
           type="button"
           onClick={skipToEndOfDay}
           disabled={dayOver}
           data-testid="bank-skip-end"
-          title="Play the rest of the day at once and see the report"
+          title={t('Play the rest of the day at once and see the report')}
           className="rounded-md bg-slate-800/80 px-2 py-1.5 text-[11px] font-medium text-slate-300 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-35"
         >
-          End of day
+          {t('End of day')}
         </button>
       </div>
 
@@ -338,14 +341,14 @@ export function ClockBar() {
             onClick={resetDay}
             disabled={!started}
             data-testid="bank-reset-day"
-            title={`Replay day ${day} from the 08:00 briefing. The same customers arrive, so after changing a rule it shows what that rule does to this very day.`}
+            title={tr({ en: `Replay day ${day} from the 08:00 briefing. The same customers arrive, so after changing a rule it shows what that rule does to this very day.`, vi: `Phát lại ngày ${day} từ buổi họp 08:00. Cùng các khách hàng sẽ đến, nên sau khi đổi quy tắc bạn thấy quy tắc đó tác động thế nào tới chính ngày này.` })}
             className="rounded-md px-2 py-1.5 text-[11px] font-medium text-slate-300 ring-1 ring-slate-700 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-35"
           >
-            Reset day {day}
+            {tr({ en: `Reset day ${day}`, vi: `Chạy lại ngày ${day}` })}
           </button>
           {historyCount > 0 && (
             <button type="button" onClick={reopenReport} data-testid="bank-open-report" className="rounded-md px-2 py-1.5 text-[11px] font-medium text-slate-300 ring-1 ring-slate-700 transition hover:bg-slate-800">
-              Day report
+              {t('Day report')}
             </button>
           )}
           <button
@@ -355,7 +358,7 @@ export function ClockBar() {
             data-testid="bank-next-day"
             className={`rounded-md px-3 py-1.5 text-[12px] font-bold transition disabled:cursor-not-allowed disabled:opacity-35 ${dayOver ? 'bg-lime-400 text-slate-950 hover:bg-lime-300' : 'bg-slate-800 text-slate-300'}`}
           >
-            Start day {day + 1}
+            {tr({ en: `Start day ${day + 1}`, vi: `Bắt đầu ngày ${day + 1}` })}
           </button>
         </div>
         <SaveRow />

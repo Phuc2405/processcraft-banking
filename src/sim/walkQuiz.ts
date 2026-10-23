@@ -179,7 +179,132 @@ const EN: QuizBook = {
   },
 };
 
-export const QUIZ_BOOK: Localized<QuizBook> = { en: EN };
+const STAGE_WORDS_VI: Record<string, string> = { NEW: 'là khiếu nại mới', RETRIEVAL_REQUEST: 'đang ở giai đoạn yêu cầu chứng từ', FIRST_CHARGEBACK: 'đang ở giai đoạn tra soát lần đầu', REPRESENTMENT: 'đang ở giai đoạn cửa hàng phản hồi', PRE_ARBITRATION: 'đang ở giai đoạn tiền trọng tài' };
+const EVIDENCE_VI: Record<string, string> = { NONE: 'không có', WEAK: 'yếu', COMPELLING: 'thuyết phục' };
+
+const claimLineVi = (d: { stage: string; merchantEvidence: string } | undefined): string =>
+  `Khiếu nại ${STAGE_WORDS_VI[d?.stage ?? 'NEW'] ?? 'đang mở'} và bằng chứng của cửa hàng ${EVIDENCE_VI[d?.merchantEvidence ?? 'NONE'] ?? (d?.merchantEvidence ?? 'NONE').toLowerCase()}.`;
+
+const ledgerQuestionVi: Builder = (c) => ({
+  prompt: `${c.carry('Account holds') !== '—' ? `Tài khoản có ${c.carry('Account holds')}` : `Thẻ có ${c.carry('Card holds')}`} và giao dịch là ${c.carry('Amount')}. Sổ cái có đồng ý không?`,
+  options: ['Có: khoanh giữ tiền và duyệt', 'Không: từ chối vì không đủ tiền'],
+  branches: { n_end_approved: 0, n_end_declined: 1 },
+});
+
+const VI: QuizBook = {
+  builders: {
+    A: {
+      n_xor_dcvv: (c) => {
+        const p = c.example.payload;
+        const vault = p.virtualCard?.vaultEntry;
+        const age = vault ? Math.round((p.clientTimestamp - vault.dcvvIssuedAt) / 1000) : 0;
+        return {
+          prompt: `Người mua nhập ${p.rawCvv}, kho token mong đợi ${vault?.expectedDcvv ?? '—'}, và mã đã được ${age} giây. Ngân hàng chấp nhận mã trong ${c.rules.dcvvWindowSec} giây. dCVV có hợp lệ không?`,
+          options: ['Có: đúng mã, vẫn còn mới. Chuyển tới sổ cái.', 'Không: sai hoặc hết hạn. Từ chối.'],
+          branches: { n_ledger: 0, n_end_declined: 1 },
+        };
+      },
+      n_xor_ledger: ledgerQuestionVi,
+    },
+    B: {
+      n_xor_3ds: (c): Draft => {
+        if (c.current.step.pass === 2) {
+          const done = c.example.otpCompletes ?? false;
+          return {
+            prompt: done ? 'Khách đã nhập mã từ điện thoại. Giờ giao dịch đi đâu?' : 'Khách đóng trang mà không nhập mã. Giờ giao dịch đi đâu?',
+            options: ['Tới sổ cái để kiểm tra tiền', 'Từ chối: thử thách chưa hoàn tất'],
+            branches: { n_ledger: 0, n_end_declined: 1 },
+          };
+        }
+        return {
+          prompt: `Điểm rủi ro là ${c.example.payload.riskScore}. Điểm dưới ${c.rules.frictionlessBelow} đi thẳng, từ ${c.rules.rejectAtOrAbove} trở lên bị từ chối. Khách có cần nhập OTP không?`,
+          options: ['Không: đi thẳng (không ma sát)', 'Có: dừng lại và gửi OTP (thử thách)', 'Không cái nào: từ chối giao dịch'],
+          branches: { n_ledger: 0, n_end_challenge: 1, n_end_declined: 2 },
+        };
+      },
+      n_xor_ledger: ledgerQuestionVi,
+    },
+    C: {
+      n_xor_plan: (c) => {
+        const bnpl = c.example.payload.bnpl;
+        const pct = bnpl ? Math.round((bnpl.downPaymentMinor / c.example.payload.amount) * 100) : 0;
+        return {
+          prompt: `Điểm của khách là ${bnpl?.underwritingScore ?? '—'} (tối thiểu ${c.rules.bnplMinScore}) và họ trả trước ${pct}% (tối thiểu ${c.rules.bnplMinDownPct}%). Kế hoạch có được duyệt không?`,
+          options: ['Có: thu khoản trả trước và bắt đầu kế hoạch', 'Không: chuyển sang trả đủ giá bằng thẻ'],
+          branches: { n_ledger_dp: 0, n_ledger_card: 1 },
+        };
+      },
+      n_xor_funds: (c) => {
+        const planned = c.before?.step.nodeId === 'n_ledger_dp';
+        const bnpl = c.example.payload.bnpl;
+        return {
+          prompt: planned
+            ? `Kế hoạch đã được duyệt, nên sổ cái kiểm tra khoản trả trước ${bnpl ? money(bnpl.downPaymentMinor) : '—'}. Thẻ có ${c.carry('Card holds')}. Giao dịch kết thúc thế nào?`
+            : `Không có kế hoạch, nên sổ cái kiểm tra đủ ${c.carry('Amount')}. Thẻ có ${c.carry('Card holds')}. Giao dịch kết thúc thế nào?`,
+          options: ['Duyệt: kế hoạch trả 4 kỳ', 'Duyệt: trả đủ bằng thẻ', 'Từ chối: không thu được khoản trả trước', 'Từ chối: thẻ không đủ trả toàn bộ giá'],
+          branches: { n_end_bnpl: 0, n_end_card: 1, n_end_dp_declined: 2, n_end_card_declined: 3 },
+        };
+      },
+    },
+    D: {
+      n_xor_recon: (c) => {
+        const s = c.example.payload.settlement;
+        const leg = (v: number | null | undefined): string => (v == null ? 'bị thiếu' : money(v));
+        const times = (s?.clearingPresentments ?? 1) > 1 ? ` (được trình ${s?.clearingPresentments} lần)` : '';
+        return {
+          prompt: `Sổ cái ngân hàng ghi ${leg(s?.ledgerAmount)}, tổ chức thẻ ghi ${leg(s?.clearingAmount)}${times}, và ngân hàng của cửa hàng ghi ${leg(s?.switchAmount)}. Chênh lệch tới ${money(c.rules.reconToleranceCents)} được coi là khớp. Quầy làm gì?`,
+          options: ['Khớp: giao dịch được quyết toán', 'Sai lệch: số tiền khác nhau. Đưa khoản chênh vào tài khoản treo.', 'Sai lệch: thiếu một bản ghi. Treo giao dịch lại.', 'Sai lệch: bị trùng. Treo giao dịch lại.'],
+          branches: { n_end_settled: 0, n_end_amount: 1, n_end_missing: 2, n_end_dup: 3 },
+        };
+      },
+    },
+    E: {
+      n_xor_valid: (c) => {
+        const m = c.example.payload.a2a;
+        const ref = m?.endToEndId ? `“${m.endToEndId}”` : 'không có';
+        return {
+          prompt: `Thông điệp có mã tham chiếu ${ref}, ngân hàng gửi ${m?.debtorAgent ?? '—'} và ngân hàng nhận ${m?.creditorAgent ?? '—'}. Khách yêu cầu gửi ${c.carry('Amount')} và hai ngân hàng sẽ quyết toán ${m ? money(m.interbankSettlementAmount) : '—'}. pacs.008 có đúng định dạng không?`,
+          options: ['Có: mọi trường đều đúng. Chuyển tới sổ cái.', 'Không: có trường sai. Từ chối ngay tại cửa.'],
+          branches: { n_ledger: 0, n_end_invalid: 1 },
+        };
+      },
+      n_xor_funds: (c) => ({
+        prompt: `Tài khoản có ${c.carry('Account holds')} và lệnh chuyển là ${c.carry('Amount')}. Sổ cái có đồng ý không?`,
+        options: ['Có: trích giữ tiền và giải phóng lệnh chuyển', 'Không: từ chối vì không đủ tiền'],
+        branches: { n_end_approved: 0, n_end_declined: 1 },
+      }),
+    },
+    F: {
+      n_xor_hit: (c) => ({
+        prompt: `Sàng lọc báo: “${c.before?.step.happened ?? ''}” Giao dịch đi đâu?`,
+        options: ['Trùng tên: chuyển sang Điều tra hồ sơ', 'Không trùng tên, nhưng tiền nộp có dấu hiệu chia nhỏ: lập báo cáo', 'Không có gì: giải phóng giao dịch'],
+        branches: { n_case: 0, n_end_sar: 1, n_end_released: 2 },
+      }),
+      n_xor_verdict: (c) => ({
+        prompt: `Kết quả điều tra: “${c.before?.step.happened ?? ''}” Ngân hàng làm gì?`,
+        options: ['Cảnh báo sai: giải phóng giao dịch', 'Trùng thật với danh sách cấm vận: chặn lại', 'Trùng thật với danh sách PEP: yêu cầu giải trình nguồn tiền', 'Chưa kết luận được: chuyển cấp thẩm định tăng cường'],
+        branches: { n_end_cleared: 0, n_end_sanctions: 1, n_end_edd: 2, n_end_escalate: 3 },
+      }),
+      n_xor_gate: (c) => ({
+        prompt: `Quầy tra soát cho biết: “${c.before?.step.happened ?? ''}” Khiếu nại có tiếp tục được không?`,
+        options: ['Không: đã quá hạn, nên hết hiệu lực dù ai lẽ ra phải trả', 'Không: giao dịch đã được xác thực, nên ngân hàng phát hành tự chịu tổn thất', 'Có: chuyển sang giai đoạn tra soát'],
+        branches: { n_end_barred: 0, n_end_absorbed: 1, n_xor_stage: 2 },
+      }),
+      n_xor_stage: (c) => ({
+        prompt: `${claimLineVi(c.example.payload.dispute)} Bước tiếp theo là gì?`,
+        options: ['Yêu cầu cửa hàng xuất trình hóa đơn', 'Nộp tra soát lần đầu', 'Xem xét phản hồi của cửa hàng (representment)', 'Đi xa hơn: tiền trọng tài, hoặc kết quả cuối'],
+        branches: { n_end_retrieval: 0, n_end_filed: 1, n_end_represent: 2, n_xor_result: 3 },
+      }),
+      n_xor_result: (c) => ({
+        prompt: `${claimLineVi(c.example.payload.dispute)} Vụ việc kết thúc thế nào?`,
+        options: ['Ngân hàng bác phản hồi và chuyển lên tiền trọng tài', 'Chủ thẻ thắng và giữ khoản hoàn tiền', 'Cửa hàng thắng và khoản ghi có bị thu lại'],
+        branches: { n_end_prearb: 0, n_end_refunded: 1, n_end_merchant: 2 },
+      }),
+    },
+  },
+};
+
+export const QUIZ_BOOK: Localized<QuizBook> = { en: EN, vi: VI };
 
 /** The question at step `index` of a plan, or null when the step is not a decision with a question. */
 export function quizFor(plan: SpotPlan, index: number): WalkQuiz | null {

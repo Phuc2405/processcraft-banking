@@ -1,17 +1,19 @@
 /**
- * Languages the learner-facing text can be shown in.
+ * Languages the learner-facing text can be shown in: English and Vietnamese.
  *
- * Only English is written today. Every table of learner-facing words in the app (the plain-English
- * terms, the mental models, the stage briefings, the quiz questions, the button labels) is typed
- * `Localized<...>`, which means "one entry per language in LOCALES". To add Vietnamese later:
+ * Every table of learner-facing words in the app (the plain-English terms, the mental models, the stage briefings, the quiz
+ * questions, the button labels, the lessons) is typed `Localized<...>`, which means "one entry per language in LOCALES".
+ * Adding a third language is: add it to LOCALES, run `npm run typecheck`, fill in every table the compiler lists.
  *
- *   1. add 'vi' to LOCALES below,
- *   2. run `npm run typecheck`: the compiler lists every `Localized` table that still lacks a 'vi' entry,
- *   3. fill them in. Nothing else in the app changes, because components read their words through
- *      `pick()` and never hold a literal string of their own for learner-facing copy.
+ * The chosen language lives in a small Zustand store (`localeStore`) and is remembered in this browser. `pick()` reads the
+ * store, so plain functions get the right words; `useLocale()` re-renders a component when the language changes, and the
+ * app root is keyed by the locale so every `pick()` reader below it redraws in the new language.
  */
 
-export const LOCALES = ['en'] as const;
+import { useStore } from 'zustand';
+import { createStore } from 'zustand/vanilla';
+
+export const LOCALES = ['en', 'vi'] as const;
 export type Locale = (typeof LOCALES)[number];
 
 export const DEFAULT_LOCALE: Locale = 'en';
@@ -19,16 +21,67 @@ export const DEFAULT_LOCALE: Locale = 'en';
 /** One value of `T` for every language. */
 export type Localized<T> = Record<Locale, T>;
 
-let active: Locale = DEFAULT_LOCALE;
+export const isLocale = (v: unknown): v is Locale => (LOCALES as readonly unknown[]).includes(v);
 
-export const activeLocale = (): Locale => active;
+export const LOCALE_KEY = 'processcraft:v1:locale';
 
-/** Switches the language. Nothing offers this to the learner yet; it exists so a second language is a data change. */
-export function setActiveLocale(locale: Locale): void {
-  active = (LOCALES as readonly string[]).includes(locale) ? locale : DEFAULT_LOCALE;
+function readSaved(): Locale {
+  try {
+    const v = typeof window === 'undefined' ? null : window.localStorage.getItem(LOCALE_KEY);
+    return isLocale(v) ? v : DEFAULT_LOCALE;
+  } catch {
+    return DEFAULT_LOCALE;
+  }
 }
 
+function save(locale: Locale): void {
+  try {
+    if (typeof window !== 'undefined') window.localStorage.setItem(LOCALE_KEY, locale);
+  } catch {
+    // Remembering the language is a nicety.
+  }
+}
+
+function applyDocumentLang(locale: Locale): void {
+  if (typeof document !== 'undefined') document.documentElement.lang = locale;
+}
+
+export interface LocaleState {
+  locale: Locale;
+  setLocale(locale: Locale): void;
+  toggle(): void;
+}
+
+export const localeStore = createStore<LocaleState>((set, get) => ({
+  locale: readSaved(),
+  setLocale: (locale) => {
+    const next = isLocale(locale) ? locale : DEFAULT_LOCALE;
+    if (next === get().locale) return;
+    save(next);
+    applyDocumentLang(next);
+    set({ locale: next });
+  },
+  toggle: () => get().setLocale(get().locale === 'en' ? 'vi' : 'en'),
+}));
+
+applyDocumentLang(localeStore.getState().locale);
+
+export const activeLocale = (): Locale => localeStore.getState().locale;
+
+/** Switches the language for the whole app. */
+export function setActiveLocale(locale: Locale): void {
+  localeStore.getState().setLocale(locale);
+}
+
+/** The current language, re-rendering the caller when it changes. */
+export const useLocale = (): Locale => useStore(localeStore, (s) => s.locale);
+
 /** The entry for a language, falling back to English when a table has not been translated yet. */
-export function pick<T>(table: Localized<T>, locale: Locale = active): T {
+export function pick<T>(table: Localized<T>, locale: Locale = activeLocale()): T {
   return table[locale] ?? table[DEFAULT_LOCALE];
+}
+
+/** Inline two-language text for components: `tr({ en: 'Close', vi: 'Đóng' })`. */
+export function tr(text: Localized<string>, locale: Locale = activeLocale()): string {
+  return pick(text, locale);
 }

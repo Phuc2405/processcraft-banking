@@ -4,6 +4,7 @@
  * Money is integer cents, as everywhere else in the project.
  */
 
+import type { ChaosTag, ChaosView } from '../engine/chaos';
 import type { TrialBalance } from '../engine/ledger';
 import type { BankingCapability, BankingPayload, CardType, DerivedFacts, GLEntry, Id, MinorUnits, Outcome } from '../types/processLearning';
 import type { Phase } from './clock';
@@ -167,6 +168,10 @@ export interface Packet {
   suspenseDay?: number;
   /** For an ATM jam: the customer was debited, the notes never came out, and the money is waiting here to be refunded. */
   jam?: boolean;
+  /** A botnet card-testing attempt (Chaos Monkey, day 3). */
+  bot?: boolean;
+  /** Latency Chaos Monkey's network congestion added, on top of the diagram's own. */
+  extraLatencyMs?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -298,6 +303,9 @@ export interface Move {
 }
 
 export interface DayKpis {
+  /** Chargebacks raised by hand from the live ledger today, and the amount reversed to customers. */
+  disputesRaised?: number;
+  disputedCents?: MinorUnits;
   arrivals: number;
   byKind: Record<CheckoutKind, number>;
   approved: number;
@@ -427,6 +435,10 @@ export interface TxRecord {
   recon: TxReconStatus;
   /** Cash paid in at the machine, not taken out. */
   deposit?: true;
+  /** What Chaos Monkey did to it, if anything. */
+  chaos?: ChaosTag;
+  /** The ISO response code the payment got: '00', '51', '91', 'ACSC', 'RJCT'... */
+  responseCode?: string;
 }
 
 /** One person of a night shift, as the day report shows them. */
@@ -521,6 +533,10 @@ export interface BankView {
   suspense: { cents: MinorUnits; items: number; oldestDays: number };
   ledger: LedgerView;
   history: DayReport[];
+  /** Chaos Monkey: today's scripted scenario, the faults switched on and what they did. */
+  chaos: ChaosView;
+  /** Transaction ids disputed from the ledger today. */
+  disputed: string[];
 }
 
 export type { DepartmentId, ExternalId, PlaceId, StationId };

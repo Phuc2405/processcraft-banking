@@ -11,6 +11,8 @@
  * much is going on: customers arrive in 5-minute beats, the quiet hours pass an hour at a time.
  */
 
+import { activeLocale } from '../i18n/locale';
+
 export type Phase = 'PRE_OPEN' | 'WORKING' | 'AFTER_HOURS' | 'EOD';
 
 export const DAY_START = 8 * 60;
@@ -73,6 +75,9 @@ export interface SpeedChoice {
 }
 
 /** The six speeds on the clock bar. 1x is Relaxed: one tick every 1.5 seconds. */
+/** The name of a speed in the active language. */
+export const speedNameText = (name: string | undefined): string | undefined => (name === undefined ? undefined : activeLocale() === 'vi' ? ({ 'Slow-mo': 'Chậm', Relaxed: 'Thong thả' } as Record<string, string>)[name] ?? name : name);
+
 export const SPEEDS: readonly SpeedChoice[] = [
   { label: '0.25×', factor: 0.25, name: 'Slow-mo' },
   { label: '0.5×', factor: 0.5 },

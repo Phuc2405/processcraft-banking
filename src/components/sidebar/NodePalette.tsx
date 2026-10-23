@@ -1,5 +1,8 @@
 import { useMemo, type DragEvent } from 'react';
 import { useStoreApi } from '@xyflow/react';
+import { nodeDefDescription, nodeDefLabel } from '../../i18n/catalogVi';
+import { tr } from '../../i18n/locale';
+import { t } from '../../i18n/t';
 import { NODE_DRAG_MIME } from '../canvas/dragData';
 import { NodeIcon } from '../canvas/icons';
 import { CATEGORY_THEME, categoryOf } from '../canvas/nodeTheme';
@@ -53,14 +56,14 @@ export function NodePalette() {
   const budgetPct = usage.budget ? Math.min(100, (usage.placed / usage.budget) * 100) : 0;
 
   return (
-    <section aria-label="Node palette" className="flex flex-col gap-4">
+    <section aria-label={t('Node palette')} className="flex flex-col gap-4">
       <header>
-        <h2 className="text-sm font-semibold text-slate-100">Node palette</h2>
-        <p className="mt-0.5 text-xs text-slate-400">Drag onto the canvas, or press + to add.</p>
+        <h2 className="text-sm font-semibold text-slate-100">{t('Node palette')}</h2>
+        <p className="mt-0.5 text-xs text-slate-400">{t('Drag onto the canvas, or press + to add.')}</p>
         {usage.budget !== null && (
           <div className="mt-2.5">
             <div className="flex justify-between text-[11px] text-slate-400">
-              <span>Nodes used</span>
+              <span>{t('Nodes used')}</span>
               <span className={usage.placed >= usage.budget ? 'font-semibold text-amber-300' : ''}>
                 {usage.placed} / {usage.budget}
               </span>
@@ -77,7 +80,7 @@ export function NodePalette() {
         if (items.length === 0) return null;
         return (
           <div key={group.title}>
-            <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{group.title}</h3>
+            <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t(group.title)}</h3>
             <ul className="space-y-1.5">
               {items.map(({ def, row }) => {
                 const category = CATEGORY_THEME[categoryOf(def)];
@@ -87,7 +90,7 @@ export function NodePalette() {
                     <div
                       draggable={!blocked}
                       onDragStart={(e) => onDragStart(e, def)}
-                      title={blocked ?? def.description}
+                      title={blocked ?? nodeDefDescription(def.id, def.description)}
                       aria-disabled={blocked !== null}
                       data-testid={`palette-${def.id}`}
                       className={[
@@ -100,18 +103,18 @@ export function NodePalette() {
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
-                          <span className="truncate text-[13px] font-medium text-slate-100">{def.label}</span>
-                          <span className="ml-auto shrink-0 rounded bg-slate-800 px-1.5 py-px font-mono text-[10px] text-slate-400" title="Placed / allowed">
+                          <span className="truncate text-[13px] font-medium text-slate-100">{nodeDefLabel(def.id, def.label)}</span>
+                          <span className="ml-auto shrink-0 rounded bg-slate-800 px-1.5 py-px font-mono text-[10px] text-slate-400" title={t('Placed / allowed')}>
                             {row.used}/{row.max ?? '∞'}
                           </span>
                         </div>
-                        <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-slate-400">{def.description}</p>
+                        <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-slate-400">{nodeDefDescription(def.id, def.description)}</p>
                       </div>
                       <button
                         type="button"
                         disabled={blocked !== null}
                         onClick={() => dropAtCentre(def)}
-                        aria-label={`Add ${def.label} to the canvas`}
+                        aria-label={tr({ en: `Add ${def.label} to the canvas`, vi: `Thêm ${nodeDefLabel(def.id, def.label)} vào canvas` })}
                         className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-slate-800 text-slate-300 transition hover:bg-sky-500 hover:text-slate-950 disabled:pointer-events-none"
                       >
                         <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
@@ -129,7 +132,8 @@ export function NodePalette() {
 
       {level.starterGraph && (
         <p className="rounded-lg border border-dashed border-slate-700 p-2.5 text-[11px] leading-snug text-slate-400">
-          Nodes marked <span className="rounded bg-slate-800 px-1 text-[9px] font-semibold uppercase text-slate-300">fixed</span> come with the level. They are free: they do not count against your node budget.
+          {t('Nodes marked')} <span className="rounded bg-slate-800 px-1 text-[9px] font-semibold uppercase text-slate-300">{t('fixed')}</span>{' '}
+          {t('come with the level. They are free: they do not count against your node budget.')}
         </p>
       )}
     </section>

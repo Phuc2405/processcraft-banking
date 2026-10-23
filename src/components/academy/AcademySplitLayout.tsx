@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-import { ACADEMY_TRACKS, CHAPTER_STATUS_BADGE, chapterById, chapterStatus, LESSON_COUNT, levelById, type AcademyChapter, type ChapterStatus } from '../../sim/academyCatalog';
+import { ACADEMY_TRACKS, chapterById, chapterStatus, chapterStatusBadge, LESSON_COUNT, levelById, localChapter, localTrack, type AcademyChapter, type ChapterStatus } from '../../sim/academyCatalog';
+import { tr, useLocale } from '../../i18n/locale';
+import { downloadCheatSheet } from '../../sim/cheatSheet';
 import { academyStore, clampPanelWidth, PANEL_WIDTH, useAcademyStore } from '../../store/academyStore';
 import { bindAcademySync } from '../../store/academySync';
 import { bankStore } from '../../store/bankStore';
@@ -38,7 +40,7 @@ export function AcademySplitToggle() {
       type="button"
       onClick={toggle}
       aria-pressed={open}
-      title={open ? 'Close the lesson panel' : 'Open the Academy split view: lessons on the left, the bank on the right'}
+      title={open ? tr({ en: 'Close the lesson panel', vi: 'Đóng bảng bài học' }) : tr({ en: 'Open the Academy split view: lessons on the left, the bank on the right', vi: 'Mở chế độ chia đôi Học viện: bài học bên trái, ngân hàng bên phải' })}
       data-testid="academy-split-toggle"
       className={`flex items-center gap-2 rounded-lg px-2.5 py-1 text-[12.5px] font-semibold ring-1 transition-colors duration-200 ${open ? 'bg-lime-400 text-slate-950 ring-lime-300' : 'bg-slate-900 text-slate-100 ring-slate-700 hover:bg-slate-800'}`}
     >
@@ -47,7 +49,7 @@ export function AcademySplitToggle() {
         <path d="M6 1.5v11" />
         <path d={open ? 'M3 5h1.5M3 7h1.5M3 9h1.5' : 'M3 5h1.5M3 7h1.5'} strokeLinecap="round" />
       </svg>
-      Lessons
+      {tr({ en: 'Lessons', vi: 'Bài học' })}
     </button>
   );
 }
@@ -79,7 +81,7 @@ function ChapterCard({ chapter, open, onOpen }: { chapter: AcademyChapter; open:
           <span className="mt-0.5 block text-[11.5px] leading-snug text-slate-400">{chapter.topic}</span>
           <span className="mt-1 flex items-center gap-2 text-[11px] font-semibold">
             <span className={STATUS_STYLE[status]} data-testid={`chapter-status-${chapter.id}`}>
-              {CHAPTER_STATUS_BADGE[status]}
+              {chapterStatusBadge(status)}
             </span>
             <span className="font-mono font-normal text-slate-500">
               {done}/{chapter.levels.length}
@@ -88,7 +90,7 @@ function ChapterCard({ chapter, open, onOpen }: { chapter: AcademyChapter; open:
         </span>
       </button>
       {open && (
-        <ol className="space-y-0.5 px-2 pb-2" aria-label={`Chapter ${chapter.id} levels`}>
+        <ol className="space-y-0.5 px-2 pb-2" aria-label={tr({ en: `Chapter ${chapter.id} levels`, vi: `Các bài của chương ${chapter.id}` })}>
           {chapter.levels.map((l) => {
             const active = activeLevel === l.id;
             return (
@@ -144,7 +146,7 @@ function ResizeHandle({ onDrag, onKey }: { onDrag: (clientX: number) => void; on
     <div
       role="separator"
       aria-orientation="vertical"
-      aria-label="Resize the lesson panel"
+      aria-label={tr({ en: 'Resize the lesson panel', vi: 'Đổi kích thước bảng bài học' })}
       aria-valuemin={PANEL_WIDTH.min}
       aria-valuemax={PANEL_WIDTH.max}
       aria-valuenow={width}
@@ -171,11 +173,11 @@ function FocusToggle() {
       type="button"
       onClick={toggle}
       aria-pressed={maximized}
-      title={maximized ? 'Back to the split view: lessons beside the bank (Esc)' : 'Focus Mode: the lessons fill the screen and the map steps back'}
+      title={maximized ? tr({ en: 'Back to the split view: lessons beside the bank (Esc)', vi: 'Quay lại chế độ chia đôi: bài học cạnh ngân hàng (Esc)' }) : tr({ en: 'Focus Mode: the lessons fill the screen and the map steps back', vi: 'Chế độ tập trung: bài học chiếm toàn màn hình, bản đồ lùi lại' })}
       data-testid="academy-focus-toggle"
       className={`rounded-md px-2 py-0.5 text-[11.5px] font-bold ring-1 transition-colors ${maximized ? 'bg-slate-100 text-slate-950 ring-slate-100 hover:bg-white' : 'bg-lime-400 text-slate-950 ring-lime-300 hover:bg-lime-300'}`}
     >
-      {maximized ? '[↙ Split View]' : '[⛶ Focus Mode]'}
+      {maximized ? tr({ en: '[↙ Split View]', vi: '[↙ Chia đôi]' }) : tr({ en: '[⛶ Focus Mode]', vi: '[⛶ Tập trung]' })}
     </button>
   );
 }
@@ -183,18 +185,19 @@ function FocusToggle() {
 function Catalog({ className }: { className: string }) {
   const activeChapter = useAcademyStore((s) => s.activeChapterId);
   const setChapter = useAcademyStore((s) => s.setChapter);
+  const locale = useLocale();
   return (
     <div className={`space-y-2 overflow-y-auto p-3 ${className}`} data-testid="academy-catalog">
-      {ACADEMY_TRACKS.map((t) => (
+      {ACADEMY_TRACKS.map((raw) => localTrack(raw, locale)).map((t) => (
         <div key={t.id} className="space-y-2" data-testid={`track-${t.id}`}>
           <div className="pt-1">
             <div className="text-[10.5px] font-bold uppercase tracking-wider" style={{ color: t.accent }}>
-              Track {t.id} · {t.title}
+              {tr({ en: 'Track', vi: 'Lộ trình' })} {t.id} · {t.title}
             </div>
             <p className="text-[11.5px] leading-snug text-slate-500">{t.blurb}</p>
           </div>
           {t.chapters.map((id) => (
-            <ChapterCard key={id} chapter={chapterById(id)} open={activeChapter === id} onOpen={() => setChapter(id)} />
+            <ChapterCard key={id} chapter={localChapter(chapterById(id), locale)} open={activeChapter === id} onOpen={() => setChapter(id)} />
           ))}
         </div>
       ))}
@@ -212,7 +215,8 @@ function AcademyPanel() {
   const levelId = useAcademyStore((s) => s.activeLevelId);
   const doneCount = useAcademyStore((s) => Object.keys(s.completedLessons).length);
   const [resizing, setResizing] = useState(false);
-  const [tab, setTab] = useState<'lessons' | 'cards' | 'quiz'>('lessons');
+  const tab = useAcademyStore((s) => s.studyTab);
+  const setTab = useAcademyStore((s) => s.setStudyTab);
   const aside = useRef<HTMLElement>(null);
   const level = levelById(levelId);
 
@@ -245,14 +249,14 @@ function AcademyPanel() {
     <LessonView key={`${level.id}-${maximized}`} level={level} roomy={maximized} />
   ) : (
     <p className={`text-[12px] leading-relaxed text-slate-400 ${maximized ? 'mx-auto max-w-3xl px-6 py-10 text-center text-[14px]' : 'px-3 py-3'}`} data-testid="lesson-empty">
-      Pick a level to light its step on the map.
+      {tr({ en: 'Pick a level to light its step on the map.', vi: 'Chọn một bài để làm sáng bước tương ứng trên bản đồ.' })}
     </p>
   );
 
   return (
     <aside
       ref={aside}
-      aria-label="Academy lessons"
+      aria-label={tr({ en: 'Academy lessons', vi: 'Bài học Học viện' })}
       aria-hidden={!open}
       aria-modal={maximized || undefined}
       role={maximized ? 'dialog' : undefined}
@@ -272,23 +276,33 @@ function AcademyPanel() {
         <header className={`shrink-0 border-b border-slate-800 py-2.5 ${maximized ? 'px-5' : 'px-3'}`}>
           <div className="flex items-center gap-2">
             <h2 className={`flex-1 font-bold text-slate-50 ${maximized ? 'text-[16px]' : 'text-[13.5px]'}`}>
-              <span aria-hidden="true">🎓 </span>Academy
+              <span aria-hidden="true">🎓 </span>
+              {tr({ en: 'Academy', vi: 'Học viện' })}
             </h2>
             <span className="font-mono text-[11px] text-slate-400" data-testid="academy-progress-text">
-              {doneCount}/{LESSON_COUNT} lessons
+              {doneCount}/{LESSON_COUNT} {tr({ en: 'lessons', vi: 'bài' })}
             </span>
-            <button type="button" onClick={toggle} aria-label="Close the lesson panel" title="Close" data-testid="academy-close" className="grid h-6 w-6 place-items-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-white">
+            <button type="button" onClick={toggle} aria-label={tr({ en: 'Close the lesson panel', vi: 'Đóng bảng bài học' })} title={tr({ en: 'Close', vi: 'Đóng' })} data-testid="academy-close" className="grid h-6 w-6 place-items-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-white">
               ×
             </button>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <FocusToggle />
             <ViewLevelToggle />
+            <button
+              type="button"
+              onClick={() => downloadCheatSheet()}
+              data-testid="academy-export-cheatsheet"
+              title={tr({ en: 'Download all 22 lessons, the ISO response codes and the GL accounts as one Markdown file', vi: 'Tải về toàn bộ 22 bài học, mã phản hồi ISO và tài khoản sổ cái trong một tệp Markdown' })}
+              className="rounded-md bg-slate-800 px-2 py-0.5 text-[11.5px] font-bold text-slate-100 ring-1 ring-slate-600 transition-colors hover:bg-slate-700"
+            >
+              {tr({ en: '[📥 Export Fintech Cheat Sheet]', vi: '[📥 Xuất sổ tay Fintech]' })}
+            </button>
           </div>
-          <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-800" role="progressbar" aria-valuemin={0} aria-valuemax={LESSON_COUNT} aria-valuenow={doneCount} aria-label="Lessons completed">
+          <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-800" role="progressbar" aria-valuemin={0} aria-valuemax={LESSON_COUNT} aria-valuenow={doneCount} aria-label={tr({ en: 'Lessons completed', vi: 'Bài đã hoàn thành' })}>
             <div className="h-full rounded-full bg-lime-300 transition-[width] duration-300" style={{ width: `${(doneCount / LESSON_COUNT) * 100}%` }} />
           </div>
-          <div className={`mt-2 flex gap-1 ${maximized ? 'max-w-md' : ''}`} role="tablist" aria-label="Academy sections">
+          <div className={`mt-2 flex gap-1 ${maximized ? 'max-w-md' : ''}`} role="tablist" aria-label={tr({ en: 'Academy sections', vi: 'Các mục Học viện' })}>
             {(['lessons', 'cards', 'quiz'] as const).map((t) => (
               <button
                 key={t}
@@ -299,7 +313,7 @@ function AcademyPanel() {
                 data-testid={`academy-tab-${t}`}
                 className={`flex-1 rounded-md px-2 py-1 text-[12px] font-semibold ring-1 transition-colors ${tab === t ? 'bg-slate-100 text-slate-950 ring-slate-100' : 'text-slate-300 ring-slate-700 hover:bg-slate-800'}`}
               >
-                {t === 'lessons' ? 'Lessons' : t === 'cards' ? 'Flashcards' : 'Quiz'}
+                {t === 'lessons' ? tr({ en: 'Lessons', vi: 'Bài học' }) : t === 'cards' ? tr({ en: 'Flashcards', vi: 'Thẻ ghi nhớ' }) : tr({ en: 'Quiz', vi: 'Câu hỏi' })}
               </button>
             ))}
           </div>
