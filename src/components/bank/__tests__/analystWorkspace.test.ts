@@ -18,7 +18,7 @@ import {
 import { createBankStore, EMPTY_SHIFT } from '../../../store/bankStore';
 import { bundleProblems, hasVietnamese } from '../../../utils/i18nHelper';
 import { analystWorkspaceMessages, PERSONAS, type AnalystWorkspaceKey } from '../analystWorkspace.messages';
-import { AnalystWorkspaceView, ConsequenceOverlay, consequenceKey, personaFor, sopKeys, SwitchDeskDialog, type AnalystWorkspaceViewProps, type WorkspaceMode } from '../AnalystWorkspaceModal';
+import { AnalystWorkspaceView, ConsequenceOverlay, consequenceKey, EXPERT_SOP_STEPS, personaFor, riskKey, sopKeys, SwitchDeskDialog, type AnalystWorkspaceViewProps, type WorkspaceMode } from '../AnalystWorkspaceModal';
 
 const msgs = analystWorkspaceMessages.messages;
 const has = (key: string): boolean => key in msgs;
@@ -68,6 +68,22 @@ describe('workspace copy covers every role, scene, field and mode', () => {
           }
   });
 
+  it('gives every drill a 3-step Expert procedure and its own risk & benefit cards in both modes', () => {
+    for (const role of STAFF_ROLES) {
+      for (const drill of STAFF_DRILLS) {
+        expect(sopKeys(role, drill, 'expert')).toHaveLength(EXPERT_SOP_STEPS);
+        for (const key of sopKeys(role, drill, 'expert')) expect(has(key), key).toBe(true);
+        for (const kind of ['approve', 'reject', 'benefit'] as const)
+          for (const mode of ['standard', 'expert'] as const) expect(has(riskKey(role, drill, kind, mode)), `${role} ${drill} ${kind} ${mode}`).toBe(true);
+      }
+      expect(sopKeys(role, RANDOM_TASK, 'expert')).toHaveLength(3 * EXPERT_SOP_STEPS);
+      expect(sopKeys(role, 1)).toEqual([`task_${role}_1_sop`]);
+      const benefits = STAFF_DRILLS.map((d) => msgs[riskKey(role, d, 'benefit', 'expert')].en);
+      expect(new Set(benefits).size, role).toBe(3);
+    }
+    expect(riskKey('aml', undefined, 'approve', 'expert')).toBe('risk_aml_approveExp');
+  });
+
   it('keeps the switch-desk copy exactly as specified', () => {
     expect(msgs.switchTitle).toEqual({ en: 'Switch Desk?', vi: 'Chuyển quầy làm việc?' });
     expect(msgs.switchMessage.vi).toBe('Chuyển sang quầy mới sẽ kết thúc ca hiện tại và đặt lại tiến trình về Nhiệm vụ 1. Bạn có chắc chắn muốn chuyển?');
@@ -80,6 +96,8 @@ describe('workspace copy covers every role, scene, field and mode', () => {
     expect(consequenceKey({ role: 'aml', result: r('APPROVE', true) }, 'standard')).toBe('risk_aml_benefitStd');
     expect(consequenceKey({ role: 'aml', result: r('APPROVE', false) }, 'expert')).toBe('risk_aml_approveExp');
     expect(consequenceKey({ role: 'fds', result: r('REJECT', false) }, 'standard')).toBe('risk_fds_rejectStd');
+    expect(consequenceKey({ role: 'aml', drill: 2, result: r('APPROVE', false) }, 'expert')).toBe('risk_aml_t2_approveExp');
+    expect(consequenceKey({ role: 'swift', drill: 3, result: r('REJECT', true) }, 'standard')).toBe('risk_swift_t3_benefitStd');
   });
 });
 
@@ -163,8 +181,24 @@ const handlers: Pick<AnalystWorkspaceViewProps, 'onClose' | 'onAdvance' | 'onDec
 };
 
 describe('the task workspace on screen', () => {
-  const view = (role: (typeof STAFF_ROLES)[number], task: (typeof STAFF_TASKS)[number]): string =>
-    renderToStaticMarkup(createElement(AnalystWorkspaceView, { desk: ROLE_STATION[role], cases: taskDeck(role, task, 0), shift: EMPTY_SHIFT, initialMode: 'standard', task, canAdvance: true, ...handlers }));
+  const view = (role: (typeof STAFF_ROLES)[number], task: (typeof STAFF_TASKS)[number], initialMode: WorkspaceMode = 'standard'): string =>
+    renderToStaticMarkup(createElement(AnalystWorkspaceView, { desk: ROLE_STATION[role], cases: taskDeck(role, task, 0), shift: EMPTY_SHIFT, initialMode, task, canAdvance: true, ...handlers }));
+
+  it('shows the plain rule in Standard and the 3-step procedure in Expert, with the task\'s own risk cards', () => {
+    for (const role of STAFF_ROLES)
+      for (const task of STAFF_TASKS) {
+        const drill = taskDeck(role, task, 0)[0]!.drill!;
+        const std = view(role, task, 'standard');
+        expect(std).toContain('data-sop="standard"');
+        for (const key of sopKeys(role, task, 'standard')) expect(std).toContain(esc(msgs[key].en));
+        expect(std).not.toContain(esc(msgs[sopKeys(role, task, 'expert')[0]!].en));
+        expect(std).toContain(esc(msgs[riskKey(role, drill, 'approve', 'standard')].en));
+        const exp = view(role, task, 'expert');
+        expect(exp).toContain('data-sop="expert"');
+        for (const key of sopKeys(role, task, 'expert')) expect(exp).toContain(esc(msgs[key].en));
+        for (const kind of ['approve', 'reject', 'benefit'] as const) expect(exp, `${role} ${task} ${kind}`).toContain(esc(msgs[riskKey(role, drill, kind, 'expert')].en));
+      }
+  });
 
   it('draws the desk and task pickers, the task card and its SOP for every role and task', () => {
     for (const role of STAFF_ROLES)
