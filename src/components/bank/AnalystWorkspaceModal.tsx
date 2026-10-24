@@ -1,19 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AML_POLICY, CTR_THRESHOLD_CENTS, DISPUTE_SLA_DAYS, EKYC_POLICY, FDS_POLICY } from '../../sim/amlEngine';
 import { formatMoney } from '../../sim/kpis';
 import { localizeScenarioText } from '../../sim/scenarios';
 import {
+  RANDOM_TASK,
   ROLE_ICON,
+  ROLE_STATION,
   roleForStation,
   SHIFT_TARGET,
+  STAFF_DRILLS,
+  STAFF_ROLES,
   STAFF_SLA_SECONDS,
-  STAFF_SOP,
+  STAFF_TASKS,
   STAFF_XP_PER_CORRECT,
+  taskDeck,
   type StaffCase,
   type StaffDecision,
   type StaffDecisionResult,
   type StaffField,
   type StaffRoleId,
+  type StaffTaskNo,
 } from '../../sim/staffRoleplay';
 import { DEPARTMENTS, STATIONS, type StationId } from '../../sim/topology';
 import { bankStore, EMPTY_SHIFT, useBankStore, type ShiftProgress } from '../../store/bankStore';
@@ -26,16 +31,16 @@ import { useTerms } from './useTerms';
 /**
  * Phase 8 Step 2: the Staff Roleplay Workspace, a scenario-driven review desk in two registers.
  *
- *   A  Mission brief, regulatory reference (Expert) and the simulated SOP matrix.
+ *   ⌂  Header: desk picker (switching desks asks first, then restarts at Task 1), task picker (instant), language, complexity.
+ *   A  Mission brief, regulatory reference (Expert), the current task of the 28-task matrix and its SOP.
  *   B  The 4-part scenario card: persona & story, trigger context, highlighted payload tags, risk & benefit analysis.
  *   C  Approve / Reject, a 2-second consequence overlay (+XP or an error), and the shift objective.
  *
- * Decisions go through useBankStore.staffDecide, which works the packet in the simulation and books the desk's metrics.
+ * Decisions go through useBankStore.staffTrain, which grades the task case against its SOP and books the shift.
  */
 
 export type WorkspaceMode = 'standard' | 'expert';
 type M = Translate<AnalystWorkspaceKey>;
-type Values = Record<string, string | number>;
 
 /** How long the consequence overlay stays up. */
 export const CONSEQUENCE_MS = 2000;
@@ -44,31 +49,12 @@ const money = (cents: number): string => formatMoney(cents);
 const k = (key: string): AnalystWorkspaceKey => key as AnalystWorkspaceKey;
 const suffix = (mode: WorkspaceMode): 'Std' | 'Exp' => (mode === 'standard' ? 'Std' : 'Exp');
 
-/** The numbers each role's SOP lines quote, read from the engine's policies so the cheat sheet never drifts. */
-function sopValues(role: StaffRoleId, bnplMinScore: number): Values {
-  switch (role) {
-    case 'aml':
-      return { sanction: AML_POLICY.sanctionMatchAt, velocity: STAFF_SOP.amlVelocityBlockAt, xb: money(AML_POLICY.largeCrossBorderCents) };
-    case 'dispute':
-      return { cb: DISPUTE_SLA_DAYS.CHARGEBACK, ret: DISPUTE_SLA_DAYS.PACS004_RETURN, atm: DISPUTE_SLA_DAYS.ATM_MISMATCH };
-    case 'bnpl':
-      return { min: bnplMinScore, dti: STAFF_SOP.bnplDtiMaxPct, missed: STAFF_SOP.bnplMaxMissed };
-    case 'cashier':
-      return { ctr: money(CTR_THRESHOLD_CENTS) };
-    case 'ekyc':
-      return { face: EKYC_POLICY.faceMatchMin, live: EKYC_POLICY.livenessMin, ocr: EKYC_POLICY.ocrMinPct, tamper: EKYC_POLICY.tamperMax };
-    case 'fds':
-      return { ip: FDS_POLICY.ip, root: FDS_POLICY.root, bin: FDS_POLICY.bin, nd: FDS_POLICY.newDevice, high: FDS_POLICY.highRiskAt };
-    case 'swift':
-      return {};
-  }
-}
+/** The SOP lines a task shows: its own rule, or every drill's rule on the random shift. */
+export const sopKeys = (role: StaffRoleId, task: StaffTaskNo): AnalystWorkspaceKey[] =>
+  (task === RANDOM_TASK ? STAFF_DRILLS : [task]).map((n) => k(`task_${role}_${n}_sop`));
 
-const SOP_COUNT: Readonly<Record<StaffRoleId, number>> = { aml: 4, dispute: 4, bnpl: 4, cashier: 4, ekyc: 4, fds: 3, swift: 4 };
-
-/** Every message key a role's SOP matrix uses in a mode. */
-export const sopKeys = (role: StaffRoleId, mode: WorkspaceMode): AnalystWorkspaceKey[] =>
-  Array.from({ length: SOP_COUNT[role] }, (_, i) => k(`${mode === 'standard' ? 'sopStd' : 'sop'}_${role}_${i + 1}`));
+/** Every task's title key for a role, in order. */
+export const taskTitleKey = (role: StaffRoleId, task: StaffTaskNo): AnalystWorkspaceKey => k(`task_${role}_${task}_title`);
 
 /** A stable persona per case. */
 export function personaFor(caseId: string): { avatar: string; name: string; index: number } {
@@ -145,8 +131,7 @@ function ModeToggle({ mode, onChange, m }: { mode: WorkspaceMode; onChange: (mod
 // Panel A
 // ─────────────────────────────────────────────────────────────────────────────
 
-function MissionPanel({ role, mode, m, bnplMinScore, deskName }: { role: StaffRoleId; mode: WorkspaceMode; m: M; bnplMinScore: number; deskName: string }) {
-  const values = sopValues(role, bnplMinScore);
+function MissionPanel({ role, task, mode, m, deskName }: { role: StaffRoleId; task: StaffTaskNo; mode: WorkspaceMode; m: M; deskName: string }) {
   const expert = mode === 'expert';
   return (
     <section className="flex min-h-0 flex-col gap-3 overflow-y-auto rounded-xl border border-slate-800 bg-slate-900/50 p-3.5" data-testid="workspace-mission">
@@ -170,6 +155,11 @@ function MissionPanel({ role, mode, m, bnplMinScore, deskName }: { role: StaffRo
           </div>
         )}
       </div>
+      <div className="rounded-lg border border-sky-400/30 bg-sky-400/[0.06] px-2.5 py-2" data-testid="workspace-task" data-task={task}>
+        <Kicker>{m('taskTitle')}</Kicker>
+        <div className="mt-0.5 text-[13px] font-semibold text-sky-100">{m('taskOption', { n: task, title: m(taskTitleKey(role, task)) })}</div>
+        {task === RANDOM_TASK && <p className="mt-1 text-[11px] leading-snug text-slate-400">{m('taskRandomNote')}</p>}
+      </div>
       <div>
         <div className="text-[11px] font-bold tracking-wide text-amber-200" data-testid="workspace-sop-title">
           {m('sopTitle')}
@@ -178,10 +168,10 @@ function MissionPanel({ role, mode, m, bnplMinScore, deskName }: { role: StaffRo
           {m('sopNote')}
         </p>
         <ol className="space-y-1.5" data-testid="workspace-sop">
-          {sopKeys(role, mode).map((key, i) => (
+          {sopKeys(role, task).map((key, i) => (
             <li key={key} className="flex gap-2 rounded-lg border border-slate-800 bg-slate-950/50 px-2.5 py-1.5 text-[12px] leading-snug text-slate-200">
-              <span className="font-mono text-[10px] text-slate-500">{i + 1}</span>
-              <span>{m(key, values)}</span>
+              <span className="font-mono text-[10px] text-slate-500">{task === RANDOM_TASK ? STAFF_DRILLS[i] : task}</span>
+              <span>{m(key)}</span>
             </li>
           ))}
         </ol>
@@ -218,7 +208,7 @@ function PayloadTag({ field, mode, m, locale }: { field: StaffField; mode: Works
   );
 }
 
-function ScenarioCard({ current, queued, elapsed, mode, m, onAdvance, canAdvance }: { current: StaffCase | null; queued: number; elapsed: number; mode: WorkspaceMode; m: M; onAdvance: () => void; canAdvance: boolean }) {
+function ScenarioCard({ current, queued, elapsed, mode, m, onAdvance, canAdvance, showDrill }: { current: StaffCase | null; queued: number; elapsed: number; mode: WorkspaceMode; m: M; onAdvance: () => void; canAdvance: boolean; showDrill: boolean }) {
   const locale = useLocale();
   if (!current) {
     return (
@@ -254,9 +244,15 @@ function ScenarioCard({ current, queued, elapsed, mode, m, onAdvance, canAdvance
             {story}
           </p>
           <div className="mt-1 font-mono text-[10.5px] text-slate-500">
-            {current.id} · {localizeScenarioText(current.scenario, locale)} · {m('waited', { min: current.waitedMin })}
+            {current.id} · {current.scenario && `${localizeScenarioText(current.scenario, locale)} · `}
+            {m('waited', { min: current.waitedMin })}
             {queued > 0 && ` · ${m('queueAhead', { n: queued })}`}
           </div>
+          {showDrill && current.drill && (
+            <span className="mt-1 inline-flex rounded-full border border-violet-400/40 bg-violet-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-violet-200" data-testid="workspace-drill" data-drill={current.drill}>
+              {m('taskDrillTag', { n: current.drill })}
+            </span>
+          )}
         </div>
         <div className="shrink-0 text-right">
           <Kicker>{m('amount')}</Kicker>
@@ -401,26 +397,87 @@ function DecisionPanel({ shift, current, onDecide, consequence, mode, m }: { shi
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Header pickers and the desk-switch guard
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PICKER = 'max-w-[14rem] truncate rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-[12px] font-semibold text-slate-100 transition hover:border-slate-500 focus:border-sky-400 focus:outline-none';
+
+function RolePicker({ role, onPick, m }: { role: StaffRoleId; onPick: (role: StaffRoleId) => void; m: M }) {
+  return (
+    <select aria-label={m('roleSelectLabel')} value={role} onChange={(e) => onPick(e.target.value as StaffRoleId)} data-testid="workspace-role-select" className={PICKER}>
+      {STAFF_ROLES.map((r) => (
+        <option key={r} value={r}>
+          {`${ROLE_ICON[r]} ${m(k(`role_${r}_title`))}`}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function TaskPicker({ role, task, onPick, m }: { role: StaffRoleId; task: StaffTaskNo; onPick: (task: StaffTaskNo) => void; m: M }) {
+  return (
+    <select aria-label={m('taskSelectLabel')} value={task} onChange={(e) => onPick(Number(e.target.value) as StaffTaskNo)} data-testid="workspace-task-select" className={PICKER}>
+      {STAFF_TASKS.map((n) => (
+        <option key={n} value={n}>
+          {`🎯 ${m('taskOption', { n, title: m(taskTitleKey(role, n)) })}`}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+export function SwitchDeskDialog({ target, m, onCancel, onConfirm }: { target: StaffRoleId; m: M; onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <div className="absolute inset-0 z-20 grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm" data-testid="workspace-switch-backdrop">
+      <div role="alertdialog" aria-modal="true" aria-labelledby="workspace-switch-title" aria-describedby="workspace-switch-message" data-testid="workspace-switch-dialog" data-target={target} className="w-full max-w-md rounded-2xl border border-amber-400/40 bg-slate-900 p-5 shadow-2xl">
+        <h3 id="workspace-switch-title" className="text-[15px] font-bold text-amber-100">
+          {m('switchTitle')}
+        </h3>
+        <p id="workspace-switch-message" className="mt-2 text-[12.5px] leading-snug text-slate-200">
+          {m('switchMessage')}
+        </p>
+        <p className="mt-2 text-[12px] font-semibold text-sky-200">
+          {ROLE_ICON[target]} {m('switchTarget', { role: m(k(`role_${target}_title`)) })}
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <button type="button" onClick={onCancel} data-testid="workspace-switch-cancel" className="rounded-lg border border-slate-600 px-3 py-1.5 text-[12px] font-medium text-slate-200 transition hover:bg-slate-800">
+            {m('switchCancel')}
+          </button>
+          <button type="button" onClick={onConfirm} autoFocus data-testid="workspace-switch-confirm" className="rounded-lg border border-amber-400/60 bg-amber-400 px-3 py-1.5 text-[12px] font-bold text-slate-950 transition hover:bg-amber-300">
+            {m('switchConfirm')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface AnalystWorkspaceViewProps {
   desk: StationId;
   cases: readonly StaffCase[];
   shift: ShiftProgress;
   initialMode: WorkspaceMode;
-  bnplMinScore: number;
+  task: StaffTaskNo;
   canAdvance: boolean;
   onClose: () => void;
   onAdvance: () => void;
   /** Decides the head case; returns the result and the role's error count after it. */
   onDecide: (caseId: string, decision: StaffDecision, latencySec: number) => { result: StaffDecisionResult; errors: number };
+  /** Instant: another task at the same desk. */
+  onTaskChange: (task: StaffTaskNo) => void;
+  /** Called only after the learner confirmed the switch dialog. */
+  onSwitchRole: (role: StaffRoleId) => void;
 }
 
 /** The workspace itself, driven by props (the store-connected modal below feeds it). */
-export function AnalystWorkspaceView({ desk, cases, shift, initialMode, bnplMinScore, canAdvance, onClose, onAdvance, onDecide }: AnalystWorkspaceViewProps) {
+export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, canAdvance, onClose, onAdvance, onDecide, onTaskChange, onSwitchRole }: AnalystWorkspaceViewProps) {
   const terms = useTerms();
   const m = useMessages(analystWorkspaceMessages);
   const [mode, setMode] = useState<WorkspaceMode>(initialMode);
   const [consequence, setConsequence] = useState<Consequence | null>(null);
+  const [pendingRole, setPendingRole] = useState<StaffRoleId | null>(null);
   const role = roleForStation(desk);
   const current = cases[0] ?? null;
   const elapsed = useCaseTimer(consequence ? null : (current?.id ?? null));
@@ -435,41 +492,59 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, bnplMinS
 
   const decide = useCallback(
     (d: StaffDecision) => {
-      if (!current || !role || consequence) return;
+      if (!current || !role || consequence || pendingRole) return;
       const { result, errors } = onDecide(current.id, d, elapsedRef.current);
       if (result.ok) setConsequence({ result, role, errors });
     },
-    [current, role, consequence, onDecide],
+    [current, role, consequence, pendingRole, onDecide],
   );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
-      if (e.key === 'Escape') onClose();
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return;
+      if (e.key === 'Escape') {
+        if (pendingRole) setPendingRole(null);
+        else onClose();
+      } else if (pendingRole) return;
       else if (e.key === 'a' || e.key === 'A') decide('APPROVE');
       else if (e.key === 'r' || e.key === 'R') decide('REJECT');
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, decide]);
+  }, [onClose, decide, pendingRole]);
+
+  const pickRole = (next: StaffRoleId): void => setPendingRole(next === role ? null : next);
+  const confirmSwitch = (): void => {
+    if (!pendingRole) return;
+    const next = pendingRole;
+    setPendingRole(null);
+    setConsequence(null);
+    onSwitchRole(next);
+  };
 
   const accent = useMemo(() => DEPARTMENTS[STATIONS[desk].department].accent, [desk]);
   if (!role) return null;
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/75 p-3 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()} data-testid="analyst-workspace-backdrop">
-      <div role="dialog" aria-modal="true" aria-labelledby="analyst-workspace-title" data-testid="analyst-workspace" data-station={desk} data-role={role} data-mode={mode} className="flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl" style={{ boxShadow: `0 0 0 1px ${accent}33, 0 24px 60px rgba(0,0,0,0.55)` }}>
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-4 py-2.5">
-          <div className="min-w-0">
-            <h2 id="analyst-workspace-title" className="text-[14px] font-bold text-slate-50">
-              {m('title')}
-            </h2>
-            <p className="text-[11px] text-slate-500">
-              {m('paused')} · {m('keysHint')}
-            </p>
+      <div role="dialog" aria-modal="true" aria-labelledby="analyst-workspace-title" data-testid="analyst-workspace" data-station={desk} data-role={role} data-mode={mode} className="relative flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl" style={{ boxShadow: `0 0 0 1px ${accent}33, 0 24px 60px rgba(0,0,0,0.55)` }}>
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-4 py-2.5 xl:flex-nowrap">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 xl:flex-nowrap">
+            <div className="min-w-0 xl:max-w-[18rem]">
+              <h2 id="analyst-workspace-title" className="text-[14px] font-bold text-slate-50">
+                {m('title')}
+              </h2>
+              <p className="text-[11px] text-slate-500">
+                {m('paused')} · {m('keysHint')}
+              </p>
+            </div>
+            <div className="flex min-w-0 flex-wrap items-center gap-2" data-testid="workspace-pickers">
+              <RolePicker role={role} onPick={pickRole} m={m} />
+              <TaskPicker role={role} task={task} onPick={onTaskChange} m={m} />
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             <LanguageToggle variant="globe" testId="workspace-language" />
             <ModeToggle mode={mode} onChange={setMode} m={m} />
             <button type="button" onClick={onClose} data-testid="workspace-close" className="rounded-lg border border-slate-700 px-3 py-1.5 text-[12px] font-medium text-slate-200 transition hover:bg-slate-800">
@@ -478,38 +553,41 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, bnplMinS
           </div>
         </header>
         <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(250px,300px)_1fr_minmax(230px,270px)] lg:overflow-hidden">
-          <MissionPanel role={role} mode={mode} m={m} bnplMinScore={bnplMinScore} deskName={terms.stationTitle(desk)} />
-          <ScenarioCard current={current} queued={Math.max(0, cases.length - 1)} elapsed={elapsed} mode={mode} m={m} onAdvance={onAdvance} canAdvance={canAdvance} />
+          <MissionPanel role={role} task={task} mode={mode} m={m} deskName={terms.stationTitle(desk)} />
+          <ScenarioCard current={current} queued={Math.max(0, cases.length - 1)} elapsed={elapsed} mode={mode} m={m} onAdvance={onAdvance} canAdvance={canAdvance} showDrill={task === RANDOM_TASK} />
           <DecisionPanel shift={shift} current={current} onDecide={decide} consequence={consequence} mode={mode} m={m} />
         </div>
+        {pendingRole && <SwitchDeskDialog target={pendingRole} m={m} onCancel={() => setPendingRole(null)} onConfirm={confirmSwitch} />}
       </div>
     </div>
   );
 }
 
-const NO_CASES: readonly StaffCase[] = [];
-
-/** The store-connected modal: open while `staffDesk` is set. */
+/** The store-connected modal: open while `staffDesk` is set. Cases come from the 28-task matrix. */
 export function AnalystWorkspaceModal() {
   const desk = useBankStore((s) => s.staffDesk);
-  const cases = useBankStore((s) => (s.staffDesk ? s.pendingQueueMap[s.staffDesk] : undefined)) ?? NO_CASES;
   const role = desk ? roleForStation(desk) : null;
   const shift = useBankStore((s) => (role ? s.staffShift[role] : undefined)) ?? EMPTY_SHIFT;
+  const task = useBankStore((s) => s.staffTask);
+  const seq = useBankStore((s) => s.staffTaskSeq);
   const close = useBankStore((s) => s.closeStaffDesk);
-  const decide = useBankStore((s) => s.staffDecide);
+  const train = useBankStore((s) => s.staffTrain);
+  const setTask = useBankStore((s) => s.setStaffTask);
+  const switchDesk = useBankStore((s) => s.switchStaffDesk);
   const step = useBankStore((s) => s.step);
   const dayOver = useBankStore((s) => s.view.dayOver);
-  const bnplMinScore = useBankStore((s) => s.sim.rules.bnplMinScore);
   const termMode = useBankStore((s) => s.termMode);
+  const cases = useMemo(() => (role ? taskDeck(role, task, seq) : []), [role, task, seq]);
 
   const onDecide = useCallback<AnalystWorkspaceViewProps['onDecide']>(
     (caseId, decision, latencySec) => {
-      const result = decide(caseId, decision, latencySec, STAFF_SLA_SECONDS);
+      const result = train(caseId, decision, latencySec, STAFF_SLA_SECONDS);
       const errors = role ? (bankStore.getState().staffShift[role] ?? EMPTY_SHIFT).errors : 0;
       return { result, errors };
     },
-    [decide, role],
+    [train, role],
   );
+  const onSwitchRole = useCallback((next: StaffRoleId) => switchDesk(ROLE_STATION[next]), [switchDesk]);
 
   if (!desk || !role) return null;
   return (
@@ -519,11 +597,13 @@ export function AnalystWorkspaceModal() {
       cases={cases}
       shift={shift}
       initialMode={termMode === 'expert' ? 'expert' : 'standard'}
-      bnplMinScore={bnplMinScore}
+      task={task}
       canAdvance={!dayOver}
       onClose={close}
       onAdvance={step}
       onDecide={onDecide}
+      onTaskChange={setTask}
+      onSwitchRole={onSwitchRole}
     />
   );
 }
