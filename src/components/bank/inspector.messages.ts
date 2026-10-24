@@ -8,7 +8,7 @@ export const nodeMessages = defineMessages('inspectorNode', {
   onDutyHuman: { en: '{n} on duty', vi: '{n} người trực' },
   cluster: { en: 'Gateway Cluster {letter}', vi: 'Cụm Gateway {letter}' },
   thread: { en: 'Server Thread #{n}', vi: 'Luồng máy chủ #{n}' },
-  machineRole: { en: 'Automated worker', vi: 'Tiến trình tự động' },
+  machineRole: { en: 'Server Worker Thread', vi: 'Luồng xử lý máy chủ' },
 
   loadTitle: { en: 'CPU / thread load', vi: 'Mức tải CPU / Luồng' },
   fatigueTitle: { en: 'Fatigue index', vi: 'Mức mệt mỏi' },

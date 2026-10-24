@@ -20,6 +20,7 @@ import { lessonText } from '../../sim/learningVi';
 import { TransactionPanel } from './TransactionPanel';
 import { isAutomatedNode } from '../../sim/nodeKind';
 import { InfoTip } from './InfoTip';
+import { ServerRackGraphic } from './ServerRack';
 import { selfScaling, useNodeCopy, type NodeCopy } from './useNodeCopy';
 import { FatigueBar, fatigueLook, MachineFace, PacketGlyph, RUN_STATUS, SEVERITY_BOX, SEVERITY_DOT, SEVERITY_TEXT, SectionTitle, Sparkline, Stat, STATUS_DOT_CLASS, statusLabel, STATUS_TEXT_CLASS, WorkerFace, waitText, kindLabel } from './ui';
 
@@ -321,7 +322,11 @@ function StationPanel({ id }: { id: StationId }) {
       />
       <div className="bk-scroll min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-3.5" data-testid="inspector-body" data-station={id}>
         <div className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/50 p-2.5">
-          <WorkstationGraphic capability={def.capability ?? 'CORE_LEDGER_CHECK'} status={RUN_STATUS[sv.status]} className="h-[66px] w-[88px] shrink-0" {...(first ? { profile: first.profile } : {})} />
+          {copy.automated ? (
+            <ServerRackGraphic status={RUN_STATUS[sv.status]} accent={dept.accent} className="h-[66px] w-[88px] shrink-0" />
+          ) : (
+            <WorkstationGraphic capability={def.capability ?? 'CORE_LEDGER_CHECK'} status={RUN_STATUS[sv.status]} className="h-[66px] w-[88px] shrink-0" {...(first ? { profile: first.profile } : {})} />
+          )}
           <div className="min-w-0 flex-1">
             <div className={`flex items-center gap-1.5 text-[12px] font-semibold ${STATUS_TEXT_CLASS[sv.status]}`}>
               <span className={`h-2 w-2 rounded-full ${STATUS_DOT_CLASS[sv.status]}`} />
@@ -641,7 +646,8 @@ function InspectorDrawer() {
 
   return (
     <aside
-      className={`absolute bottom-0 right-0 top-0 z-40 flex max-w-full flex-col border-l border-slate-800 bg-slate-900/95 shadow-2xl ease-out will-change-transform ${dragWidth === null ? 'transition-transform duration-200' : ''} ${open ? 'translate-x-0' : 'pointer-events-none translate-x-full'}`}
+      // Inspector text (numbers, logs, names) stays selectable and copyable; only the map behind it is drag-only.
+      className={`absolute bottom-0 right-0 top-0 z-40 flex max-w-full select-text flex-col border-l border-slate-800 bg-slate-900/95 shadow-2xl ease-out will-change-transform ${dragWidth === null ? 'transition-transform duration-200' : ''} ${open ? 'translate-x-0' : 'pointer-events-none translate-x-full'}`}
       style={{ width }}
       aria-label={t('Inspector')}
       aria-hidden={!open}

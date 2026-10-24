@@ -802,6 +802,16 @@ body,
   -webkit-user-select: text;
   user-select: text;
 }
+@keyframes bk-rack-led-kf {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+.bk-rack-led {
+  animation: bk-rack-led-kf 0.9s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bk-rack-led { animation: none; }
+}
 .bk-pan-surface :is(button, a, [role='button'], label, select) {
   cursor: pointer;
 }

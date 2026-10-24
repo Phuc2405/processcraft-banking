@@ -19,6 +19,9 @@ export const CONVERGE = { zoom: 0.005, px: 0.5 } as const;
 export const PAN = { slack: 0.5, threshold: 4, rubber: 0.3, stretch: 120, settleMs: 220 } as const;
 
 /** Elements that keep their own pointer behaviour: a press on them never starts a pan. */
+/** Surfaces inside the map frame whose text stays selectable. */
+export const SELECTABLE = 'input, textarea, [contenteditable="true"], [role="dialog"], [role="region"], .select-text';
+
 export const PAN_BLOCK = 'button, a, input, select, textarea, label, [role="button"], [role="dialog"], [role="region"], [role="listbox"], [data-no-pan]';
 
 /** Drops any text range the browser has selected (a press that slipped onto a label before the drag took over). */
@@ -177,7 +180,11 @@ export function useZoomPan(frame: RefObject<HTMLDivElement>, fit: number, insets
     const s0 = fitRef.current * v.zoom;
     const s1 = fitRef.current * target;
     homed.current = false;
-    setView({ zoom: target, x: cx - ((cx - v.x) / s0) * s1, y: cy - ((cy - v.y) / s0) * s1 });
+    const anchored = { x: cx - ((cx - v.x) / s0) * s1, y: cy - ((cy - v.y) / s0) * s1 };
+    // Zooming about empty space far from the stage must not carry the map out of view: keep it inside the drag bounds.
+    const f = frameSize();
+    const kept = f ? clampPan(anchored, panBounds(f, stageSize(target))) : anchored;
+    setView({ zoom: target, ...kept });
   };
 
   // First layout, and every refit: the whole map if it was showing, otherwise the stage point in the middle stays put.
@@ -367,11 +374,12 @@ export function useZoomPan(frame: RefObject<HTMLDivElement>, fit: number, insets
     const onMouseDown = (e: MouseEvent): void => {
       if (e.button === 0 && isPanTarget(el, e.target)) e.preventDefault();
     };
-    // No selection may begin anywhere in the frame, even from a press on a card (which keeps its click and focus): a drag
-    // from there would otherwise sweep up the text of the panels around the map. Form fields keep their own selection.
+    // No selection may begin on the map itself, even from a press on a card (which keeps its click and focus): a drag from
+    // there would otherwise sweep up the text of the panels around the map. Reading surfaces that float over the map (the
+    // tour's dialog and step card, form fields, anything marked select-text) keep normal selection for copy and paste.
     const onSelectStart = (e: Event): void => {
       const t = e.target instanceof Element ? e.target : e.target instanceof Node ? e.target.parentElement : null;
-      if (!t?.closest('input, textarea, [contenteditable="true"]')) e.preventDefault();
+      if (!t?.closest(SELECTABLE)) e.preventDefault();
     };
     el.addEventListener('mousedown', onMouseDown);
     el.addEventListener('selectstart', onSelectStart);
