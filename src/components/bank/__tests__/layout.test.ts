@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEPARTMENT_IDS, DEPARTMENTS, EXTERNAL_IDS, STATION_IDS, WIRES, edgeId, type PlaceId } from '../../../sim/topology';
 import { OFFICE_PLACE_BOX } from '../office/officePlan';
 import { deskPose, toWorld } from '../office/layout3d';
-import { BANK_WIRES, CARD, DEPT_BOX, PLACE_BOX, STAGE, TIP_SIDE, pathOfWire, roundedPath, tipRect, wireById } from '../layout';
+import { BAND, BANK_WIRES, CARD, DEPT_BOX, PLACE_BOX, STAGE, TIP_SIDE, pathOfWire, roundedPath, tipRect, wireById } from '../layout';
 
 describe('the bank map', () => {
   it('gives every place on the topology a box on the stage', () => {
@@ -176,13 +176,30 @@ describe('Phase 1A compact grid', () => {
       }
   });
 
-  it('keeps the Phase 1A grid landscape above the Phase 8 band', () => {
+  it('raises the Phase 8 band flush under the processing grid, left of the night cycle', () => {
     const band = new Set(DEPARTMENTS.ENTRANCE.stations.concat(DEPARTMENTS.COMPLIANCE.stations, DEPARTMENTS.BACKOFFICE.stations));
     const core = (Object.keys(PLACE_BOX) as PlaceId[]).filter((p) => !band.has(p as never));
-    const bottom = Math.max(...core.map((p) => PLACE_BOX[p].cy + PLACE_BOX[p].h / 2));
-    expect(STAGE.width / bottom).toBeGreaterThan(1120 / 980);
-    expect(bottom).toBeLessThan(900);
-    for (const id of band) expect(PLACE_BOX[id].cy - PLACE_BOX[id].h / 2, id).toBeGreaterThan(bottom);
+    const above = core.filter((p) => PLACE_BOX[p].cx + PLACE_BOX[p].w / 2 < BAND.trunk);
+    const bottom = Math.max(...above.map((p) => PLACE_BOX[p].cy + PLACE_BOX[p].h / 2));
+    expect(STAGE.width / STAGE.height).toBeGreaterThan(1.3);
+    for (const id of band) {
+      const top = PLACE_BOX[id].cy - PLACE_BOX[id].h / 2;
+      expect(top, id).toBeGreaterThan(bottom);
+      expect(PLACE_BOX[id].cx + PLACE_BOX[id].w / 2, id).toBeLessThan(BAND.trunk);
+    }
+    const bandTop = Math.min(...[...band].map((p) => PLACE_BOX[p as PlaceId].cy - PLACE_BOX[p as PlaceId].h / 2));
+    expect(bandTop - bottom).toBeLessThan(150);
+  });
+
+  it('parks the sidewalk ATM at the top-right, beside Declined and Approved', () => {
+    const right = (p: PlaceId) => PLACE_BOX[p].cx + PLACE_BOX[p].w / 2;
+    const left = (p: PlaceId) => PLACE_BOX[p].cx - PLACE_BOX[p].w / 2;
+    expect(PLACE_BOX.GATE_ATM.cy).toBe(PLACE_BOX.OUT_DECLINED.cy);
+    expect(PLACE_BOX.ATM_CASH.cy).toBe(PLACE_BOX.OUT_APPROVED.cy);
+    for (const [atm, out] of [['GATE_ATM', 'OUT_DECLINED'], ['ATM_CASH', 'OUT_APPROVED']] as const) {
+      expect(left(atm) - right(out), atm).toBeGreaterThan(0);
+      expect(left(atm) - right(out), atm).toBeLessThan(80);
+    }
   });
 
   it('leaves the 3D rooms where they were', () => {
