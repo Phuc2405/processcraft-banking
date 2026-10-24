@@ -83,6 +83,15 @@ export const STAFF_SCENES = [
 ] as const;
 export type StaffScene = (typeof STAFF_SCENES)[number];
 
+/** A task of the 28-task matrix: tasks 1-3 are fixed drills, task 4 is a random shift mixing them. */
+export type StaffTaskNo = 1 | 2 | 3 | 4;
+export type StaffDrillNo = 1 | 2 | 3;
+export const STAFF_TASKS: readonly StaffTaskNo[] = [1, 2, 3, 4];
+export const STAFF_DRILLS: readonly StaffDrillNo[] = [1, 2, 3];
+export const RANDOM_TASK: StaffTaskNo = 4;
+export type TaskScene = `task_${StaffRoleId}_${StaffDrillNo}`;
+export const TASK_SCENES: readonly TaskScene[] = STAFF_ROLES.flatMap((r) => STAFF_DRILLS.map((n) => `task_${r}_${n}` as TaskScene));
+
 export interface StaffCase {
   id: string;
   station: StationId;
@@ -93,7 +102,9 @@ export interface StaffCase {
   waitedMin: number;
   fields: StaffField[];
   /** The story the card tells (`scene_<scene>_*` in analystWorkspace.messages.ts). It never gives the verdict away. */
-  scene: StaffScene;
+  scene: StaffScene | TaskScene;
+  /** The drill a task-matrix case belongs to (absent on live-queue cases). */
+  drill?: StaffDrillNo;
   /** The bank's verdict for this stop: the answer key. */
   expected: StaffDecision;
 }
@@ -300,3 +311,373 @@ function fieldsFor(role: StaffRoleId, p: Packet, stop: Stop, ctx: StaffDeskConte
 
 /** Live roleplay counters a desk keeps, read back as Inspector lines. */
 export const RP_COUNTERS = { reviews: 'rpReviews', correct: 'rpCorrect', latency: 'rpLatencySec' } as const;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The 28-task matrix (7 roles × 4 tasks): synthetic training cases, graded by the task SOPs below
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Thresholds the task SOPs quote (analystWorkspace.messages.ts `task_<role>_<n>_sop`). */
+export const TASK_SOP = {
+  amlNameMatchPct: 85,
+  amlStructuringTxns: 8,
+  amlFunnelRetainedPct: 5,
+  ekycOcrMinPct: 80,
+  ekycLivenessRejectBelow: 70,
+  ekycLivenessApproveAbove: 85,
+  fdsTravelKmh: 900,
+  fdsVelocityPerMin: 10,
+  disputeDuplicateGapSec: 1,
+  bnplDtiMaxPct: 45,
+  bnplMinScore: 600,
+  bnplMaxLate: 1,
+  bnplNewAccountDays: 30,
+  bnplNewAccountCapCents: 50_000,
+  ctrCents: 1_000_000,
+} as const;
+
+/** Share of training cases that breach their drill's SOP. */
+export const TASK_HIT_RATE = 0.6;
+
+const TASK_REJECT_CODE: Readonly<Record<StaffRoleId, Readonly<Record<StaffDrillNo, string>>>> = {
+  aml: { 1: 'AML_SANCTION_MATCH', 2: 'AML_STR_BLOCKED', 3: 'AML_FUNNEL_FROZEN' },
+  ekyc: { 1: 'EKYC_OCR_UNREADABLE', 2: 'EKYC_DOCUMENT_INVALID', 3: 'EKYC_LIVENESS_FAILED' },
+  fds: { 1: 'FDS_IMPOSSIBLE_TRAVEL', 2: 'FDS_BIN_ATTACK', 3: 'FDS_HIGH_RISK_DEVICE' },
+  dispute: { 1: 'DISPUTE_NOT_DUPLICATE', 2: 'DISPUTE_REJECTED', 3: 'PACS004_REFUSED' },
+  bnpl: { 1: 'BNPL_AFFORDABILITY', 2: 'BNPL_LATE_HISTORY', 3: 'BNPL_LIMIT_CAPPED' },
+  cashier: { 1: 'TELLER_ID_REQUIRED', 2: 'TELLER_SUSPECT_NOTE', 3: 'TELLER_VAULT_LIMIT' },
+  swift: { 1: 'SWIFT_INVALID', 2: 'NOSTRO_LIMIT_HOLD', 3: 'CORRESPONDENT_SANCTIONED' },
+};
+
+/** The drill a case of a task plays: itself for 1-3, a stable random pick for task 4. */
+export function drillFor(task: StaffTaskNo, caseId: string): StaffDrillNo {
+  return task === RANDOM_TASK ? ((1 + Math.min(2, Math.floor(unit(caseId, 'drill') * 3))) as StaffDrillNo) : (task as StaffDrillNo);
+}
+
+const pct = (v: number): StaffFieldValue => ({ t: 'pct', v });
+const num = (v: number): StaffFieldValue => ({ t: 'num', v });
+const cash = (cents: number): StaffFieldValue => ({ t: 'money', cents });
+const bool = (v: boolean): StaffFieldValue => ({ t: 'bool', v });
+const code = (v: string): StaffFieldValue => ({ t: 'code', v });
+const msg = (key: string): StaffFieldValue => ({ t: 'msg', key });
+
+interface Drill {
+  amountCents: number;
+  fields: StaffField[];
+  expected: StaffDecision;
+}
+
+const ORIGINS = ['Hanoi, VN', 'Ho Chi Minh City, VN', 'Da Nang, VN'] as const;
+const FAR = ['Paris, FR', 'Frankfurt, DE', 'Madrid, ES'] as const;
+const pickOf = <T>(id: string, purpose: string, list: readonly T[]): T => list[Math.min(list.length - 1, Math.floor(unit(id, purpose) * list.length))]!;
+
+/** One drill case. `hit` = the case breaches the SOP's red flag (which is a REJECT, except for the dispute refunds). */
+function drillCase(role: StaffRoleId, drill: StaffDrillNo, id: string, hit: boolean): Drill {
+  const b = (purpose: string, lo: number, hi: number): number => between(id, purpose, lo, hi);
+  const S = TASK_SOP;
+  switch (`${role}_${drill}` as `${StaffRoleId}_${StaffDrillNo}`) {
+    case 'aml_1': {
+      const score = hit ? b('name', S.amlNameMatchPct + 1, 98) : b('name', 35, 72);
+      return {
+        amountCents: b('amt', 80, 450) * 10_000,
+        expected: hit ? 'REJECT' : 'APPROVE',
+        fields: [
+          { key: 'nameScore', value: pct(score), flag: score > S.amlNameMatchPct },
+          { key: 'watchlist', value: msg(hit ? 'watchOfac' : 'watchNone'), flag: hit },
+          { key: 'beneficiaryCountry', value: code(hit ? pickOf(id, 'c', ['IR', 'KP', 'SY']) : pickOf(id, 'c', ['SG', 'JP', 'AU'])) },
+        ],
+      };
+    }
+    case 'aml_2': {
+      const count = hit ? b('n', S.amlStructuringTxns, 14) : b('n', 1, 3);
+      const each = hit ? 990_000 : b('each', 120, 640) * 1_000;
+      return {
+        amountCents: each,
+        expected: hit ? 'REJECT' : 'APPROVE',
+        fields: [
+          { key: 'velocity', value: num(count), flag: count >= S.amlStructuringTxns },
+          { key: 'splitPattern', value: bool(hit), flag: hit },
+          { key: 'dailyTotal', value: cash(each * count) },
+        ],
+      };
+    }
+    case 'aml_3': {
+      const retained = hit ? b('ret', 0, 2) : b('ret', 60, 95);
+      const wallets = hit ? b('w', 18, 24) : b('w', 0, 2);
+      return {
+        amountCents: 10_000_000,
+        expected: hit ? 'REJECT' : 'APPROVE',
+        fields: [
+          { key: 'inflowAmount', value: cash(10_000_000) },
+          { key: 'outWallets', value: num(wallets), flag: hit },
+          { key: 'retainedPct', value: pct(retained), flag: retained < S.amlFunnelRetainedPct },
+          { key: 'passThroughMin', value: num(hit ? b('min', 2, 4) : b('min', 2_880, 20_160)), flag: hit },
+        ],
+      };
+    }
+    case 'ekyc_1': {
+      const ocr = hit ? b('ocr', 18, 55) : b('ocr', 92, 99);
+      return {
+        amountCents: 0,
+        expected: hit ? 'REJECT' : 'APPROVE',
+        fields: [
+          { key: 'ocrMatch', value: pct(ocr), flag: ocr < S.ekycOcrMinPct },
+          { key: 'imageQuality', value: msg(hit ? pickOf(id, 'q', ['qualityBlurred', 'qualityCornerCut', 'qualityGlare']) : 'qualityClear'), flag: hit },
+          { key: 'idReadable', value: bool(!hit), flag: hit },
+        ],
+      };
+    }
+    case 'ekyc_2': {
+      const declared = b('age', 21, 58);
+      const expired = hit && unit(id, 'which') < 0.5;
+      const docAge = hit && !expired ? declared + pickOf(id, 'gap', [-6, -4, 5, 8]) : declared;
+      return {
+        amountCents: 0,
+        expected: hit ? 'REJECT' : 'APPROVE',
+        fields: [
+          { key: 'declaredAge', value: num(declared) },
+          { key: 'documentAge', value: num(docAge), flag: docAge !== declared },
+          { key: 'docExpired', value: bool(expired), flag: expired },
+        ],
+      };
+    }
+    case 'ekyc_3': {
+      const live = hit ? b('live', 22, 59) : b('live', S.ekycLivenessApproveAbove + 1, 99);
+      return {
+        amountCents: 0,
+        expected: hit ? 'REJECT' : 'APPROVE',
+        fields: [
+          { key: 'liveness', value: pct(live), flag: live < S.ekycLivenessRejectBelow },
+          { key: 'faceMatch', value: pct(hit ? b('face', 70, 96) : b('face', 90, 99)) },
+          { key: 'replaySignal', value: bool(hit), flag: hit },
+        ],
+      };
+    }
+    case 'fds_1': {
+      const speed = hit ? b('kmh', 98_000, 112_000) : b('kmh', 0, 60);
+      return {
+        amountCents: b('amt', 40, 260) * 1_000,
+        expected: hit ? 'REJECT' : 'APPROVE',
+        fields: [
+          { key: 'loginLocation', value: code(`${pickOf(id, 'from', ORIGINS)} · 02:00`) },
+          { key: 'cardLocation', value: code(`${hit ? pickOf(id, 'to', FAR) : pickOf(id, 'from', ORIGINS)} · 02:05`), flag: hit },
+          { key: 'travelSpeed', value: num(speed), flag: speed > S.fdsTravelKmh },
+        ],
+      };
+    }
+    case 'fds_2': {
+      const rate = hit ? b('rate', 35, 60) : b('rate', 1, 3);
+      return {
+        amountCents: hit ? 100 : b('amt', 25, 180) * 100,
+        expected: hit ? 'REJECT' : 'APPROVE',
+        fields: [
+          { key: 'txPerMin', value: num(rate), flag: rate > S.fdsVelocityPerMin },
+          { key: 'avgTicket', value: cash(hit ? 100 : b('amt', 25, 180) * 100), flag: hit },
+          { key: 'binAttack', value: bool(hit), flag: hit },
+        ],
+      };
+    }
+    case 'fds_3': {
+      const rat = hit && unit(id, 'which') < 0.5;
+      const root = hit && !rat ? true : hit && unit(id, 'root') < 0.5;
+      return {
+        amountCents: b('amt', 50, 900) * 1_000,
+        expected: hit ? 'REJECT' : 'APPROVE',
+        fields: [
+          { key: 'jailbreak', value: bool(root), flag: root },
+          { key: 'ratDetected', value: bool(rat), flag: rat },
+          { key: 'deviceScore', value: num(hit ? b('dev', 82, 98) : b('dev', 4, 25)), flag: hit },
+        ],
+      };
+    }
+    case 'dispute_1': {
+      const gap = hit ? 0 : b('gap', 1_800, 14_400);
+      return {
+        amountCents: 5_000,
+        expected: hit ? 'APPROVE' : 'REJECT',
+        fields: [
+          { key: 'posAmount', value: cash(5_000) },
+          { key: 'arnMatch', value: bool(hit) },
+          { key: 'gapSec', value: num(gap), flag: gap > S.disputeDuplicateGapSec },
+        ],
+      };
+    }
+    case 'dispute_2': {
+      const noInvoice = !hit && unit(id, 'which') < 0.5;
+      const replied = !hit && !noInvoice;
+      return {
+        amountCents: b('amt', 60, 900) * 1_000,
+        expected: hit ? 'APPROVE' : 'REJECT',
+        fields: [
+          { key: 'proofInvoice', value: bool(!noInvoice), flag: noInvoice },
+          { key: 'merchantReplied', value: bool(replied), flag: replied },
+          { key: 'daysPastSla', value: num(b('late', 3, 21)) },
+        ],
+      };
+    }
+    case 'dispute_3': {
+      const reportH = b('rh', 7, 11);
+      const swipeH = hit ? reportH + b('sh', 1, 6) : reportH - b('sh', 1, 5);
+      const hhmm = (h: number, m: number): string => `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      return {
+        amountCents: b('amt', 80, 1_400) * 1_000,
+        expected: hit ? 'APPROVE' : 'REJECT',
+        fields: [
+          { key: 'lostReportedAt', value: code(hhmm(reportH, b('rm', 0, 59))) },
+          { key: 'swipedAt', value: code(hhmm(swipeH, b('sm', 0, 59))) },
+          { key: 'reportedBeforeSwipe', value: bool(hit), flag: !hit },
+        ],
+      };
+    }
+    case 'bnpl_1': {
+      const lowScore = hit && unit(id, 'which') < 0.4;
+      const dti = hit && !lowScore ? b('dti', 51, 68) : b('dti', 15, 40);
+      const score = lowScore ? b('score', 480, S.bnplMinScore - 1) : b('score', 640, 790);
+      return {
+        amountCents: b('amt', 30, 150) * 1_000,
+        expected: hit ? 'REJECT' : 'APPROVE',
+        fields: [
+          { key: 'dti', value: pct(dti), flag: dti > S.bnplDtiMaxPct },
+          { key: 'creditScore', value: num(score), flag: score < S.bnplMinScore },
+          { key: 'requestedLimit', value: cash(b('amt', 30, 150) * 1_000) },
+        ],
+      };
+    }
+    case 'bnpl_2': {
+      const late = hit ? b('late', S.bnplMaxLate, 3) : 0;
+      return {
+        amountCents: b('amt', 40, 120) * 1_000,
+        expected: hit ? 'REJECT' : 'APPROVE',
+        fields: [
+          { key: 'payIn4History', value: code(`${b('plans', 3, 9)} plans`) },
+          { key: 'latePayments', value: num(late), flag: late >= S.bnplMaxLate },
+          { key: 'maxDaysLate', value: num(hit ? b('days', 16, 45) : 0), flag: hit },
+        ],
+      };
+    }
+    case 'bnpl_3': {
+      const smallAsk = !hit && unit(id, 'which') < 0.5;
+      const age = hit || smallAsk ? b('age', 2, 6) : b('age', 120, 900);
+      const ask = smallAsk ? b('ask', 20, 50) * 1_000 : 300_000;
+      return {
+        amountCents: ask,
+        expected: hit ? 'REJECT' : 'APPROVE',
+        fields: [
+          { key: 'accountAge', value: num(age), flag: age < S.bnplNewAccountDays && ask > S.bnplNewAccountCapCents },
+          { key: 'requestedLimit', value: cash(ask), flag: hit },
+          { key: 'limitCap', value: age < S.bnplNewAccountDays ? cash(S.bnplNewAccountCapCents) : msg('none') },
+        ],
+      };
+    }
+    case 'cashier_1': {
+      const amount = b('amt', 120, 180) * 10_000;
+      return {
+        amountCents: amount,
+        expected: hit ? 'REJECT' : 'APPROVE',
+        fields: [
+          { key: 'direction', value: msg(unit(id, 'dir') < 0.5 ? 'cashIn' : 'cashOut') },
+          { key: 'ctrRequired', value: bool(amount >= S.ctrCents) },
+          { key: 'idVerified', value: bool(!hit), flag: hit },
+        ],
+      };
+    }
+    case 'cashier_2': {
+      const bad = hit ? b('bad', 1, 3) : 0;
+      return {
+        amountCents: 150_000,
+        expected: hit ? 'REJECT' : 'APPROVE',
+        fields: [
+          { key: 'direction', value: msg('cashIn') },
+          { key: 'serialMismatch', value: num(bad), flag: bad > 0 },
+          { key: 'polymerCheck', value: bool(!hit), flag: hit },
+        ],
+      };
+    }
+    case 'cashier_3': {
+      const till = 1_200_000;
+      const ask = hit ? 2_000_000 : b('ask', 20, 110) * 10_000;
+      return {
+        amountCents: ask,
+        expected: hit ? 'REJECT' : 'APPROVE',
+        fields: [
+          { key: 'direction', value: msg('cashOut') },
+          { key: 'tillCash', value: cash(till), flag: ask > till },
+          { key: 'vaultBalance', value: cash(25_000_000) },
+        ],
+      };
+    }
+    case 'swift_1': {
+      const noUetr = hit && unit(id, 'which') < 0.5;
+      const noAddr = hit && !noUetr;
+      return {
+        amountCents: b('amt', 50, 400) * 10_000,
+        expected: hit ? 'REJECT' : 'APPROVE',
+        fields: [
+          { key: 'uetrPresent', value: bool(!noUetr), flag: noUetr },
+          { key: 'creditorAddress', value: bool(!noAddr), flag: noAddr },
+          { key: 'invalidField', value: noUetr ? code('UETR') : noAddr ? code('Cdtr/PstlAdr') : msg('none'), flag: hit },
+        ],
+      };
+    }
+    case 'swift_2': {
+      const nostro = 50_000_000;
+      const amount = hit ? b('amt', 520, 900) * 100_000 : b('amt', 50, 400) * 100_000;
+      return {
+        amountCents: amount,
+        expected: hit ? 'REJECT' : 'APPROVE',
+        fields: [
+          { key: 'fxRate', value: code(`1 USD = ${(1.48 + unit(id, 'fx') * 0.08).toFixed(4)} AUD`) },
+          { key: 'nostro', value: cash(nostro), flag: amount > nostro },
+          { key: 'pacs008', value: code('pacs.008.001.08') },
+        ],
+      };
+    }
+    case 'swift_3':
+      return {
+        amountCents: b('amt', 80, 600) * 10_000,
+        expected: hit ? 'REJECT' : 'APPROVE',
+        fields: [
+          { key: 'correspondentBank', value: code(hit ? pickOf(id, 'bic', ['MELIIRTH', 'KKBCKPPY', 'CBSYSYDA']) : pickOf(id, 'bic', ['CHASUS33', 'DEUTDEFF', 'HSBCHKHH'])) },
+          { key: 'correspondentSanctioned', value: bool(hit), flag: hit },
+          { key: 'pacs008', value: code('pacs.008.001.08') },
+        ],
+      };
+  }
+}
+
+/** One training case of the 28-task matrix, stable per role, task and sequence number. */
+export function buildTaskCase(role: StaffRoleId, task: StaffTaskNo, seq: number): StaffCase {
+  const id = `TR-${role.toUpperCase()}-${task}-${String(seq + 1).padStart(3, '0')}`;
+  const drill = drillFor(task, id);
+  const hit = unit(id, 'hit') < TASK_HIT_RATE;
+  const d = drillCase(role, drill, id, hit);
+  return {
+    id,
+    station: ROLE_STATION[role],
+    role,
+    scenario: '',
+    amountCents: d.amountCents,
+    waitedMin: between(id, 'wait', 0, 6),
+    fields: d.fields,
+    scene: `task_${role}_${drill}`,
+    drill,
+    expected: d.expected,
+  };
+}
+
+/** The head of a task's queue and the cases behind it. */
+export function taskDeck(role: StaffRoleId, task: StaffTaskNo, seq: number, size = 4): StaffCase[] {
+  return Array.from({ length: size }, (_, i) => buildTaskCase(role, task, seq + i));
+}
+
+/** Grades a decision on a task-matrix case against its SOP. */
+export function gradeTaskCase(c: StaffCase, decision: StaffDecision): StaffDecisionResult {
+  const drill = c.drill ?? 1;
+  return {
+    ok: true,
+    packetId: c.id,
+    decision,
+    expected: c.expected,
+    correct: decision === c.expected,
+    statusCode: decision === 'APPROVE' ? APPROVE_CODE[c.role] : TASK_REJECT_CODE[c.role][drill],
+  };
+}

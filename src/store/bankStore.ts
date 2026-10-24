@@ -22,7 +22,7 @@ import type { TermMode } from '../sim/terms';
 import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
 import type { BankView, Customer, PacketTrace } from '../sim/types';
-import { roleForStation, STAFF_XP_PER_CORRECT, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId } from '../sim/staffRoleplay';
+import { buildTaskCase, gradeTaskCase, roleForStation, STAFF_XP_PER_CORRECT, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo } from '../sim/staffRoleplay';
 import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
@@ -176,6 +176,15 @@ export interface BankState {
   closeStaffDesk(): void;
   /** Decides one pending review at the open desk. */
   staffDecide(packetId: string, decision: StaffDecision, latencySec: number, slaSec: number): StaffDecisionResult;
+  /** The task of the 28-task matrix the open desk is drilling, and how many of its cases are done. */
+  staffTask: StaffTaskNo;
+  staffTaskSeq: number;
+  /** Switches task within the same desk, instantly; the shift carries on. */
+  setStaffTask(task: StaffTaskNo): void;
+  /** Moves to another roleplay desk after the learner confirmed: ends the shift and starts Task 1. */
+  switchStaffDesk(id: StationId): void;
+  /** Decides the head case of the current task and books it on the shift. */
+  staffTrain(caseId: string, decision: StaffDecision, latencySec: number, slaSec: number): StaffDecisionResult;
 
   // Clock
   play(): void;
@@ -450,12 +459,47 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       pendingQueueMap: {},
       staffShift: {},
 
+      staffTask: 1,
+      staffTaskSeq: 0,
+
       openStaffDesk: (id) => {
         if (!roleForStation(id)) return;
         const s = get();
         if (s.staffDesk === null) staffResume = s.playing;
-        set({ playing: false });
+        set({ playing: false, ...(s.staffDesk !== id ? { staffTask: 1 as StaffTaskNo, staffTaskSeq: 0 } : {}) });
         refresh({ staffDesk: id });
+      },
+
+      setStaffTask: (task) => {
+        if (get().staffTask === task) return;
+        set({ staffTask: task, staffTaskSeq: 0 });
+      },
+
+      switchStaffDesk: (id) => {
+        const s = get();
+        if (!roleForStation(id) || !s.staffDesk || s.staffDesk === id) return;
+        set({ staffShift: {}, staffTask: 1, staffTaskSeq: 0 });
+        refresh({ staffDesk: id });
+      },
+
+      staffTrain: (caseId, decision, latencySec, slaSec) => {
+        const s = get();
+        const role = s.staffDesk ? roleForStation(s.staffDesk) : null;
+        const head = role ? buildTaskCase(role, s.staffTask, s.staffTaskSeq) : null;
+        if (!role || !head || head.id !== caseId) return { ok: false, packetId: caseId, decision, expected: null, correct: false, statusCode: 'NO_CASE' };
+        const result = gradeTaskCase(head, decision);
+        const prev = s.staffShift[role] ?? EMPTY_SHIFT;
+        const next: ShiftProgress = {
+          reviews: prev.reviews + 1,
+          correct: prev.correct + (result.correct ? 1 : 0),
+          latencySumSec: prev.latencySumSec + Math.max(0, latencySec),
+          slaBreaches: prev.slaBreaches + (latencySec > slaSec ? 1 : 0),
+          errors: prev.errors + (result.correct ? 0 : 1),
+          xp: prev.xp + (result.correct ? STAFF_XP_PER_CORRECT : 0),
+          last: result,
+        };
+        set({ staffShift: { ...s.staffShift, [role]: next }, staffTaskSeq: s.staffTaskSeq + 1 });
+        return result;
       },
 
       closeStaffDesk: () => {
