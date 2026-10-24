@@ -22,7 +22,7 @@ import type { TermMode } from '../sim/terms';
 import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
 import type { BankView, Customer, PacketTrace } from '../sim/types';
-import { roleForStation, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId } from '../sim/staffRoleplay';
+import { roleForStation, STAFF_XP_PER_CORRECT, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId } from '../sim/staffRoleplay';
 import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
@@ -95,10 +95,14 @@ export interface ShiftProgress {
   correct: number;
   latencySumSec: number;
   slaBreaches: number;
+  /** Decisions against the SOP. */
+  errors: number;
+  /** +STAFF_XP_PER_CORRECT for every decision that matches the SOP. */
+  xp: number;
   last: StaffDecisionResult | null;
 }
 
-export const EMPTY_SHIFT: ShiftProgress = { reviews: 0, correct: 0, latencySumSec: 0, slaBreaches: 0, last: null };
+export const EMPTY_SHIFT: ShiftProgress = { reviews: 0, correct: 0, latencySumSec: 0, slaBreaches: 0, errors: 0, xp: 0, last: null };
 
 export interface BankState {
   sim: BankSimulation;
@@ -474,6 +478,8 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           correct: prev.correct + (result.correct ? 1 : 0),
           latencySumSec: prev.latencySumSec + Math.max(0, latencySec),
           slaBreaches: prev.slaBreaches + (latencySec > slaSec ? 1 : 0),
+          errors: prev.errors + (result.correct ? 0 : 1),
+          xp: prev.xp + (result.correct ? STAFF_XP_PER_CORRECT : 0),
           last: result,
         };
         refresh({ staffShift: { ...s.staffShift, [role]: next } });

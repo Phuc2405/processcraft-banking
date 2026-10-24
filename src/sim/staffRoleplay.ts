@@ -35,6 +35,8 @@ export const roleForStation = (id: StationId): StaffRoleId | null => STATION_ROL
 
 /** A review is due within this many real seconds of reaching the head of the queue. */
 export const STAFF_SLA_SECONDS = 30;
+/** XP for a decision that matches the SOP. */
+export const STAFF_XP_PER_CORRECT = 100;
 /** The shift objective: this many reviews, at or above this accuracy. */
 export const SHIFT_TARGET = { reviews: 10, accuracyPct: 90 } as const;
 /** Opening balance of the AUD nostro the SWIFT desk pays out of. */
@@ -63,6 +65,24 @@ export interface StaffField {
   flag?: boolean;
 }
 
+export const STAFF_SCENES = [
+  'aml_OFAC',
+  'aml_PEP',
+  'aml_STRUCTURING',
+  'aml_LARGE_CROSS_BORDER',
+  'aml_NONE',
+  'dispute_CHARGEBACK',
+  'dispute_PACS004_RETURN',
+  'dispute_ATM_MISMATCH',
+  'bnpl_apply',
+  'cashier_IN',
+  'cashier_OUT',
+  'ekyc_onboard',
+  'fds_device',
+  'swift_remit',
+] as const;
+export type StaffScene = (typeof STAFF_SCENES)[number];
+
 export interface StaffCase {
   id: string;
   station: StationId;
@@ -72,6 +92,8 @@ export interface StaffCase {
   amountCents: number;
   waitedMin: number;
   fields: StaffField[];
+  /** The story the card tells (`scene_<scene>_*` in analystWorkspace.messages.ts). It never gives the verdict away. */
+  scene: StaffScene;
   /** The bank's verdict for this stop: the answer key. */
   expected: StaffDecision;
 }
@@ -139,10 +161,10 @@ export function buildStaffCase(role: StaffRoleId, p: Packet, ctx: StaffDeskConte
   if (!stop || stop.place !== ROLE_STATION[role]) return null;
   const built = fieldsFor(role, p, stop, ctx, p.ext);
   if (!built) return null;
-  return { id: p.id, station: ROLE_STATION[role], role, scenario: p.scenario, amountCents: p.amountCents, waitedMin, fields: built.fields, expected: built.expected };
+  return { id: p.id, station: ROLE_STATION[role], role, scenario: p.scenario, amountCents: p.amountCents, waitedMin, fields: built.fields, scene: built.scene, expected: built.expected };
 }
 
-function fieldsFor(role: StaffRoleId, p: Packet, stop: Stop, ctx: StaffDeskContext, ext: ExtendedContext | undefined): { fields: StaffField[]; expected: StaffDecision } | null {
+function fieldsFor(role: StaffRoleId, p: Packet, stop: Stop, ctx: StaffDeskContext, ext: ExtendedContext | undefined): { fields: StaffField[]; expected: StaffDecision; scene: StaffScene } | null {
   const id = p.id;
   switch (role) {
     case 'aml': {
@@ -155,6 +177,7 @@ function fieldsFor(role: StaffRoleId, p: Packet, stop: Stop, ctx: StaffDeskConte
       const velocity = blocked && c.verdict === 'BLOCKED_STR' ? between(id, 'vel', STAFF_SOP.amlVelocityBlockAt, 16) : between(id, 'vel', 1, STAFF_SOP.amlVelocityBlockAt - 1);
       const watch = c.reason === 'OFAC' ? 'watchOfac' : c.reason === 'PEP' ? 'watchPep' : 'watchNone';
       return {
+        scene: `aml_${c.reason}`,
         expected: blocked ? 'REJECT' : 'APPROVE',
         fields: [
           { key: 'strScore', value: { t: 'pct', v: str } },
@@ -174,6 +197,7 @@ function fieldsFor(role: StaffRoleId, p: Packet, stop: Stop, ctx: StaffDeskConte
       const proof = claim.type === 'CHARGEBACK' ? claim.merchantEvidence : claim.type === 'ATM_MISMATCH' ? claim.journalShowsDispensed : claim.fundsRecoverable;
       const proofAgainst = claim.type === 'PACS004_RETURN' ? !proof : proof;
       return {
+        scene: `dispute_${claim.type}`,
         expected: c.verdict === 'REFUND' ? 'APPROVE' : 'REJECT',
         fields: [
           { key: 'merchant', value: { t: 'code', v: p.scenario || p.id } },
@@ -195,6 +219,7 @@ function fieldsFor(role: StaffRoleId, p: Packet, stop: Stop, ctx: StaffDeskConte
       const missed = missedFirst ? between(id, 'missed', STAFF_SOP.bnplMaxMissed + 1, 4) : ok ? 0 : between(id, 'missed', 0, STAFF_SOP.bnplMaxMissed);
       const plans = between(id, 'plans', 0, 9);
       return {
+        scene: 'bnpl_apply',
         expected: ok ? 'APPROVE' : 'REJECT',
         fields: [
           { key: 'creditScore', value: { t: 'num', v: p.score }, flag: !scoreOk },
@@ -209,6 +234,7 @@ function fieldsFor(role: StaffRoleId, p: Packet, stop: Stop, ctx: StaffDeskConte
       if (!c) return null;
       const till = ext?.cash?.tillCents ?? ctx.vaultCents;
       return {
+        scene: `cashier_${c.direction}`,
         expected: c.verdict === 'COUNTED' ? 'APPROVE' : 'REJECT',
         fields: [
           { key: 'direction', value: { t: 'msg', key: c.direction === 'IN' ? 'cashIn' : 'cashOut' } },
@@ -226,6 +252,7 @@ function fieldsFor(role: StaffRoleId, p: Packet, stop: Stop, ctx: StaffDeskConte
       const tamper = identity?.tamperScore ?? (c.verdict === 'FAKE_ID' ? between(id, 'tamper', EKYC_POLICY.tamperMax + 1, 95) : between(id, 'tamper', 2, 30));
       const db = identity?.citizenDbMatch ?? c.verdict !== 'CITIZEN_DB_MISMATCH';
       return {
+        scene: 'ekyc_onboard',
         expected: c.verdict === 'VERIFIED' ? 'APPROVE' : 'REJECT',
         fields: [
           { key: 'faceMatch', value: { t: 'pct', v: c.faceMatchPct }, flag: c.faceMatchPct < EKYC_POLICY.faceMatchMin },
@@ -241,6 +268,7 @@ function fieldsFor(role: StaffRoleId, p: Packet, stop: Stop, ctx: StaffDeskConte
       if (!c) return null;
       const has = (s: (typeof c.signals)[number]): boolean => c.signals.includes(s);
       return {
+        scene: 'fds_device',
         expected: c.verdict === 'CLEAR' ? 'APPROVE' : 'REJECT',
         fields: [
           { key: 'deviceScore', value: { t: 'num', v: c.score }, flag: c.score >= FDS_POLICY.highRiskAt },
@@ -256,9 +284,11 @@ function fieldsFor(role: StaffRoleId, p: Packet, stop: Stop, ctx: StaffDeskConte
       if (!c) return null;
       const sw = ext?.swift;
       return {
+        scene: 'swift_remit',
         expected: c.verdict === 'VALID' ? 'APPROVE' : 'REJECT',
         fields: [
-          { key: 'fxRate', value: { t: 'code', v: sw ? `1 ${sw.currency} = ${(sw.fxRate).toFixed(4)} AUD` : c.currency } },
+          { key: 'fxRate', value: { t: 'code', v: sw ? `1 ${sw.currency} = ${sw.fxRate.toFixed(4)} AUD` : c.currency } },
+          { key: 'fxSpread', value: { t: 'code', v: `${between(id, 'spread', 18, 65)} bps` } },
           { key: 'pacs008', value: { t: 'code', v: sw ? `E2E ${sw.endToEndId || '∅'} · ${sw.debtorAgent} → ${sw.creditorAgent}` : 'pacs.008.001.08' } },
           { key: 'invalidField', value: c.field ? { t: 'code', v: c.field } : { t: 'msg', key: 'none' }, flag: c.field !== null },
           { key: 'nostro', value: { t: 'money', cents: ctx.nostroCents }, flag: ctx.nostroCents < p.amountCents },
