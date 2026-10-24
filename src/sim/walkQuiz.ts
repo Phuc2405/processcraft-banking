@@ -218,7 +218,7 @@ const VI: QuizBook = {
         }
         return {
           prompt: `Điểm rủi ro là ${c.example.payload.riskScore}. Điểm dưới ${c.rules.frictionlessBelow} đi thẳng, từ ${c.rules.rejectAtOrAbove} trở lên bị từ chối. Khách có cần nhập OTP không?`,
-          options: ['Không: đi thẳng (không ma sát)', 'Có: dừng lại và gửi OTP (thử thách)', 'Không cái nào: từ chối giao dịch'],
+          options: ['Không: đi thẳng (xác thực liền mạch)', 'Có: dừng lại và gửi OTP (thử thách)', 'Không cái nào: từ chối giao dịch'],
           branches: { n_ledger: 0, n_end_challenge: 1, n_end_declined: 2 },
         };
       },

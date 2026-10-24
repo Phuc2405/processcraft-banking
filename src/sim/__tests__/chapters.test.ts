@@ -10,7 +10,7 @@ describe('the Course Catalog', () => {
     expect(list.map((c) => c.number)).toEqual([1, 2, 3, 4, 5, 6]);
     expect(list.map((c) => c.id)).toEqual(['A', 'B', 'C', 'D', 'E', 'F']);
     expect(list.map((c) => c.title)).toEqual([
-      'Virtual Card Tokenization & dCVV Masking',
+      'Virtual Card Tokenisation & dCVV Masking',
       '3-D Secure 2.x Risk Engine (Frictionless vs Challenge OTP)',
       'BNPL Pay-in-4 Underwriting & Card Fallback',
       'EOD 3-Way Reconciliation & Suspense Accounting',

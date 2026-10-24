@@ -10,7 +10,6 @@
  *   NodeRuntime    per-desk state: busy, queueing, congested, frozen, alarmed, or dropping a token
  */
 
-import { tr } from '../i18n/locale';
 import type { RunEvent, StepResult } from '../engine/processRunner';
 import type { CardType, Id, NodeType, SimulationToken, TokenState } from '../types/processLearning';
 
@@ -228,15 +227,15 @@ export function detectAlarms(events: readonly RunEvent[], tokens: readonly Simul
     if (e.type === 'NODE_EXECUTED') {
       const status = e.step.factsWritten.reconStatus;
       if (typeof status === 'string' && status.startsWith('BREAK')) {
-        found.push({ nodeId: e.nodeId, alarm: { kind: 'RECON_BREAK', text: tr({ en: `Break: ${pretty(status)}`, vi: `Sai lệch: ${pretty(status)}` }), tokenId: e.tokenId, tick } });
+        found.push({ nodeId: e.nodeId, alarm: { kind: 'RECON_BREAK', text: `Break: ${pretty(status)}`, tokenId: e.tokenId, tick } });
       }
     } else if (e.type === 'TOKEN_COMPLETED' && e.outcome === 'APPROVED') {
       const token = byId.get(e.tokenId);
       if (!token) continue;
       if (token.payload.isFraud) {
-        found.push({ nodeId: e.nodeId, alarm: { kind: 'FRAUD_SLIP', text: tr({ en: 'Fraud slipped through', vi: 'Gian lận đã lọt qua' }), tokenId: e.tokenId, tick } });
+        found.push({ nodeId: e.nodeId, alarm: { kind: 'FRAUD_SLIP', text: 'Fraud slipped through', tokenId: e.tokenId, tick } });
       } else if (typeof token.derived.reconStatus === 'string' && token.derived.reconStatus.startsWith('BREAK')) {
-        found.push({ nodeId: e.nodeId, alarm: { kind: 'BREAK_SLIP', text: tr({ en: 'Break settled as approved', vi: 'Sai lệch bị quyết toán như chấp thuận' }), tokenId: e.tokenId, tick } });
+        found.push({ nodeId: e.nodeId, alarm: { kind: 'BREAK_SLIP', text: 'Break settled as approved', tokenId: e.tokenId, tick } });
       }
     }
   }

@@ -23,7 +23,7 @@ describe('lessons: what is on the page', () => {
   it('has the six chapters of the Course Catalog, strictly in order, under the titles of the brief', () => {
     expect(LESSON_LIST.map((l) => l.id)).toEqual(['A', 'B', 'C', 'D', 'E', 'F']);
     expect(LESSON_LIST.map((l) => l.chapter)).toEqual([1, 2, 3, 4, 5, 6]);
-    expect(LESSONS.A.title).toBe('Virtual Card Tokenization & dCVV Masking');
+    expect(LESSONS.A.title).toBe('Virtual Card Tokenisation & dCVV Masking');
     expect(LESSONS.B.title).toBe('3-D Secure 2.x Risk Engine (Frictionless vs Challenge OTP)');
     expect(LESSONS.C.title).toBe('BNPL Pay-in-4 Underwriting & Card Fallback');
     expect(LESSONS.D.title).toBe('EOD 3-Way Reconciliation & Suspense Accounting');

@@ -1,7 +1,9 @@
 import { useEffect, type ReactNode } from 'react';
-import { tr } from '../../i18n/locale';
 import { bankStore, useBankStore } from '../../store/bankStore';
 import { useUiStore } from '../../store/uiStore';
+import { formatNodes, useMessages, type Translate } from '../../utils/i18nHelper';
+import { LanguageToggle } from '../shell/LanguageToggle';
+import { welcomeMessages } from './welcomeModal.messages';
 
 /**
  * "Choose Your Experience Mode": one question, three answers. It opens by itself on the first visit (uiStore remembers that it
@@ -11,7 +13,9 @@ import { useUiStore } from '../../store/uiStore';
 
 export { ONBOARDED_KEY } from '../../store/uiStore';
 
-function Choice({ icon, title, badge, body, onPick, testId, accent, current }: { icon: string; title: string; badge?: string; body: ReactNode; onPick: () => void; testId: string; accent: string; current: boolean }) {
+type Messages = Translate<keyof typeof welcomeMessages.messages>;
+
+function Choice({ icon, title, badge, body, onPick, testId, accent, current, m }: { icon: string; title: string; badge?: string; body: ReactNode; onPick: () => void; testId: string; accent: string; current: boolean; m: Messages }) {
   return (
     <button
       type="button"
@@ -34,7 +38,7 @@ function Choice({ icon, title, badge, body, onPick, testId, accent, current }: {
           )}
           {current && (
             <span className="rounded-full px-2 py-px text-[10px] font-bold uppercase tracking-wider ring-1" style={{ color: accent, boxShadow: `inset 0 0 0 1px ${accent}88` }}>
-              {tr({ en: 'Current', vi: 'Đang dùng' })}
+              {m('current')}
             </span>
           )}
         </span>
@@ -48,6 +52,7 @@ function Choice({ icon, title, badge, body, onPick, testId, accent, current }: {
 }
 
 export function WelcomeModal({ onOpenAcademy, onChooseBank }: { onOpenAcademy: () => void; onChooseBank: () => void }) {
+  const m = useMessages(welcomeMessages);
   const open = useUiStore((s) => s.welcomeOpen);
   const close = useUiStore((s) => s.closeWelcome);
   // Over the 3D office a backdrop blur would make the browser re-blur a live canvas, so it gets a solid veil instead.
@@ -91,64 +96,56 @@ export function WelcomeModal({ onOpenAcademy, onChooseBank }: { onOpenAcademy: (
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${solid ? 'bg-black/85' : 'bg-black/80 backdrop-blur-md'}`} onClick={(e) => e.target === e.currentTarget && close()} data-testid="welcome-backdrop">
       <div role="dialog" aria-modal="true" aria-labelledby="welcome-title" className="w-full max-w-xl rounded-2xl border border-slate-700/80 bg-slate-900 p-6 text-slate-100 shadow-2xl" data-testid="welcome-modal">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-400/10 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-sky-300 ring-1 ring-sky-400/40">
-          <span className="h-1.5 w-1.5 rounded-full bg-sky-300" aria-hidden="true" />
-          {tr({ en: 'Banking Digital Twin', vi: 'Bản sao số ngân hàng' })}
-        </span>
+        <div className="flex items-start justify-between gap-3">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-400/10 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-sky-300 ring-1 ring-sky-400/40">
+            <span className="h-1.5 w-1.5 rounded-full bg-sky-300" aria-hidden="true" />
+            {m('badge')}
+          </span>
+          <LanguageToggle variant="globe" testId="welcome-language" />
+        </div>
         <h2 id="welcome-title" className="mt-3 text-[22px] font-bold leading-tight tracking-tight text-slate-50">
-          {tr({ en: 'Choose Your Experience Mode', vi: 'Chọn chế độ trải nghiệm' })}
+          {m('title')}
         </h2>
-        <p className="mt-1.5 text-[13px] leading-relaxed text-slate-400">
-          {tr({
-            en: 'A working bank runs here, minute by minute. Pick how you want to meet it; you can come back to this choice at any time with [🔄 Switch Experience Mode] in the header.',
-            vi: 'Một ngân hàng đang vận hành từng phút ở đây. Hãy chọn cách bạn muốn làm quen với nó; bạn có thể quay lại lựa chọn này bất cứ lúc nào bằng nút [🔄 Đổi chế độ trải nghiệm] trên thanh tiêu đề.',
-          })}
-        </p>
+        <p className="mt-1.5 text-[13px] leading-relaxed text-slate-400">{m('intro')}</p>
         <div className="mt-5 space-y-2.5">
           <Choice
             icon="🧭"
-            title={tr({ en: 'Guided Flow Explorer (Beginner)', vi: 'Khám phá luồng có hướng dẫn (Người mới)' })}
-            badge={tr({ en: 'Recommended', vi: 'Khuyên dùng' })}
+            title={m('guidedTitle')}
+            badge={m('recommended')}
             accent="#4ade80"
             testId="welcome-guided"
             onPick={guided}
             current={!academyOpen && scope === 'beginner'}
-            body={tr({
-              en: 'Follow one payment story at a time, starting with a card tapped in a shop. Everything else fades back, and one click sends a test payment through.',
-              vi: 'Theo dõi từng câu chuyện thanh toán một, bắt đầu với một lần chạm thẻ ở cửa hàng. Mọi thứ khác mờ đi, và một cú nhấp sẽ gửi một giao dịch thử đi qua.',
-            })}
+            m={m}
+            body={m('guidedBody')}
           />
           <Choice
             icon="🏦"
-            title={tr({ en: 'Living Bank Sandbox (Advanced)', vi: 'Sa bàn ngân hàng sống (Nâng cao)' })}
+            title={m('sandboxTitle')}
             accent="#c084fc"
             testId="welcome-sandbox"
             onPick={sandbox}
             current={!academyOpen && scope === 'advanced'}
-            body={tr({
-              en: 'The whole bank at once: every desk, queue and wire lit. Run the day, change the rules, inject chaos, read the end-of-day report.',
-              vi: 'Toàn bộ ngân hàng cùng lúc: mọi quầy, hàng chờ và đường truyền đều sáng. Chạy cả ngày, thay đổi quy tắc, gây sự cố, đọc báo cáo cuối ngày.',
-            })}
+            m={m}
+            body={m('sandboxBody')}
           />
           <Choice
             icon="🎓"
-            title={tr({ en: 'Banking Academy', vi: 'Học viện Ngân hàng' })}
+            title={m('academyTitle')}
             accent="#38bdf8"
             testId="welcome-academy"
             onPick={academy}
             current={academyOpen}
-            body={tr({
-              en: 'Six chapters with guided walkthroughs and quizzes: tokenised cards, 3DS, Pay-in-4, the night cycle, instant transfers and AML.',
-              vi: 'Sáu chương với hướng dẫn từng bước và câu hỏi: thẻ mã hóa, 3DS, trả góp 4 kỳ, chu kỳ ban đêm, chuyển khoản tức thì và phòng chống rửa tiền.',
-            })}
+            m={m}
+            body={m('academyBody')}
           />
         </div>
         <div className="mt-4 flex items-center justify-between text-[11.5px] text-slate-500">
           <span>
-            {tr({ en: 'Press', vi: 'Nhấn' })} <kbd className="rounded border border-slate-700 px-1 font-mono text-[10.5px] text-slate-300">Esc</kbd> {tr({ en: 'to skip', vi: 'để bỏ qua' })}
+            {formatNodes(m('escHint'), { key: <kbd className="rounded border border-slate-700 px-1 font-mono text-[10.5px] text-slate-300">Esc</kbd> })}
           </span>
           <button type="button" onClick={close} className="font-medium text-slate-400 transition hover:text-slate-100" data-testid="welcome-skip">
-            {tr({ en: 'Skip for now', vi: 'Để sau' })}
+            {m('skip')}
           </button>
         </div>
       </div>

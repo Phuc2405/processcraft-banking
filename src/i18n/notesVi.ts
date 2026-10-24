@@ -224,3 +224,12 @@ export function noteText(text: string): string {
   if (parts.length < 2) return text;
   return parts.map(noteSentence).join(' ');
 }
+
+/** The Build Lab's alarm badges ("Break: amount mismatch", "Fraud slipped through"). The runner stores English; this shows it in the active language. */
+export function alarmText(text: string): string {
+  if (activeLocale() !== 'vi' || !text) return text;
+  if (text === 'Fraud slipped through') return 'Gian lận đã lọt qua';
+  if (text === 'Break settled as approved') return 'Sai lệch bị quyết toán như chấp thuận';
+  const m = /^Break: (.+)$/.exec(text);
+  return m ? `Sai lệch: ${m[1]}` : text;
+}

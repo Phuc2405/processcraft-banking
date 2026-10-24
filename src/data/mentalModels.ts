@@ -72,7 +72,7 @@ export const MENTAL_MODELS: Record<MentalModelId, MentalModel> = {
           {
             real: 'Settlement',
             picture: 'Handing the cash over',
-            explain: 'One to two days later the shop’s settlement order arrives and the locked money is really deducted.',
+            explain: 'One to two days later the shop’s settlement order arrives and the locked money is finally deducted.',
           },
         ],
         watchOut: 'A hold nobody claims expires and the money springs back, which is why a pending charge can simply vanish. Meanwhile it still shrinks what you can spend.',
@@ -111,7 +111,7 @@ export const MENTAL_MODELS: Record<MentalModelId, MentalModel> = {
     copy: {
       en: {
         title: 'A one-time fake ID',
-        topic: 'Tokenization & dCVV',
+        topic: 'Tokenisation & dCVV',
         hook: 'The shop only ever sees a stand-in ID and a ticket that stops working after a minute, never the real card.',
         parts: [
           {
@@ -193,7 +193,7 @@ export const MENTAL_MODELS: Record<MentalModelId, MentalModel> = {
         hook: 'Khách quen mua những thứ quen thuộc thì đi thẳng vào; bất cứ điều gì bất thường đều bị chặn ở cửa và phải chứng minh danh tính.',
         parts: [
           {
-            real: 'Luồng không ma sát (frictionless)',
+            real: 'Luồng xác thực liền mạch (frictionless)',
             picture: 'Đi thẳng vào',
             explain: 'Rủi ro thấp: một khách quen làm việc họ vẫn làm. Người gác cổng gật đầu và không ai bị làm phiền.',
           },

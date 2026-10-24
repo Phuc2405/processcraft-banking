@@ -195,7 +195,7 @@ export function validateGraph(graph: ProcessGraph, level: ChallengeLevel, option
       if (typeof lo === 'number' && typeof hi === 'number' && lo > hi) {
         error('INVALID_CONFIG', {
           nodeId: n.id,
-          message: tr({ en: `'${n.label}': the frictionless line (${lo}) is above the reject line (${hi}), so the bands overlap.`, vi: `'${L(n.label)}': ngưỡng không ma sát (${lo}) cao hơn ngưỡng từ chối (${hi}), nên các dải chồng lên nhau.` }),
+          message: tr({ en: `'${n.label}': the frictionless line (${lo}) is above the reject line (${hi}), so the bands overlap.`, vi: `'${L(n.label)}': ngưỡng xác thực liền mạch (${lo}) cao hơn ngưỡng từ chối (${hi}), nên các dải chồng lên nhau.` }),
         });
       }
     }

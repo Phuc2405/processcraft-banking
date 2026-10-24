@@ -1,6 +1,7 @@
 import { CHAOS_RESPONSE_CODE, CHAOS_TOGGLE_IDS, congestionOn, type ChaosToggleId } from '../../engine/chaos';
 import { tr, type Localized } from '../../i18n/locale';
 import { formatMoney } from '../../sim/kpis';
+import { dayScenarios } from '../../i18n/dayScenarios';
 import { bankStore, useBankStore } from '../../store/bankStore';
 import { uiStore, useUiStore } from '../../store/uiStore';
 import { Modal } from '../shell/Modal';
@@ -53,7 +54,7 @@ const SCENARIO_TEXT: Record<'NONE' | 'FLASH_SURGE' | 'BOTNET', { icon: string; t
   },
   FLASH_SURGE: {
     icon: '🛍️',
-    title: { en: 'Day 2: Flash Sale Traffic Spike', vi: 'Ngày 2: Lưu lượng tăng vọt do Flash Sale' },
+    title: dayScenarios.messages.flashTitle,
     body: {
       en: 'Three times the usual customers and a congested network. 504 timeouts are chased by automatic status inquiries.',
       vi: 'Lượng khách gấp ba bình thường và mạng bị nghẽn. Lỗi 504 được xử lý bằng truy vấn trạng thái tự động.',
@@ -61,7 +62,7 @@ const SCENARIO_TEXT: Record<'NONE' | 'FLASH_SURGE' | 'BOTNET', { icon: string; t
   },
   BOTNET: {
     icon: '🤖',
-    title: { en: 'Day 3: Botnet CVV Brute-Force & Staff Fatigue', vi: 'Ngày 3: Botnet dò CVV & nhân viên kiệt sức' },
+    title: dayScenarios.messages.botnetTitle,
     body: {
       en: 'Bots fire $1 card tests four at a time. Each alert tires the fraud desk; above 70% fatigue analysts start waving bots through.',
       vi: 'Bot bắn các giao dịch dò thẻ $1, mỗi lần bốn cái. Mỗi cảnh báo làm đội gian lận mệt thêm; trên 70% mệt mỏi, chuyên viên bắt đầu cho bot lọt qua.',

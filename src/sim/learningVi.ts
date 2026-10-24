@@ -36,7 +36,7 @@ const SHORT_VI: Record<ProcessId, string> = {
 
 const VI: Record<ProcessId, LessonWords> = {
   A: {
-    title: 'Mã hóa thẻ ảo & che giấu dCVV',
+    title: 'Mã hóa thẻ ảo (Tokenization) & Mã CVV động',
     subtitle: 'Cổng thẻ ảo → Kho token → dCVV → Sổ cái',
     intro: [
       'Thẻ ảo là một số thay thế. Dãy 16 chữ số người mua nhập (DPAN) tự nó không có ý nghĩa: chỉ Kho token của ngân hàng biết nó trỏ tới thẻ thật nào, và tài khoản nào. Đó là mã hóa thẻ (tokenization).',
@@ -68,16 +68,16 @@ const VI: Record<ProcessId, LessonWords> = {
     ],
   },
   B: {
-    title: 'Bộ máy rủi ro 3-D Secure 2.x (Không ma sát vs Thử thách OTP)',
+    title: 'Bộ máy rủi ro 3-D Secure 2.x: Xác thực liền mạch (Frictionless 3DS) vs Thử thách OTP (Challenge Flow)',
     subtitle: 'Cổng thương mại điện tử → Bàn rủi ro 3DS → (điện thoại của khách) → Sổ cái',
     intro: [
       'Mỗi giao dịch thẻ trực tuyến được chấm điểm rủi ro từ 0 tới 100, dựa trên tín hiệu như thiết bị, địa chỉ giao hàng và hành vi của khách. 3-D Secure 2 biến điểm số đó thành một trong ba cách xử lý.',
-      'Không ma sát: điểm đủ thấp để không cần hỏi khách điều gì. Thử thách: ngân hàng gửi mã một lần tới điện thoại chủ thẻ, và một số khách bỏ cuộc. Từ chối: điểm quá cao nên giao dịch bị từ chối ngay. Hai núm điều chỉnh quyết định các ngưỡng nằm đâu, và mọi vị trí của chúng đều là sự đánh đổi giữa gian lận và khách bị mất.',
+      'Xác thực liền mạch: điểm đủ thấp để không cần hỏi khách điều gì. Thử thách: ngân hàng gửi mã một lần tới điện thoại chủ thẻ, và một số khách bỏ cuộc. Từ chối: điểm quá cao nên giao dịch bị từ chối ngay. Hai núm điều chỉnh quyết định các ngưỡng nằm đâu, và mọi vị trí của chúng đều là sự đánh đổi giữa gian lận và khách bị mất.',
     ],
     steps: {
       n_start: { title: 'Giao dịch tới Cổng thương mại điện tử', what: 'Trang thanh toán gửi thẻ, số tiền và điểm rủi ro từ các phép kiểm tra thiết bị của cửa hàng.', why: 'Cổng nhận giao dịch vào. Điểm rủi ro đã có sẵn; việc của ngân hàng là quyết định xử lý thế nào.' },
-      n_3ds: { title: 'Bàn rủi ro 3DS: xử lý theo cách nào?', what: 'Dưới ngưỡng không ma sát: FRICTIONLESS. Từ ngưỡng từ chối trở lên: REJECT. Ở giữa: CHALLENGE, trừ khi khách đã hoàn tất một lần, khi đó là CHALLENGE_PASSED (hoặc CHALLENGE_FAILED nếu họ bỏ đi).', why: 'Giao dịch đã xác thực chuyển trách nhiệm gian lận sang phía ngân hàng phát hành. Đó là lý do ngân hàng muốn có chúng, và là lý do khách không thích bước thêm này.' },
-      n_xor_3ds: { title: 'Quyết định: giờ đi hướng nào?', what: 'Giao dịch đã xác thực (không ma sát hoặc đã qua thử thách) đi tới sổ cái. Một thử thách mới kết thúc lần chạy này ở “Gửi OTP”. Mọi trường hợp khác, bị từ chối hoặc thử thách thất bại, đều bị từ chối.', why: 'Sơ đồ không có vòng lặp. Thử thách đưa khách đi, và khi họ quay lại thì cùng sơ đồ chạy lại với câu trả lời.' },
+      n_3ds: { title: 'Bàn rủi ro 3DS: xử lý theo cách nào?', what: 'Dưới ngưỡng xác thực liền mạch: FRICTIONLESS. Từ ngưỡng từ chối trở lên: REJECT. Ở giữa: CHALLENGE, trừ khi khách đã hoàn tất một lần, khi đó là CHALLENGE_PASSED (hoặc CHALLENGE_FAILED nếu họ bỏ đi).', why: 'Giao dịch đã xác thực chuyển trách nhiệm gian lận sang phía ngân hàng phát hành. Đó là lý do ngân hàng muốn có chúng, và là lý do khách không thích bước thêm này.' },
+      n_xor_3ds: { title: 'Quyết định: giờ đi hướng nào?', what: 'Giao dịch đã xác thực (xác thực liền mạch hoặc đã qua thử thách) đi tới sổ cái. Một thử thách mới kết thúc lần chạy này ở “Gửi OTP”. Mọi trường hợp khác, bị từ chối hoặc thử thách thất bại, đều bị từ chối.', why: 'Sơ đồ không có vòng lặp. Thử thách đưa khách đi, và khi họ quay lại thì cùng sơ đồ chạy lại với câu trả lời.' },
       n_end_challenge: { title: 'Gửi OTP', what: 'Ngân hàng nhắn mã một lần tới điện thoại chủ thẻ và chờ.', why: 'Khách quyết định điều xảy ra tiếp theo: nhập mã, hoặc đóng tab. Lựa chọn đó đã có từ trước khi họ tới; ngân hàng không biết cho tới khi thấy nó.' },
       syn_phone: { title: 'Điện thoại của khách', what: 'Mã một lần đến qua SMS hoặc trong ứng dụng ngân hàng. Khách nhập vào trang thanh toán, hoặc đóng trang và đơn hàng mất.', why: 'Ngân hàng không thấy được điều nào sẽ xảy ra. Mọi điều nó biết đến khi giao dịch quay lại với thử thách được đánh dấu COMPLETED hay ABANDONED.' },
       n_ledger: { title: 'Sổ cái lõi: có tiền không?', what: 'Thẻ ghi nợ được kiểm tra với số dư khả dụng, thẻ tín dụng với hạn mức còn lại.', why: 'Xác thực cho biết người đó có lẽ là chủ thẻ. Nó không nói gì về việc tài khoản có đủ trả không.' },
@@ -90,16 +90,16 @@ const VI: Record<ProcessId, LessonWords> = {
     syntheticEdges: { syn_sent: 'đã gửi mã', syn_back: 'đã nhập mã: sơ đồ chạy lại' },
     examples: {
       calm: { label: 'Một giao dịch bình thường, êm ả', story: 'Một khách quen trên chiếc điện thoại quen thuộc. Điểm rủi ro 12.' },
-      borderline: { label: 'Giao dịch sát ngưỡng, khách nhập mã', story: 'Thiết bị mới và địa chỉ giao hàng mới. Điểm rủi ro 52. Chủ thẻ nhận SMS và nhập mã.', suggestion: 'Nâng ngưỡng không ma sát lên 60 và khách này không bao giờ bị hỏi. Ít gián đoạn hơn, nhưng còn ai khác được cho qua?' },
-      walkaway: { label: 'Giao dịch sát ngưỡng, khách bỏ cuộc', story: 'Cũng điểm 52, nhưng người mua đang trên tàu, thấy yêu cầu SMS và đóng trang.', suggestion: 'Với ngưỡng không ma sát ở 60, đơn hàng này đã không bị mất. Hãy xem dòng “Khách tốt bị mất”.' },
-      stealth: { label: 'Gian lận trông êm ả', story: 'Kẻ gian với thẻ bị đánh cắp và thiết bị trông sạch sẽ. Điểm rủi ro 34: dưới ngưỡng không ma sát.', suggestion: 'Hạ ngưỡng không ma sát xuống 30 và giao dịch này bị thử thách, điều mà kẻ gian chỉ có số thẻ thường không vượt qua được.' },
+      borderline: { label: 'Giao dịch sát ngưỡng, khách nhập mã', story: 'Thiết bị mới và địa chỉ giao hàng mới. Điểm rủi ro 52. Chủ thẻ nhận SMS và nhập mã.', suggestion: 'Nâng ngưỡng xác thực liền mạch lên 60 và khách này không bao giờ bị hỏi. Ít gián đoạn hơn, nhưng còn ai khác được cho qua?' },
+      walkaway: { label: 'Giao dịch sát ngưỡng, khách bỏ cuộc', story: 'Cũng điểm 52, nhưng người mua đang trên tàu, thấy yêu cầu SMS và đóng trang.', suggestion: 'Với ngưỡng xác thực liền mạch ở 60, đơn hàng này đã không bị mất. Hãy xem dòng “Khách tốt bị mất”.' },
+      stealth: { label: 'Gian lận trông êm ả', story: 'Kẻ gian với thẻ bị đánh cắp và thiết bị trông sạch sẽ. Điểm rủi ro 34: dưới ngưỡng xác thực liền mạch.', suggestion: 'Hạ ngưỡng xác thực liền mạch xuống 30 và giao dịch này bị thử thách, điều mà kẻ gian chỉ có số thẻ thường không vượt qua được.' },
       ring: { label: 'Gian lận bị thử thách', story: 'Điểm rủi ro 66. Kẻ trộm có số thẻ nhưng không có điện thoại.' },
       traveller: { label: 'Khách thật trông có vẻ rủi ro', story: 'Một khách đang du lịch nước ngoài dùng Wi-Fi khách sạn. Điểm rủi ro 74. Không có gì sai, nhưng trông thì có vẻ sai.', suggestion: 'Kéo ngưỡng từ chối xuống 70 và khách thật này bị từ chối mà không được hỏi gì.' },
     },
     takeaways: [
       'Mỗi ngưỡng rủi ro đánh đổi gian lận với khách bị mất. Không có cách đặt nào tránh được cả hai.',
       'Thử thách không miễn phí: một số khách tốt bỏ đi, và nó tạo thêm việc cho bàn 3DS.',
-      'Gian lận có điểm thấp không bao giờ bị thử thách. Cách duy nhất chống lại nó là nâng ngưỡng không ma sát, và mọi người đều phải chịu thêm ma sát.',
+      'Gian lận có điểm thấp không bao giờ bị thử thách. Cách duy nhất chống lại nó là nâng ngưỡng xác thực liền mạch, và mọi người đều phải chịu thêm ma sát.',
     ],
   },
   C: {
@@ -173,7 +173,7 @@ const VI: Record<ProcessId, LessonWords> = {
   },
   E: {
     title: 'Chuyển khoản tức thì tài khoản sang tài khoản (A2A & pacs.008)',
-    subtitle: 'Cổng chuyển khoản A2A → Sổ cái ghi nợ CASA → Giải phóng',
+    subtitle: 'Cổng chuyển tiền nhanh (A2A) → Sổ cái ghi nợ CASA → Giải phóng',
     intro: [
       'Chuyển khoản tức thì đưa tiền từ tài khoản này thẳng sang tài khoản khác trong vài giây, không có thẻ ở giữa. Ứng dụng ngân hàng của khách gửi cho ngân hàng một thông điệp theo chuẩn ISO 20022, pacs.008 “chuyển khoản khách hàng”, và tiền rời tài khoản ngay khi ngân hàng đồng ý.',
       'Vì thế cửa vào phải chặt. Giao dịch thẻ có vấn đề còn có thể khiếu nại sau; chuyển khoản tức thì có vấn đề thì không thể gọi lại. Nên cổng A2A đọc từng trường của thông điệp trước khi động tới tiền, và chỉ thông điệp đúng định dạng mới tới được sổ cái.',
@@ -223,7 +223,7 @@ const VI: Record<ProcessId, LessonWords> = {
       n_end_edd: { title: 'Yêu cầu: nguồn tiền', what: 'Người có ảnh hưởng chính trị không bị cấm, chỉ rủi ro. Ngân hàng hỏi tiền từ đâu ra trước khi cho đi.', why: 'Thẩm định tăng cường là cách ngân hàng quản lý một khách rủi ro cao mà nó vẫn được phép phục vụ.' },
       n_end_escalate: { title: 'Chuyển cấp: thẩm định tăng cường', what: 'Nhật ký không có gì để chứng minh hay loại trừ việc trùng. Một chuyên viên cấp cao tiếp nhận và giao dịch phải chờ.', why: 'Khi hết bằng chứng, câu trả lời an toàn là xin thêm, không phải đoán.' },
       'dispute:n_start': { title: 'Một chủ thẻ khiếu nại một khoản trừ tiền', what: 'Chủ thẻ báo ngân hàng rằng một giao dịch không phải của họ, hoặc hàng không bao giờ đến, hoặc bị trừ hai lần. Khiếu nại đến kèm giai đoạn hiện tại trong chu kỳ, lý do, giao dịch cách đây bao nhiêu ngày, và phản hồi của cửa hàng mạnh đến đâu.', why: 'Mọi khiếu nại bắt đầu bằng dữ kiện, và hai trong số đó quyết định hầu hết kết cục: còn trong hạn không, và giao dịch có được xác thực không.' },
-      n_3ds: { title: 'Bộ đánh giá rủi ro 3DS: giao dịch có được xác thực không?', what: 'Bàn khiếu nại không thấy giao dịch đã được duyệt thế nào. Bộ đánh giá 3DS đọc lại giao dịch gốc, và nếu nó không ma sát hoặc khách đã hoàn tất thử thách, nó đánh dấu là đã xác thực.', why: 'Chạy bước này trước. Nếu bộ đánh giá chưa chạy, bàn khiếu nại không thấy kết quả xác thực và coi mọi giao dịch là chưa xác thực.' },
+      n_3ds: { title: 'Bộ đánh giá rủi ro 3DS: giao dịch có được xác thực không?', what: 'Bàn khiếu nại không thấy giao dịch đã được duyệt thế nào. Bộ đánh giá 3DS đọc lại giao dịch gốc, và nếu nó xác thực liền mạch hoặc khách đã hoàn tất thử thách, nó đánh dấu là đã xác thực.', why: 'Chạy bước này trước. Nếu bộ đánh giá chưa chạy, bàn khiếu nại không thấy kết quả xác thực và coi mọi giao dịch là chưa xác thực.' },
       n_desk: { title: 'Bàn khiếu nại & tra soát: bước tiếp theo là gì?', what: 'Bàn nắm các giai đoạn và thời hạn khiếu nại. Nó xác định thời hạn còn mở không, ai chịu trách nhiệm nếu khiếu nại là gian lận, và bước tiếp theo trong chu kỳ là gì.', why: 'Ba dữ kiện này quyết định mọi thứ sau đó, và không cái nào đọc được từ riêng giao dịch.' },
       n_xor_gate: { title: 'Quyết định: khiếu nại có tiếp tục được không?', what: 'Hết thời hạn thì khiếu nại chấm dứt. Giao dịch gian lận đã xác thực cũng chấm dứt, ngân hàng tự chịu tổn thất. Mọi trường hợp khác đi tiếp tới giai đoạn.', why: 'Thời hạn được kiểm tra trước trách nhiệm: khiếu nại quá hạn thì hết hiệu lực dù ai lẽ ra phải trả.' },
       n_xor_stage: { title: 'Quyết định: đây là giai đoạn nào?', what: 'Khiếu nại mới thì yêu cầu cửa hàng xuất trình hóa đơn. Yêu cầu chứng từ không được trả lời trở thành tra soát lần đầu. Cửa hàng phản hồi thì chuyển sang giai đoạn representment. Mọi giai đoạn sau được quyết ở điểm quyết định tiếp theo.', why: 'Một điểm quyết định chỉ có bốn lối ra còn khiếu nại có tám kết cục, nên sơ đồ nối hai điểm quyết định để bao quát hết.' },
@@ -233,7 +233,7 @@ const VI: Record<ProcessId, LessonWords> = {
       n_end_represent: { title: 'Đang xem xét phản hồi của cửa hàng', what: 'Cửa hàng đã phản hồi bằng bằng chứng, và ngân hàng phải quyết định nó có đủ thuyết phục không.', why: 'Một phản hồi yếu vẫn là phản hồi, và nó đẩy vụ việc tiến lên.' },
       n_end_prearb: { title: 'Chuyển lên tiền trọng tài', what: 'Ngân hàng không chấp nhận phản hồi của cửa hàng. Nó chuyển cấp trước khi chính tổ chức thẻ phải phân xử.', why: 'Trọng tài tốn kém cho mọi bên, nên tiền trọng tài là cơ hội cuối để thương lượng.' },
       n_end_refunded: { title: 'Chủ thẻ được hoàn tiền', what: 'Chủ thẻ giữ khoản ghi có. Tổn thất thuộc về cửa hàng.', why: 'Cửa hàng không phản hồi, hoặc phản hồi không đủ thuyết phục.' },
-      n_end_absorbed: { title: 'Ngân hàng phát hành tự chịu tổn thất', what: 'Giao dịch đã được xác thực, nên cửa hàng đã làm đủ mọi điều tổ chức thẻ yêu cầu. Ngân hàng hoàn tiền cho chủ thẻ và tự chịu tổn thất.', why: 'Đây là chuyển trách nhiệm trên thực tế, và là lý do ngân hàng dè chừng việc duyệt không ma sát cho giao dịch rủi ro.' },
+      n_end_absorbed: { title: 'Ngân hàng phát hành tự chịu tổn thất', what: 'Giao dịch đã được xác thực, nên cửa hàng đã làm đủ mọi điều tổ chức thẻ yêu cầu. Ngân hàng hoàn tiền cho chủ thẻ và tự chịu tổn thất.', why: 'Đây là chuyển trách nhiệm trên thực tế, và là lý do ngân hàng dè chừng việc duyệt xác thực liền mạch cho giao dịch rủi ro.' },
       n_end_merchant: { title: 'Cửa hàng thắng', what: 'Bằng chứng thuyết phục. Khoản ghi có tạm thời bị thu lại từ chủ thẻ.', why: 'Tra soát không tự động. Cửa hàng có bằng chứng giao hàng sẽ giữ được đơn hàng.' },
       n_end_barred: { title: 'Hết thời hiệu', what: 'Khiếu nại được đưa ra sau khi thời hạn đã đóng. Nó bị từ chối, dù ai lẽ ra phải trả.', why: 'Thời hạn bảo vệ cửa hàng khỏi những khiếu nại không bao giờ kiểm chứng được. Nó áp dụng cho việc đưa ra khiếu nại, không cho vụ việc đã được nộp đúng hạn.' },
     },
@@ -252,7 +252,7 @@ const VI: Record<ProcessId, LessonWords> = {
       silent: { label: 'Khiếu nại: cửa hàng không gửi gì', story: 'Ngân hàng đã yêu cầu hóa đơn. Cửa hàng không gửi lại gì.' },
       proof: { label: 'Khiếu nại: cửa hàng chứng minh đã giao hàng', story: 'Cửa hàng trả lời yêu cầu chứng từ bằng biên nhận giao hàng có chữ ký.' },
       fight: { label: 'Khiếu nại: cửa hàng phản hồi', story: 'Sau tra soát lần đầu, cửa hàng gửi một phản hồi yếu. Nhưng vẫn là phản hồi.' },
-      shift: { label: 'Khiếu nại: gian lận trên giao dịch đã xác thực', story: 'Chủ thẻ nói một giao dịch không ma sát là gian lận. Giao dịch đã được xác thực bằng 3-D Secure.' },
+      shift: { label: 'Khiếu nại: gian lận trên giao dịch đã xác thực', story: 'Chủ thẻ nói một giao dịch xác thực liền mạch là gian lận. Giao dịch đã được xác thực bằng 3-D Secure.' },
       late: { label: 'Khiếu nại: quá muộn', story: 'Chủ thẻ đưa ra khiếu nại 150 ngày sau khi mua, rất lâu sau khi thời hạn đã đóng.' },
     },
     takeaways: [

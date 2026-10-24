@@ -5,7 +5,7 @@
 
 import { formatAud } from '../engine/capabilities';
 import type { CardType } from '../types/processLearning';
-import { scenarioLabel } from './scenarios';
+import { scenarioLabelEn } from './scenarios';
 import type { StationId } from './topology';
 import type { Packet, Stop } from './types';
 
@@ -21,7 +21,7 @@ export const cardLabel = (card: CardType): string => CARD_LABEL[card];
 const tail = (id: string): string => `…${id.slice(-6)}`;
 
 /** What the payment is: "🛒 Supermarket Groceries ($62.80)", or just the amount when it has no scenario (night-cycle records). */
-const tag = (p: Packet): string => scenarioLabel(p.scenario) || formatAud(p.amountCents);
+const tag = (p: Packet): string => scenarioLabelEn(p.scenario) || formatAud(p.amountCents);
 
 const lowerFirst = (text: string): string => (text.length > 0 ? text[0]!.toLowerCase() + text.slice(1) : text);
 

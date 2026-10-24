@@ -9,16 +9,13 @@
  */
 
 import { activeLocale } from './locale';
-import { SCENARIO_TITLE_VI } from '../sim/scenarios';
+import { localizeScenarioText } from '../sim/scenarios';
+import { dayScenarios } from './dayScenarios';
 
 type Rule = readonly [RegExp, (m: RegExpExecArray) => string];
 
-/** "☕ Corner Cafe Tap ($4.50)" → "☕ Chạm thẻ ở quán cà phê ($4.50)". Also fixes lines written while the app was in English. */
-function scenarios(text: string): string {
-  let out = text;
-  for (const [en, vi] of Object.entries(SCENARIO_TITLE_VI)) if (out.includes(en)) out = out.split(en).join(vi);
-  return out;
-}
+/** "☕ Corner Cafe Tap ($4.50)" → "☕ Chạm thẻ ở quán cà phê ($4.50)". Longest name first, and it never leaves a half-translated name. */
+const scenarios = (text: string): string => localizeScenarioText(text, 'vi');
 
 const DECLINE_VI: Readonly<Record<string, string>> = {
   funds: 'không đủ tiền',
@@ -36,7 +33,7 @@ const DECLINE_VI: Readonly<Record<string, string>> = {
 };
 
 const THREE_DS_VI: Readonly<Record<string, string>> = {
-  'frictionless, waved through': 'không ma sát, cho qua',
+  'frictionless, waved through': 'xác thực liền mạch, cho qua',
   'sending a one-time code to the customer': 'gửi mã một lần cho khách',
   'code entered, authenticated': 'đã nhập mã, xác thực thành công',
   'no code entered, authentication failed': 'không nhập mã, xác thực thất bại',
@@ -78,8 +75,8 @@ const RULES: readonly Rule[] = [
   // Chaos Monkey
   [/^Chaos Monkey: (.+) injected\.$/, (m) => `Chaos Monkey: đã gây ${lower(CHAOS_VI[m[1]!] ?? m[1]!)}.`],
   [/^Chaos Monkey: (.+) cleared\.$/, (m) => `Chaos Monkey: đã khắc phục ${lower(CHAOS_VI[m[1]!] ?? m[1]!)}.`],
-  [/^Day (\d+) scenario: FLASH SALE\. Expect (\d+)x the usual customers.*$/, (m) => `Kịch bản ngày ${m[1]}: FLASH SALE. Dự kiến gấp ${m[2]} lần lượng khách thường ngày, mạng nghẽn và lỗi 504. Truy vấn trạng thái sẽ xử lý mọi giao dịch quá thời gian.`],
-  [/^Day (\d+) scenario: BOTNET ATTACK\..*$/, (m) => `Kịch bản ngày ${m[1]}: TẤN CÔNG BOTNET. Một botnet đang dò thẻ bị đánh cắp bằng giao dịch trực tuyến $1. Mỗi cảnh báo làm đội gian lận mệt thêm; trên 70% mệt mỏi họ bắt đầu cho bot lọt qua.`],
+  [/^Day (\d+) scenario: FLASH SALE\. Expect (\d+)x the usual customers.*$/, (m) => `Kịch bản ngày ${m[1]}: ${dayScenarios.messages.flashTitle.vi}. Dự kiến gấp ${m[2]} lần lượng khách thường ngày, mạng nghẽn và lỗi 504. Truy vấn trạng thái sẽ xử lý mọi giao dịch quá thời gian.`],
+  [/^Day (\d+) scenario: BOTNET ATTACK\..*$/, (m) => `Kịch bản ngày ${m[1]}: ${dayScenarios.messages.botnetTitle.vi}. Một botnet đang dò thẻ bị đánh cắp bằng giao dịch trực tuyến $1. Mỗi cảnh báo làm đội gian lận mệt thêm; trên 70% mệt mỏi họ bắt đầu cho bot lọt qua.`],
   [/^Velocity alert (\d\d:\d\d-\d\d:\d\d): (\d+) card-testing attempts of \$1\.00 from rotating devices\. Fraud desk fatigue (\d+)%\.$/, (m) => `Cảnh báo tần suất ${m[1]}: ${m[2]} lượt dò thẻ $1.00 từ các thiết bị luân phiên. Mức mệt mỏi của đội gian lận ${m[3]}%.`],
   [/^A fatigued analyst \(fatigue (\d+)%\) cleared a \$1\.00 bot attempt as low risk\. The stolen card is now confirmed live\.$/, (m) => `Một chuyên viên kiệt sức (mệt mỏi ${m[1]}%) đã duyệt một lượt bot $1.00 là rủi ro thấp. Thẻ bị đánh cắp giờ đã được xác nhận còn hoạt động.`],
   [/^POS station outage: (.+) could not reach the switch \(RC 91 Issuer or Switch Inoperative\)\.$/, (m) => `Sự cố trạm POS: ${m[1]} không kết nối được bộ chuyển mạch (RC 91 Ngân hàng phát hành hoặc bộ chuyển mạch ngừng hoạt động).`],
@@ -130,7 +127,7 @@ const RULES: readonly Rule[] = [
   [/^Fraud approved: (.+?) at a shop terminal\. The bank will have to repay it\.$/, (m) => `Gian lận lọt qua: ${m[1]} tại máy POS cửa hàng. Ngân hàng sẽ phải hoàn trả.`],
   [/^Fraud approved: (.+?) at the sidewalk ATM with a PIN the thief had watched\. The bank will have to repay it\.$/, (m) => `Gian lận lọt qua: ${m[1]} tại ATM vỉa hè với mã PIN kẻ gian đã nhìn trộm. Ngân hàng sẽ phải hoàn trả.`],
   [/^Fraud approved: (.+?) as an instant transfer to a new payee\. The bank will have to repay it\.$/, (m) => `Gian lận lọt qua: ${m[1]} qua chuyển khoản tức thì tới người nhận mới. Ngân hàng sẽ phải hoàn trả.`],
-  [/^Fraud approved: (.+?) through the frictionless path \(risk (\d+)\)\. The bank will have to repay it\.$/, (m) => `Gian lận lọt qua: ${m[1]} qua luồng không ma sát (rủi ro ${m[2]}). Ngân hàng sẽ phải hoàn trả.`],
+  [/^Fraud approved: (.+?) through the frictionless path \(risk (\d+)\)\. The bank will have to repay it\.$/, (m) => `Gian lận lọt qua: ${m[1]} qua luồng xác thực liền mạch (rủi ro ${m[2]}). Ngân hàng sẽ phải hoàn trả.`],
   [/^Fraud approved: (.+?) after the fraudster passed the OTP challenge\. The bank will have to repay it\.$/, (m) => `Gian lận lọt qua: ${m[1]} sau khi kẻ gian vượt qua thử thách OTP. Ngân hàng sẽ phải hoàn trả.`],
   [/^Fraud approved: (.+?) with a replayed dynamic CVV\. The bank will have to repay it\.$/, (m) => `Gian lận lọt qua: ${m[1]} với CVV động bị dùng lại. Ngân hàng sẽ phải hoàn trả.`],
   [/^Fraud approved: (.+?) on a synthetic identity\. The bank will have to repay it\.$/, (m) => `Gian lận lọt qua: ${m[1]} bằng danh tính giả mạo. Ngân hàng sẽ phải hoàn trả.`],
@@ -190,7 +187,9 @@ const IDLE_VI: Readonly<Record<string, string>> = {
 
 /** One line of the feed, an alert or a desk's activity, in the active language. */
 export function feedText(text: string): string {
-  if (activeLocale() !== 'vi' || !text) return text;
+  if (!text) return text;
+  // English: the simulation already writes English, so only a scenario name that arrived in Vietnamese needs putting back.
+  if (activeLocale() !== 'vi') return localizeScenarioText(text, 'en');
   if (NOTE_VI[text]) return NOTE_VI[text]!;
   if (IDLE_VI[text]) return IDLE_VI[text]!;
   const source = scenarios(text);

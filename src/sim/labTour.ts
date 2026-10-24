@@ -143,7 +143,7 @@ const VALUE_WORDS_VI: Readonly<Record<string, string>> = {
   debit: 'ghi nợ',
   credit: 'tín dụng',
   prepaid: 'trả trước',
-  frictionless: 'không ma sát',
+  frictionless: 'xác thực liền mạch',
   challenge: 'thử thách',
   'challenge passed': 'đã qua thử thách',
   'challenge failed': 'thử thách thất bại',

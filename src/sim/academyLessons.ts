@@ -53,7 +53,7 @@ export const LESSON_CONTENT: Readonly<Record<string, LessonContent>> = {
     realWorldScenario: 'Buying a $5 flat white at a Brisbane café by tapping a contactless Visa Debit card on the counter terminal.',
     stepByStepFlow: [
       { actor: CUSTOMER, action: 'Taps the phone or card on the POS terminal.' },
-      { actor: TERMINAL, action: 'The terminal reads the card chip, builds an ISO 8583 Authorization Request (0100) and sends it to the acquirer.' },
+      { actor: TERMINAL, action: 'The terminal reads the card chip, builds an ISO 8583 Authorisation Request (0100) and sends it to the acquirer.' },
       { actor: SCHEME, action: 'The acquirer passes the 0100 through the Visa network to the bank that issued the card.' },
       { actor: CORE, action: 'The issuing bank receives the request. No money has moved yet: the café is only asking.' },
     ],
@@ -69,7 +69,7 @@ export const LESSON_CONTENT: Readonly<Record<string, LessonContent>> = {
     stepByStepFlow: [
       { actor: CORE, action: 'Checks the card is active and not frozen, then verifies the PIN or the contactless cryptogram.' },
       { actor: CORE, action: 'Works out the available balance: the account balance minus any holds already placed.' },
-      { actor: CORE, action: 'Places an Authorization Hold of $5 on the CASA account so the money cannot be spent twice.' },
+      { actor: CORE, action: 'Places an Authorisation Hold of $5 on the CASA account so the money cannot be spent twice.' },
       { actor: LEDGER, action: 'Posts the hold: DR 1110 / CR 2110. The customer’s balance still says $50; their available balance says $45.' },
     ],
     whyItMatters: 'Holding funds guarantees the merchant gets paid without requiring instant settlement, which saves network bandwidth and keeps the switch fast during peak hours.',
@@ -78,7 +78,7 @@ export const LESSON_CONTENT: Readonly<Record<string, LessonContent>> = {
   '1.3': {
     realWorldScenario: 'There is enough money, so the terminal beeps green and the barista hands over the coffee.',
     stepByStepFlow: [
-      { actor: CORE, action: 'Builds the Authorization Response (0110) with response code 00 (Approved) and an approval code.' },
+      { actor: CORE, action: 'Builds the Authorisation Response (0110) with response code 00 (Approved) and an approval code.' },
       { actor: SCHEME, action: 'The response travels back through Visa and the acquirer to the café’s terminal.' },
       { actor: TERMINAL, action: 'Shows Approved and prints the receipt. The café adds the sale to today’s batch.' },
     ],

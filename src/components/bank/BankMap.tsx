@@ -1,6 +1,7 @@
 import { tr } from '../../i18n/locale';
 import { t } from '../../i18n/t';
 import { feedText } from '../../i18n/feedVi';
+import { localizeScenarioText } from '../../sim/scenarios';
 import { memo, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { beatMs, SPEEDS, type Phase } from '../../sim/clock';
 import { formatMoney } from '../../sim/kpis';
@@ -519,7 +520,7 @@ function Travellers({ moves, tick, phase, speedIndex, className = '' }: { moves:
         const path = pathOfWire(m.edge);
         if (!path) return null;
         // The first few payments of a beat say what they are for. More would only hide the wires, and a hop that is over in a blink cannot be read.
-        const label = i < LABELLED_TOKENS && hop >= 320 ? m.scenario : '';
+        const label = i < LABELLED_TOKENS && hop >= 320 ? localizeScenarioText(m.scenario) : '';
         return <PathTraveller key={`${tick}-${m.key}`} path={path} look={lookOfKind(m.kind, m.cardType)} delayMs={Math.round(m.at * beat * 0.55)} durationMs={hop} {...(label ? { label } : {})} />;
       })}
     </div>

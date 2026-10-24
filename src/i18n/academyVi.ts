@@ -111,7 +111,7 @@ export const LESSON_CONTENT_VI: Readonly<Record<string, LessonContent>> = {
     realWorldScenario: 'Đơn hàng $89 đến từ một điện thoại mới ở bang khác lúc 2 giờ sáng, nên ngân hàng xem xét kỹ hơn.',
     stepByStepFlow: [
       { actor: RISK, action: 'Chấm điểm giao dịch dựa trên thiết bị, vị trí, số tiền và lịch sử của khách.' },
-      { actor: RISK, action: 'Rủi ro thấp: cho đi thẳng (3DS không ma sát).' },
+      { actor: RISK, action: 'Rủi ro thấp: cho đi thẳng (3DS xác thực liền mạch).' },
       { actor: RISK, action: 'Rủi ro trung bình: yêu cầu khách chứng minh danh tính (thử thách 3DS).' },
       { actor: RISK, action: 'Rủi ro cao: từ chối mà không hỏi.' },
     ],
@@ -214,7 +214,7 @@ export const LESSON_CONTENT_VI: Readonly<Record<string, LessonContent>> = {
     ],
   },
 
-  // ── Chương 5 · Chuyển khoản A2A & ISO 20022 ─────────────────────────────────
+  // ── Chương 5 · Chuyển tiền nhanh tài khoản (A2A) & ISO 20022 ─────────────────────────────────
   '5.1': {
     realWorldScenario: 'Một người bạn chuyển $120 tiền vé xem hòa nhạc qua PayID, và tiền đến trong vài giây.',
     stepByStepFlow: [
@@ -337,8 +337,8 @@ export const LEVEL_TEXT_VI: Readonly<Record<string, { title: string; goal: strin
   '4.1': { title: 'Yêu cầu kế hoạch trả góp', goal: 'Tại trang thanh toán khách chọn Trả 4 kỳ thay vì trả một lần. Yêu cầu đi tới thẩm định, không qua mạng lưới thẻ.' },
   '4.2': { title: 'Thẩm định', goal: 'Quầy đọc điểm thẩm định của khách và quyết định có đưa ra kế hoạch bốn kỳ hay không, cùng khoản trả trước.' },
   '4.3': { title: 'Kiểm tra tín dụng và trả trước', goal: 'Kỳ đầu được thu từ tài khoản hoặc hạn mức tín dụng. Nếu bước kiểm tra từ chối, thẻ là phương án dự phòng.' },
-  '5.1': { title: 'Lệnh chuyển khoản tức thì đến', goal: 'Chuyển khoản liên ngân hàng đến dưới dạng thông điệp pacs.008. Cổng kiểm tra thông điệp đúng định dạng trước khi tiền dịch chuyển.' },
-  '5.2': { title: 'Nộp tiền tại CDM', goal: 'Khách đưa thẻ và PIN vào máy trên vỉa hè để nộp tiền mặt vào tài khoản.' },
+  '5.1': { title: 'Giao dịch nhận tiền chuyển khoản nhanh (Incoming Transfer)', goal: 'Chuyển khoản liên ngân hàng đến dưới dạng thông điệp pacs.008. Cổng kiểm tra thông điệp đúng định dạng trước khi tiền dịch chuyển.' },
+  '5.2': { title: 'Nộp tiền mặt tự động (ATM/CDM Deposit)', goal: 'Khách đưa thẻ và PIN vào máy trên vỉa hè để nộp tiền mặt vào tài khoản.' },
   '5.3': { title: 'Kiểm đếm và thanh khoản', goal: 'Máy đếm và kiểm tra tiền. Tiền mặt vào hộp tiền của máy, cũng là tiền mặt của ngân hàng ngoài đường phố.' },
   '5.4': { title: 'Ghi có vào tài khoản', goal: 'Tài khoản được ghi có ngay khi tiền mặt còn nằm trong máy: một bút toán chuyển tiền từ quỹ tiền mặt sang khách hàng.' },
   '6.1': { title: 'Đã duyệt trong ngày', goal: 'Mọi giao dịch được duyệt trong ngày chỉ là lời hứa. Chúng chờ ca chạy đêm.' },
@@ -353,7 +353,7 @@ export const CHAPTER_TEXT_VI: Readonly<Record<number, { title: string; topic: st
   2: { title: 'Thẻ ảo & định tuyến 3DS', topic: 'Thanh toán web, mã hóa thẻ, OTP' },
   3: { title: 'Dò thẻ & phát hiện gian lận', topic: 'Quy tắc tần suất, điểm rủi ro' },
   4: { title: 'BNPL & duyệt trả góp', topic: 'Thẩm định & kiểm tra tín dụng' },
-  5: { title: 'Chuyển khoản A2A & ISO 20022', topic: 'Nộp tiền CDM & thanh khoản' },
+  5: { title: 'Chuyển tiền nhanh tài khoản (Account-to-Account / A2A) & ISO 20022', topic: 'Nộp tiền CDM & thanh khoản' },
   6: { title: 'Bù trừ & quyết toán cuối ngày', topic: 'Bút toán sổ cái ngân hàng lõi' },
 };
 
@@ -377,7 +377,7 @@ export const GLOSSARY_VI: Readonly<Record<string, { term: string; definition: st
   'four-party': { term: 'Mô hình thanh toán bốn bên', definition: 'Bốn bên tham gia một giao dịch thẻ: chủ thẻ, cửa hàng, ngân hàng phát hành (ngân hàng của chủ thẻ) và ngân hàng thanh toán (ngân hàng của cửa hàng). Tổ chức thẻ như Visa đứng giữa các ngân hàng và đặt ra quy tắc.' },
   'auth-capture': { term: 'Cấp phép và ghi nhận', definition: 'Cấp phép: ngân hàng phát hành kiểm tra giao dịch và khoanh giữ tiền, nhưng chưa có gì dịch chuyển. Ghi nhận (capture): cửa hàng yêu cầu số tiền đã khoanh giữ, và quyết toán sau đó mới chuyển tiền. Khoản khoanh giữ không được ghi nhận sẽ được giải tỏa.' },
   tokenization: { term: 'Mã hóa thẻ (Tokenization)', definition: 'Số thẻ thật được thay bằng một token chỉ dùng được cho một thiết bị hoặc một cửa hàng. Cửa hàng không bao giờ thấy số thật, token bị đánh cắp vô dụng ở nơi khác, và kho token ánh xạ ngược về thẻ thật.' },
-  'three-ds': { term: 'Định tuyến rủi ro 3DS 2.0 và OTP', definition: 'Ngân hàng phát hành chấm điểm mỗi giao dịch trực tuyến từ dữ liệu thiết bị và hành vi. Rủi ro thấp đi thẳng không ma sát, rủi ro trung bình bị thử thách như mật khẩu một lần (OTP), rủi ro cao bị từ chối. Thử thách hoàn tất thường chuyển trách nhiệm gian lận sang ngân hàng phát hành.' },
+  'three-ds': { term: 'Định tuyến rủi ro 3DS 2.0 và OTP', definition: 'Ngân hàng phát hành chấm điểm mỗi giao dịch trực tuyến từ dữ liệu thiết bị và hành vi. Rủi ro thấp đi thẳng theo luồng xác thực liền mạch, rủi ro trung bình bị thử thách như mật khẩu một lần (OTP), rủi ro cao bị từ chối. Thử thách hoàn tất thường chuyển trách nhiệm gian lận sang ngân hàng phát hành.' },
   'mdr-interchange': { term: 'Phí MDR và phân chia phí interchange', definition: 'Phí chiết khấu thương mại (MDR) là phí cửa hàng trả cho ngân hàng thanh toán trên mỗi giao dịch thẻ. Nó được chia thành interchange (cho ngân hàng phát hành), phí tổ chức thẻ (cho mạng lưới) và biên lợi nhuận của ngân hàng thanh toán. Minh họa với tỷ lệ giả định: 2.0% của $100 là $2.00 = $1.20 + $0.10 + $0.70.' },
   'refund-void': { term: 'Hoàn tiền và hủy giao dịch', definition: 'Hủy (void) hủy bỏ giao dịch trước khi quyết toán: khoản khoanh giữ được giải tỏa và khách thường không bị trừ tiền. Hoàn tiền (refund) trả tiền lại sau khi quyết toán, dưới dạng một khoản ghi có mới có thể mất vài ngày mới hiện.' },
   chargeback: { term: 'Khiếu nại và tra soát hoàn tiền', definition: 'Chủ thẻ khiếu nại một giao dịch với ngân hàng phát hành. Ngân hàng phát hành có thể đòi lại tiền từ ngân hàng thanh toán (chargeback), và cửa hàng có thể phản hồi bằng bằng chứng. Cửa hàng thua phải mất số tiền và thường thêm một khoản phí.' },
@@ -405,7 +405,7 @@ export const QUIZ_VI: Readonly<Record<string, { prompt: string; options: Four; e
   '2-b': { prompt: 'CVV động bảo vệ trước điều gì?', options: ['Số thẻ bị đánh cắp được dùng một mình', 'Cửa hàng trừ tiền hai lần', 'Giao dịch bị từ chối', 'Máy POS chậm'], explanation: 'Mã thay đổi vài phút một lần, nên chỉ có số thẻ thì không dùng được.' },
   '2-c': { prompt: 'eKYC cho phép ngân hàng làm gì?', options: ['Bỏ qua kiểm tra danh tính', 'Xác minh danh tính khách mới từ xa, ví dụ bằng ảnh giấy tờ và selfie', 'Duyệt mọi giao dịch', 'Mở tài khoản cho bất kỳ ai'], explanation: 'eKYC thay việc đến chi nhánh bằng xác minh danh tính từ xa.' },
   '3-a': { prompt: 'Trong mô hình bốn bên, ai là ngân hàng phát hành?', options: ['Ngân hàng của cửa hàng', 'Tổ chức thẻ', 'Ngân hàng của chủ thẻ', 'Cửa hàng'], explanation: 'Ngân hàng phát hành là ngân hàng của chủ thẻ. Ngân hàng thanh toán là ngân hàng của cửa hàng.' },
-  '3-b': { prompt: 'Theo 3DS 2.0, giao dịch trực tuyến rủi ro trung bình sẽ ra sao?', options: ['Đi thẳng', 'Khách bị thử thách, ví dụ bằng OTP', 'Luôn bị từ chối', 'Chờ lô ban đêm'], explanation: 'Rủi ro thấp không ma sát, rủi ro trung bình bị thử thách, rủi ro cao bị từ chối.' },
+  '3-b': { prompt: 'Theo 3DS 2.0, giao dịch trực tuyến rủi ro trung bình sẽ ra sao?', options: ['Đi thẳng', 'Khách bị thử thách, ví dụ bằng OTP', 'Luôn bị từ chối', 'Chờ lô ban đêm'], explanation: 'Rủi ro thấp được xác thực liền mạch, rủi ro trung bình bị thử thách, rủi ro cao bị từ chối.' },
   '3-c': { prompt: 'Mã hóa thẻ đạt được điều gì?', options: ['Cửa hàng thấy số thẻ thật', 'Token bị đánh cắp vô dụng ngoài thiết bị hoặc cửa hàng của nó', 'Giao dịch quyết toán tức thì', 'Không còn phí'], explanation: 'Token thay thế thẻ và chỉ hoạt động ở nơi nó được phát hành.' },
   '3-d': { prompt: 'Khác biệt giữa cấp phép và ghi nhận là gì?', options: ['Chúng là cùng một bước', 'Cấp phép khoanh giữ tiền; ghi nhận yêu cầu số tiền đó cho cửa hàng', 'Ghi nhận diễn ra trước', 'Cấp phép chuyển tiền'], explanation: 'Cấp phép khoanh giữ tiền. Ghi nhận yêu cầu số tiền đã khoanh giữ và quyết toán mới chuyển tiền.' },
   '4-a': { prompt: 'Cửa hàng trả 2.0% MDR cho giao dịch $100. Ai nhận phần interchange?', options: ['Ngân hàng thanh toán', 'Ngân hàng phát hành', 'Khách hàng', 'Cửa hàng'], explanation: 'Interchange thuộc về ngân hàng phát hành. Tổ chức thẻ lấy phí của mình và ngân hàng thanh toán giữ phần còn lại.' },

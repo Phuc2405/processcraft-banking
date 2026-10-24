@@ -11,7 +11,7 @@ import { activeLocale } from './locale';
 
 const RULE_VI: Readonly<Record<keyof BankRules, { label: string; help: string }>> = {
   dcvvWindowSec: { label: 'Thời hạn hiệu lực dCVV', help: 'Dài hơn thì dễ chịu với người gõ chậm, nhưng cũng dễ hơn cho kẻ dùng lại mã bị đánh cắp.' },
-  frictionlessBelow: { label: 'Không ma sát khi rủi ro dưới', help: 'Cao hơn nghĩa là ít lời nhắc OTP hơn cho khách tốt, và nhiều giao dịch rủi ro được cho qua mà không bị thử thách.' },
+  frictionlessBelow: { label: 'Xác thực liền mạch khi rủi ro dưới', help: 'Cao hơn nghĩa là ít lời nhắc OTP hơn cho khách tốt, và nhiều giao dịch rủi ro được cho qua mà không bị thử thách.' },
   rejectAtOrAbove: { label: 'Từ chối khi rủi ro từ', help: 'Thấp hơn chặn được nhiều gian lận hơn, nhưng bắt đầu từ chối cả khách thật chỉ vì trông bất thường.' },
   bnplMinScore: { label: 'Điểm tối thiểu BNPL', help: 'Thấp hơn duyệt nhiều kế hoạch hơn và nhận thêm khách có thể không trả các kỳ còn lại.' },
   bnplMinDownPct: { label: 'Trả trước tối thiểu BNPL', help: 'Trả góp 4 kỳ thu 25% hôm nay. Mức sàn cao hơn sẽ đẩy khách chọn 25% về thanh toán thẻ thông thường.' },

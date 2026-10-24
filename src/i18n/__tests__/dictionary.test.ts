@@ -12,15 +12,15 @@ function sourceFiles(dir: string): string[] {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) return name === '__tests__' ? [] : sourceFiles(path);
     // t.ts and the dictionary mention t('…') in their own comments.
-    if (name === 't.ts' || name === 'viDictionary.ts') return [];
+    if (name === 't.ts' || name === 'viDictionary.ts' || name === 'i18nHelper.ts') return [];
     return /\.(ts|tsx)$/.test(name) && !/\.test\.tsx?$/.test(name) ? [path] : [];
   });
 }
 
-/** Every `t('…')` / `t("…")` call with a literal argument, as the English key. */
+/** Every `t('…')`, `t("…")` and `tf('…', values)` call with a literal first argument, as the English key. */
 function literalKeys(text: string): string[] {
   const keys: string[] = [];
-  const re = /(?<![\w.])t\(\s*(['"])((?:\\.|(?!\1).)*)\1\s*\)/g;
+  const re = /(?<![\w.])tf?\(\s*(['"])((?:\\.|(?!\1).)*)\1\s*[,)]/g;
   for (let m = re.exec(text); m; m = re.exec(text)) {
     const raw = m[2] ?? '';
     keys.push(raw.replace(/\\(['"\\])/g, '$1'));

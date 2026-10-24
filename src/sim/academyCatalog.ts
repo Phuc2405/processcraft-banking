@@ -69,9 +69,9 @@ export const ACADEMY_CHAPTERS: readonly AcademyChapter[] = [
     { title: 'Approved', goal: 'Enough money: the terminal gets the approval and the customer walks out with their coffee.', flow: 1, node: 'auth_engine', place: 'OUT_APPROVED' },
     { title: 'Declined for NSF', goal: 'Not enough money (NSF, response code 51): the same desk answers Declined and nothing is held.', flow: 1, node: 'auth_engine', place: 'OUT_DECLINED' },
   ]),
-  chapter(2, 'Virtual Card & 3DS Routing', 'Web checkout, tokenization, OTP', '#a78bfa', 2, [
+  chapter(2, 'Virtual Card & 3DS Routing', 'Web checkout, tokenisation, OTP', '#a78bfa', 2, [
     { title: 'The checkout arrives', goal: 'An online payment has no card in hand, so the bank has to be more careful about who is really paying.', flow: 2, node: 'web_checkout', place: 'GATE_ECOM' },
-    { title: 'Tokenization and dCVV', goal: 'The shop only ever sees a stand-in card number. The vault swaps it for the real one and checks the changing security code.', flow: 2, node: 'token_vault', place: 'SEC_VAULT' },
+    { title: 'Tokenisation and dCVV', goal: 'The shop only ever sees a stand-in card number. The vault swaps it for the real one and checks the changing security code.', flow: 2, node: 'token_vault', place: 'SEC_VAULT' },
     { title: '3DS risk routing', goal: 'Low risk goes straight through, medium risk is asked for proof, high risk is turned away.', flow: 2, node: 'fraud_desk', place: 'SEC_3DS' },
     { title: 'The OTP challenge', goal: 'The customer types the code texted to their phone. A completed challenge moves the fraud liability to the bank.', flow: 2, node: 'otp_service', place: 'CUSTOMER_OTP' },
   ]),
@@ -80,7 +80,7 @@ export const ACADEMY_CHAPTERS: readonly AcademyChapter[] = [
     { title: 'Score the risk', goal: 'Each attempt gets a risk score from its device, speed and history. The score decides between pass, challenge and reject.', flow: 2, node: 'fraud_desk', place: 'SEC_3DS' },
     { title: 'Block and decline', goal: 'A rejected attempt ends at the Declined tally, with no hold on the account, and the pattern is kept for the next rule.', flow: 2, node: 'auth_engine', place: 'OUT_DECLINED' },
   ]),
-  chapter(4, 'BNPL & Installment Approvals', 'Underwriting & credit checks', '#f472b6', null, [
+  chapter(4, 'BNPL & Instalment Approvals', 'Underwriting & credit checks', '#f472b6', null, [
     { title: 'The plan request', goal: 'At checkout the customer picks Pay-in-4 instead of paying all at once. The request goes to underwriting, not to the card network.', flow: null, node: null, place: 'GATE_ECOM' },
     { title: 'Underwriting', goal: 'The desk reads the customer’s underwriting score and decides whether a four-instalment plan can be offered, and the down payment.', flow: null, node: null, place: 'BNPL' },
     { title: 'Credit check and down payment', goal: 'The first instalment is taken from the account or the credit line. If the check says no, the card is the fallback.', flow: null, node: null, place: 'LEDGER_CREDIT' },

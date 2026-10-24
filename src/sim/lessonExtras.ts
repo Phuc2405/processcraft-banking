@@ -28,15 +28,15 @@ const dt = (title: string, blurb: string): DeeperTopic => ({ title, blurb });
 
 const EN: Readonly<Record<string, LessonExtras>> = {
   '1.1': {
-    keyTerms: [kt('POS terminal', 'The card reader at the counter that turns a tap into an authorisation request.'), kt('Authorization Request (0100)', 'The ISO 8583 message that asks the issuer whether a card may pay this amount.'), kt('Acquirer', 'The merchant’s bank, which forwards the request to the card network.')],
-    exploreDeeper: [dt('EMV Chip Tokenization', 'How the chip produces a one-time cryptogram so a copied card number cannot be replayed.'), dt('PCI-DSS Terminal Compliance', 'The security standard every terminal and merchant system must meet to handle card data.'), dt('ISO 8583 Bitmaps', 'How the primary and secondary bitmaps say which of the 128 data elements a message carries.')],
+    keyTerms: [kt('POS terminal', 'The card reader at the counter that turns a tap into an authorisation request.'), kt('Authorisation Request (0100)', 'The ISO 8583 message that asks the issuer whether a card may pay this amount.'), kt('Acquirer', 'The merchant’s bank, which forwards the request to the card network.')],
+    exploreDeeper: [dt('EMV Chip Tokenisation', 'How the chip produces a one-time cryptogram so a copied card number cannot be replayed.'), dt('PCI-DSS Terminal Compliance', 'The security standard every terminal and merchant system must meet to handle card data.'), dt('ISO 8583 Bitmaps', 'How the primary and secondary bitmaps say which of the 128 data elements a message carries.')],
   },
   '1.2': {
-    keyTerms: [kt('Available balance', 'The account balance minus every hold already placed on it.'), kt('Authorization hold', 'Money set aside for a purchase that has been approved but not yet settled.'), kt('DR 1110 / CR 2110', 'The double-entry posting of a debit-card hold: the hold is an asset, the amount owed to the scheme a liability.')],
+    keyTerms: [kt('Available balance', 'The account balance minus every hold already placed on it.'), kt('Authorisation hold', 'Money set aside for a purchase that has been approved but not yet settled.'), kt('DR 1110 / CR 2110', 'The double-entry posting of a debit-card hold: the hold is an asset, the amount owed to the scheme a liability.')],
     exploreDeeper: [dt('Hold Expiry Rules', 'Why card schemes let an uncaptured hold lapse after a few days, and how hotels and fuel pumps extend it.'), dt('Partial Authorisation', 'Approving only part of the amount when the balance is short, used at fuel pumps and on prepaid cards.')],
   },
   '1.3': {
-    keyTerms: [kt('Authorization Response (0110)', 'The issuer’s answer to an 0100, carrying the response code in field 39.'), kt('Response code 00', 'Approved: the hold is in place and the merchant can hand over the goods.'), kt('Reversal (0400)', 'A message that cancels an approval the terminal never received, so the hold is released.')],
+    keyTerms: [kt('Authorisation Response (0110)', 'The issuer’s answer to an 0100, carrying the response code in field 39.'), kt('Response code 00', 'Approved: the hold is in place and the merchant can hand over the goods.'), kt('Reversal (0400)', 'A message that cancels an approval the terminal never received, so the hold is released.')],
     exploreDeeper: [dt('Stand-In Processing (STIP)', 'How the scheme answers on the issuer’s behalf when the issuer is unreachable.'), dt('Offline EMV Approvals', 'When a chip card can approve a small purchase without going online at all.')],
   },
   '1.4': {
@@ -143,7 +143,7 @@ const VI: Readonly<Record<string, LessonExtras>> = {
     exploreDeeper: [dt('Thiết bị bảo mật phần cứng (HSM)', 'Thiết bị chống can thiệp lưu khóa dùng để kiểm tra mã mật mã và mã bảo mật.'), dt('Nhà cung cấp dịch vụ token', 'Visa VTS và Mastercard MDES phát hành, quản lý token cho ví và cửa hàng như thế nào.'), dt('Mã hóa giữ nguyên định dạng', 'Mã hóa số thẻ mà kết quả vẫn trông như một số thẻ.')],
   },
   '2.3': {
-    keyTerms: [kt('Điểm rủi ro', 'Con số từ thiết bị, vị trí, số tiền và lịch sử cho biết giao dịch bất thường đến đâu.'), kt('Luồng không ma sát', 'Giao dịch rủi ro thấp qua 3DS mà không hỏi khách gì.'), kt('Luồng thử thách', 'Giao dịch rủi ro trung bình mà khách phải chứng minh danh tính.')],
+    keyTerms: [kt('Điểm rủi ro', 'Con số từ thiết bị, vị trí, số tiền và lịch sử cho biết giao dịch bất thường đến đâu.'), kt('Luồng xác thực liền mạch', 'Giao dịch rủi ro thấp qua 3DS mà không hỏi khách gì.'), kt('Luồng thử thách', 'Giao dịch rủi ro trung bình mà khách phải chứng minh danh tính.')],
     exploreDeeper: [dt('Các trường dữ liệu EMV 3DS 2.2', 'Khoảng 150 trường cửa hàng có thể gửi để ngân hàng phát hành duyệt không cần thử thách.'), dt('Miễn trừ phân tích rủi ro giao dịch', 'Khi ngân hàng thanh toán có tỷ lệ gian lận thấp được bỏ qua thử thách theo quy định SCA.')],
   },
   '2.4': {

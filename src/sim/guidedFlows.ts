@@ -215,7 +215,7 @@ const FLOW_VI: Readonly<Record<FlowId, FlowWords>> = {
     steps: [
       { name: 'Cổng thanh toán web', standard: 'Website hoặc ứng dụng gửi giao dịch thẻ tới ngân hàng.', expert: 'Yêu cầu cấp phép không xuất trình thẻ: DPAN kèm dCVV, hoặc PAN kèm 3DS AReq.' },
       { name: 'Kho token & dCVV', standard: 'Đổi số thẻ thay thế thành số thật và kiểm tra mã dùng một lần.', expert: 'Giải mã token DPAN → FPAN và xác thực CVV động trong cửa sổ thời gian.' },
-      { name: 'Bàn rủi ro 3DS', standard: 'Chấm điểm rủi ro: rủi ro thấp đi thẳng, rủi ro trung bình nhận mã.', expert: 'Xác thực dựa trên rủi ro: không ma sát dưới ngưỡng, thử thách trong dải, từ chối trên ngưỡng.' },
+      { name: 'Bàn rủi ro 3DS', standard: 'Chấm điểm rủi ro: rủi ro thấp đi thẳng, rủi ro trung bình nhận mã.', expert: 'Xác thực dựa trên rủi ro: xác thực liền mạch dưới ngưỡng, thử thách trong dải, từ chối trên ngưỡng.' },
       { name: 'Mã SMS dùng một lần', standard: 'Khách nhập mã từ điện thoại, hoặc bỏ cuộc.', expert: 'Thử thách OTP (CReq/CRes). Thử thách hoàn tất chuyển trách nhiệm gian lận sang ngân hàng phát hành.' },
       { name: 'Bộ máy cấp phép', standard: 'Kiểm tra tiền có đủ, khoanh giữ và trả lời website.', expert: 'Kiểm tra số dư và khoanh giữ trên CASA hoặc hạn mức tín dụng, rồi trả mã phản hồi 0110.' },
     ],

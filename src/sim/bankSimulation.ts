@@ -47,7 +47,7 @@ import { describeWork, IDLE_TEXT } from './narration';
 import { buildGraphs, planCheckout, planSettlement, type BankGraphs } from './processes';
 import { clamp, hashSeed, Rng } from './prng';
 import { clampRules, DEFAULT_RULES, type BankRules } from './rules';
-import { BOT_SCENARIO_ID, scenarioLabel } from './scenarios';
+import { BOT_SCENARIO_ID, scenarioLabelEn } from './scenarios';
 import { declineResponseCode } from './isoMessages';
 import {
   DAY_START_FATIGUE,
@@ -604,13 +604,13 @@ export class BankSimulation {
 
   /** Remembers what a packet was for, so the ledger drawer can title its lines. */
   private remember(p: Packet): void {
-    const label = scenarioLabel(p.scenario);
+    const label = scenarioLabelEn(p.scenario);
     if (label) this.labels.set(p.id.replace(/^tx_/, ''), label);
   }
 
   /** What a payment is, for a log line: "🛒 Supermarket Groceries ($62.80)", or the amount for a night-cycle record. */
   private what(p: Packet): string {
-    return scenarioLabel(p.scenario) || formatAud(p.amountCents);
+    return scenarioLabelEn(p.scenario) || formatAud(p.amountCents);
   }
 
   /** The scenario label for a ledger transaction id such as "d1-0007", "tx_d1-0007", "d1-0007~2" or "d1-7003-RF". */
@@ -1712,7 +1712,7 @@ export class BankSimulation {
 
   private addMove(p: Packet, from: PlaceId, to: PlaceId, at: number): void {
     if (this.headless || from === to) return;
-    this.addMoveRaw(p.id, from, to, p.kind, p.cardType, at, scenarioLabel(p.scenario), p.amountCents);
+    this.addMoveRaw(p.id, from, to, p.kind, p.cardType, at, scenarioLabelEn(p.scenario), p.amountCents);
   }
 
   private addMoveRaw(packetId: string, from: PlaceId, to: PlaceId, kind: PacketKind, cardType: CardType, at: number, scenario = '', amountCents = 0): void {
@@ -1887,7 +1887,7 @@ export class BankSimulation {
     else if (stop?.place === 'SEC_3DS') detail = `risk ${p.riskScore}`;
     else if (stop?.place === 'BNPL') detail = `score ${p.score}`;
     else detail = p.kind === 'POS' ? 'card present' : p.kind === 'VIRTUAL' ? 'virtual card' : p.kind === 'BNPL' ? 'Pay-in-4' : p.kind === 'A2A' ? 'instant transfer' : 'online';
-    return { id: p.id, kind: p.kind, scenario: scenarioLabel(p.scenario), cardType: p.cardType, amountCents: p.amountCents, waitedMin: Math.max(0, Math.round(waited * 10) / 10), detail };
+    return { id: p.id, kind: p.kind, scenario: scenarioLabelEn(p.scenario), cardType: p.cardType, amountCents: p.amountCents, waitedMin: Math.max(0, Math.round(waited * 10) / 10), detail };
   }
 
   private stationView(st: StationState, phase: Phase, alerts: AlertView[]): StationView {

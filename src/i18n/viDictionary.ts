@@ -159,7 +159,7 @@ export const VI_DICTIONARY: Readonly<Record<string, string>> = {
   "Fraudulent payments the bank said yes to. The bank repays them.": "Giao dịch gian lận mà ngân hàng đã duyệt. Ngân hàng phải hoàn trả.",
   "Fresh": "Tỉnh táo",
   "Fresh. Working at full pace.": "Tỉnh táo. Làm việc hết tốc độ.",
-  "Frictionless": "Không ma sát",
+  "Frictionless": "Xác thực liền mạch",
   "Frozen": "Bị đóng băng",
   "Gateway monitor, card terminals": "Giám sát cổng, máy POS",
   "Gateway monitor, e-commerce": "Giám sát cổng, thương mại điện tử",

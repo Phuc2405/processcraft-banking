@@ -38,7 +38,7 @@ export interface Chapter {
 export const DIFFICULTY_HINT: Record<Difficulty, string> = {
   Beginner: 'No banking background needed',
   Intermediate: 'Builds on the earlier chapters',
-  Advanced: 'Several decisions and a lot of moving parts',
+  Advanced: 'Several decisions and many moving parts',
 };
 
 const DIFFICULTY: Record<ProcessId, Difficulty> = {

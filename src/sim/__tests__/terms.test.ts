@@ -34,8 +34,8 @@ describe('names in the two vocabularies', () => {
     expect(stationTitle('SEC_DCVV', 'beginner')).toBe('Dynamic Security Code Check (Rotates Every Minute)');
     expect(stationTitle('SEC_3DS', 'beginner')).toBe('Fraud & SMS OTP Check');
     expect(departmentName('LEDGER', 'beginner')).toBe('Account Balance & Credit Check');
-    expect(departmentName('BNPL', 'beginner')).toBe('BNPL Pay-in-4 Installments');
-    expect(stationTitle('BNPL', 'beginner')).toBe('BNPL Pay-in-4 Installments');
+    expect(departmentName('BNPL', 'beginner')).toBe('BNPL Pay-in-4 Instalments');
+    expect(stationTitle('BNPL', 'beginner')).toBe('BNPL Pay-in-4 Instalments');
     expect(stationTitle('RECON', 'beginner')).toBe('Night Bookkeeping & Ledger Balance');
     expect(stationTitle('SUSPENSE', 'beginner')).toBe('Holding Box for Mismatched Money');
   });
