@@ -7,8 +7,10 @@ import { placeTip, tipWidth } from './tipPlacement';
  * A small (?) that explains a term. It opens on hover, on keyboard focus and on tap (for touch screens), and closes on leaving,
  * on blur, on Escape or on a second tap. The tip is rendered into document.body with `position: fixed` and a z-index above
  * every modal, so no scrolling container or `overflow: hidden` can clip it, and it is kept inside the window on small screens.
+ *
+ * `example` makes it a hybrid tip: the standard definition, then what the term means at this particular desk.
  */
-export function InfoTip({ text, label, testId }: { text: string; label: string; testId?: string }) {
+export function InfoTip({ text, label, testId, example }: { text: string; label: string; testId?: string; example?: { title: string; text: string } }) {
   const id = useId();
   const button = useRef<HTMLButtonElement>(null);
   const tip = useRef<HTMLDivElement>(null);
@@ -99,6 +101,12 @@ export function InfoTip({ text, label, testId }: { text: string; label: string; 
           >
             <span className="block text-[10.5px] font-bold uppercase tracking-wide text-slate-500">{label}</span>
             {text}
+            {example && (
+              <span className="mt-1.5 block border-t border-slate-200 pt-1.5" data-testid={testId ? `${testId}-example` : undefined}>
+                <span className="mr-1 font-bold text-sky-700">{example.title}:</span>
+                {example.text}
+              </span>
+            )}
           </div>,
           document.body,
         )}

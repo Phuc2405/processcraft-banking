@@ -68,7 +68,7 @@ export function Kickoff({ focus }: { focus: Focus }) {
   return (
     <div className="absolute inset-0 z-40 grid place-items-center p-6" data-testid="walk-kickoff">
       <div className="absolute inset-0 bg-[#050810]/80" onClick={exit} aria-hidden="true" />
-      <div role="dialog" aria-modal="true" aria-label={`${ui.tour}: ${lesson.title}`} className="relative w-full max-w-[560px] rounded-2xl border bg-[#0b1120] p-5 shadow-2xl" style={{ borderColor: focus.accent, boxShadow: `0 0 0 1px ${focus.accent}55, 0 0 48px ${focus.accent}33` }}>
+      <div role="dialog" aria-modal="true" aria-label={`${ui.tour}: ${lesson.title}`} className="relative w-full select-text max-w-[560px] rounded-2xl border bg-[#0b1120] p-5 shadow-2xl" style={{ borderColor: focus.accent, boxShadow: `0 0 0 1px ${focus.accent}55, 0 0 48px ${focus.accent}33` }}>
         <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: focus.accent }}>
           <span className="grid h-5 w-5 place-items-center rounded text-[11px] font-black text-slate-950" style={{ background: focus.accent }}>
             {lesson.chapter}

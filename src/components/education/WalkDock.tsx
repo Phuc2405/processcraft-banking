@@ -41,7 +41,7 @@ export function WalkDock() {
     <aside
       aria-label={m('dockLabel')}
       data-testid="walk-dock"
-      className="relative flex shrink-0 flex-col border-r bg-[#0a0f1c]"
+      className="relative flex shrink-0 select-text flex-col border-r bg-[#0a0f1c]"
       style={{ width: WALK_DOCK_WIDTH, borderColor: `${focus.accent}66` }}
     >
       <div className="flex shrink-0 items-center gap-2 border-b border-slate-800 px-3 py-2 text-[10.5px] font-bold uppercase tracking-wider text-slate-400">

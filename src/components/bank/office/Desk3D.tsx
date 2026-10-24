@@ -12,10 +12,11 @@ import { box, merge } from './kit';
 import { COUNTER, WING, accentOf, customerShirt, deskPose, hasWing, queueSlots, queueStyle, seatOffsets, surgeLevel, wingPose } from './layout3d';
 import { blobMaterial, glow, solid } from './materials';
 import { STATUS_HEX } from './palette';
+import { cursor } from './cursor';
+import { isAutomatedNode } from '../../../sim/nodeKind';
+import { ServerRack3D } from './ServerRack3D';
 
-export const cursor = (on: boolean): void => {
-  document.body.style.cursor = on ? 'pointer' : '';
-};
+export { cursor } from './cursor';
 
 /** A glowing outline on the floor around a selected desk: four thin bars. */
 export function SelectionFrame({ w, d }: { w: number; d: number }) {
@@ -148,13 +149,17 @@ function DeskBody({ id, accent }: { id: StationId; accent: string }) {
   );
 }
 
-/** The people at the desk. */
+/**
+ * Who works the desk: people on a human desk, server racks on an automated node (sim/nodeKind.ts). A rack stands in the seat
+ * of the thread it represents, so the count follows the engine's workers and clicking a rack selects that thread.
+ */
 function DeskStaff({ id, accent }: { id: StationId; accent: string }) {
   const workers = useBankStore((s) => s.view.stations[id].workers);
   const surge = useBankStore((s) => surgeLevel(s.view.stations[id].queueLength, s.view.stations[id].status));
   const selectedWorker = useBankStore((s) => (s.selection.kind === 'worker' && s.selection.station === id ? s.selection.workerId : null));
   const select = useBankStore((s) => s.select);
   const seats = useMemo(() => seatOffsets(workers.length), [workers.length]);
+  const automated = isAutomatedNode(id);
   return (
     <>
       {workers.map((w, i) => {
@@ -162,6 +167,16 @@ function DeskStaff({ id, accent }: { id: StationId; accent: string }) {
         if (!seat) return null;
         return (
           <group key={w.id} position={[seat[0], 0, seat[1]]}>
+            {automated ? (
+              <ServerRack3D
+                load={w.fatigue}
+                working={w.working}
+                temp={w.temp}
+                accent={accent}
+                selected={selectedWorker === w.id}
+                onSelect={() => (bankStore.getState().spotlight ? pickPlace(id) : select({ kind: 'worker', station: id, workerId: w.id }))}
+              />
+            ) : (
             <SeatedAvatar
               id={w.id}
               profile={w.profile}
@@ -174,6 +189,7 @@ function DeskStaff({ id, accent }: { id: StationId; accent: string }) {
               selected={selectedWorker === w.id}
               onSelect={() => (bankStore.getState().spotlight ? pickPlace(id) : select({ kind: 'worker', station: id, workerId: w.id }))}
             />
+            )}
           </group>
         );
       })}

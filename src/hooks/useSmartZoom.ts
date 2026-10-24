@@ -23,6 +23,8 @@ export interface SmartView {
   cy: number;
   /** Extra px kept free on the right (edge clusters). */
   padRight?: number;
+  /** The whole-map view: the camera ends on its exact home placement. */
+  home?: boolean;
 }
 
 export interface Viewport {
@@ -38,6 +40,8 @@ export interface SmartZoomCamera {
   /** Cancels any glide in flight. */
   stop(): void;
   home(ms: number): void;
+  /** True while the user is dragging the map: flights wait for the release. */
+  isInteracting(): boolean;
 }
 
 // padding: share of the viewport left free around the cluster. minBox: floor so one desk never fills the screen.

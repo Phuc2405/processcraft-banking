@@ -1,3 +1,6 @@
+import { isAutomatedNode } from '../../sim/nodeKind';
+import { ServerRackGraphic } from './ServerRack';
+import { useNodeCopy } from './useNodeCopy';
 import { tr } from '../../i18n/locale';
 import { t } from '../../i18n/t';
 import { feedText } from '../../i18n/feedVi';
@@ -17,10 +20,10 @@ import { StepPreviewBody } from './StepPreview';
 import { useDockInset } from './ViewportControls';
 import { PathTraveller } from '../canvas/edges/PathTraveller';
 import { WorkstationGraphic } from '../canvas/nodes/WorkstationGraphic';
-import { BANK_WIRES, CARD, DEPT_BOX, EDGE_PAD, pathOfWire, PLACE_BOX, STAGE, TIP_SIDE, type TipSide } from './layout';
+import { BANK_WIRES, CARD, DEPT_BOX, pathOfWire, PLACE_BOX, STAGE, TIP_SIDE, type TipSide } from './layout';
 import { SpotlightOverlay, SpotlightToken } from './Spotlight';
 import { StageScaleContext, useStageScale } from './stage';
-import { lookOfKind, RUN_STATUS, STATUS_DOT_CLASS, STATUS_TEXT_CLASS, statusLabel, WorkerFace } from './ui';
+import { lookOfKind, RUN_STATUS, STATUS_DOT_CLASS, STATUS_TEXT_CLASS, statusLabel, MachineFace, WorkerFace } from './ui';
 import { useSpotlightFocus, type Focus } from './useSpotlight';
 import { useTerms, type Terms } from './useTerms';
 import { useSmartZoom, type ViewInsets } from '../../hooks/useSmartZoom';
@@ -263,7 +266,11 @@ const StationCard = memo(function StationCard({
           )}
         </div>
         <div className={`flex min-h-0 flex-1 items-center gap-1 ${long ? 'mt-0.5' : 'mt-1'}`}>
-          <WorkstationGraphic capability={def.capability ?? 'CORE_LEDGER_CHECK'} status={RUN_STATUS[sv.status]} className={`shrink-0 ${long ? 'h-[40px] w-[54px]' : 'h-[52px] w-[70px]'}`} {...(first ? { profile: first.profile } : {})} />
+          {isAutomatedNode(id) ? (
+            <ServerRackGraphic status={RUN_STATUS[sv.status]} accent={accent} className={`shrink-0 ${long ? 'h-[40px] w-[54px]' : 'h-[52px] w-[70px]'}`} />
+          ) : (
+            <WorkstationGraphic capability={def.capability ?? 'CORE_LEDGER_CHECK'} status={RUN_STATUS[sv.status]} className={`shrink-0 ${long ? 'h-[40px] w-[54px]' : 'h-[52px] w-[70px]'}`} {...(first ? { profile: first.profile } : {})} />
+          )}
           <div className="min-w-0 flex-1 text-right">
             <div className={`text-[21px] font-bold leading-none tabular-nums ${sv.queueLength > 0 ? (sv.status === 'CONGESTED' || sv.status === 'ALERT' ? 'text-amber-300' : 'text-slate-100') : 'text-slate-600'}`} data-testid={`queue-${id}`}>
               {sv.queueLength}
@@ -278,8 +285,8 @@ const StationCard = memo(function StationCard({
         </div>
         <div className="flex h-[19px] items-end justify-between">
           <div className="flex items-center gap-0.5">
-            {sv.workers.slice(0, 6).map((w) => (
-              <WorkerButton key={w.id} id={w.id} station={id} name={w.name} role={w.role} fatigue={w.fatigue} temp={w.temp} profile={w.profile} touring={focus !== null} lit={lit} />
+            {sv.workers.slice(0, 6).map((w, i) => (
+              <WorkerButton key={w.id} id={w.id} index={i} station={id} name={w.name} role={w.role} fatigue={w.fatigue} temp={w.temp} profile={w.profile} touring={focus !== null} lit={lit} />
             ))}
           </div>
           <div className="flex items-center gap-0.5">
@@ -301,6 +308,7 @@ const StationCard = memo(function StationCard({
 
 function WorkerButton({
   id,
+  index,
   station,
   name,
   role,
@@ -311,6 +319,7 @@ function WorkerButton({
   lit,
 }: {
   id: string;
+  index: number;
   station: StationId;
   name: string;
   role: string;
@@ -323,6 +332,26 @@ function WorkerButton({
   const select = useBankStore((s) => s.select);
   const spotlightFocus = useBankStore((s) => s.spotlightFocus);
   const selected = useBankStore((s) => s.selection.kind === 'worker' && s.selection.workerId === id);
+  const copy = useNodeCopy(station);
+  if (copy.automated) {
+    const thread = copy.workerName({ name }, index);
+    const look = copy.loadLook(fatigue);
+    const label = `${thread} · ${copy.n('loadTitle')} ${Math.round(fatigue)}%`;
+    return (
+      <button
+        type="button"
+        onClick={() => (touring ? spotlightFocus(station) : select({ kind: 'worker', station, workerId: id }))}
+        aria-pressed={selected}
+        aria-label={label}
+        title={label}
+        data-testid={`worker-${id}`}
+        data-machine=""
+        className={`pointer-events-auto rounded-full transition hover:scale-125 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${touring && lit ? 'bk-worker-glow' : ''} ${selected ? 'ring-2 ring-sky-400' : ''}`}
+      >
+        <MachineFace ring={look.hex} size={18} temp={temp} />
+      </button>
+    );
+  }
   return (
     <button
       type="button"
@@ -563,7 +592,7 @@ function BankMapView() {
   // The zoom toolbar (and the inspector, when open) float over the right edge.
   const rightInset = useBankStore((s) => ZOOM_TOOLBAR_GUTTER + (s.selection.kind !== 'none' ? s.inspectorWidth : 0));
   const insets = useMemo<ViewInsets>(() => ({ top: inset, right: rightInset, bottom: bottomInset, left: 0 }), [inset, rightInset, bottomInset]);
-  const { zoom, content, panned, camera } = useZoomPan(ref, fit, insets);
+  const { zoom, pan, panning, panned, camera } = useZoomPan(ref, fit, insets);
   useSmartZoom(camera);
   const scale = fit * zoom;
   const view = useBankStore((s) => s.view);
@@ -590,10 +619,9 @@ function BankMapView() {
 
   return (
     <StageScaleContext.Provider value={scale}>
-      <div ref={ref} className="relative h-full w-full overflow-auto" onClick={(e) => e.target === e.currentTarget && !panned.current && clearSelection()} data-testid="bank-map" data-zoom={Math.round(scale * 100)} data-phase={view.phase} data-day={view.day} data-touring={focus ? 'yes' : 'no'} data-spot={spotlit ?? undefined} data-flow={flow?.flow ?? undefined}>
-        {/* Zoomed in, the scroll area reaches past the stage edges so an edge cluster can be centred clear of the chrome. */}
-        <div data-pan-bg="" style={zoom > 1.001 ? { width: 'max-content', minWidth: '100%', paddingRight: rightInset + EDGE_PAD.right, paddingBottom: bottomInset } : undefined}>
-        <div ref={content} className="relative mx-auto" style={{ width: STAGE.width * scale, height: STAGE.height * scale, marginTop: inset }}>
+      <div ref={ref} className="bk-pan-surface relative h-full w-full touch-none select-none overflow-hidden" data-panning={panning || undefined} onClick={(e) => e.target === e.currentTarget && !panned.current && clearSelection()} data-testid="bank-map" data-zoom={Math.round(scale * 100)} data-phase={view.phase} data-day={view.day} data-touring={focus ? 'yes' : 'no'} data-spot={spotlit ?? undefined} data-flow={flow?.flow ?? undefined}>
+        {/* The stage is placed by transform: useZoomPan owns where it sits (drag, wheel, toolbar, smart-zoom glides). */}
+        <div className="absolute left-0 top-0 will-change-transform" data-testid="bank-pan" style={{ width: STAGE.width * scale, height: STAGE.height * scale, transform: `translate3d(${pan.x}px, ${pan.y}px, 0)` }}>
           <div
             className={`bk-stage relative ${night ? 'bk-night' : ''} ${focus ? 'bk-touring' : ''}`}
             style={{ width: STAGE.width, height: STAGE.height, transform: `scale(${scale})`, transformOrigin: 'top left' }}
@@ -622,7 +650,6 @@ function BankMapView() {
             <SearchGlow />
           </div>
           <SpotlightOverlay />
-        </div>
         </div>
       </div>
     </StageScaleContext.Provider>

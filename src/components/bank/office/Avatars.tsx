@@ -4,6 +4,7 @@ import type { BufferGeometry, Group } from 'three';
 import type { WorkerProfileSeed } from '../../../sim/types';
 import { blob, box, cyl, merge, shade, type Part } from './kit';
 import { isSlumped, typingRate } from './layout3d';
+import { cursor } from './cursor';
 import { solid } from './materials';
 import { SET } from './palette';
 
@@ -231,10 +232,10 @@ export const SeatedAvatar = memo(function SeatedAvatar({ id, profile, working, f
         onClick={click}
         onPointerOver={(e) => {
           e.stopPropagation();
-          document.body.style.cursor = 'pointer';
+          cursor(true);
         }}
         onPointerOut={() => {
-          document.body.style.cursor = '';
+          cursor(false);
         }}
       >
         <boxGeometry args={[0.8, 1.7, 0.9]} />
