@@ -18,7 +18,10 @@ import { feedText } from '../../i18n/feedVi';
 import { localizeScenarioText } from '../../sim/scenarios';
 import { lessonText } from '../../sim/learningVi';
 import { TransactionPanel } from './TransactionPanel';
-import { FatigueBar, fatigueLook, PacketGlyph, RUN_STATUS, SEVERITY_BOX, SEVERITY_DOT, SEVERITY_TEXT, SectionTitle, Sparkline, Stat, STATUS_DOT_CLASS, statusLabel, STATUS_TEXT_CLASS, WorkerFace, waitText, kindLabel } from './ui';
+import { isAutomatedNode } from '../../sim/nodeKind';
+import { InfoTip } from './InfoTip';
+import { selfScaling, useNodeCopy, type NodeCopy } from './useNodeCopy';
+import { FatigueBar, fatigueLook, MachineFace, PacketGlyph, RUN_STATUS, SEVERITY_BOX, SEVERITY_DOT, SEVERITY_TEXT, SectionTitle, Sparkline, Stat, STATUS_DOT_CLASS, statusLabel, STATUS_TEXT_CLASS, WorkerFace, waitText, kindLabel } from './ui';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared pieces
@@ -62,7 +65,14 @@ function ExploreButtons({ processes }: { processes: readonly ProcessId[] }) {
   );
 }
 
-function StreamList({ entries, empty }: { entries: readonly FeedEntry[]; empty: string }) {
+/** Canonical worker name → the name shown (a thread or a cluster on an automated node). */
+type NameMap = ReadonlyMap<string, string>;
+
+function displayNames(workers: readonly WorkerView[], copy: (w: WorkerView) => string): NameMap {
+  return new Map(workers.map((w) => [w.name, copy(w)]));
+}
+
+function StreamList({ entries, empty, names }: { entries: readonly FeedEntry[]; empty: string; names?: NameMap }) {
   const terms = useTerms();
   if (entries.length === 0) return <p className="rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-[12px] text-slate-500">{empty}</p>;
   return (
@@ -73,7 +83,7 @@ function StreamList({ entries, empty }: { entries: readonly FeedEntry[]; empty: 
           <span className="min-w-0">
             <span className="mr-1.5 font-mono text-[10px] text-slate-500">{formatClock(f.minute)}</span>
             <span className={SEVERITY_TEXT[f.severity]}>{terms.t(feedText(f.text))}</span>
-            {f.worker && <span className="ml-1 text-[10.5px] text-slate-500">· {f.worker}</span>}
+            {f.worker && <span className="ml-1 text-[10.5px] text-slate-500">· {names?.get(f.worker) ?? f.worker}</span>}
           </span>
         </li>
       ))}
@@ -81,8 +91,10 @@ function StreamList({ entries, empty }: { entries: readonly FeedEntry[]; empty: 
   );
 }
 
-function StaffRow({ worker, onOpen, selected }: { worker: WorkerView; onOpen: () => void; selected?: boolean }) {
-  const look = fatigueLook(worker.fatigue);
+function StaffRow({ worker, index, onOpen, selected }: { worker: WorkerView; index: number; onOpen: () => void; selected?: boolean }) {
+  const copy = useNodeCopy(worker.station);
+  const look = copy.automated ? copy.loadLook(worker.fatigue) : fatigueLook(worker.fatigue);
+  const name = copy.workerName(worker, index);
   return (
     <button
       type="button"
@@ -90,22 +102,28 @@ function StaffRow({ worker, onOpen, selected }: { worker: WorkerView; onOpen: ()
       data-testid={`staff-${worker.id}`}
       className={`flex w-full items-center gap-2.5 rounded-xl border p-2 text-left transition hover:border-slate-500 ${selected ? 'border-sky-400/60 bg-sky-400/5' : 'border-slate-800 bg-slate-900/50'}`}
     >
-      <WorkerFace profile={worker.profile} fatigue={worker.fatigue} size={34} temp={worker.temp} />
+      {copy.automated ? <MachineFace ring={look.hex} size={34} temp={worker.temp} title={name} /> : <WorkerFace profile={worker.profile} fatigue={worker.fatigue} size={34} temp={worker.temp} />}
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-[12.5px] font-semibold text-slate-100">
-            {worker.name}
-            {worker.temp && <span className="ml-1.5 rounded bg-sky-400/15 px-1 text-[9.5px] font-bold uppercase tracking-wide text-sky-300">{t('cover')}</span>}
+          <span className="truncate text-[12.5px] font-semibold text-slate-100" data-testid={`staff-name-${worker.id}`}>
+            {name}
+            {worker.temp && <span className="ml-1.5 rounded bg-sky-400/15 px-1 text-[9.5px] font-bold uppercase tracking-wide text-sky-300">{copy.automated ? copy.n('scaleBadge') : t('cover')}</span>}
           </span>
           <span className={`shrink-0 text-[10.5px] font-medium ${look.text}`}>{look.label}</span>
         </span>
-        <FatigueBar fatigue={worker.fatigue} className="mt-1" />
+        <FatigueBar fatigue={worker.fatigue} className="mt-1" {...(copy.automated ? { look, label: copy.n('loadTitle') } : {})} />
         <span className="mt-1 block truncate text-[11px] text-slate-400" title={feedText(worker.activity)}>
-          {feedText(worker.activity)}
+          {activityText(worker, copy)}
         </span>
       </span>
     </button>
   );
+}
+
+/** What a worker is doing. On an automated node the person's name in the engine's log line becomes the thread's. */
+function activityText(worker: WorkerView, copy: NodeCopy, index = 0): string {
+  const text = feedText(worker.activity);
+  return copy.automated ? text.split(worker.name).join(copy.workerName(worker, index)) : text;
 }
 
 function MiniHeader({ title, subtitle, accent, onBack, backLabel, children }: { title: string; subtitle: string; accent: string; onBack?: () => void; backLabel?: string; children?: ReactNode }) {
@@ -153,6 +171,10 @@ function DepartmentPanel({ id }: { id: DepartmentId }) {
   const waiting = own.reduce((n, s) => n + s.queueLength, 0);
   const processed = own.reduce((n, s) => n + s.stats.processedToday, 0);
   const workers = own.flatMap((s) => s.workers);
+  const indexed = own.flatMap((s) => s.workers.map((w, i) => ({ w, i })));
+  const machines = dept.stations.every(isAutomatedNode);
+  const deptCopy = useNodeCopy(dept.stations[0]!);
+  const n = deptCopy.n;
   const alerts = own.flatMap((s) => s.alerts);
   const avgFatigue = workers.length > 0 ? workers.reduce((n, w) => n + w.fatigue, 0) / workers.length : 0;
   const processes = [...new Set(dept.stations.flatMap((st) => processesAt(st)))].sort() as ProcessId[];
@@ -169,8 +191,8 @@ function DepartmentPanel({ id }: { id: DepartmentId }) {
         <div className="grid grid-cols-4 gap-1.5">
           <Stat label={t('Waiting')} value={waiting} tone={waiting > 12 ? 'warn' : 'info'} />
           <Stat label={t('Done')} value={processed.toLocaleString()} />
-          <Stat label={t('Staff')} value={workers.length} />
-          <Stat label={t('Tired')} value={`${Math.round(avgFatigue)}%`} tone={avgFatigue >= 60 ? 'warn' : 'info'} hint={t('Average fatigue across the team')} />
+          <Stat label={machines ? n('deptThreads') : t('Staff')} value={workers.length} />
+          <Stat label={machines ? n('deptAvgLoad') : t('Tired')} value={`${Math.round(avgFatigue)}%`} tone={avgFatigue >= 60 ? 'warn' : 'info'} hint={machines ? n('loadTitle') : t('Average fatigue across the team')} />
         </div>
 
         {alerts.length > 0 && (
@@ -204,7 +226,7 @@ function DepartmentPanel({ id }: { id: DepartmentId }) {
                       {terms.station(sv.id)}
                     </span>
                     <span className={`block text-[11px] ${STATUS_TEXT_CLASS[sv.status]}`}>
-                      {statusLabel(sv.status)} · {tr({ en: `${sv.workers.length} on duty`, vi: `${sv.workers.length} người trực` })}
+                      {statusLabel(sv.status)} · {n(isAutomatedNode(sv.id) ? 'onDutyMachine' : 'onDutyHuman', { n: sv.workers.length })}
                     </span>
                   </span>
                   <span className="text-right">
@@ -218,10 +240,10 @@ function DepartmentPanel({ id }: { id: DepartmentId }) {
         </section>
 
         <section>
-          <SectionTitle>{t('The team')}</SectionTitle>
+          <SectionTitle>{machines ? n('teamMachine') : t('The team')}</SectionTitle>
           <div className="space-y-1.5">
-            {workers.map((w) => (
-              <StaffRow key={w.id} worker={w} onOpen={() => select({ kind: 'worker', station: w.station, workerId: w.id })} />
+            {indexed.map(({ w, i }) => (
+              <StaffRow key={w.id} worker={w} index={i} onOpen={() => select({ kind: 'worker', station: w.station, workerId: w.id })} />
             ))}
           </div>
         </section>
@@ -230,7 +252,7 @@ function DepartmentPanel({ id }: { id: DepartmentId }) {
 
         <section>
           <SectionTitle>{t('Live activity')}</SectionTitle>
-          <StreamList entries={stream} empty={t('Nothing has happened here yet today.')} />
+          <StreamList entries={stream} empty={t('Nothing has happened here yet today.')} {...(machines ? { names: new Map(indexed.map(({ w, i }) => [w.name, deptCopy.workerName(w, i)])) } : {})} />
         </section>
       </div>
     </>
@@ -285,6 +307,8 @@ function StationPanel({ id }: { id: StationId }) {
   const covers = sv.workers.filter((w) => w.temp).length;
   const canCover = !dayOver && covers < MAX_COVER_PER_STATION;
   const stats = sv.stats;
+  const copy = useNodeCopy(id);
+  const names = displayNames(sv.workers, (w) => copy.workerName(w, sv.workers.indexOf(w)));
 
   return (
     <>
@@ -330,17 +354,20 @@ function StationPanel({ id }: { id: StationId }) {
         <section>
           <SectionTitle>{t('Live stats')}</SectionTitle>
           <div className="grid grid-cols-3 gap-1.5">
-            <Stat label={t('Waiting')} value={sv.queueLength} tone={sv.status === 'CONGESTED' || sv.status === 'ALERT' ? 'warn' : 'info'} />
-            <Stat label={t('Done today')} value={stats.processedToday.toLocaleString()} />
-            <Stat label={t('Avg wait')} value={waitText(stats.avgWaitMin)} tone={stats.avgWaitMin >= 6 ? 'warn' : 'info'} />
-            <Stat label={t('Peak queue')} value={stats.peakQueue} />
-            <Stat label={t('Errors')} value={stats.errorsToday} tone={stats.errorsToday > 0 ? 'warn' : 'info'} hint={t('Slips by tired staff that had to be redone')} />
-            <Stat label={t('Capacity')} value={stats.capacityPerBeat >= 100 ? '100+' : stats.capacityPerBeat.toFixed(stats.capacityPerBeat < 10 ? 1 : 0)} hint={t('Items per five minutes, given who is on and how tired they are')} />
+            <Stat label={t('Waiting')} value={sv.queueLength} tone={sv.status === 'CONGESTED' || sv.status === 'ALERT' ? 'warn' : 'info'} info={copy.hybrid('queue', 'tip-queue')} />
+            <Stat label={t('Done today')} value={stats.processedToday.toLocaleString()} info={copy.tip('done', 'tip-done')} />
+            <Stat label={t('Avg wait')} value={waitText(stats.avgWaitMin)} tone={stats.avgWaitMin >= 6 ? 'warn' : 'info'} info={copy.tip('avgWait', 'tip-avg-wait')} />
+            <Stat label={t('Peak queue')} value={stats.peakQueue} info={copy.tip('peak', 'tip-peak')} />
+            <Stat label={t('Errors')} value={stats.errorsToday} tone={stats.errorsToday > 0 ? 'warn' : 'info'} info={copy.hybrid('errors', 'tip-errors')} />
+            <Stat label={t('Capacity')} value={stats.capacityPerBeat >= 100 ? '100+' : stats.capacityPerBeat.toFixed(stats.capacityPerBeat < 10 ? 1 : 0)} info={copy.tip(copy.automated ? 'capacityMachine' : 'capacityHuman', 'tip-capacity')} />
           </div>
           <div className="mt-2 flex items-center gap-3">
             <div className="min-w-0 flex-1">
               <div className="mb-1 flex justify-between text-[10.5px] text-slate-500">
-                <span>{t('Staff busy')}</span>
+                <span className="flex items-center">
+                  {copy.automated ? copy.n('busyMachine') : copy.n('busyHuman')}
+                  <InfoTip label={copy.automated ? copy.n('busyMachine') : copy.n('busyHuman')} text={copy.tip(copy.automated ? 'utilisationMachine' : 'utilisationHuman').text} testId="tip-utilisation" />
+                </span>
                 <span className="tabular-nums">{Math.round(stats.utilisation * 100)}%</span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-slate-800">
@@ -349,14 +376,20 @@ function StationPanel({ id }: { id: StationId }) {
             </div>
             <div className="text-right">
               <Sparkline values={sv.history} width={110} height={26} label={tr({ en: `${terms.stationTitle(id)} queue length over the last ${sv.history.length} beats`, vi: `Độ dài hàng chờ ${terms.stationTitle(id)} trong ${sv.history.length} nhịp gần đây` })} />
-              <div className="text-[9.5px] uppercase tracking-wide text-slate-500">{t('queue, recent beats')}</div>
+              <div className="flex items-center justify-end text-[9.5px] uppercase tracking-wide text-slate-500">
+                {t('queue, recent beats')}
+                <InfoTip label={t('queue, recent beats')} text={copy.tip('sparkline').text} testId="tip-sparkline" />
+              </div>
             </div>
           </div>
           {stats.lines.length > 0 && (
             <dl className="mt-2 divide-y divide-slate-800/80 rounded-xl border border-slate-800 bg-slate-900/40 text-[12px]" data-testid="station-lines">
-              {stats.lines.map((l) => (
+              {stats.lines.map((l, i) => (
                 <div key={l.label} className="flex items-center justify-between px-2.5 py-1.5">
-                  <dt className="text-slate-400">{terms.t(t(l.label))}</dt>
+                  <dt className="flex items-center text-slate-400">
+                    {terms.t(t(l.label))}
+                    <InfoTip label={terms.t(t(l.label))} text={copy.tip('lines').text} testId={i === 0 ? 'tip-line' : undefined} />
+                  </dt>
                   <dd className={`font-medium tabular-nums ${SEVERITY_TEXT[l.tone ?? 'info']}`}>{l.value}</dd>
                 </div>
               ))}
@@ -365,32 +398,42 @@ function StationPanel({ id }: { id: StationId }) {
         </section>
 
         <section>
-          <SectionTitle aside={<span className="text-[10px] text-slate-500">{tr({ en: `${sv.queueLength} in line`, vi: `${sv.queueLength} người trong hàng` })}</span>}>{t('Pending queue')}</SectionTitle>
+          <SectionTitle aside={<span className="text-[10px] text-slate-500">{tr({ en: `${sv.queueLength} in line`, vi: `${sv.queueLength} người trong hàng` })}</span>}>
+            <span className="flex items-center">
+              {t('Pending queue')}
+              <InfoTip label={t('Pending queue')} text={copy.tip('pending').text} example={copy.hybrid('queue').example!} testId="tip-pending" />
+            </span>
+          </SectionTitle>
           <QueueList sv={sv} />
         </section>
 
         <section>
-          <SectionTitle aside={<span className="text-[10px] text-slate-500">{tr({ en: `${sv.workers.length} on duty`, vi: `${sv.workers.length} người trực` })}</span>}>{t('Staff')}</SectionTitle>
+          <SectionTitle aside={<span className="text-[10px] text-slate-500">{copy.n(copy.automated ? 'onDutyMachine' : 'onDutyHuman', { n: sv.workers.length })}</span>}>
+            <span data-testid="team-title" data-automated={copy.automated}>
+              {copy.automated ? copy.n('teamMachine') : copy.n('teamHuman')}
+            </span>
+          </SectionTitle>
           <div className="space-y-1.5">
-            {sv.workers.map((w) => (
-              <StaffRow key={w.id} worker={w} onOpen={() => select({ kind: 'worker', station: id, workerId: w.id })} />
+            {sv.workers.map((w, i) => (
+              <StaffRow key={w.id} worker={w} index={i} onOpen={() => select({ kind: 'worker', station: id, workerId: w.id })} />
             ))}
           </div>
           <button
             type="button"
             onClick={() => addCover(id)}
-            disabled={!canCover}
+            disabled={!canCover || selfScaling(id)}
             data-testid="call-cover"
-            className="mt-2 w-full rounded-lg border border-dashed border-sky-400/40 px-3 py-2 text-[12px] font-medium text-sky-200 transition hover:bg-sky-400/10 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500 disabled:hover:bg-transparent"
+            data-automated={copy.automated}
+            className={`mt-2 w-full rounded-lg border border-dashed px-3 py-2 text-[12px] font-medium transition disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500 disabled:hover:bg-transparent ${copy.automated ? 'border-violet-400/40 text-violet-200 hover:bg-violet-400/10' : 'border-sky-400/40 text-sky-200 hover:bg-sky-400/10'}`}
           >
-            {canCover ? tr({ en: `Call in temporary cover · ${formatMoney(COVER_COST_CENTS)} for the day`, vi: `Gọi nhân viên hỗ trợ tạm thời · ${formatMoney(COVER_COST_CENTS)} cho cả ngày` }) : dayOver ? t('The day is over') : t('No more cover available here today')}
+            {selfScaling(id) ? copy.n('scaleSelf') : canCover ? copy.scaleLabel(terms.beginner, COVER_COST_CENTS) : dayOver ? t('The day is over') : t('No more cover available here today')}
           </button>
           {phase !== 'WORKING' && phase !== 'EOD' && canCover && <p className="mt-1 text-[11px] text-slate-500">{t('Cover helps whenever this desk is busy.')}</p>}
         </section>
 
         <section>
           <SectionTitle>{t('Live activity')}</SectionTitle>
-          <StreamList entries={sv.stream.slice(0, 14)} empty={t('Nothing has happened at this desk yet today.')} />
+          <StreamList entries={sv.stream.slice(0, 14)} empty={t('Nothing has happened at this desk yet today.')} names={names} />
         </section>
       </div>
     </>
@@ -410,6 +453,7 @@ function WorkerPanel({ station, workerId }: { station: StationId; workerId: stri
   const everyone = useBankStore(useShallow((s) => s.view.stations[station].workers));
   const def = STATIONS[station];
   const dept = DEPARTMENTS[def.department];
+  const copy = useNodeCopy(station);
 
   if (!worker) {
     return (
@@ -420,17 +464,27 @@ function WorkerPanel({ station, workerId }: { station: StationId; workerId: stri
     );
   }
 
-  const look = fatigueLook(worker.fatigue);
+  const index = everyone.findIndex((w) => w.id === worker.id);
+  const machine = copy.automated;
+  const look = machine ? copy.loadLook(worker.fatigue) : fatigueLook(worker.fatigue);
+  const name = copy.workerName(worker, index);
   const slip = mistakeChance(worker.fatigue);
   const mine = stream.filter((f) => f.worker === worker.name).slice(0, 10);
-  const colleagues = everyone.filter((w) => w.id !== worker.id);
+  const colleagues = everyone.map((w, i) => ({ w, i })).filter(({ w }) => w.id !== worker.id);
+  const names = displayNames(everyone, (w) => copy.workerName(w, everyone.indexOf(w)));
 
   return (
     <>
-      <MiniHeader title={worker.name} subtitle={t(worker.role)} accent={dept.accent} onBack={() => select({ kind: 'station', id: station })} backLabel={terms.station(station)} />
+      <MiniHeader title={name} subtitle={machine ? copy.n('machineRole') : t(worker.role)} accent={dept.accent} onBack={() => select({ kind: 'station', id: station })} backLabel={terms.station(station)} />
       <div className="bk-scroll min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-3.5" data-testid="inspector-body" data-worker={worker.id}>
         <div className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/50 p-3">
-          <WorkstationGraphic capability={def.capability ?? 'CORE_LEDGER_CHECK'} status={worker.working ? 'PROCESSING' : 'IDLE'} className="h-[66px] w-[88px] shrink-0" profile={worker.profile} />
+          {machine ? (
+            <span className="grid h-[66px] w-[88px] shrink-0 place-items-center rounded-lg bg-slate-950/60">
+              <MachineFace ring={look.hex} size={52} temp={worker.temp} title={name} />
+            </span>
+          ) : (
+            <WorkstationGraphic capability={def.capability ?? 'CORE_LEDGER_CHECK'} status={worker.working ? 'PROCESSING' : 'IDLE'} className="h-[66px] w-[88px] shrink-0" profile={worker.profile} />
+          )}
           <div className="min-w-0 flex-1 text-[12px] leading-snug text-slate-300">
             <div className="font-semibold text-slate-100">{terms.stationTitle(station)}</div>
             <div className="text-slate-400">{t('Shift')} {t(worker.shift)}</div>
@@ -445,12 +499,17 @@ function WorkerPanel({ station, workerId }: { station: StationId; workerId: stri
               <span className={`h-1.5 w-1.5 rounded-full ${worker.working ? 'animate-pulse bg-emerald-400' : 'bg-slate-500'}`} />
               <span className={worker.working ? 'text-emerald-300' : 'text-slate-400'}>{worker.working ? t('Working') : t('Waiting for work')}</span>
             </div>
-            {feedText(worker.activity)}
+            {activityText(worker, copy, index)}
           </div>
         </section>
 
         <section>
-          <SectionTitle aside={<span className={`text-[11px] font-semibold ${look.text}`}>{look.label}</span>}>{t('Fatigue')}</SectionTitle>
+          <SectionTitle aside={<span className={`text-[11px] font-semibold ${look.text}`}>{look.label}</span>}>
+            <span className="flex items-center" data-testid="worker-strain-title">
+              {machine ? copy.n('loadTitle') : copy.n('fatigueTitle')}
+              <InfoTip label={machine ? copy.n('loadTitle') : copy.n('fatigueTitle')} text={copy.tip(machine ? 'load' : 'fatigue').text} testId="tip-strain" />
+            </span>
+          </SectionTitle>
           <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-3">
             <div className="flex items-baseline justify-between">
               <span className="text-[26px] font-bold leading-none tabular-nums text-slate-50" data-testid="worker-fatigue">
@@ -458,19 +517,25 @@ function WorkerPanel({ station, workerId }: { station: StationId; workerId: stri
                 <span className="text-[13px] font-medium text-slate-500"> / 100</span>
               </span>
               <span className="text-right text-[11.5px] text-slate-400">
-                {t('Working at')} <span className="font-semibold text-slate-100">{Math.round(worker.productivity * 100)}%</span>
+                {machine ? copy.n('loadPace') : t('Working at')} <span className="font-semibold text-slate-100">{Math.round(worker.productivity * 100)}%</span>
                 <br />
-                {t('of a fresh person’s pace')}
+                {machine ? copy.n('loadPaceOf') : t('of a fresh person’s pace')}
               </span>
             </div>
-            <FatigueBar fatigue={worker.fatigue} className="mt-2.5 !h-2" />
+            <FatigueBar fatigue={worker.fatigue} className="mt-2.5 !h-2" {...(machine ? { look, label: copy.n('loadTitle') } : {})} />
             <div className="mt-1 flex justify-between text-[9.5px] text-slate-500">
-              <span>{t('fresh')}</span>
-              <span style={{ marginLeft: '28%' }}>{t('slips begin at 60')}</span>
-              <span>{t('spent')}</span>
+              <span>{machine ? copy.n('loadScaleFresh') : t('fresh')}</span>
+              <span style={{ marginLeft: '28%' }}>{machine ? copy.n('loadScaleSlips') : t('slips begin at 60')}</span>
+              <span>{machine ? copy.n('loadScaleSpent') : t('spent')}</span>
             </div>
             <p className="mt-2.5 text-[12px] leading-relaxed text-slate-400">
-              {slip > 0
+              {machine
+                ? slip > 0
+                  ? copy.n('loadSlips', { pct: (slip * 100).toFixed(0) })
+                  : worker.fatigue >= 35
+                    ? copy.n('loadWarm')
+                    : copy.n('loadCool')
+                : slip > 0
                 ? tr({ en: `Tired enough to make mistakes: about ${(slip * 100).toFixed(0)} in every 100 items go wrong and have to be done again, which makes the queue longer still.`, vi: `Đủ mệt để mắc lỗi: khoảng ${(slip * 100).toFixed(0)} trên mỗi 100 mục bị sai và phải làm lại, khiến hàng chờ càng dài.` })
                 : worker.fatigue >= 35
                   ? t('Slowing down a little. Mistakes only start above 60.')
@@ -480,9 +545,9 @@ function WorkerPanel({ station, workerId }: { station: StationId; workerId: stri
         </section>
 
         <div className="grid grid-cols-3 gap-1.5">
-          <Stat label={t('Items today')} value={worker.itemsToday} />
-          <Stat label={t('Pace')} value={`${Math.round(worker.productivity * 100)}%`} tone={worker.productivity < 0.8 ? 'warn' : 'info'} />
-          <Stat label={t('Desk queue')} value={queueLength} tone={queueLength > 10 ? 'warn' : 'info'} />
+          <Stat label={t('Items today')} value={worker.itemsToday} info={copy.tip(machine ? 'itemsMachine' : 'itemsHuman', 'tip-items')} />
+          <Stat label={machine ? copy.n('loadPace') : t('Pace')} value={`${Math.round(worker.productivity * 100)}%`} tone={worker.productivity < 0.8 ? 'warn' : 'info'} info={copy.tip(machine ? 'paceMachine' : 'paceHuman', 'tip-pace')} />
+          <Stat label={t('Desk queue')} value={queueLength} tone={queueLength > 10 ? 'warn' : 'info'} info={copy.tip('deskQueue', 'tip-desk-queue')} />
         </div>
 
         <ExploreButtons processes={processesAt(station)} />
@@ -491,8 +556,8 @@ function WorkerPanel({ station, workerId }: { station: StationId; workerId: stri
           <section>
             <SectionTitle>{t('Others at this desk')}</SectionTitle>
             <div className="space-y-1.5">
-              {colleagues.map((w) => (
-                <StaffRow key={w.id} worker={w} onOpen={() => select({ kind: 'worker', station, workerId: w.id })} />
+              {colleagues.map(({ w, i }) => (
+                <StaffRow key={w.id} worker={w} index={i} onOpen={() => select({ kind: 'worker', station, workerId: w.id })} />
               ))}
             </div>
           </section>
@@ -500,7 +565,7 @@ function WorkerPanel({ station, workerId }: { station: StationId; workerId: stri
 
         <section>
           <SectionTitle>{t('Their recent work')}</SectionTitle>
-          <StreamList entries={mine} empty={t('Nothing yet.')} />
+          <StreamList entries={mine} empty={t('Nothing yet.')} names={names} />
         </section>
       </div>
     </>

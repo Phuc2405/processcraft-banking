@@ -12,6 +12,7 @@ import type { NodeRunStatus } from '../../store/liveSimulation';
 import type { PacketKind, Severity, StationStatus, WorkerProfileSeed } from '../../sim/types';
 import { formatClock } from '../../sim/clock';
 import { TokenGlyph } from '../canvas/tokens/TokenGlyph';
+import { InfoTip } from './InfoTip';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Words
@@ -121,14 +122,30 @@ export function fatigueLook(fatigue: number): FatigueLook {
   return { label: t('Fresh'), hex: '#34d399', text: 'text-emerald-300', bar: 'bg-emerald-400' };
 }
 
-export function FatigueBar({ fatigue, className = '' }: { fatigue: number; className?: string }) {
-  const look = fatigueLook(fatigue);
+/** The 0–100 strain bar. A human desk reads it as fatigue; an automated node passes its own `look` and `label` (CPU load). */
+export function FatigueBar({ fatigue, className = '', look: given, label }: { fatigue: number; className?: string; look?: Pick<FatigueLook, 'bar'>; label?: string }) {
+  const look = given ?? fatigueLook(fatigue);
   return (
-    <div className={`relative h-1.5 overflow-hidden rounded-full bg-slate-800 ${className}`} role="meter" aria-label={t('Fatigue')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(fatigue)}>
+    <div className={`relative h-1.5 overflow-hidden rounded-full bg-slate-800 ${className}`} role="meter" aria-label={label ?? t('Fatigue')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(fatigue)}>
       <div className={`h-full rounded-full transition-[width] duration-500 ${look.bar}`} style={{ width: `${Math.max(2, Math.min(100, fatigue))}%` }} />
       {/* where the slips begin */}
       <div className="absolute inset-y-0 w-px bg-slate-950/70" style={{ left: '60%' }} />
     </div>
+  );
+}
+
+/** A server thread's face: a rack unit with status lights, ringed in its load colour (dashed when it was scaled out). */
+export function MachineFace({ ring, size = 22, temp = false, title }: { ring: string; size?: number; temp?: boolean; title?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" role="img" aria-label={title ?? 'Server'} data-testid="machine-face" style={{ overflow: 'visible' }}>
+      {title && <title>{title}</title>}
+      <circle cx="20" cy="20" r="19" fill="#0b1220" stroke={ring} strokeWidth={2.4} strokeDasharray={temp ? '4 3' : undefined} />
+      <rect x="10" y="11" width="20" height="7" rx="1.6" fill="#334155" stroke="#64748b" strokeWidth="0.8" />
+      <rect x="10" y="21" width="20" height="7" rx="1.6" fill="#334155" stroke="#64748b" strokeWidth="0.8" />
+      <circle cx="14" cy="14.5" r="1.3" fill={ring} />
+      <circle cx="14" cy="24.5" r="1.3" fill={ring} />
+      <path d="M18 14.5h8M18 24.5h8" stroke="#94a3b8" strokeWidth="1.1" strokeLinecap="round" />
+    </svg>
   );
 }
 
@@ -182,10 +199,20 @@ export function Sparkline({ values, width = 120, height = 28, color = '#38bdf8',
 // Layout atoms
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function Stat({ label, value, tone = 'info', hint }: { label: string; value: ReactNode; tone?: Severity; hint?: string }) {
+/** A metric tip: the standard definition and, for a hybrid tip, what it means at this desk. */
+export interface MetricInfo {
+  text: string;
+  example?: { title: string; text: string };
+  testId?: string;
+}
+
+export function Stat({ label, value, tone = 'info', hint, info }: { label: string; value: ReactNode; tone?: Severity; hint?: string; info?: MetricInfo }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-2.5 py-2" title={hint}>
-      <div className="text-[10px] font-medium uppercase tracking-wide text-slate-500">{label}</div>
+    <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-2.5 py-2" title={info ? undefined : hint}>
+      <div className="flex items-center text-[10px] font-medium uppercase tracking-wide text-slate-500">
+        <span className="min-w-0 truncate">{label}</span>
+        {info && <InfoTip label={label} text={info.text} {...(info.example ? { example: info.example } : {})} {...(info.testId ? { testId: info.testId } : {})} />}
+      </div>
       <div className={`mt-0.5 text-[15px] font-semibold tabular-nums ${SEVERITY_TEXT[tone]}`}>{value}</div>
     </div>
   );
