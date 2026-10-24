@@ -21,6 +21,19 @@ export const PAN = { slack: 0.5, threshold: 4, rubber: 0.3, stretch: 120, settle
 /** Elements that keep their own pointer behaviour: a press on them never starts a pan. */
 export const PAN_BLOCK = 'button, a, input, select, textarea, label, [role="button"], [role="dialog"], [role="region"], [role="listbox"], [data-no-pan]';
 
+/** Drops any text range the browser has selected (a press that slipped onto a label before the drag took over). */
+export function clearTextSelection(): void {
+  try {
+    const sel = typeof window !== 'undefined' ? window.getSelection() : null;
+    if (sel && sel.rangeCount > 0) sel.removeAllRanges();
+  } catch {
+    // Some embedded browsers throw on getSelection; nothing to clear then.
+  }
+}
+
+/** True when a press on `target` belongs to the map background (and so may start a pan). */
+export const isPanTarget = (frame: Element, target: EventTarget | null): boolean => target instanceof Element && frame.contains(target) && !target.closest(PAN_BLOCK);
+
 export const easeInOutCubic = (u: number): number => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
 const easeOutCubic = (u: number): number => 1 - Math.pow(1 - u, 3);
 
@@ -312,6 +325,7 @@ export function useZoomPan(frame: RefObject<HTMLDivElement>, fit: number, insets
       setPanning(false);
       if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId);
       if (dragged) {
+        clearTextSelection();
         const f = frameSize();
         const v = viewRef.current;
         if (f) settle(v, clampPan(v, panBounds(f, stageSize(v.zoom))));
@@ -322,10 +336,12 @@ export function useZoomPan(frame: RefObject<HTMLDivElement>, fit: number, insets
     };
     const onDown = (e: PointerEvent): void => {
       panned.current = false;
-      const t = e.target as Element | null;
-      if (e.button !== 0 || !t || !el.contains(t) || t.closest(PAN_BLOCK)) return;
+      if (e.button !== 0 || !isPanTarget(el, e.target)) return;
       const f = frameSize();
       if (!f) return;
+      // No text range may start from a press on the map background.
+      e.preventDefault();
+      clearTextSelection();
       // The user takes the camera: any glide stops here, before the first move.
       stopFlight();
       interacting.current = true;
@@ -342,10 +358,23 @@ export function useZoomPan(frame: RefObject<HTMLDivElement>, fit: number, insets
         homed.current = false;
         el.setPointerCapture?.(e.pointerId);
         setPanning(true);
+        clearTextSelection();
       }
       const b = start.bounds;
       setView({ zoom: start.view.zoom, x: rubberBand(start.view.x + dx, b.x0, b.x1), y: rubberBand(start.view.y + dy, b.y0, b.y1) });
     };
+    // Cancelling pointerdown does not stop Chrome's text selection: that is mousedown's default action, so cancel it too.
+    const onMouseDown = (e: MouseEvent): void => {
+      if (e.button === 0 && isPanTarget(el, e.target)) e.preventDefault();
+    };
+    // No selection may begin anywhere in the frame, even from a press on a card (which keeps its click and focus): a drag
+    // from there would otherwise sweep up the text of the panels around the map. Form fields keep their own selection.
+    const onSelectStart = (e: Event): void => {
+      const t = e.target instanceof Element ? e.target : e.target instanceof Node ? e.target.parentElement : null;
+      if (!t?.closest('input, textarea, [contenteditable="true"]')) e.preventDefault();
+    };
+    el.addEventListener('mousedown', onMouseDown);
+    el.addEventListener('selectstart', onSelectStart);
     el.addEventListener('pointerdown', onDown);
     el.addEventListener('pointermove', onMove);
     el.addEventListener('pointerup', end);
@@ -353,6 +382,8 @@ export function useZoomPan(frame: RefObject<HTMLDivElement>, fit: number, insets
     // Without capture (a press that never became a drag), leaving the frame ends it too.
     el.addEventListener('pointerleave', end);
     return () => {
+      el.removeEventListener('mousedown', onMouseDown);
+      el.removeEventListener('selectstart', onSelectStart);
       el.removeEventListener('pointerdown', onDown);
       el.removeEventListener('pointermove', onMove);
       el.removeEventListener('pointerup', end);

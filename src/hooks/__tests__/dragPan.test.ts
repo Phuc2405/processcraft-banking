@@ -62,3 +62,10 @@ describe('node click protection', () => {
     for (const sel of ['button', '[role="button"]', '[role="dialog"]', '[role="region"]', '[data-no-pan]']) expect(PAN_BLOCK).toContain(sel);
   });
 });
+
+describe('text selection during a drag', () => {
+  it('clearing the selection is safe where there is no window or selection', async () => {
+    const { clearTextSelection } = await import('../useZoomPan');
+    expect(() => clearTextSelection()).not.toThrow();
+  });
+});

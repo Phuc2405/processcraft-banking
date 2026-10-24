@@ -793,6 +793,14 @@ body,
 /* 2D map drag-to-pan: grab over empty map, grabbing while held; cards and buttons keep their pointer. */
 .bk-pan-surface {
   cursor: grab;
+  /* Dragging the map must never paint a text selection over the cards and labels. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.bk-pan-surface :is(input, textarea) {
+  -webkit-user-select: text;
+  user-select: text;
 }
 .bk-pan-surface :is(button, a, [role='button'], label, select) {
   cursor: pointer;

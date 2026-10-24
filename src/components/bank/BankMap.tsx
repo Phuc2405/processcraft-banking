@@ -590,7 +590,7 @@ function BankMapView() {
 
   return (
     <StageScaleContext.Provider value={scale}>
-      <div ref={ref} className="bk-pan-surface relative h-full w-full touch-none overflow-hidden" data-panning={panning || undefined} onClick={(e) => e.target === e.currentTarget && !panned.current && clearSelection()} data-testid="bank-map" data-zoom={Math.round(scale * 100)} data-phase={view.phase} data-day={view.day} data-touring={focus ? 'yes' : 'no'} data-spot={spotlit ?? undefined} data-flow={flow?.flow ?? undefined}>
+      <div ref={ref} className="bk-pan-surface relative h-full w-full touch-none select-none overflow-hidden" data-panning={panning || undefined} onClick={(e) => e.target === e.currentTarget && !panned.current && clearSelection()} data-testid="bank-map" data-zoom={Math.round(scale * 100)} data-phase={view.phase} data-day={view.day} data-touring={focus ? 'yes' : 'no'} data-spot={spotlit ?? undefined} data-flow={flow?.flow ?? undefined}>
         {/* The stage is placed by transform: useZoomPan owns where it sits (drag, wheel, toolbar, smart-zoom glides). */}
         <div className="absolute left-0 top-0 will-change-transform" data-testid="bank-pan" style={{ width: STAGE.width * scale, height: STAGE.height * scale, transform: `translate3d(${pan.x}px, ${pan.y}px, 0)` }}>
           <div
