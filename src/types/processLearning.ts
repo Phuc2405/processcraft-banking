@@ -703,7 +703,9 @@ export type AccountId =
   | 'AML_RESTRAINED_FUNDS'
   | 'OUTWARD_PAYMENTS_CLEARING'
   | 'DISPUTE_RECEIVABLE'
-  | 'FRAUD_LOSS_EXPENSE';
+  | 'FRAUD_LOSS_EXPENSE'
+  | 'TELLER_VAULT_CASH'
+  | 'SWIFT_NOSTRO';
 
 /** Why an entry was posted. Lets the ledger drawer group and explain entries. */
 export type PostingKind =
@@ -728,7 +730,13 @@ export type PostingKind =
   | 'ATM_DISPENSE'
   | 'ATM_JAM'
   | 'ATM_REFUND'
-  | 'ATM_DEPOSIT';
+  | 'ATM_DEPOSIT'
+  | 'TELLER_DEPOSIT'
+  | 'TELLER_WITHDRAWAL'
+  | 'SWIFT_REMITTANCE'
+  | 'ATM_MISMATCH_REFUND'
+  | 'PAYMENT_RETURN'
+  | 'OPENING_DEPOSIT';
 
 /**
  * One line of the general ledger. Double entry means every line debits one account and credits another by the same

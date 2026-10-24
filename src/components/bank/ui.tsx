@@ -31,6 +31,11 @@ export const KIND_LABEL: Record<PacketKind, string> = {
   BNPL: 'Pay-in-4',
   A2A: 'Instant transfer',
   ATM: 'ATM withdrawal',
+  ONBOARD: 'eKYC onboarding',
+  QR: 'VietQR payment',
+  TELLER: 'Teller cash',
+  SWIFT: 'SWIFT remittance',
+  DISPUTE: 'Dispute claim',
   SETTLEMENT: 'Settlement record',
 };
 

@@ -137,6 +137,46 @@ const EN: TermBook = {
       short: 'Cash Machine Notes',
       tip: 'It counts the notes out and takes the money from the account, and if the notes jam the money waits in the holding box until the cash count proves what happened.',
     },
+    GATE_EKYC: {
+      plain: 'Online Account Opening (ID & Selfie Check)',
+      short: 'Online Account Opening',
+      tip: 'A new customer scans their ID card and takes a selfie; the bank checks the face is real and matches the card before opening an account.',
+    },
+    GATE_QR: {
+      plain: 'QR Code Payment Entrance',
+      short: 'QR Code Payments',
+      tip: 'Where payments made by scanning a VietQR code come in; the bank reads the code and checks it has not been tampered with.',
+    },
+    TELLER_CASH: {
+      plain: 'Branch Cash Counter',
+      short: 'Branch Cash Counter',
+      tip: 'A teller counts cash in and out by hand, checks for fake notes, and reports any cash over $10,000.',
+    },
+    SEC_FACEPAY: {
+      plain: 'Face Check for Big Transfers',
+      short: 'Face Check (FacePay)',
+      tip: 'Any transfer over $400 needs a quick face scan, so a thief with the phone still cannot send the money.',
+    },
+    SEC_FDS: {
+      plain: 'Suspicious Device Detector',
+      short: 'Suspicious Device Detector',
+      tip: 'It looks at the phone or computer behind a payment (odd location, hacked phone, number-guessing bursts) and stops the risky ones.',
+    },
+    AML_DESK: {
+      plain: 'Money Laundering & Sanctions Review',
+      short: 'Money Laundering Review',
+      tip: 'Compliance officers look at payments the system held as suspicious, report them to the regulator, and freeze money linked to sanctioned people.',
+    },
+    DISPUTE_DESK: {
+      plain: 'Complaints & Refund Claims Desk',
+      short: 'Refund Claims Desk',
+      tip: 'Specialists decide customer claims: a card charge they did not make, a transfer to return, or an ATM that short-changed them.',
+    },
+    GATE_SWIFT: {
+      plain: 'International Transfer Gateway (SWIFT)',
+      short: 'International Transfers',
+      tip: 'Where money sent overseas leaves the bank, as a standard SWIFT message converted into the other country’s currency.',
+    },
   },
   departments: {
     GATES: { plain: 'Payment Entrances', short: 'Payment Entrances', tip: 'Where every payment enters the bank: virtual cards, shop card readers, online checkouts and instant transfers.' },
@@ -145,6 +185,9 @@ const EN: TermBook = {
     BNPL: { plain: 'BNPL Pay-in-4 Instalments', short: 'BNPL Pay-in-4 Instalments', tip: 'Where the bank decides who may split a purchase into four payments.' },
     EOD: { plain: 'Night Bookkeeping Department', short: 'Night Bookkeeping Department', tip: 'The night shift that checks every record agrees and parks the ones that do not.' },
     ATM: { plain: 'Sidewalk Cash Machine', short: 'Sidewalk Cash Machine', tip: 'The two blue cash machines on the pavement outside the branch.' },
+    ENTRANCE: { plain: 'Front Door & Identity Checks', short: 'Front Door & Identity', tip: 'Where new customers are identified, QR payments arrive, cash is handled at the counter, and big transfers need a face scan.' },
+    COMPLIANCE: { plain: 'Fraud & Money Laundering Watch', short: 'Fraud & Laundering Watch', tip: 'Where risky devices are stopped and suspicious money is reviewed and reported.' },
+    BACKOFFICE: { plain: 'Claims & Overseas Transfers', short: 'Claims & Overseas', tip: 'Where customer refund claims are decided and money is sent abroad.' },
   },
   externals: {
     CUSTOMER_OTP: {
@@ -323,6 +366,46 @@ const VI: TermBook = {
       short: 'Bộ nhả tiền ATM',
       tip: 'Nó đếm tiền ra và trừ tiền trong tài khoản; nếu tiền bị kẹt, khoản tiền nằm chờ trong két tiền lệch cho tới khi kiểm quỹ chứng minh điều gì đã xảy ra.',
     },
+    GATE_EKYC: {
+      plain: 'Mở tài khoản trực tuyến (kiểm tra CCCD & selfie)',
+      short: 'Mở tài khoản trực tuyến',
+      tip: 'Khách mới quét CCCD và chụp selfie; ngân hàng kiểm tra khuôn mặt là người thật và khớp với thẻ trước khi mở tài khoản.',
+    },
+    GATE_QR: {
+      plain: 'Cổng thanh toán mã QR',
+      short: 'Thanh toán mã QR',
+      tip: 'Nơi các giao dịch quét mã VietQR đi vào; ngân hàng đọc mã và kiểm tra mã chưa bị chỉnh sửa.',
+    },
+    TELLER_CASH: {
+      plain: 'Quầy giao dịch tiền mặt',
+      short: 'Quầy tiền mặt',
+      tip: 'Giao dịch viên đếm tiền nộp và rút, kiểm tra tiền giả, và báo cáo mọi giao dịch tiền mặt trên $10,000.',
+    },
+    SEC_FACEPAY: {
+      plain: 'Xác thực khuôn mặt cho giao dịch lớn',
+      short: 'Xác thực khuôn mặt (FacePay)',
+      tip: 'Mọi giao dịch chuyển tiền trên $400 cần quét khuôn mặt nhanh, nên kẻ gian dù cầm điện thoại cũng không chuyển được tiền.',
+    },
+    SEC_FDS: {
+      plain: 'Bộ phát hiện thiết bị đáng ngờ',
+      short: 'Phát hiện thiết bị đáng ngờ',
+      tip: 'Nó xem điện thoại hay máy tính đứng sau giao dịch (vị trí lạ, máy bị bẻ khóa, dò số thẻ dồn dập) và chặn những giao dịch rủi ro.',
+    },
+    AML_DESK: {
+      plain: 'Rà soát rửa tiền & cấm vận',
+      short: 'Rà soát rửa tiền',
+      tip: 'Chuyên viên tuân thủ xem các giao dịch bị hệ thống giữ lại vì đáng ngờ, báo cáo cơ quan quản lý và phong tỏa tiền liên quan tới người bị cấm vận.',
+    },
+    DISPUTE_DESK: {
+      plain: 'Quầy khiếu nại & đòi tiền',
+      short: 'Quầy khiếu nại',
+      tip: 'Chuyên viên giải quyết khiếu nại của khách: giao dịch thẻ khách không thực hiện, lệnh chuyển cần hoàn trả, hoặc ATM trả thiếu tiền.',
+    },
+    GATE_SWIFT: {
+      plain: 'Cổng chuyển tiền quốc tế (SWIFT)',
+      short: 'Chuyển tiền quốc tế',
+      tip: 'Nơi tiền gửi ra nước ngoài rời ngân hàng, dưới dạng điện SWIFT chuẩn và được quy đổi sang tiền tệ của nước nhận.',
+    },
   },
   departments: {
     GATES: { plain: 'Các cổng thanh toán', short: 'Các cổng thanh toán', tip: 'Nơi mọi giao dịch đi vào ngân hàng: thẻ ảo, máy quẹt thẻ, thanh toán trực tuyến và chuyển khoản tức thì.' },
@@ -331,6 +414,9 @@ const VI: TermBook = {
     BNPL: { plain: 'Mua trước Trả sau 4 kỳ', short: 'Mua trước Trả sau 4 kỳ', tip: 'Nơi ngân hàng quyết định ai được chia một giao dịch thành bốn kỳ thanh toán.' },
     EOD: { plain: 'Phòng sổ sách ca đêm', short: 'Phòng sổ sách ca đêm', tip: 'Ca đêm kiểm tra mọi hồ sơ khớp nhau và treo lại những hồ sơ không khớp.' },
     ATM: { plain: 'Máy ATM vỉa hè', short: 'Máy ATM vỉa hè', tip: 'Hai máy ATM màu xanh trên vỉa hè trước chi nhánh.' },
+    ENTRANCE: { plain: 'Cửa vào & kiểm tra danh tính', short: 'Cửa vào & danh tính', tip: 'Nơi khách mới được định danh, giao dịch QR đi vào, tiền mặt được xử lý tại quầy và giao dịch lớn cần quét khuôn mặt.' },
+    COMPLIANCE: { plain: 'Giám sát gian lận & rửa tiền', short: 'Giám sát gian lận & rửa tiền', tip: 'Nơi thiết bị rủi ro bị chặn và tiền đáng ngờ được rà soát, báo cáo.' },
+    BACKOFFICE: { plain: 'Khiếu nại & chuyển tiền quốc tế', short: 'Khiếu nại & quốc tế', tip: 'Nơi giải quyết khiếu nại đòi tiền của khách và gửi tiền ra nước ngoài.' },
   },
   externals: {
     CUSTOMER_OTP: {
@@ -450,6 +536,14 @@ const EXPERT_STATION_VI: Readonly<Record<StationId, { name: string; blurb: strin
   GATE_A2A: { name: 'Cổng chuyển tiền nhanh (A2A)', blurb: 'Nhận chuyển khoản tức thì (chia hóa đơn QR, tiền thuê, liên ngân hàng) dạng thông điệp pacs.008 và kiểm tra định dạng trước khi động tới tiền.' },
   GATE_ATM: { name: 'Thẻ & PIN ATM', blurb: 'Đầu đọc thẻ và bàn phím PIN của ATM vỉa hè. Khách có ba lần thử; sai lần thứ ba máy khóa phiên và giữ thẻ.' },
   ATM_CASH: { name: 'Bộ nhả tiền ATM', blurb: 'Kiểm tra số dư, đếm tiền ra và trừ tài khoản. Nếu kẹt tiền khi khách đã bị trừ, khoản tiền được treo cho tới khi kiểm quỹ chứng minh điều gì đã xảy ra.' },
+  GATE_EKYC: { name: 'Cổng eKYC & Mở tài khoản', blurb: 'Mở tài khoản từ xa: OCR đọc CCCD, kiểm tra người thật (liveness) và đối chiếu ảnh selfie với Cơ sở dữ liệu quốc gia về dân cư trước khi tài khoản được tạo.' },
+  GATE_QR: { name: 'Cổng Thanh toán QR Code Napas247', blurb: 'Đọc chuỗi VietQR (thẻ EMVCo TLV, tĩnh hoặc động), kiểm tra CRC và ánh xạ giao dịch sang thông điệp chuyển mạch Napas247 trước khi sàng lọc.' },
+  TELLER_CASH: { name: 'Quầy Giao dịch viên Nộp/Rút tiền mặt', blurb: 'Giao dịch viên kiểm đếm tiền nộp và rút theo quỹ két, ghi số seri tiền nghi vấn và lập báo cáo CTR cho mọi giao dịch tiền mặt trên $10,000.' },
+  SEC_FACEPAY: { name: 'Xác thực Sinh trắc học FacePay', blurb: 'Mọi giao dịch chuyển tiền trên $400 (10 triệu VND) phải được xác thực bằng khuôn mặt, đối chiếu với sinh trắc học đã đăng ký khi mở tài khoản.' },
+  SEC_FDS: { name: 'Hệ thống FDS & Dấu chân Thiết bị', blurb: 'Hệ thống phát hiện gian lận chấm điểm thiết bị và hành vi: IP bất thường, điện thoại đã root/jailbreak, tấn công dò BIN. Đồng thời chạy sàng lọc AML tự động.' },
+  AML_DESK: { name: 'Bàn tra soát AML & Danh sách đen', blurb: 'Chuyên viên tuân thủ rà soát các giao dịch bị giữ: lập STR hoặc giải phóng, và xác nhận các trường hợp trùng danh sách cấm vận OFAC/PEP trước khi phong tỏa tiền.' },
+  DISPUTE_DESK: { name: 'Quầy Tra soát Khiếu nại & Đòi tiền', blurb: 'Chuyên viên xử lý khiếu nại của khách: tra soát thẻ (chargeback), hoàn trả pacs.004 và lệch tiền ATM, trong thời hạn của tổ chức thẻ.' },
+  GATE_SWIFT: { name: 'Cổng Chuyển tiền Quốc tế SWIFT / ISO 20022', blurb: 'Đọc điện chuyển tiền quốc tế pacs.008 (mã BIC, EndToEndId, số tiền quyết toán và loại tiền) và quy đổi ngoại tệ trước khi sàng lọc.' },
 };
 
 const EXPERT_DEPARTMENT_VI: Readonly<Record<DepartmentId, { name: string; blurb: string }>> = {
@@ -459,6 +553,9 @@ const EXPERT_DEPARTMENT_VI: Readonly<Record<DepartmentId, { name: string; blurb:
   BNPL: { name: 'Bàn trả góp 4 kỳ BNPL', blurb: 'Thẩm định hồ sơ Mua trước Trả sau và đặt khoản trả trước.' },
   EOD: { name: 'Bàn đối soát cuối ngày & tài khoản treo', blurb: 'Chu kỳ đêm: bù trừ theo lô, quyết toán Visa, đối soát 3 bên, và tài khoản treo cho những gì không khớp.' },
   ATM: { name: 'ATM vỉa hè', blurb: 'Hai buồng ATM màu xanh trên vỉa hè trước chi nhánh: buồng thẻ và PIN, rồi buồng tiền mặt. Nếu kẹt tiền sau khi khách bị trừ, khoản tiền vào thẳng tài khoản treo.' },
+  ENTRANCE: { name: 'Cổng vào & Xác thực', blurb: 'Nơi khách hàng mới và tiền mặt gặp ngân hàng: mở tài khoản eKYC, cổng VietQR, quầy giao dịch viên và xác thực sinh trắc học FacePay cho giao dịch giá trị cao.' },
+  COMPLIANCE: { name: 'Phát hiện Gian lận & Tuân thủ AML', blurb: 'FDS chấm điểm mọi thiết bị và hành vi; chuyên viên AML rà soát hoạt động đáng ngờ và xác nhận các trường hợp trùng cấm vận.' },
+  BACKOFFICE: { name: 'Khiếu nại & Quốc tế', blurb: 'Chuyển tiền quốc tế SWIFT theo ISO 20022, và các chuyên viên giải quyết tra soát thẻ, hoàn trả pacs.004 và lệch tiền ATM.' },
 };
 
 const vi = (): boolean => activeLocale() === 'vi';

@@ -77,12 +77,12 @@ const DEPTH_OPTIONS = (): readonly [Option<DataDepth>, Option<DataDepth>] => [
   { id: 'expert', label: <><span className="font-mono text-[10.5px] text-lime-300">&lt;/&gt;</span>{t('Expert')}</>, title: t('Fintech terms, ISO 8583 response codes, the raw message and the GL journal') },
 ];
 
-/** The four guided flows, under the dock while the Beginner scope is on. */
+/** The guided flows under the dock while the Beginner scope is on: 01-04 on the first row, the Phase 8 flows 05-08 on the second. */
 function FlowBar() {
   const flow = useBankStore((s) => s.flow);
   const setFlow = useBankStore((s) => s.setActiveFlow);
   return (
-    <nav aria-label={t('Guided flows')} className="bk-slide-down mt-1.5 flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-950/95 p-1 shadow-xl" data-testid="flow-bar">
+    <nav aria-label={t('Guided flows')} className="bk-slide-down mt-1.5 grid grid-cols-4 items-center gap-1 rounded-xl border border-slate-800 bg-slate-950/95 p-1 shadow-xl" data-testid="flow-bar">
       {FLOW_IDS.map((id: FlowId) => {
         const f = GUIDED_FLOWS[id];
         const on = flow === id;

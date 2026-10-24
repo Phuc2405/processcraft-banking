@@ -1,3 +1,4 @@
+import { CHECKOUT_KINDS } from '../kpis';
 import { describe, expect, it } from 'vitest';
 import { BankSimulation, PATIENCE, sampleMoves } from '../bankSimulation';
 import { BEATS_PER_DAY, DAY_END, EOD_START, WORK_END, WORK_START } from '../clock';
@@ -98,7 +99,7 @@ describe('an ordinary day', () => {
     expect(k.approved + k.declined).toBe(k.arrivals);
     expect(k.finished).toBe(k.arrivals);
     expect(sim.snapshot().inFlight).toBe(r.close.reconBacklog + r.close.suspenseItems);
-    expect(k.byKind.POS + k.byKind.ECOM + k.byKind.VIRTUAL + k.byKind.BNPL + k.byKind.A2A + k.byKind.ATM).toBe(k.arrivals);
+    expect(CHECKOUT_KINDS.reduce((n, kind) => n + k.byKind[kind], 0)).toBe(k.arrivals);
   });
 
   it('declines add up and none are process errors', () => {
@@ -123,8 +124,11 @@ describe('an ordinary day', () => {
     expect(r.close.reconBacklog).toBe(0);
     expect(r.close.nightDoneMinute).not.toBeNull();
     expect(r.close.nightDoneMinute!).toBeLessThanOrEqual(DAY_END);
-    // Only card payments go through tonight's clearing: an instant transfer settles on its own rail and ATM cash is counted at the machine.
-    expect(k.recon.records).toBe(k.approved - k.a2a.released - k.atm.dispensed);
+    // Only card payments go through tonight's clearing: an instant transfer settles on its own rail, ATM cash is counted at the
+    // machine, and the Phase 8 channels post straight to the CASA ledger.
+    const x = k.ext;
+    const extended = x.accountsOpened + x.qrPaid + x.swiftSent + x.tellerDeposits + x.tellerWithdrawals + x.disputesRefunded;
+    expect(k.recon.records).toBe(k.approved - k.a2a.released - k.atm.dispensed - extended);
     const breaks = k.recon.breakAmount + k.recon.breakMissing + k.recon.breakDuplicate;
     expect(k.recon.matched + breaks).toBe(k.recon.records);
   });

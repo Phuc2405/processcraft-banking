@@ -50,6 +50,14 @@ const SHIRT: Record<StationId, string> = {
   GATE_A2A: '#65a30d',
   GATE_ATM: '#0284c7',
   ATM_CASH: '#0284c7',
+  GATE_EKYC: '#0f766e',
+  GATE_QR: '#0f766e',
+  TELLER_CASH: '#115e59',
+  SEC_FACEPAY: '#0f766e',
+  SEC_FDS: '#b91c1c',
+  AML_DESK: '#991b1b',
+  DISPUTE_DESK: '#c2410c',
+  GATE_SWIFT: '#c2410c',
 };
 
 export const ROLE: Record<StationId, string> = {
@@ -69,6 +77,14 @@ export const ROLE: Record<StationId, string> = {
   GATE_A2A: 'Gateway monitor, instant payments',
   GATE_ATM: 'Machine: card reader and PIN pad',
   ATM_CASH: 'Machine: cash dispenser',
+  GATE_EKYC: 'Server AI engine, eKYC',
+  GATE_QR: 'Gateway monitor, VietQR',
+  TELLER_CASH: 'Branch teller',
+  SEC_FACEPAY: 'Server AI engine, FacePay',
+  SEC_FDS: 'Server AI engine, FDS',
+  AML_DESK: 'Compliance analyst',
+  DISPUTE_DESK: 'Disputes specialist',
+  GATE_SWIFT: 'Gateway monitor, SWIFT',
 };
 
 /** A machine's name where a person's would be. */

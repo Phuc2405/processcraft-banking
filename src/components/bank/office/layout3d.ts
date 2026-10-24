@@ -28,6 +28,13 @@ export type V2 = readonly [number, number];
  */
 export const toWorld = (sx: number, sy: number): V2 => [(sx - BUILDING.width / 2) / WORLD_SCALE, (sy - BUILDING.height / 2) / WORLD_SCALE];
 
+/**
+ * Phase 8 made the building 370 units deeper for the extended-flows wing, which moved the origin. Positions placed by hand in
+ * world units before then (server room, plants, right-hand windows) are written in the old frame and shifted by this.
+ */
+export const LEGACY_Z = (BUILDING.height / 2 - 405) / WORLD_SCALE;
+const legacyZ = (z: number): number => z - LEGACY_Z;
+
 /** The floor of the office, a little larger than the stage so the walls have room. */
 export const FLOOR = {
   /** Size of the building in world units. */
@@ -151,11 +158,14 @@ export function queueSlots(id: StationId, count: number): V2[] {
   return out;
 }
 
+/** A gate whose customers arrive as messages from a phone (A2A, VietQR, SWIFT, eKYC): no door, and a queue of phones. */
+export const isDigital = (id: StationId): boolean => STATIONS[id].digital === true || STATIONS[id].capability === 'A2A_GATEWAY';
+
 /**
  * The gates whose customers are people who walk in at a door in the left wall: the three shop checkouts. An instant transfer
  * arrives as a message on a phone, so its gate has no door and no walkers.
  */
-export const WALK_IN_GATES: readonly StationId[] = STATION_IDS.filter((id) => STATIONS[id].kind === 'GATE' && STATIONS[id].capability !== 'A2A_GATEWAY');
+export const WALK_IN_GATES: readonly StationId[] = STATION_IDS.filter((id) => STATIONS[id].kind === 'GATE' && !isDigital(id));
 
 /** Every desk that customers walk up to: the shop gates, and the sidewalk ATM where a customer comes down the street. */
 export const WALKER_STATIONS: readonly StationId[] = STATION_IDS.filter((id) => WALK_IN_GATES.includes(id) || STATIONS[id].kind === 'ATM');
@@ -164,7 +174,7 @@ export const WALKER_STATIONS: readonly StationId[] = STATION_IDS.filter((id) => 
 export const isMachine = (id: StationId): boolean => STATIONS[id].automated === true;
 
 /** Whether the queue at a desk is made of people or of phones (a transfer queues as a message). */
-export const queueStyle = (id: StationId): 'people' | 'phones' => (STATIONS[id].capability === 'A2A_GATEWAY' ? 'phones' : 'people');
+export const queueStyle = (id: StationId): 'people' | 'phones' => (isDigital(id) ? 'phones' : 'people');
 
 /** Where a customer comes in from: a door in the left wall for a gate, or the far end of the pavement for an ATM. */
 export function entrancePoint(id: StationId): V2 {
@@ -487,7 +497,7 @@ export function vaultRoom(): Rect {
 /** The core server racks, in a glass room against the right-hand wall, behind the Core Ledger. */
 export const SERVER_ROOM: Rect & { racks: V2[] } = (() => {
   const hx = FLOOR_SLAB.w / 2;
-  const z0 = -5.95;
+  const z0 = legacyZ(-5.95);
   const racks: V2[] = [0, 1, 2, 3].map((i) => [hx - WALL_T - 0.55, z0 + 0.55 + i * 1.0] as V2);
   return { x0: hx - WALL_T - 1.45, x1: hx - WALL_T - 0.02, z0, z1: z0 + 4.5, racks };
 })();
@@ -585,15 +595,15 @@ export const PLANTS: readonly PlantSpot[] = [
   { x: 0.7, z: wallZ, kind: 'monstera', scale: 0.95 },
   { x: 11.2, z: wallZ, kind: 'monstera', scale: 1 },
   { x: wallX, z: wallZ, kind: 'ficus', scale: 1.3 },
-  { x: wallX, z: 0.6, kind: 'palm', scale: 1.1 },
-  { x: wallX, z: 4.7, kind: 'ficus', scale: 1.15 },
-  { x: wallX, z: 10.0, kind: 'monstera', scale: 1.05 },
-  { x: -13.9, z: 5.0, kind: 'ficus', scale: 1.1 },
-  { x: -13.9, z: 10.2, kind: 'palm', scale: 1.0 },
-  { x: -9.6, z: 5.5, kind: 'monstera', scale: 0.9 },
-  { x: -1.6, z: 2.15, kind: 'ficus', scale: 0.95 },
-  { x: 9.3, z: 2.0, kind: 'monstera', scale: 0.95 },
-  { x: 2.6, z: 5.5, kind: 'palm', scale: 0.9 },
+  { x: wallX, z: legacyZ(0.6), kind: 'palm', scale: 1.1 },
+  { x: wallX, z: legacyZ(4.7), kind: 'ficus', scale: 1.15 },
+  { x: wallX, z: legacyZ(10.0), kind: 'monstera', scale: 1.05 },
+  { x: -13.9, z: legacyZ(5.0), kind: 'ficus', scale: 1.1 },
+  { x: -13.9, z: legacyZ(10.2), kind: 'palm', scale: 1.0 },
+  { x: -9.6, z: legacyZ(5.5), kind: 'monstera', scale: 0.9 },
+  { x: -1.6, z: legacyZ(2.15), kind: 'ficus', scale: 0.95 },
+  { x: 9.3, z: legacyZ(2.0), kind: 'monstera', scale: 0.95 },
+  { x: 2.6, z: legacyZ(5.5), kind: 'palm', scale: 0.9 },
 ];
 
 export interface WallWindow {
@@ -606,10 +616,10 @@ export const WALL_WINDOWS: readonly WallWindow[] = [
   { wall: 'back', at: 2.6 },
   { wall: 'back', at: 6.4 },
   { wall: 'back', at: 10.2 },
-  { wall: 'right', at: -9.4 },
-  { wall: 'right', at: 2.0 },
-  { wall: 'right', at: 5.8 },
-  { wall: 'right', at: 9.0 },
+  { wall: 'right', at: legacyZ(-9.4) },
+  { wall: 'right', at: legacyZ(2.0) },
+  { wall: 'right', at: legacyZ(5.8) },
+  { wall: 'right', at: legacyZ(9.0) },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────

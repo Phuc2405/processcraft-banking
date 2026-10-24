@@ -122,6 +122,29 @@ export const atmJam = (amount: MinorUnits): Draft =>
 export const atmRefund = (amount: MinorUnits): Draft =>
   draft('ATM_REFUND', 'RECON_SUSPENSE', 'CUST_CASA', amount, `The cash count showed the notes never left the machine, so the ${formatAud(amount)} in suspense is paid back to the customer.`);
 
+/** Cash over the branch counter: the notes go into the teller's till and the customer's account is credited. */
+export const tellerDeposit = (amount: MinorUnits): Draft =>
+  draft('TELLER_DEPOSIT', 'TELLER_VAULT_CASH', 'CUST_CASA', amount, `The teller counted ${formatAud(amount)} into the till, so the branch cash rises and the customer's account is credited.`);
+
+export const tellerWithdrawal = (amount: MinorUnits): Draft =>
+  draft('TELLER_WITHDRAWAL', 'CUST_CASA', 'TELLER_VAULT_CASH', amount, `The teller paid out ${formatAud(amount)}, so the customer is debited and the branch cash falls by the same amount.`);
+
+/** An outward SWIFT remittance: the customer is debited and the correspondent bank pays the beneficiary abroad. */
+export const swiftRemittance = (amount: MinorUnits, currency: string): Draft =>
+  draft('SWIFT_REMITTANCE', 'CUST_CASA', 'SWIFT_NOSTRO', amount, `The customer is debited ${formatAud(amount)} and the correspondent nostro pays it out in ${currency}.`);
+
+/** The ATM's electronic journal shows the notes were never taken: the withdrawal is reversed into the machine's cash. */
+export const atmMismatchRefund = (amount: MinorUnits): Draft =>
+  draft('ATM_MISMATCH_REFUND', 'ATM_CASH', 'CUST_CASA', amount, `The ATM journal shows the notes were never taken, so the ${formatAud(amount)} goes back to the customer and the machine's cash is restored.`);
+
+/** A new account's first deposit arrives on the instant rail and is credited to the new CASA. */
+export const openingDeposit = (amount: MinorUnits): Draft =>
+  draft('OPENING_DEPOSIT', 'A2A_INSTANT_SETTLEMENT', 'CUST_CASA', amount, `The new account's opening deposit of ${formatAud(amount)} arrived on the instant rail and is credited to the customer.`);
+
+/** A pacs.004 return: the receiving bank sends the money back and the customer is credited. */
+export const paymentReturn = (amount: MinorUnits): Draft =>
+  draft('PAYMENT_RETURN', 'A2A_INSTANT_SETTLEMENT', 'CUST_CASA', amount, `pacs.004: the receiving bank returned ${formatAud(amount)}, which is credited back to the customer.`);
+
 export const amlRestrain = (amount: MinorUnits, why: string): Draft =>
   draft('AML_RESTRAIN', 'CUST_CASA', 'AML_RESTRAINED_FUNDS', amount, `${why} ${formatAud(amount)} is frozen in AML restrained funds.`);
 

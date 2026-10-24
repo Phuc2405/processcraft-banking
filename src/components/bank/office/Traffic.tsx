@@ -17,10 +17,10 @@ const HEIGHT = 0.62;
 const KINDS = Object.keys(PACKET_HEX) as PacketKind[];
 
 /** How many of each kind can be in the air at once. A busy beat is never bigger than this; the oldest hops are dropped first. */
-const POOL: Record<PacketKind, number> = { VIRTUAL: 18, POS: 26, ECOM: 26, BNPL: 18, A2A: 14, ATM: 14, SETTLEMENT: 18 };
+const POOL: Record<PacketKind, number> = { VIRTUAL: 18, POS: 26, ECOM: 26, BNPL: 18, A2A: 14, ATM: 14, ONBOARD: 8, QR: 14, TELLER: 10, SWIFT: 8, DISPUTE: 6, SETTLEMENT: 18 };
 
 type Shape = 'card' | 'coins' | 'folder' | 'bolt' | 'note';
-const SHAPE: Record<PacketKind, Shape> = { VIRTUAL: 'card', POS: 'card', ECOM: 'card', BNPL: 'coins', A2A: 'bolt', ATM: 'note', SETTLEMENT: 'folder' };
+const SHAPE: Record<PacketKind, Shape> = { VIRTUAL: 'card', POS: 'card', ECOM: 'card', BNPL: 'coins', A2A: 'bolt', ATM: 'note', ONBOARD: 'card', QR: 'bolt', TELLER: 'note', SWIFT: 'bolt', DISPUTE: 'folder', SETTLEMENT: 'folder' };
 
 const GOLD = '#f2c14e';
 
@@ -90,9 +90,9 @@ const now = (): number => performance.now();
  */
 export const Packets = memo(function Packets() {
   const tick = useBankStore((s) => s.view.tick);
-  const flights = useRef<Record<PacketKind, Flight[]>>({ VIRTUAL: [], POS: [], ECOM: [], BNPL: [], A2A: [], ATM: [], SETTLEMENT: [] });
-  const slots = useRef<Record<PacketKind, Array<Group | null>>>({ VIRTUAL: [], POS: [], ECOM: [], BNPL: [], A2A: [], ATM: [], SETTLEMENT: [] });
-  const discs = useRef<Record<PacketKind, Array<Mesh | null>>>({ VIRTUAL: [], POS: [], ECOM: [], BNPL: [], A2A: [], ATM: [], SETTLEMENT: [] });
+  const flights = useRef<Record<PacketKind, Flight[]>>({ VIRTUAL: [], POS: [], ECOM: [], BNPL: [], A2A: [], ATM: [], ONBOARD: [], QR: [], TELLER: [], SWIFT: [], DISPUTE: [], SETTLEMENT: [] });
+  const slots = useRef<Record<PacketKind, Array<Group | null>>>({ VIRTUAL: [], POS: [], ECOM: [], BNPL: [], A2A: [], ATM: [], ONBOARD: [], QR: [], TELLER: [], SWIFT: [], DISPUTE: [], SETTLEMENT: [] });
+  const discs = useRef<Record<PacketKind, Array<Mesh | null>>>({ VIRTUAL: [], POS: [], ECOM: [], BNPL: [], A2A: [], ATM: [], ONBOARD: [], QR: [], TELLER: [], SWIFT: [], DISPUTE: [], SETTLEMENT: [] });
   const tagGroups = useRef<Array<Group | null>>([]);
   const tagBoxes = useRef<Array<HTMLDivElement | null>>([]);
   const tagText = useRef<string[]>([]);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { STATION_IDS, STATIONS, WIRES, edgeId } from '../../../../sim/topology';
 import { OFFICE_DEPT_BOX as DEPT_BOX, OFFICE_PLACE_BOX as PLACE_BOX } from '../officePlan';
+import { BUILDING } from '../../layout';
 import {
   arrivalPath,
   ATM_ALCOVE,
@@ -73,17 +74,17 @@ const GATE_COLUMN = ['GATE_VIRTUAL', 'GATE_POS', 'GATE_A2A', 'GATE_ECOM'] as con
 
 describe('the office floor', () => {
   it('maps the middle of the 2D stage to the middle of the floor, and the corners to the corners', () => {
-    expect(toWorld(540, 405)).toEqual([0, 0]);
+    expect(toWorld(BUILDING.width / 2, BUILDING.height / 2)).toEqual([0, 0]);
     expect(toWorld(0, 0)).toEqual([-FLOOR.w / 2, -FLOOR.d / 2]);
-    expect(toWorld(1080, 810)).toEqual([FLOOR.w / 2, FLOOR.d / 2]);
+    expect(toWorld(BUILDING.width, BUILDING.height)).toEqual([FLOOR.w / 2, FLOOR.d / 2]);
   });
 
   it('puts every desk where the frozen floor plan has it, keeping left, right, above and below', () => {
     for (const id of STATION_IDS) {
       const box = PLACE_BOX[id];
       const pose = deskPose(id);
-      expect(pose.x).toBeCloseTo((box.cx - 540) / WORLD_SCALE, 9);
-      expect(pose.z).toBeCloseTo((box.cy - 405) / WORLD_SCALE, 9);
+      expect(pose.x).toBeCloseTo((box.cx - BUILDING.width / 2) / WORLD_SCALE, 9);
+      expect(pose.z).toBeCloseTo((box.cy - BUILDING.height / 2) / WORLD_SCALE, 9);
       expect(pose.w).toBe(COUNTER.w);
     }
     expect(STATION_POSES.GATE_VIRTUAL.x).toBeLessThan(STATION_POSES.SEC_VAULT.x);
@@ -127,8 +128,8 @@ describe('the office floor', () => {
   });
 
   it('puts the world origin in the middle of the building, not of the stage that also holds the pavement', () => {
-    expect(toWorld(540, 405)).toEqual([0, 0]);
-    expect(toWorld(540, 810)[1]).toBe(FLOOR.d / 2);
+    expect(toWorld(BUILDING.width / 2, BUILDING.height / 2)).toEqual([0, 0]);
+    expect(toWorld(540, BUILDING.height)[1]).toBe(FLOOR.d / 2);
     // The ATM cards sit below the building on the 2D stage, and so on the pavement in front of it in 3D.
     expect(deskPose('GATE_ATM').z).toBeGreaterThan(FLOOR.d / 2);
   });
@@ -189,9 +190,10 @@ describe('people', () => {
     }
   });
 
-  it('queues an instant transfer as phones and everything else as people', () => {
-    expect(queueStyle('GATE_A2A')).toBe('phones');
-    for (const id of STATION_IDS) if (id !== 'GATE_A2A') expect(queueStyle(id)).toBe('people');
+  it('queues the digital gates (A2A, VietQR, SWIFT, eKYC) as phones and everything else as people', () => {
+    const phones = ['GATE_A2A', 'GATE_QR', 'GATE_SWIFT', 'GATE_EKYC'];
+    for (const id of phones) expect(queueStyle(id as (typeof STATION_IDS)[number])).toBe('phones');
+    for (const id of STATION_IDS) if (!phones.includes(id)) expect(queueStyle(id)).toBe('people');
   });
 
   it('sends arrivals from a door in the left wall to the back of the queue', () => {

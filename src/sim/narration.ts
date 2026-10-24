@@ -7,7 +7,7 @@ import { formatAud } from '../engine/capabilities';
 import type { CardType } from '../types/processLearning';
 import { scenarioLabelEn } from './scenarios';
 import type { StationId } from './topology';
-import type { Packet, Stop } from './types';
+import type { Checkpoint, Packet, Stop } from './types';
 
 const CARD_LABEL: Record<CardType, string> = {
   DEBIT: 'debit card',
@@ -33,11 +33,87 @@ const THREE_DS_TEXT: Record<string, string> = {
   REJECT: 'too risky, rejected',
 };
 
+type Check<A extends Checkpoint['at']> = Extract<Checkpoint, { at: A }>;
+
+export const EKYC_TEXT: Record<Check<'EKYC'>['verdict'], string> = {
+  VERIFIED: 'identity verified',
+  LIVENESS_FAILED: 'liveness failed',
+  FACE_MISMATCH: 'face does not match the CCCD',
+  FAKE_ID: 'fake ID suspected',
+  CITIZEN_DB_MISMATCH: 'not found in the National Citizen Database',
+};
+
+export const SCREEN_TEXT: Record<Check<'AML_SCREEN'>['reason'], string> = {
+  NONE: 'clean',
+  PEP: 'STR_PENDING, PEP',
+  STRUCTURING: 'STR_PENDING, structuring',
+  LARGE_CROSS_BORDER: 'STR_PENDING, large cross-border',
+  OFAC: 'AML_SANCTION_MATCH',
+};
+
+export const REVIEW_REASON: Record<Check<'AML_REVIEW'>['reason'], string> = { NONE: 'no reason', PEP: 'PEP', STRUCTURING: 'structuring', LARGE_CROSS_BORDER: 'large cross-border', OFAC: 'OFAC match' };
+
+export const REVIEW_TEXT: Record<Check<'AML_REVIEW'>['verdict'], string> = {
+  RELEASED: 'false positive, released',
+  STR_FILED_RELEASED: 'STR filed, released',
+  BLOCKED_STR: 'STR filed, blocked',
+  BLOCKED_SANCTION: 'sanctions match confirmed, funds frozen',
+};
+
+export const CLAIM_TEXT: Record<Check<'DISPUTE'>['type'], string> = { CHARGEBACK: 'chargeback', PACS004_RETURN: 'pacs.004 return', ATM_MISMATCH: 'ATM mismatch' };
+
+export const DISPUTE_TEXT: Record<Check<'DISPUTE'>['verdict'], string> = {
+  REFUND: 'upheld, refund',
+  REJECTED_SLA: 'past the time limit, rejected',
+  REJECTED_EVIDENCE: 'evidence against the customer, rejected',
+};
+
+export const POSTING_TEXT: Record<Check<'POSTING'>['verdict'], string> = {
+  ACCOUNT_OPENED: 'account opened',
+  DEBITED: 'debited',
+  CREDITED: 'credited',
+  REFUNDED: 'refund credited',
+  NO_FUNDS: 'not enough money, declined',
+};
+
+const screenTail = (s: Stop): string => (s.screen ? `; AML screen ${SCREEN_TEXT[s.screen.reason]}` : '');
+
+/** The activity line of a Phase 8 checkpoint. Each one is a single fixed template, so feedVi.ts can rebuild it in Vietnamese. */
+function describeCheckpoint(c: Checkpoint, what: string, stop: Stop): string {
+  switch (c.at) {
+    case 'EKYC':
+      return `eKYC for ${what}: OCR ${c.ocrMatchPct}%, liveness ${c.livenessScore}, face match ${c.faceMatchPct}%: ${EKYC_TEXT[c.verdict]}`;
+    case 'QR':
+      return `Parsing the VietQR for ${what}: ${
+        c.verdict === 'PARSED' ? `${c.mode === 'DYNAMIC' ? 'dynamic' : 'static'} QR, CRC ok, mapped to ISO 8583 0200` : c.issue === 'CRC' ? 'CRC mismatch, refused' : c.issue === 'AMOUNT' ? 'amount disagrees, refused' : 'malformed EMVCo tags, refused'
+      }`;
+    case 'SWIFT':
+      return `Validating the pacs.008 for ${what} (${c.currency}): ${c.verdict === 'VALID' ? 'well formed, FX converted' : `${c.field} is invalid, rejected`}`;
+    case 'FACEPAY':
+      return `FacePay check on ${what}: face match ${c.faceMatchPct}%, ${c.verdict === 'MATCHED' ? 'authorised' : c.verdict === 'NOT_ENROLLED' ? 'no face enrolled, BIOMETRIC_AUTH_REQUIRED' : 'BIOMETRIC_AUTH_REQUIRED'}`;
+    case 'FDS':
+      return `Scoring the device behind ${what}: score ${c.score}${c.signals.length > 0 ? ` (${c.signals.join(', ')})` : ''}, ${c.verdict === 'CLEAR' ? 'clear' : 'FDS_HIGH_RISK_DEVICE'}${screenTail(stop)}`;
+    case 'TELLER':
+      return `Counting ${what} ${c.direction === 'IN' ? 'in' : 'out'}: ${
+        c.verdict === 'SUSPECT_NOTES' ? `${c.suspectSerials} suspect notes, serials recorded` : c.verdict === 'VAULT_LIMIT' ? 'not enough cash in the till' : c.ctr ? 'counted, CTR filed' : 'counted'
+      }${screenTail(stop)}`;
+    case 'AML_REVIEW':
+      return `Reviewing ${what} (${REVIEW_REASON[c.reason]}): ${REVIEW_TEXT[c.verdict]}`;
+    case 'DISPUTE':
+      return `Working the ${CLAIM_TEXT[c.type]} claim for ${what}: ${DISPUTE_TEXT[c.verdict]}`;
+    case 'POSTING':
+      return `Posting ${what} on the CASA ledger: ${POSTING_TEXT[c.verdict]}`;
+    case 'AML_SCREEN':
+      return `Screening ${what}: ${SCREEN_TEXT[c.reason]}`;
+  }
+}
+
 /** One line saying what the worker is doing with this packet at this desk. Read at the moment the item is finished. */
 export function describeWork(station: StationId, p: Packet, stop: Stop, previous: Stop | undefined): string {
   const money = formatAud(p.amountCents);
   const what = tag(p);
   const f = stop.facts;
+  if (stop.check) return describeCheckpoint(stop.check, what, stop);
 
   switch (station) {
     case 'GATE_VIRTUAL':
@@ -99,6 +175,17 @@ export function describeWork(station: StationId, p: Packet, stop: Stop, previous
     case 'SUSPENSE':
       if (p.kind === 'ATM') return `Refunding the ATM jam ${tail(p.id)} (${what}): the cash count shows the notes never came out`;
       return `Investigating suspense item ${tail(p.id)} (${formatAud(p.plan.suspenseCents)}): ${p.plan.reasonCode ?? 'unmatched'}`;
+
+    // Phase 8 desks only ever see packets with a checkpoint (handled above); this is the line for anything else.
+    case 'GATE_EKYC':
+    case 'GATE_QR':
+    case 'TELLER_CASH':
+    case 'SEC_FACEPAY':
+    case 'SEC_FDS':
+    case 'AML_DESK':
+    case 'DISPUTE_DESK':
+    case 'GATE_SWIFT':
+      return `Working on ${what}`;
   }
 }
 
@@ -119,4 +206,12 @@ export const IDLE_TEXT: Record<StationId, string> = {
   GATE_A2A: 'Watching the instant-payment feed',
   GATE_ATM: 'Waiting for the next card at the sidewalk ATM',
   ATM_CASH: 'Cash cassettes loaded, waiting for a withdrawal',
+  GATE_EKYC: 'Waiting for the next CCCD scan and selfie',
+  GATE_QR: 'Watching the Napas247 QR feed',
+  TELLER_CASH: 'Till balanced, waiting for the next customer',
+  SEC_FACEPAY: 'Waiting for the next high-value transfer',
+  SEC_FDS: 'Scoring device fingerprints in real time',
+  AML_DESK: 'No alerts waiting for review',
+  DISPUTE_DESK: 'No claims waiting',
+  GATE_SWIFT: 'Watching the SWIFT inbound and outbound queues',
 };

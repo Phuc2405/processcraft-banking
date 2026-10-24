@@ -30,6 +30,16 @@ const DECLINE_VI: Readonly<Record<string, string>> = {
   'atm jam': 'kẹt ATM',
   timeout: 'quá thời gian',
   'process error': 'lỗi xử lý',
+  'ekyc liveness failed': 'eKYC không xác minh được danh tính',
+  'biometric auth required': 'facePay không khớp khuôn mặt',
+  'fds high risk device': 'fDS: thiết bị rủi ro cao',
+  'aml sanction match': 'trùng danh sách cấm vận',
+  'aml str blocked': 'bị chặn sau khi rà soát STR',
+  'qr payload invalid': 'mã VietQR không hợp lệ',
+  'swift invalid': 'điện SWIFT bị từ chối',
+  'teller vault limit': 'vượt hạn mức tiền mặt tại quầy',
+  'teller suspect note': 'tiền nghi giả tại quầy',
+  'dispute rejected': 'khiếu nại bị từ chối',
 };
 
 const THREE_DS_VI: Readonly<Record<string, string>> = {
@@ -60,6 +70,58 @@ const NOTE_VI: Readonly<Record<string, string>> = {
   'The cash count agreed the notes never came out, so the customer was refunded.': 'Kiểm quỹ xác nhận tiền chưa từng ra khỏi máy, nên khách đã được hoàn tiền.',
   'Every queue is clear.': 'Mọi hàng chờ đã trống.',
 };
+
+/** Phase 8 checkpoint verdicts (narration.ts), English → Vietnamese. Reason codes stay as written. */
+const CHECK_VI: Readonly<Record<string, string>> = {
+  'identity verified': 'đã xác minh danh tính',
+  'liveness failed': 'không qua kiểm tra người thật',
+  'face does not match the CCCD': 'khuôn mặt không khớp CCCD',
+  'fake ID suspected': 'nghi giấy tờ giả',
+  'not found in the National Citizen Database': 'không có trong Cơ sở dữ liệu quốc gia về dân cư',
+  'dynamic QR, CRC ok, mapped to ISO 8583 0200': 'QR động, CRC hợp lệ, ánh xạ sang ISO 8583 0200',
+  'static QR, CRC ok, mapped to ISO 8583 0200': 'QR tĩnh, CRC hợp lệ, ánh xạ sang ISO 8583 0200',
+  'CRC mismatch, refused': 'sai CRC, từ chối',
+  'amount disagrees, refused': 'số tiền không khớp, từ chối',
+  'malformed EMVCo tags, refused': 'thẻ EMVCo sai định dạng, từ chối',
+  'well formed, FX converted': 'đúng định dạng, đã quy đổi ngoại tệ',
+  authorised: 'đã xác thực',
+  'no face enrolled, BIOMETRIC_AUTH_REQUIRED': 'chưa đăng ký khuôn mặt, BIOMETRIC_AUTH_REQUIRED',
+  BIOMETRIC_AUTH_REQUIRED: 'BIOMETRIC_AUTH_REQUIRED',
+  clear: 'an toàn',
+  FDS_HIGH_RISK_DEVICE: 'FDS_HIGH_RISK_DEVICE',
+  clean: 'sạch',
+  'STR_PENDING, PEP': 'STR_PENDING, người có ảnh hưởng chính trị (PEP)',
+  'STR_PENDING, structuring': 'STR_PENDING, chia nhỏ giao dịch',
+  'STR_PENDING, large cross-border': 'STR_PENDING, chuyển tiền quốc tế lớn',
+  AML_SANCTION_MATCH: 'AML_SANCTION_MATCH',
+  counted: 'đã kiểm đếm',
+  'counted, CTR filed': 'đã kiểm đếm, đã lập CTR',
+  'not enough cash in the till': 'không đủ tiền mặt trong ngăn kéo',
+  'no reason': 'không lý do',
+  PEP: 'PEP',
+  structuring: 'chia nhỏ giao dịch',
+  'large cross-border': 'chuyển tiền quốc tế lớn',
+  'OFAC match': 'trùng OFAC',
+  'false positive, released': 'cảnh báo nhầm, giải phóng',
+  'STR filed, released': 'đã lập STR, giải phóng',
+  'STR filed, blocked': 'đã lập STR, chặn giao dịch',
+  'sanctions match confirmed, funds frozen': 'xác nhận trùng cấm vận, phong tỏa tiền',
+  chargeback: 'tra soát thẻ (chargeback)',
+  'pacs.004 return': 'hoàn trả pacs.004',
+  'ATM mismatch': 'lệch tiền ATM',
+  'upheld, refund': 'chấp nhận, hoàn tiền',
+  'past the time limit, rejected': 'quá thời hạn, từ chối',
+  'evidence against the customer, rejected': 'bằng chứng bất lợi cho khách, từ chối',
+  'account opened': 'đã mở tài khoản',
+  debited: 'đã ghi nợ',
+  credited: 'đã ghi có',
+  'refund credited': 'đã ghi có hoàn tiền',
+  'not enough money, declined': 'không đủ tiền, từ chối',
+};
+
+const cv = (s: string): string => CHECK_VI[s] ?? s;
+/** "…; AML screen clean" → "…; sàng lọc AML sạch". */
+const screenVi = (tail: string | undefined): string => (tail ? `; sàng lọc AML ${cv(tail)}` : '');
 
 const lower = (s: string): string => s.toLowerCase();
 
@@ -134,6 +196,20 @@ const RULES: readonly Rule[] = [
   [/^Fraud approved: (.+?)\. The bank will have to repay it\.$/, (m) => `Gian lận lọt qua: ${m[1]}. Ngân hàng sẽ phải hoàn trả.`],
   [/^Stopped a fraudulent payment, (.+) \((.+)\)\.$/, (m) => `Đã chặn một giao dịch gian lận, ${m[1]} (${DECLINE_VI[m[2]!] ?? m[2]}).`],
 
+  // Phase 8 checkpoints (narration.ts describeCheckpoint)
+  [/^eKYC for (.+): OCR (\d+)%, liveness (\d+), face match (\d+)%: (.+)$/, (m) => `eKYC cho ${m[1]}: OCR ${m[2]}%, người thật ${m[3]}, khớp khuôn mặt ${m[4]}%: ${cv(m[5]!)}`],
+  [/^Parsing the VietQR for (.+?): (.+)$/, (m) => `Đang đọc VietQR của ${m[1]}: ${cv(m[2]!)}`],
+  [/^Validating the pacs\.008 for (.+) \((\w{3})\): well formed, FX converted$/, (m) => `Đang xác thực pacs.008 của ${m[1]} (${m[2]}): đúng định dạng, đã quy đổi ngoại tệ`],
+  [/^Validating the pacs\.008 for (.+) \((\w{3})\): (\w+) is invalid, rejected$/, (m) => `Đang xác thực pacs.008 của ${m[1]} (${m[2]}): ${m[3]} không hợp lệ, từ chối`],
+  [/^FacePay check on (.+?): face match (\d+)%, (.+)$/, (m) => `Kiểm tra FacePay cho ${m[1]}: khớp khuôn mặt ${m[2]}%, ${cv(m[3]!)}`],
+  [/^Scoring the device behind (.+?): score (\d+)((?: \([A-Z_, ]+\))?), (clear|FDS_HIGH_RISK_DEVICE)(?:; AML screen (.+))?$/, (m) => `Đang chấm thiết bị của ${m[1]}: điểm ${m[2]}${m[3]}, ${cv(m[4]!)}${screenVi(m[5])}`],
+  [/^Counting (.+) (in|out): (.+?)(?:; AML screen (.+))?$/, (m) => `Đang kiểm đếm ${m[1]} ${m[2] === 'in' ? 'nộp vào' : 'chi ra'}: ${/^(\d+) suspect notes, serials recorded$/.test(m[3]!) ? `${m[3]!.split(' ')[0]} tờ nghi giả, đã ghi số seri` : cv(m[3]!)}${screenVi(m[4])}`],
+  [/^Reviewing (.+) \((PEP|structuring|large cross-border|OFAC match|no reason)\): (.+)$/, (m) => `Đang rà soát ${m[1]} (${cv(m[2]!)}): ${cv(m[3]!)}`],
+  [/^Working the (chargeback|pacs\.004 return|ATM mismatch) claim for (.+?): (.+)$/, (m) => `Đang xử lý khiếu nại ${cv(m[1]!)} cho ${m[2]}: ${cv(m[3]!)}`],
+  [/^Posting (.+) on the CASA ledger: (.+)$/, (m) => `Đang hạch toán ${m[1]} trên sổ cái CASA: ${cv(m[2]!)}`],
+  [/^Screening (.+?): (.+)$/, (m) => `Đang sàng lọc ${m[1]}: ${cv(m[2]!)}`],
+  [/^Working on (.+)$/, (m) => `Đang xử lý ${m[1]}`],
+
   // What a worker is doing (narration.ts)
   [/^Receiving (.+) paid with a virtual card$/, (m) => `Đang nhận ${m[1]} thanh toán bằng thẻ ảo`],
   [/^Receiving (.+) from a shop terminal$/, (m) => `Đang nhận ${m[1]} từ máy POS cửa hàng`],
@@ -179,6 +255,14 @@ const IDLE_VI: Readonly<Record<string, string>> = {
   'Watching the instant-payment feed': 'Đang theo dõi luồng thanh toán tức thì',
   'Waiting for the next card at the sidewalk ATM': 'Đang chờ thẻ tiếp theo tại ATM vỉa hè',
   'Cash cassettes loaded, waiting for a withdrawal': 'Hộp tiền đã nạp, đang chờ lượt rút',
+  'Waiting for the next CCCD scan and selfie': 'Đang chờ lượt quét CCCD và ảnh selfie tiếp theo',
+  'Watching the Napas247 QR feed': 'Đang theo dõi luồng QR Napas247',
+  'Till balanced, waiting for the next customer': 'Két quầy đã cân, đang chờ khách tiếp theo',
+  'Waiting for the next high-value transfer': 'Đang chờ giao dịch giá trị cao tiếp theo',
+  'Scoring device fingerprints in real time': 'Đang chấm dấu vân tay thiết bị theo thời gian thực',
+  'No alerts waiting for review': 'Không có cảnh báo chờ rà soát',
+  'No claims waiting': 'Không có khiếu nại đang chờ',
+  'Watching the SWIFT inbound and outbound queues': 'Đang theo dõi hàng chờ SWIFT đi và đến',
   'Morning briefing and systems check': 'Giao ban buổi sáng và kiểm tra hệ thống',
   'Off shift until 22:30': 'Nghỉ ca tới 22:30',
   'Off shift until 08:00': 'Nghỉ ca tới 08:00',

@@ -156,12 +156,13 @@ describe('customers and days', () => {
 
   it('a day has about 700-800 card customers, a few hundred more on the newer channels, and a lunchtime peak', () => {
     const d = generateDay(7, 1);
-    const card = d.customers.filter((c) => c.kind !== 'A2A' && c.kind !== 'ATM');
+    const card = d.customers.filter((c) => c.kind === 'POS' || c.kind === 'ECOM' || c.kind === 'VIRTUAL' || c.kind === 'BNPL');
     // The four card channels draw from their own random stream, so adding the A2A gate and the ATM left them exactly as they were.
     expect(card.length).toBeGreaterThan(650);
     expect(card.length).toBeLessThan(900);
     expect(d.customers.length).toBeGreaterThan(card.length + 80);
-    expect(d.customers.length).toBeLessThan(1150);
+    // Plus the Phase 8 channels (eKYC, VietQR, teller cash, SWIFT, claims): about two hundred more.
+    expect(d.customers.length).toBeLessThan(1400);
     const perBeat = d.beats.map((b) => b.length);
     const lunch = perBeat.slice(36, 48).reduce((a, b) => a + b, 0);
     const morning = perBeat.slice(0, 12).reduce((a, b) => a + b, 0);
