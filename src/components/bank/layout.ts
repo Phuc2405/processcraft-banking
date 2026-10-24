@@ -13,8 +13,9 @@ import { edgeId, WIRES, type DepartmentId, type PlaceId } from '../../sim/topolo
  * its wires run up, is the extra STAGE area around it.
  */
 export const BUILDING = { width: 1080, height: 1180 } as const;
-// 2D stage (Phase 1A compact grid: EOD moved under the outcome column; Phase 8 adds the extended-flows band below it).
-export const STAGE = { width: 1320, height: 1264 } as const;
+// 2D stage (Phase 1A compact grid: EOD moved under the outcome column; Phase 8 adds the extended-flows band below it,
+// raised flush under the processing grid once the ATM moved to the top-right).
+export const STAGE = { width: 1320, height: 984 } as const;
 
 // Right-side clusters (Flows 3 and 4): `right` px of extra free space so the zoom toolbar never covers them and the camera
 // never parks against the edge. Triggered by an edge within `band` of the stage's right side, or a centre past `centre`.
@@ -24,7 +25,10 @@ export const needsRightPad = (r: { x0: number; x1: number }): boolean => r.x1 >=
 export const CARD = { w: 160, h: 92 } as const;
 
 /** Phase 8: the y of the extended band's first row on the 2D stage. */
-export const BAND_ROW_2D = 1012;
+export const BAND_ROW_2D = 732;
+
+/** 2D: the lowest decline lane (below band row 2). Higher band declines drop to it beside the trunk before the gutter. */
+const BAND_FLOOR_2D = BAND_ROW_2D + 140 + 88;
 
 export interface PlaceBox {
   /** Centre. */
@@ -97,8 +101,9 @@ export const PLACE_BOX: Record<PlaceId, PlaceBox> = {
   EOD_VISA: card(1210, 548),
   SUSPENSE: card(1000, 680),
   RECON: card(1210, 680),
-  GATE_ATM: card(580, 700),
-  ATM_CASH: card(780, 700),
+  // Sidewalk ATM: top-right, beside the outcomes (Card & PIN next to Declined, cash notes next to Approved).
+  GATE_ATM: card(1190, 150),
+  ATM_CASH: card(1190, 354),
   CUSTOMER_OTP: { cx: 500, cy: 312, w: 150, h: 62 },
   OUT_DECLINED: { cx: 1000, cy: 150, w: 110, h: 100 },
   OUT_APPROVED: { cx: 1000, cy: 354, w: 110, h: 100 },
@@ -119,7 +124,7 @@ export const DEPT_BOX: Record<DepartmentId, DeptBox> = {
   LEDGER: { x: 688, y: 160, w: 184, h: 280 },
   BNPL: { x: 208, y: 460, w: 184, h: 140 },
   EOD: { x: 910, y: 466, w: 390, h: 416 },
-  ATM: { x: 480, y: 626, w: 400, h: 142 },
+  ATM: { x: 1094, y: 66, w: 192, h: 366 },
   ...bandDepts(BAND_ROW_2D),
 };
 
@@ -210,7 +215,7 @@ const ROUTES: Record<string, RouteSpec> = {
   'CUSTOMER_OTP>SEC_3DS': R(['l', 10], ['r', -14], { bendX: 396, quiet: true }),
   'SEC_3DS>LEDGER_DEBIT': R(['r', 4], ['l', 8], { bendX: 652 }),
   'SEC_3DS>LEDGER_CREDIT': R(['r', 20], ['l', 8], { bendX: 664 }),
-  'SEC_3DS>OUT_DECLINED': R(['b', 50], ['r', 0], { via: [[350, 446], [1066, 446], [1066, 150]], labelAt: [460, 446] }),
+  'SEC_3DS>OUT_DECLINED': R(['b', 50], ['t', 40], { via: [[350, 446], [1305, 446], [1305, 32], [1040, 32]], labelAt: [460, 446] }),
   // Pay-in-4
   'BNPL>LEDGER_DEBIT': R(['r', -14], ['l', 28], { bendX: 676, labelAt: [520, 528] }),
   'BNPL>LEDGER_CREDIT': R(['r', 6], ['l', 28], { bendX: 684 }),
@@ -226,14 +231,18 @@ const ROUTES: Record<string, RouteSpec> = {
   'RECON>OUT_SETTLED': R(['b'], ['r']),
   'RECON>SUSPENSE': R(['l'], ['r']),
   'SUSPENSE>OUT_SETTLED': R(['b'], ['l']),
-  // Sidewalk ATM. Declines join the 3DS lane (y 446); cash paid out takes its own lane (y 455) into Approved.
-  'GATE_ATM>ATM_CASH': R(['r'], ['l'], { quiet: true }),
-  'GATE_ATM>OUT_DECLINED': R(['t', -30], ['r'], { via: [[550, 446], [1066, 446], [1066, 150]], labelAt: [640, 446] }),
-  'ATM_CASH>OUT_DECLINED': R(['t', -30], ['r'], { via: [[750, 446], [1066, 446], [1066, 150]], quiet: true }),
-  'ATM_CASH>OUT_APPROVED': R(['t', 40], ['b', -35], { via: [[820, 455], [965, 455]], labelAt: [820, 560] }),
-  'ATM_CASH>SUSPENSE': R(['r'], ['l'], { bendX: 890 }),
-  // Phase 8 band: declines climb the right-hand gutter and enter Declined from above.
-  ...bandRoutes(BAND_ROW_2D, (y) => ({ via: [[1305, y], [1305, 32], [1040, 32]], to: ['t', 40] })),
+  // Sidewalk ATM (top-right). Card & PIN declines go straight left into Declined; cash paid out straight left into Approved;
+  // a cash jam drops between the night-cycle columns into the top of Suspense.
+  'GATE_ATM>ATM_CASH': R(['b'], ['t'], { quiet: true }),
+  'GATE_ATM>OUT_DECLINED': R(['l', -20], ['r', -20], { quiet: true }),
+  'ATM_CASH>OUT_DECLINED': R(['l', -30], ['r', 20], { via: [[1080, 324], [1080, 170]], quiet: true }),
+  'ATM_CASH>OUT_APPROVED': R(['l', 10], ['r', 10], { quiet: true }),
+  'ATM_CASH>SUSPENSE': R(['b', -70], ['t', 40], { via: [[1120, 614], [1040, 614]], quiet: true }),
+  // Phase 8 band: declines drop beside the trunk to the floor lane, run to the right-hand gutter and enter Declined from above.
+  ...bandRoutes(BAND_ROW_2D, (y) => ({
+    via: y < BAND_FLOOR_2D ? [[896, y], [896, BAND_FLOOR_2D], [1305, BAND_FLOOR_2D], [1305, 32], [1040, 32]] : [[1305, y], [1305, 32], [1040, 32]],
+    to: ['t', 40],
+  })),
 };
 
 function anchor(b: PlaceBox, [side, d = 0]: Port): Pt {

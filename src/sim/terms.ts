@@ -17,6 +17,8 @@
  */
 
 import { activeLocale, pick, type Localized } from '../i18n/locale';
+import { STATION_BRAND, stationBrandMessages } from '../i18n/stationBrand.messages';
+import { message } from '../utils/i18nHelper';
 import { DEPARTMENTS, STATIONS, type DepartmentId, type ExternalId, type PlaceId, type StationId, isStation } from './topology';
 
 export type TermMode = 'expert' | 'beginner';
@@ -560,20 +562,29 @@ const EXPERT_DEPARTMENT_VI: Readonly<Record<DepartmentId, { name: string; blurb:
 
 const vi = (): boolean => activeLocale() === 'vi';
 
+/** A market-branded desk's copy (same in both vocabularies), or null. */
+function brand(id: StationId, part: 'title' | 'short' | 'caption' | 'tip'): string | null {
+  const key = STATION_BRAND[id];
+  return key ? message(stationBrandMessages, `${key}_${part}`) : null;
+}
+
 /** The name on a desk card. */
 export function stationName(id: StationId, mode: TermMode): string {
-  return mode === 'beginner' ? book().stations[id].short : vi() ? EXPERT_STATION_VI[id].name : STATIONS[id].name;
+  return brand(id, 'short') ?? (mode === 'beginner' ? book().stations[id].short : vi() ? EXPERT_STATION_VI[id].name : STATIONS[id].name);
 }
 
 /** The full name, for headings and tooltips. */
 export function stationTitle(id: StationId, mode: TermMode): string {
-  return mode === 'beginner' ? book().stations[id].plain : vi() ? EXPERT_STATION_VI[id].name : STATIONS[id].name;
+  return brand(id, 'title') ?? (mode === 'beginner' ? book().stations[id].plain : vi() ? EXPERT_STATION_VI[id].name : STATIONS[id].name);
 }
 
 /** The one-sentence "what is this" for a desk. */
 export function stationTip(id: StationId, mode: TermMode): string {
-  return mode === 'beginner' ? book().stations[id].tip : vi() ? EXPERT_STATION_VI[id].blurb : STATIONS[id].blurb;
+  return brand(id, 'tip') ?? (mode === 'beginner' ? book().stations[id].tip : vi() ? EXPERT_STATION_VI[id].blurb : STATIONS[id].blurb);
 }
+
+/** The brand caption under a market-branded desk's name, or null. */
+export const stationCaption = (id: StationId): string | null => brand(id, 'caption');
 
 export const stationBlurb = stationTip;
 

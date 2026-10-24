@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { setActiveLocale } from '../../i18n/locale';
+import { STATION_BRAND } from '../../i18n/stationBrand.messages';
 import { DEPARTMENTS, DEPARTMENT_IDS, EXTERNAL_IDS, STATION_IDS, STATIONS } from '../topology';
 import {
   departmentName,
@@ -11,6 +13,7 @@ import {
   placeTip,
   placeTitle,
   plainText,
+  stationCaption,
   stationName,
   stationTip,
   stationTitle,
@@ -21,7 +24,7 @@ const sentences = (text: string): number => (text.match(/[.!?](\s|$)/g) ?? []).l
 
 describe('names in the two vocabularies', () => {
   it('uses the topology names for the Fintech Expert', () => {
-    for (const id of STATION_IDS) {
+    for (const id of STATION_IDS.filter((s) => !STATION_BRAND[s])) {
       expect(stationName(id, 'expert')).toBe(STATIONS[id].name);
       expect(stationTitle(id, 'expert')).toBe(STATIONS[id].name);
       expect(stationTip(id, 'expert')).toBe(STATIONS[id].blurb);
@@ -40,10 +43,30 @@ describe('names in the two vocabularies', () => {
     expect(stationTitle('SUSPENSE', 'beginner')).toBe('Holding Box for Mismatched Money');
   });
 
+  it('names the instant-transfer desk by its global rail, with local brands in the caption and tip', () => {
+    for (const mode of ['expert', 'beginner'] as const) {
+      expect(stationTitle('GATE_A2A', mode)).toBe('Instant Bank Transfer (PayID / Real-Time Rail)');
+      expect(stationName('GATE_A2A', mode)).toBe('Instant A2A');
+      expect(stationTip('GATE_A2A', mode)).toContain('PayID/NPP (Australia)');
+    }
+    expect(stationCaption('GATE_A2A')).toBe('Real-time account-to-account & dynamic QR rail');
+    expect(stationCaption('GATE_POS')).toBeNull();
+    setActiveLocale('vi');
+    try {
+      expect(stationTitle('GATE_A2A', 'expert')).toBe('Chuyển tiền Tức thời (Napas247 / VietQR)');
+      expect(stationName('GATE_A2A', 'beginner')).toBe('Chuyển tiền 24/7');
+      expect(stationCaption('GATE_A2A')).toBe('Hạ tầng chuyển tiền nhanh & mã QR nội địa');
+      expect(stationTip('GATE_A2A', 'expert')).toContain('Napas247/VietQR (Việt Nam)');
+    } finally {
+      setActiveLocale('en');
+    }
+  });
+
   it('gives every desk, department and tally a plain name, a short name that fits a card, and one sentence of explanation', () => {
     for (const id of STATION_IDS) {
       expect(stationTitle(id, 'beginner').length).toBeGreaterThan(3);
       expect(stationName(id, 'beginner').length).toBeLessThanOrEqual(36);
+      if (STATION_BRAND[id]) continue;
       const tip = stationTip(id, 'beginner');
       expect(tip.endsWith('.')).toBe(true);
       expect(sentences(tip)).toBe(1);

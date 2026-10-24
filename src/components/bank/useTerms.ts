@@ -8,6 +8,7 @@ import {
   externalTip,
   placeTip,
   placeTitle,
+  stationCaption,
   stationName,
   stationTip,
   stationTitle,
@@ -28,6 +29,8 @@ export interface Terms {
   stationTitle(id: StationId): string;
   /** One sentence about what a desk is. */
   tip(id: StationId): string;
+  /** The brand caption of a market-branded desk, or null. */
+  caption(id: StationId): string | null;
   department(id: DepartmentId): string;
   departmentTitle(id: DepartmentId): string;
   departmentTip(id: DepartmentId): string;
@@ -47,6 +50,7 @@ export function termsFor(mode: TermMode): Terms {
     station: (id) => stationName(id, mode),
     stationTitle: (id) => stationTitle(id, mode),
     tip: (id) => stationTip(id, mode),
+    caption: (id) => stationCaption(id),
     department: (id) => departmentName(id, mode),
     departmentTitle: (id) => departmentTitle(id, mode),
     departmentTip: (id) => departmentTip(id, mode),

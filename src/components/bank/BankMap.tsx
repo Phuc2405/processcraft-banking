@@ -121,7 +121,7 @@ const TIP_POSITION: Record<TipSide, string> = {
  * Opens on the side of the desk where it covers no other card (see tipSideFor), and the desk under the pointer is lifted above
  * its neighbours while it shows, so no other card can paint over it.
  */
-function HoverTip({ name, tip, side }: { name: string; tip: string; side: TipSide }) {
+function HoverTip({ name, tip, side, caption }: { name: string; tip: string; side: TipSide; caption?: string | null }) {
   return (
     <span
       role="tooltip"
@@ -130,6 +130,7 @@ function HoverTip({ name, tip, side }: { name: string; tip: string; side: TipSid
       data-side={side}
     >
       <span className="block text-[11.5px] font-semibold leading-snug text-slate-50">{name}</span>
+      {caption && <span className="block text-[10px] leading-snug text-sky-300/90" data-testid="hover-tip-caption">{caption}</span>}
       <span className="mt-0.5 block text-[11.5px] leading-snug text-slate-300">{tip}</span>
     </span>
   );
@@ -301,7 +302,7 @@ const StationCard = memo(function StationCard({
           +{sv.arrivals}
         </span>
       )}
-      {!focus && (flow && flowLit ? <StepPreviewTip flow={flow.flow} place={id} side={TIP_SIDE[id]} /> : <HoverTip name={title} tip={terms.tip(id)} side={TIP_SIDE[id]} />)}
+      {!focus && (flow && flowLit ? <StepPreviewTip flow={flow.flow} place={id} side={TIP_SIDE[id]} /> : <HoverTip name={title} tip={terms.tip(id)} caption={terms.caption(id)} side={TIP_SIDE[id]} />)}
     </div>
   );
 });

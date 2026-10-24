@@ -332,6 +332,11 @@ function StationPanel({ id }: { id: StationId }) {
               <span className={`h-2 w-2 rounded-full ${STATUS_DOT_CLASS[sv.status]}`} />
               <span data-testid="inspector-status">{statusLabel(sv.status)}</span>
             </div>
+            {terms.caption(id) && (
+              <p className="mt-1 text-[11px] font-medium leading-snug text-sky-300/90" data-testid="station-caption">
+                {terms.caption(id)}
+              </p>
+            )}
             <p className="mt-1 text-[12px] leading-snug text-slate-300" data-testid="station-tip">
               {terms.tip(id)}
             </p>
