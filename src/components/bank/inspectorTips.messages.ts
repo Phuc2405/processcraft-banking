@@ -85,6 +85,9 @@ export const tipMessages = defineMessages('inspectorTips', {
     en: 'VietQR is EMVCo TLV: tag 38 holds the Napas GUID, BIN and account, tag 54 the amount on a dynamic QR, tag 63 a CRC-16 over the rest.',
     vi: 'VietQR theo chuẩn EMVCo TLV: thẻ 38 chứa GUID Napas, mã BIN và số tài khoản, thẻ 54 là số tiền của QR động, thẻ 63 là CRC-16 của phần còn lại.',
   },
+  line_rpReviews: { en: 'Reviews you decided yourself in the Staff Roleplay Workspace at this desk today.', vi: 'Số hồ sơ bạn tự quyết định trong Không gian nhập vai nhân viên tại quầy này hôm nay.' },
+  line_rpAccuracy: { en: 'Share of your decisions that matched the desk SOP. The shift objective asks for more than 90%.', vi: 'Tỷ lệ quyết định của bạn khớp với quy trình SOP của quầy. Mục tiêu ca làm việc yêu cầu trên 90%.' },
+  line_rpLatency: { en: 'Average real seconds you took per review. The SLA target is under 30 seconds.', vi: 'Số giây thực trung bình bạn dùng cho mỗi hồ sơ. Mục tiêu SLA là dưới 30 giây.' },
   line_qrInvalid: { en: 'Payloads refused before any money moved: a CRC mismatch means the code was altered or damaged.', vi: 'Các chuỗi bị từ chối trước khi tiền di chuyển: sai CRC nghĩa là mã đã bị sửa hoặc hỏng.' },
   line_iso8583: {
     en: 'Napas247 still switches card-style messages: each QR becomes an ISO 8583 0200 with field 3 (processing code), field 4 (amount) and field 49 = 704 (VND).',

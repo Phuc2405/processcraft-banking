@@ -29,6 +29,7 @@ import { useTerms, type Terms } from './useTerms';
 import { useSmartZoom, type ViewInsets } from '../../hooks/useSmartZoom';
 import { useFitScale, useZoomPan } from '../../hooks/useZoomPan';
 import { useNavStore } from '../../store/navStore';
+import { roleForStation } from '../../sim/staffRoleplay';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scaling the stage to the space it is given
@@ -218,6 +219,7 @@ const StationCard = memo(function StationCard({
   terms: Terms;
 }) {
   const select = useBankStore((s) => s.select);
+  const openStaffDesk = useBankStore((s) => s.openStaffDesk);
   const spotlightFocus = useBankStore((s) => s.spotlightFocus);
   const def = STATIONS[id];
   const box = PLACE_BOX[id];
@@ -248,6 +250,7 @@ const StationCard = memo(function StationCard({
       <button
         type="button"
         onClick={() => (focus ? spotlightFocus(id) : select({ kind: 'station', id }))}
+        onDoubleClick={() => !focus && roleForStation(id) && openStaffDesk(id)}
         aria-pressed={selected}
         aria-label={`${title}: ${statusLabel(sv.status)}, ${sv.queueLength} ${unit}`}
         data-testid={`station-${id}`}

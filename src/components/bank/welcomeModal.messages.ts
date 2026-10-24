@@ -25,6 +25,13 @@ export const welcomeMessages = defineMessages('welcomeModal', {
     en: 'Six chapters with guided walkthroughs and quizzes on tokenised cards, 3DS, Pay-in-4, the night cycle, instant transfers and AML.',
     vi: 'Sáu chương với hướng dẫn từng bước và câu hỏi: thẻ mã hóa, 3DS, trả góp 4 kỳ, chu kỳ ban đêm, chuyển khoản tức thì và phòng chống rửa tiền.',
   },
+  roleplayTitle: { en: 'Interactive Staff Roleplay (7 Analyst Roles)', vi: 'Nhập vai Chuyên viên (7 Vai trò)' },
+  roleplayBadge: { en: '[ 🧑‍💼 NEW FEATURE ]', vi: '[ 🧑‍💼 TÍNH NĂNG MỚI ]' },
+  roleplayBody: {
+    en: 'Step into the shoes of 7 specialized banking analysts (AML, eKYC, Fraud, Dispute, BNPL, Cashier, SWIFT). Inspect real-time flagged payloads, enforce SOP policies, and hit shift targets.',
+    vi: 'Trực tiếp nhập vai 7 vị trí chuyên viên ngân hàng (AML, eKYC, Gian lận, Tra soát, BNPL, Thu ngân, SWIFT). Kiểm tra hồ sơ kẹt, thực thi quy trình SOP và hoàn thành mục tiêu ca làm việc.',
+  },
+  roleplayPick: { en: 'Choose a desk to start your shift', vi: 'Chọn quầy để bắt đầu ca làm việc' },
   escHint: { en: 'Press {key} to skip', vi: 'Nhấn {key} để bỏ qua' },
   skip: { en: 'Skip for now', vi: 'Để sau' },
 });

@@ -18,6 +18,9 @@ import { feedText } from '../../i18n/feedVi';
 import { localizeScenarioText } from '../../sim/scenarios';
 import { lessonText } from '../../sim/learningVi';
 import { TransactionPanel } from './TransactionPanel';
+import { roleForStation } from '../../sim/staffRoleplay';
+import { useMessages } from '../../utils/i18nHelper';
+import { analystWorkspaceMessages } from './analystWorkspace.messages';
 import { isAutomatedNode } from '../../sim/nodeKind';
 import { InfoTip } from './InfoTip';
 import { ServerRackGraphic } from './ServerRack';
@@ -301,7 +304,9 @@ function StationPanel({ id }: { id: StationId }) {
   const phase = useBankStore((s) => s.view.phase);
   const select = useBankStore((s) => s.select);
   const addCover = useBankStore((s) => s.addCover);
+  const openStaffDesk = useBankStore((s) => s.openStaffDesk);
   const dayOver = useBankStore((s) => s.view.dayOver);
+  const ws = useMessages(analystWorkspaceMessages);
   const def = STATIONS[id];
   const dept = DEPARTMENTS[def.department];
   const first = sv.workers[0];
@@ -342,6 +347,18 @@ function StationPanel({ id }: { id: StationId }) {
             </p>
           </div>
         </div>
+
+        {roleForStation(id) && (
+          <button
+            type="button"
+            onClick={() => openStaffDesk(id)}
+            disabled={dayOver}
+            data-testid="enter-roleplay"
+            className="w-full rounded-xl border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-[13px] font-semibold text-amber-100 transition hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {ws('enterRoleplay')}
+          </button>
+        )}
 
         {terms.beginner && modelForStation(id) && <MentalModelCard model={modelForStation(id)!} />}
 

@@ -85,7 +85,7 @@ describe('Welcome modal language switcher', () => {
     expect(out).toContain('data-testid="welcome-language"');
     expect(out).toContain('data-testid="welcome-language-en"');
     expect(out).toContain('data-testid="welcome-language-vi"');
-    for (const key of ['badge', 'title', 'intro', 'guidedTitle', 'guidedBody', 'sandboxTitle', 'sandboxBody', 'academyTitle', 'academyBody', 'skip', 'recommended'] as const) {
+    for (const key of ['badge', 'title', 'intro', 'guidedTitle', 'guidedBody', 'sandboxTitle', 'sandboxBody', 'academyTitle', 'academyBody', 'roleplayTitle', 'roleplayBadge', 'roleplayBody', 'skip', 'recommended'] as const) {
       expect(out, key).toContain(welcomeMessages.messages[key].en.replace(/&/g, '&amp;'));
     }
     expect(out).toContain('Press <kbd');
@@ -96,7 +96,7 @@ describe('Welcome modal language switcher', () => {
   it('draws every element in Vietnamese after the switch', () => {
     setActiveLocale('vi');
     const out = html();
-    for (const key of ['badge', 'title', 'guidedTitle', 'sandboxTitle', 'academyTitle', 'skip', 'recommended'] as const) {
+    for (const key of ['badge', 'title', 'guidedTitle', 'sandboxTitle', 'academyTitle', 'roleplayTitle', 'roleplayBadge', 'skip', 'recommended'] as const) {
       expect(out, key).toContain(welcomeMessages.messages[key].vi);
     }
     expect(out).toContain('Nhấn <kbd');

@@ -22,6 +22,7 @@ import type { TermMode } from '../sim/terms';
 import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
 import type { BankView, Customer, PacketTrace } from '../sim/types';
+import { roleForStation, STAFF_XP_PER_CORRECT, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId } from '../sim/staffRoleplay';
 import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
@@ -88,6 +89,21 @@ export interface LeftTour {
 /** The seed every new bank starts with, so everyone's first week is the same lesson plan. */
 export const DEFAULT_SEED = 2026;
 
+/** One role's progress on today's shift objective in the Staff Roleplay Workspace. */
+export interface ShiftProgress {
+  reviews: number;
+  correct: number;
+  latencySumSec: number;
+  slaBreaches: number;
+  /** Decisions against the SOP. */
+  errors: number;
+  /** +STAFF_XP_PER_CORRECT for every decision that matches the SOP. */
+  xp: number;
+  last: StaffDecisionResult | null;
+}
+
+export const EMPTY_SHIFT: ShiftProgress = { reviews: 0, correct: 0, latencySumSec: 0, slaBreaches: 0, errors: 0, xp: 0, last: null };
+
 export interface BankState {
   sim: BankSimulation;
   view: BankView;
@@ -147,6 +163,19 @@ export interface BankState {
   saveStatus: BankSaveStatus;
   lastSavedAt: string | null;
   notice: BankNotice | null;
+
+  /** The desk the learner is working in the Staff Roleplay Workspace, or null. */
+  staffDesk: StationId | null;
+  /** Reviews waiting at the open roleplay desk (only that desk is filled). */
+  pendingQueueMap: Partial<Record<StationId, StaffCase[]>>;
+  /** Today's shift objective per role. */
+  staffShift: Partial<Record<StaffRoleId, ShiftProgress>>;
+  /** Opens the workspace at a roleplay desk and pauses the clock. Ignored for any other desk. */
+  openStaffDesk(id: StationId): void;
+  /** Closes the workspace; the clock resumes if it was running when the desk opened. */
+  closeStaffDesk(): void;
+  /** Decides one pending review at the open desk. */
+  staffDecide(packetId: string, decision: StaffDecision, latencySec: number, slaSec: number): StaffDecisionResult;
 
   // Clock
   play(): void;
@@ -338,8 +367,13 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       const s = get();
       const presetTxId = 'presetTxId' in extra ? (extra.presetTxId ?? null) : s.presetTxId;
       const presetTrace = presetTxId ? s.sim.traceOf(presetTxId) : null;
-      set({ view: s.sim.snapshot(), presetTrace, ...extra, ...(presetTxId && !presetTrace ? { presetTxId: null } : {}) });
+      const desk = 'staffDesk' in extra ? (extra.staffDesk ?? null) : s.staffDesk;
+      s.sim.setStaffOverride(desk);
+      const pendingQueueMap = desk ? { [desk]: s.sim.staffCases(desk) } : {};
+      set({ view: s.sim.snapshot(), presetTrace, pendingQueueMap, ...extra, ...(presetTxId && !presetTrace ? { presetTxId: null } : {}) });
     };
+    /** Whether the clock was running when the roleplay desk opened. */
+    let staffResume = false;
 
     const closeDay = (): void => {
       set({ playing: false, solo: false });
@@ -411,6 +445,46 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       saveStatus: storage ? (saved ? 'saved' : 'pristine') : 'unavailable',
       lastSavedAt: saved?.savedAt || null,
       notice: saved ? { kind: 'info', message: `Welcome back. The bank is on day ${saved.day}.` } : null,
+
+      staffDesk: null,
+      pendingQueueMap: {},
+      staffShift: {},
+
+      openStaffDesk: (id) => {
+        if (!roleForStation(id)) return;
+        const s = get();
+        if (s.staffDesk === null) staffResume = s.playing;
+        set({ playing: false });
+        refresh({ staffDesk: id });
+      },
+
+      closeStaffDesk: () => {
+        const resume = staffResume && !get().sim.dayOver;
+        staffResume = false;
+        get().sim.setStaffOverride(null);
+        set({ staffDesk: null, pendingQueueMap: {}, ...(resume ? { playing: true } : {}) });
+      },
+
+      staffDecide: (packetId, decision, latencySec, slaSec) => {
+        const s = get();
+        const desk = s.staffDesk;
+        const role = desk ? roleForStation(desk) : null;
+        if (!desk || !role) return { ok: false, packetId, decision, expected: null, correct: false, statusCode: 'NO_DESK' };
+        const result = s.sim.staffDecide(desk, packetId, decision, latencySec);
+        if (!result.ok) return result;
+        const prev = s.staffShift[role] ?? EMPTY_SHIFT;
+        const next: ShiftProgress = {
+          reviews: prev.reviews + 1,
+          correct: prev.correct + (result.correct ? 1 : 0),
+          latencySumSec: prev.latencySumSec + Math.max(0, latencySec),
+          slaBreaches: prev.slaBreaches + (latencySec > slaSec ? 1 : 0),
+          errors: prev.errors + (result.correct ? 0 : 1),
+          xp: prev.xp + (result.correct ? STAFF_XP_PER_CORRECT : 0),
+          last: result,
+        };
+        refresh({ staffShift: { ...s.staffShift, [role]: next } });
+        return result;
+      },
       chaos: initialChaos,
 
       setChaos: (next) => {
@@ -508,7 +582,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         const s = get();
         s.sim.nextDay();
         startCarry = s.sim.carryState();
-        set({ ...endTour(false), playing: false, solo: false, reportOpen: false, draftRules: { ...s.sim.rules }, comparison: null, comparisonStatus: 'idle' });
+        set({ ...endTour(false), playing: false, solo: false, reportOpen: false, draftRules: { ...s.sim.rules }, comparison: null, comparisonStatus: 'idle', staffShift: {} });
         refresh();
         persist();
       },
@@ -529,6 +603,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           comparisonStatus: 'idle',
           saveStatus: storage ? 'pristine' : 'unavailable',
           lastSavedAt: null,
+          staffShift: {},
           notice: { kind: 'info', message: 'The bank is back on day 1.' },
         });
         refresh();
@@ -571,6 +646,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           draftRules: { ...fresh.rules },
           comparison: null,
           comparisonStatus: 'idle',
+          staffShift: {},
           notice: { kind: 'info', message: `Day ${day} is back at the 08:00 briefing. The same customers will arrive.` },
         });
         refresh();

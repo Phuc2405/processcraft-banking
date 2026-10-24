@@ -70,6 +70,8 @@ import {
 } from './roster';
 import { edgeId, EXTERNAL_IDS, SERVICE_ORDER, STATION_IDS, STATIONS, type ExternalId, type PlaceId, type StationId } from './topology';
 import { eventForDay, generateDay, keyedUnit, makeCustomer, makeSettlement, workingBeatIndex, type DayTraffic } from './traffic';
+import { QR_SCANNED_LABEL_EN } from '../i18n/stationBrand.messages';
+import { buildStaffCase, NOSTRO_OPENING_CENTS, roleForStation, RP_COUNTERS, statusCodeFor, type StaffCase, type StaffDecision, type StaffDecisionResult } from './staffRoleplay';
 import type {
   PacketTrace,
   AlertView,
@@ -723,6 +725,7 @@ export class BankSimulation {
       bornMinute: customer.minute,
       bornDay: this.day,
       readyAtMinute: 0,
+      ...(customer.ext ? { ext: customer.ext } : {}),
     };
     const k = this.kpis;
     k.arrivals++;
@@ -990,7 +993,8 @@ export class BankSimulation {
 
   private serve(st: StationState, phase: Phase, beatStart: number, bm: number): void {
     for (const w of st.workers) w.busyMin = 0;
-    if (!this.isStaffed(st.id, phase)) {
+    // A desk the learner has taken over in the Staff Roleplay Workspace: its own staff stand down and the queue waits for them.
+    if (!this.isStaffed(st.id, phase) || st.id === this.staffOverride) {
       for (const w of st.workers) w.freeAt = 0;
       return;
     }
@@ -2080,7 +2084,7 @@ export class BankSimulation {
         ];
       case 'GATE_QR':
         return [
-          { label: 'VietQR parsed (dynamic)', value: `${n('parsed')} (${n('dynamic')})`, tip: 'qrParsed' },
+          { label: QR_SCANNED_LABEL_EN, value: n('dynamic'), tip: 'qrParsed' },
           { label: 'Rejected (CRC / format)', value: n('invalid'), tone: warn('invalid'), tip: 'qrInvalid' },
           { label: 'Mapped to ISO 8583', value: n('parsed'), tip: 'iso8583' },
         ];
@@ -2181,7 +2185,7 @@ export class BankSimulation {
         errorsToday: st.errors,
         capacityPerBeat: Math.round(cap * 10) / 10,
         utilisation: Math.round(st.utilisation * 100) / 100,
-        lines: this.statLines(st),
+        lines: [...this.statLines(st), ...this.roleplayLines(st)],
       },
       workers: st.workers.map((w) => this.workerView(st, w, phase)),
       history: [...st.history],
@@ -2191,6 +2195,83 @@ export class BankSimulation {
       arrivals: st.arrivalsBeat,
       served: st.servedBeat,
     };
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Staff Roleplay Workspace (Phase 8 Step 2)
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /** The roleplay desk whose staff stand down while the learner works it, or null. */
+  private staffOverride: StationId | null = null;
+
+  setStaffOverride(id: StationId | null): void {
+    this.staffOverride = id && roleForStation(id) ? id : null;
+  }
+
+  private deskContext(): { vaultCents: number; nostroCents: number; bnplMinScore: number } {
+    const teller = this.stations.TELLER_CASH.counters;
+    const swift = this.stations.GATE_SWIFT.counters;
+    return {
+      vaultCents: TELLER_VAULT_OPENING_CENTS + (teller.vaultIn ?? 0) - (teller.vaultOut ?? 0),
+      nostroCents: NOSTRO_OPENING_CENTS - (swift.sentCents ?? 0),
+      bnplMinScore: this.rules.bnplMinScore,
+    };
+  }
+
+  /** The reviews waiting at a roleplay desk, head of the queue first. Empty for any other desk. */
+  staffCases(id: StationId, limit = 8): StaffCase[] {
+    const role = roleForStation(id);
+    if (!role) return [];
+    const ctx = this.deskContext();
+    const out: StaffCase[] = [];
+    for (const p of this.stations[id].queue) {
+      const waited = p.waitedMin + Math.max(0, this.minute - p.queuedAtMinute);
+      const c = buildStaffCase(role, p, ctx, Math.round(waited * 10) / 10);
+      if (c) out.push(c);
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
+  /**
+   * The learner decides one queued review. The packet leaves the queue and is worked now, on the route the bank already
+   * planned (the ledger stays balanced); the decision is graded against that verdict and booked on the desk's counters.
+   */
+  staffDecide(id: StationId, packetId: string, decision: StaffDecision, latencySec: number): StaffDecisionResult {
+    const role = roleForStation(id);
+    const st = this.stations[id];
+    const at = st.queue.findIndex((q) => q.id === packetId);
+    const p = at >= 0 ? st.queue[at] : undefined;
+    const c = role && p ? buildStaffCase(role, p, this.deskContext()) : null;
+    if (!role || !p || !c || this.dayOver) return { ok: false, packetId, decision, expected: null, correct: false, statusCode: 'NOT_PENDING' };
+    st.queue.splice(at, 1);
+    const stop = p.plan.stops[p.stopIndex]!;
+    const waited = Math.max(0, this.minute - p.queuedAtMinute);
+    p.waitedMin += waited;
+    st.waitSum += waited;
+    st.waitCount++;
+    st.processed++;
+    st.servedBeat++;
+    this.record(st, p, stop);
+    const correct = decision === c.expected;
+    bump(st, RP_COUNTERS.reviews);
+    if (correct) bump(st, RP_COUNTERS.correct);
+    bump(st, RP_COUNTERS.latency, Math.max(0, Math.round(latencySec)));
+    p.stopIndex++;
+    this.advance(p, this.minute, 0, beatMinutes(phaseAt(Math.min(this.minute, DAY_END - 1))));
+    return { ok: true, packetId, decision, expected: c.expected, correct, statusCode: statusCodeFor(role, decision, p) };
+  }
+
+  private roleplayLines(st: StationState): StationStats['lines'] {
+    const reviews = st.counters[RP_COUNTERS.reviews] ?? 0;
+    if (reviews === 0) return [];
+    const correct = st.counters[RP_COUNTERS.correct] ?? 0;
+    const acc = Math.round((correct / reviews) * 1000) / 10;
+    return [
+      { label: 'Roleplay reviews', value: String(reviews), tip: 'rpReviews' },
+      { label: 'Roleplay accuracy', value: `${acc}%`, tone: acc < 90 ? 'warn' : 'ok', tip: 'rpAccuracy' },
+      { label: 'Roleplay review latency (s)', value: String(Math.round((st.counters[RP_COUNTERS.latency] ?? 0) / reviews)), tip: 'rpLatency' },
+    ];
   }
 
   /** A plain-object picture of the bank right now, for the screen. */
