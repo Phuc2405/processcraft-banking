@@ -776,7 +776,10 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         const tour = get().spotlight;
         if (!tour || tour.intro) return;
         const at = spotPlan(tour.process, tour.exampleId, get().sim.rules).steps.findIndex((st) => st.place === place);
-        if (at >= 0) get().spotlightGo(at);
+        if (at < 0) return;
+        get().spotlightGo(at);
+        // A click on a desk of the story is a request to read about it: unfold the step details if they were folded away.
+        if (get().walkCollapsed) set({ walkCollapsed: false });
       },
 
       setSpotlightAuto: (auto) => {

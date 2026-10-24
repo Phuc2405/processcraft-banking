@@ -2,9 +2,12 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type Poin
 import { ACADEMY_TRACKS, chapterById, chapterStatus, chapterStatusBadge, LESSON_COUNT, levelById, localChapter, localTrack, type AcademyChapter, type ChapterStatus } from '../../sim/academyCatalog';
 import { tr, useLocale } from '../../i18n/locale';
 import { downloadCheatSheet } from '../../sim/cheatSheet';
-import { academyStore, clampPanelWidth, PANEL_WIDTH, useAcademyStore } from '../../store/academyStore';
+import { academyStore, CATALOG_SPLIT, clampPanelWidth, PANEL_WIDTH, useAcademyStore } from '../../store/academyStore';
 import { bindAcademySync } from '../../store/academySync';
 import { bankStore } from '../../store/bankStore';
+import { useResizableSplitter } from '../../hooks/useResizableSplitter';
+import { useMessages } from '../../utils/i18nHelper';
+import { academySplitMessages } from './academySplit.messages';
 import { FlashcardsView, QuizView } from './AcademyStudy';
 import { LessonView, ViewLevelToggle } from './LessonView';
 
@@ -164,6 +167,38 @@ function ResizeHandle({ onDrag, onKey }: { onDrag: (clientX: number) => void; on
       className="group absolute inset-y-0 right-0 z-10 w-2 cursor-col-resize touch-none focus-visible:outline-none"
     >
       <span className="absolute inset-y-0 right-0 w-0.5 bg-transparent transition-colors group-hover:bg-lime-300/70 group-focus-visible:bg-lime-300 group-active:bg-lime-300" />
+    </div>
+  );
+}
+
+/**
+ * The course roadmap above, the step details below, and a divider between them that drags up and down (or moves with the
+ * arrow keys). Both panes scroll on their own, so neither clips the other's scrollbar. The split is remembered.
+ */
+function RoadmapLessonSplit({ lesson }: { lesson: ReactNode }) {
+  const m = useMessages(academySplitMessages);
+  const ratio = useAcademyStore((s) => s.catalogRatio);
+  const setRatio = useAcademyStore((s) => s.setCatalogRatio);
+  const { containerRef, handleProps, dragging } = useResizableSplitter<HTMLDivElement>({ ratio, onChange: setRatio, bounds: CATALOG_SPLIT, axis: 'y' });
+  return (
+    <div ref={containerRef} className={`flex min-h-0 flex-1 flex-col ${dragging ? 'cursor-row-resize select-none' : ''}`} data-testid="academy-roadmap-split" data-ratio={ratio}>
+      <div className="flex min-h-0 flex-col" style={{ flex: `0 0 ${ratio * 100}%` }}>
+        <Catalog className="min-h-0 flex-1" />
+      </div>
+      <div
+        {...handleProps}
+        aria-label={m('divider')}
+        title={m('dividerHint')}
+        data-testid="academy-roadmap-resize"
+        data-dragging={dragging || undefined}
+        className="group relative z-10 -my-1 flex h-3 shrink-0 cursor-row-resize touch-none items-center justify-center focus-visible:outline-none"
+      >
+        <span aria-hidden="true" className={`absolute inset-x-0 top-1/2 h-px -translate-y-1/2 transition-colors ${dragging ? 'bg-lime-300' : 'bg-slate-800 group-hover:bg-lime-300/60 group-focus-visible:bg-lime-300'}`} />
+        <span aria-hidden="true" className={`relative h-1.5 w-10 rounded-full ring-1 transition-colors ${dragging ? 'bg-lime-300 ring-lime-200' : 'bg-slate-700 ring-slate-600 group-hover:bg-lime-300/80 group-focus-visible:bg-lime-300'}`} />
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto bg-slate-950" data-testid="academy-lesson-pane">
+        {lesson}
+      </div>
     </div>
   );
 }
@@ -331,10 +366,7 @@ function AcademyPanel() {
               </div>
             </div>
           ) : (
-            <>
-              <Catalog className="min-h-[7rem] flex-1" />
-              <div className="max-h-[62%] shrink-0 overflow-y-auto border-t border-slate-800 bg-slate-950">{lesson}</div>
-            </>
+            <RoadmapLessonSplit lesson={lesson} />
           )
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto p-3" data-testid={`academy-${tab}`}>

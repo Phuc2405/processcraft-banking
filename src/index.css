@@ -773,3 +773,19 @@ body,
     box-shadow: 0 0 0 3px #7dd3fc, 0 0 30px 4px #38bdf866;
   }
 }
+
+/* Walkthrough chapter chip: a 2 s glow when the step changes, so a folded panel still says "new content". */
+@keyframes bk-walk-chip-kf {
+  0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--chip-accent) 35%, transparent), 0 0 18px color-mix(in srgb, var(--chip-accent) 35%, transparent); transform: scale(1); }
+  25%, 75% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--chip-accent) 45%, transparent), 0 0 34px 6px color-mix(in srgb, var(--chip-accent) 70%, transparent); transform: scale(1.04); }
+  50% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--chip-accent) 60%, transparent), 0 0 24px 2px color-mix(in srgb, var(--chip-accent) 50%, transparent); transform: scale(1); }
+}
+.bk-walk-chip--pulse {
+  animation: bk-walk-chip-kf 1s ease-in-out 2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bk-walk-chip--pulse {
+    animation: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--chip-accent) 55%, transparent), 0 0 28px 4px color-mix(in srgb, var(--chip-accent) 55%, transparent);
+  }
+}

@@ -1,10 +1,11 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
-import { tr } from '../../i18n/locale';
-import { lessonOf } from '../../sim/learningVi';
-import { useBankStore } from '../../store/bankStore';
-import { useSpotlightFocus, type Focus } from '../bank/useSpotlight';
+import { useWalkthroughDock } from '../../hooks/useWalkthroughDock';
+import { useMessages } from '../../utils/i18nHelper';
+import type { Focus } from '../bank/useSpotlight';
+import { ScopeNote } from '../shell/ScopeNote';
 import { StepCard } from './GuidedWalkthrough';
+import { walkMessages } from './walkthrough.messages';
 
 // The dock's mount node, shared by the 2D map and the 3D office (they own the arrival timing).
 type DockState = { host: HTMLElement | null; filled: boolean };
@@ -27,33 +28,31 @@ export const WALK_DOCK_WIDTH = 360;
 
 /** True while the docked step column is on screen. */
 export function useWalkDockOpen(): boolean {
-  const focus = useSpotlightFocus();
-  const collapsed = useBankStore((s) => s.walkCollapsed);
-  return focus !== null && !focus.tour.intro && !collapsed;
+  return useWalkthroughDock().open;
 }
 
 /** Left column beside the map holding the current step (What / Takeaway / What can go wrong). */
 export function WalkDock() {
-  const open = useWalkDockOpen();
-  const focus = useSpotlightFocus();
+  const m = useMessages(walkMessages);
+  const { open, focus, chapter } = useWalkthroughDock();
   const { filled } = useDock();
   if (!open || !focus) return null;
-  const chapter = lessonOf(focus.tour.process).chapter;
   return (
     <aside
-      aria-label={tr({ en: 'Walkthrough step', vi: 'Bước hướng dẫn' })}
+      aria-label={m('dockLabel')}
       data-testid="walk-dock"
       className="relative flex shrink-0 flex-col border-r bg-[#0a0f1c]"
       style={{ width: WALK_DOCK_WIDTH, borderColor: `${focus.accent}66` }}
     >
       <div className="flex shrink-0 items-center gap-2 border-b border-slate-800 px-3 py-2 text-[10.5px] font-bold uppercase tracking-wider text-slate-400">
         <span className="h-2 w-2 rounded-full" style={{ background: focus.accent }} aria-hidden="true" />
-        {tr({ en: `Chapter ${chapter} · Step details`, vi: `Chương ${chapter} · Chi tiết bước` })}
+        {m('dockHeader', { chapter })}
       </div>
       <div ref={hostRef} className="min-h-0 flex-1 overflow-y-auto p-2.5" data-testid="walk-dock-body" />
+      <ScopeNote className="shrink-0 border-t border-slate-800 px-3 py-2" testId="walk-scope-note" />
       {!filled && (
         <p className="pointer-events-none absolute inset-x-0 top-11 px-4 text-[12px] italic text-slate-500" role="status" data-testid="walk-dock-wait">
-          {tr({ en: 'Following the payment to the next desk…', vi: 'Đang theo giao dịch đến bàn tiếp theo…' })}
+          {m('dockWait')}
         </p>
       )}
     </aside>

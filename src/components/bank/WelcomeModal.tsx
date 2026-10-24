@@ -3,6 +3,7 @@ import { bankStore, useBankStore } from '../../store/bankStore';
 import { useUiStore } from '../../store/uiStore';
 import { formatNodes, useMessages, type Translate } from '../../utils/i18nHelper';
 import { LanguageToggle } from '../shell/LanguageToggle';
+import { ScopeNote } from '../shell/ScopeNote';
 import { welcomeMessages } from './welcomeModal.messages';
 
 /**
@@ -148,8 +149,8 @@ export function WelcomeModal({ onOpenAcademy, onChooseBank }: { onOpenAcademy: (
             {m('skip')}
           </button>
         </div>
+        <ScopeNote className="mt-3 border-t border-slate-800 pt-3" testId="welcome-scope-note" />
       </div>
     </div>
   );
 }
-
