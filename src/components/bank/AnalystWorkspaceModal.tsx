@@ -20,6 +20,7 @@ import { bankStore, EMPTY_SHIFT, useBankStore, type ShiftProgress } from '../../
 import { useLocale, useMessages, type Locale, type Translate } from '../../utils/i18nHelper';
 import { analystWorkspaceMessages, PERSONAS, type AnalystWorkspaceKey } from './analystWorkspace.messages';
 import { InfoTip } from './InfoTip';
+import { LanguageToggle } from '../shell/LanguageToggle';
 import { useTerms } from './useTerms';
 
 /**
@@ -468,7 +469,8 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, bnplMinS
               {m('paused')} · {m('keysHint')}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <LanguageToggle variant="globe" testId="workspace-language" />
             <ModeToggle mode={mode} onChange={setMode} m={m} />
             <button type="button" onClick={onClose} data-testid="workspace-close" className="rounded-lg border border-slate-700 px-3 py-1.5 text-[12px] font-medium text-slate-200 transition hover:bg-slate-800">
               {m('close')}

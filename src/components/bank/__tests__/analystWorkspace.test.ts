@@ -97,7 +97,7 @@ describe('the workspace on screen', () => {
   it('draws the mode toggle, the SOP label and the 4-part scenario card in Standard mode', () => {
     initialMode = 'standard';
     const out = html();
-    for (const id of ['workspace-mode-standard', 'workspace-mode-expert', 'workspace-sop-title', 'workspace-sop-note', 'workspace-persona', 'workspace-trigger', 'workspace-fields', 'workspace-risk', 'workspace-shift']) expect(out, id).toContain(`data-testid="${id}"`);
+    for (const id of ['workspace-language', 'workspace-language-en', 'workspace-language-vi', 'workspace-mode-standard', 'workspace-mode-expert', 'workspace-sop-title', 'workspace-sop-note', 'workspace-persona', 'workspace-trigger', 'workspace-fields', 'workspace-risk', 'workspace-shift']) expect(out, id).toContain(`data-testid="${id}"`);
     expect(out).toContain('data-mode="standard"');
     expect(out).toContain(esc(msgs.sopTitle.en));
     expect(out).toContain(esc(msgs.scene_bnpl_apply_triggerStd.en));
