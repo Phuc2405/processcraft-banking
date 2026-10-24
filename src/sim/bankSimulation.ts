@@ -48,6 +48,7 @@ import { buildGraphs, planCheckout, planSettlement, type BankGraphs } from './pr
 import { clamp, hashSeed, Rng } from './prng';
 import { clampRules, DEFAULT_RULES, type BankRules } from './rules';
 import { BOT_SCENARIO_ID, scenarioLabelEn } from './scenarios';
+import { isExtendedKind } from './amlEngine';
 import { declineResponseCode } from './isoMessages';
 import {
   DAY_START_FATIGUE,
@@ -107,10 +108,16 @@ import type {
 const LEDGER_RECENT = 40;
 
 /** How long a customer will wait at the checkout, in total, before they give up. Minutes. */
-export const PATIENCE: Record<CheckoutKind, number> = { POS: 15, ECOM: 25, VIRTUAL: 20, BNPL: 45, A2A: 15, ATM: 8 };
+export const PATIENCE: Record<CheckoutKind, number> = { POS: 15, ECOM: 25, VIRTUAL: 20, BNPL: 45, A2A: 15, ATM: 8, ONBOARD: 30, QR: 12, TELLER: 40, SWIFT: 60, DISPUTE: 240 };
 
 /** Declines that are down to how the bank is set up, not to the customer. */
-const FRICTION: ReadonlySet<DeclineReason> = new Set<DeclineReason>(['DCVV_EXPIRED', 'THREE_DS_REJECT', 'OTP_ABANDONED', 'ATM_JAM', 'TIMEOUT']);
+const FRICTION: ReadonlySet<DeclineReason> = new Set<DeclineReason>(['DCVV_EXPIRED', 'THREE_DS_REJECT', 'OTP_ABANDONED', 'ATM_JAM', 'TIMEOUT', 'EKYC_LIVENESS_FAILED', 'BIOMETRIC_AUTH_REQUIRED', 'FDS_HIGH_RISK_DEVICE']);
+
+/** The loss the bank books when a money-mule account gets through onboarding (it opens no money of its own). */
+export const MULE_ACCOUNT_LOSS_CENTS = 50_000;
+
+/** Cash in the branch vault behind the teller counter when the day opens. */
+export const TELLER_VAULT_OPENING_CENTS = 25_000_000;
 
 const MAX_MOVES = 28;
 const FEED_LIMIT = 240;
@@ -726,6 +733,7 @@ export class BankSimulation {
     if (customer.kind === 'A2A') k.a2a.transfers++;
     if (customer.kind === 'ATM') k.atm.sessions++;
     this.remember(p);
+    if (isExtendedKind(customer.kind)) this.countScreens(plan);
 
     if (customer.scenario === BOT_SCENARIO_ID) p.bot = true;
 
@@ -753,7 +761,7 @@ export class BankSimulation {
     if (this.chaosScenario === 'FLASH_SURGE') {
       const base = this.traffic.beats[workingBeatIndex(start)] ?? [];
       for (const c of base) {
-        if (c.kind === 'ATM' || c.kind === 'A2A') continue;
+        if (c.kind === 'ATM' || c.kind === 'A2A' || isExtendedKind(c.kind)) continue;
         for (let k = 1; k < SURGE_MULTIPLIER; k++) {
           const id = `d${this.day}-${20001 + this.chaosSerial++}`;
           this.chaosTags.set(id, 'SURGE');
@@ -1066,6 +1074,11 @@ export class BankSimulation {
     const f = stop.facts;
     const sample = (key: string, probability: number): boolean => keyedUnit(this.seed, this.day, p.id, key) < probability;
 
+    if (stop.check || stop.screen) {
+      this.recordCheckpoint(st, p, stop);
+      return;
+    }
+
     switch (st.id) {
       case 'GATE_A2A':
         if (f.a2aValid === false) {
@@ -1263,6 +1276,117 @@ export class BankSimulation {
     }
   }
 
+  /** Phase 8: what a checkpoint decided, on the desk's counters, with a log line for the moments that matter. */
+  private recordCheckpoint(st: StationState, p: Packet, stop: Stop): void {
+    const c = stop.check;
+    const screen = stop.screen;
+    if (screen) {
+      bump(st, 'screened');
+      if (screen.verdict === 'STR_PENDING') bump(st, 'strFlags');
+      if (screen.verdict === 'SANCTION_MATCH') bump(st, 'sanctionHits');
+      if (screen.ctr) bump(st, 'ctr');
+    }
+    if (!c) return;
+    switch (c.at) {
+      case 'EKYC':
+        bump(st, 'scans');
+        bump(st, 'ocrSum', c.ocrMatchPct);
+        if (c.verdict !== 'LIVENESS_FAILED') bump(st, 'livePass');
+        if (c.verdict === 'VERIFIED') bump(st, 'verified');
+        else {
+          bump(st, 'rejected');
+          bump(st, c.verdict === 'FAKE_ID' ? 'fakeId' : c.verdict === 'LIVENESS_FAILED' ? 'liveness' : c.verdict === 'FACE_MISMATCH' ? 'faceMismatch' : 'citizenDb');
+          st.errors++;
+          if (p.isFraud || keyedUnit(this.seed, this.day, p.id, 'ekyc') < 0.3) this.log(p.isFraud ? 'ok' : 'warn', st.id, `EKYC_LIVENESS_FAILED on ${this.what(p)}: no account opened.`, { packetId: p.id, notable: true });
+        }
+        break;
+      case 'QR':
+        if (c.verdict === 'PARSED') {
+          bump(st, 'parsed');
+          bump(st, c.mode === 'DYNAMIC' ? 'dynamic' : 'static');
+        } else {
+          bump(st, 'invalid');
+          st.errors++;
+        }
+        break;
+      case 'SWIFT':
+        if (c.verdict === 'VALID') {
+          bump(st, 'valid');
+          bump(st, 'sentCents', p.amountCents);
+        } else {
+          bump(st, 'invalid');
+          st.errors++;
+        }
+        break;
+      case 'FACEPAY':
+        bump(st, 'checks');
+        if (c.verdict === 'MATCHED') bump(st, 'matched');
+        else {
+          bump(st, c.verdict === 'NOT_ENROLLED' ? 'notEnrolled' : 'failed');
+          st.errors++;
+          if (p.isFraud) this.log('ok', st.id, `BIOMETRIC_AUTH_REQUIRED stopped ${this.what(p)}: the face did not match the account holder.`, { packetId: p.id, notable: true });
+        }
+        break;
+      case 'FDS':
+        bump(st, 'scored');
+        for (const sig of c.signals) bump(st, `sig${sig}`);
+        if (c.verdict === 'HIGH_RISK') {
+          bump(st, 'blocked');
+          st.errors++;
+          if (p.isFraud ? keyedUnit(this.seed, this.day, p.id, 'fds') < 0.5 : true) this.log(p.isFraud ? 'ok' : 'warn', st.id, `FDS_HIGH_RISK_DEVICE on ${this.what(p)}: device score ${c.score}.`, { packetId: p.id, notable: true });
+        }
+        break;
+      case 'TELLER':
+        bump(st, c.direction === 'IN' ? 'deposits' : 'withdrawals');
+        if (c.verdict === 'COUNTED') bump(st, c.direction === 'IN' ? 'vaultIn' : 'vaultOut', p.amountCents);
+        else if (c.verdict === 'SUSPECT_NOTES') {
+          bump(st, 'suspectSerials', c.suspectSerials);
+          st.errors++;
+          this.log('warn', st.id, `${c.suspectSerials} suspect notes in ${this.what(p)}: serials recorded, deposit refused.`, { packetId: p.id, notable: true });
+        } else {
+          bump(st, 'vaultLimit');
+          st.errors++;
+        }
+        break;
+      case 'AML_REVIEW':
+        bump(st, 'reviewed');
+        // From the moment the payment was flagged into this queue to the analyst's decision.
+        bump(st, 'reviewMin', Math.max(0, this.minute - p.queuedAtMinute) + STATIONS.AML_DESK.minutesPerItem * stop.weight);
+        if (c.verdict === 'RELEASED') bump(st, 'released');
+        else if (c.verdict === 'STR_FILED_RELEASED') {
+          bump(st, 'released');
+          bump(st, 'strFiled');
+        } else if (c.verdict === 'BLOCKED_STR') {
+          bump(st, 'strFiled');
+          bump(st, 'blocked');
+          this.log('ok', st.id, `STR filed and ${this.what(p)} blocked after analyst review.`, { packetId: p.id, notable: true });
+        } else {
+          bump(st, 'sanctions');
+          bump(st, 'blocked');
+          const text = `AML_SANCTION_MATCH confirmed on ${this.what(p)}: funds frozen and the regulator notified.`;
+          this.log('crit', st.id, text, { packetId: p.id, notable: true });
+          this.pushAlert(st.id, 'crit', text, `sanction:${p.id}`);
+        }
+        break;
+      case 'DISPUTE':
+        bump(st, 'claims');
+        bump(st, c.type === 'CHARGEBACK' ? 'chargebacks' : c.type === 'PACS004_RETURN' ? 'returns' : 'atmClaims');
+        if (c.verdict === 'REFUND') {
+          bump(st, 'refunds');
+          bump(st, 'refundCents', p.amountCents);
+        } else bump(st, c.verdict === 'REJECTED_SLA' ? 'lateClaims' : 'rejected');
+        break;
+      case 'POSTING':
+        if (c.verdict === 'NO_FUNDS') {
+          bump(st, 'declined');
+          st.errors++;
+        } else bump(st, 'posted');
+        break;
+      case 'AML_SCREEN':
+        break;
+    }
+  }
+
   /** The packet has finished at a desk and now goes to its next stop. */
   private advance(p: Packet, beatStart: number, doneOffset: number, bm: number): void {
     const stops = p.plan.stops;
@@ -1337,7 +1461,7 @@ export class BankSimulation {
   /** Records a finished customer payment for the Master Transactions export. Called once per payment, from finishCheckout. */
   private recordTx(p: Packet, decline: DeclineReason | null, feeCents: number): void {
     const serial = Number(/-(\d+)$/.exec(p.id)?.[1] ?? this.txLog.length + 1);
-    const card = p.kind !== 'A2A' && p.kind !== 'ATM';
+    const card = p.kind !== 'A2A' && p.kind !== 'ATM' && !isExtendedKind(p.kind);
     const rec: TxRecord = {
       id: p.id,
       txId: `TX-${p.bornDay}${String(serial).padStart(4, '0')}`,
@@ -1363,7 +1487,7 @@ export class BankSimulation {
 
   /** The ISO response code a finished payment got. A POS outage answers 91 rather than the generic 96. */
   private responseCodeOf(p: Packet, decline: DeclineReason | null): string {
-    if (decline === null) return p.kind === 'A2A' ? 'ACSC' : '00';
+    if (decline === null) return p.kind === 'A2A' || p.kind === 'SWIFT' ? 'ACSC' : '00';
     if (this.chaosTags.get(p.id) === 'POS_OUTAGE') return '91';
     return declineResponseCode(decline)[0];
   }
@@ -1405,11 +1529,20 @@ export class BankSimulation {
         k.atm.dispensed++;
         k.atm.dispensedCents += amount;
       }
+      if (isExtendedKind(p.kind)) this.countExtendedFinish(p, null);
       if (p.isFraud) {
         k.fraudSlipped++;
         k.fraudLossCents += amount;
         const place = this.lastWorkPlace(p);
-        const how = p.kind === 'POS' ? 'at a shop terminal' : p.kind === 'ATM' ? 'at the sidewalk ATM with a PIN the thief had watched' : p.kind === 'A2A' ? 'as an instant transfer to a new payee' : plan.threeDs === 'FRICTIONLESS' ? `through the frictionless path (risk ${p.riskScore})` : plan.threeDs === 'CHALLENGE_PASSED' ? 'after the fraudster passed the OTP challenge' : p.kind === 'VIRTUAL' ? 'with a replayed dynamic CVV' : p.kind === 'BNPL' ? 'on a synthetic identity' : '';
+        if (p.kind === 'ONBOARD') {
+          // An account opens no money, but a mule account will be used to move stolen funds: book the expected loss.
+          k.fraudLossCents += MULE_ACCOUNT_LOSS_CENTS;
+          const text = `Fraud approved: ${this.what(p)} passed eKYC and AML screening. A mule account is now open.`;
+          this.log('crit', place, text, { packetId: p.id, notable: true });
+          this.pushAlert(place, 'crit', text, `fraud:${p.id}`);
+          return;
+        }
+        const how = p.kind === 'QR' ? 'through a VietQR payment' : p.kind === 'SWIFT' ? 'as a SWIFT remittance abroad' : p.kind === 'TELLER' ? 'over the teller counter' : p.kind === 'DISPUTE' ? 'as a refund on a false claim' : p.kind === 'POS' ? 'at a shop terminal' : p.kind === 'ATM' ? 'at the sidewalk ATM with a PIN the thief had watched' : p.kind === 'A2A' ? 'as an instant transfer to a new payee' : plan.threeDs === 'FRICTIONLESS' ? `through the frictionless path (risk ${p.riskScore})` : plan.threeDs === 'CHALLENGE_PASSED' ? 'after the fraudster passed the OTP challenge' : p.kind === 'VIRTUAL' ? 'with a replayed dynamic CVV' : p.kind === 'BNPL' ? 'on a synthetic identity' : '';
         const text = `Fraud approved: ${this.what(p)} ${how}. The bank will have to repay it.`.replace(/ \./, '.');
         this.log('crit', place, text, { packetId: p.id, notable: true });
         this.pushAlert(place, 'crit', text, `fraud:${p.id}`);
@@ -1422,21 +1555,22 @@ export class BankSimulation {
       } else if (p.kind === 'A2A') {
         k.a2a.feeCents += A2A_FEE_CENTS;
         earned(A2A_FEE_CENTS);
-      } else if (p.kind === 'ATM') {
-        // Cash from the bank's own machine earns nothing: it is a service to the customer.
+      } else if (p.kind === 'ATM' || isExtendedKind(p.kind)) {
+        // Cash from the bank's own machine earns nothing: it is a service to the customer. The Phase 8 channels carry no fee here.
       } else {
         k.genuineCardCents += amount;
         earned(Math.round(amount * INTERCHANGE_RATE));
       }
       // Card payments go into tonight's clearing file. A transfer settles on the instant rail and the machine's cash is counted
       // at the machine, so neither is presented to the card scheme.
-      if (p.kind !== 'A2A' && p.kind !== 'ATM') this.approved.push({ txId: `tx_${p.id}`, cardType: p.cardType, heldCents: plan.heldCents, scenario: p.scenario });
+      if (p.kind !== 'A2A' && p.kind !== 'ATM' && !isExtendedKind(p.kind)) this.approved.push({ txId: `tx_${p.id}`, cardType: p.cardType, heldCents: plan.heldCents, scenario: p.scenario });
       return;
     }
 
     k.declined++;
     k.declinedCents += amount;
     k.declines[decline]++;
+    if (isExtendedKind(p.kind)) this.countExtendedFinish(p, decline);
     if (decline === 'A2A_INVALID') k.a2a.invalid++;
     if (decline === 'PIN_LOCKED') k.atm.pinLocked++;
     if (decline === 'ATM_JAM') {
@@ -1455,6 +1589,56 @@ export class BankSimulation {
     } else if (FRICTION.has(decline)) {
       k.frictionLostCount++;
       k.frictionLostCents += amount;
+    }
+  }
+
+  /** Phase 8: the automated screen's findings, counted once when the customer arrives (CTRs and STR holds). */
+  private countScreens(plan: RoutePlan): void {
+    const x = this.kpis.ext;
+    for (const s of plan.stops) {
+      if (!s.screen) continue;
+      if (s.screen.ctr) x.ctrFiled++;
+      if (s.screen.verdict === 'STR_PENDING') x.strHeld++;
+    }
+  }
+
+  /** Phase 8: the channel's own numbers, once a customer is finished. */
+  private countExtendedFinish(p: Packet, decline: DeclineReason | null): void {
+    const x = this.kpis.ext;
+    const checks = p.plan.stops.map((s) => s.check).filter((c): c is NonNullable<typeof c> => c !== undefined);
+    for (const c of checks) {
+      if (c.at === 'FACEPAY') {
+        x.biometricChecks++;
+        if (c.verdict !== 'MATCHED') x.biometricFailed++;
+      }
+      if (c.at === 'AML_REVIEW' && (c.verdict === 'STR_FILED_RELEASED' || c.verdict === 'BLOCKED_STR')) x.strFiled++;
+    }
+    if (decline === 'EKYC_LIVENESS_FAILED') x.ekycRejected++;
+    if (decline === 'FDS_HIGH_RISK_DEVICE') x.fdsBlocked++;
+    if (decline === 'AML_SANCTION_MATCH') x.sanctionsBlocked++;
+    if (p.kind === 'DISPUTE' && decline !== null && decline !== 'TIMEOUT') x.disputesRejected++;
+    if (decline !== null) return;
+    switch (p.kind) {
+      case 'ONBOARD':
+        x.accountsOpened++;
+        break;
+      case 'QR':
+        x.qrPaid++;
+        break;
+      case 'SWIFT':
+        x.swiftSent++;
+        x.swiftCents += p.amountCents;
+        break;
+      case 'TELLER':
+        if (p.plan.reasonCode === 'TELLER_DEPOSIT') x.tellerDeposits++;
+        else x.tellerWithdrawals++;
+        break;
+      case 'DISPUTE':
+        x.disputesRefunded++;
+        x.refundedCents += p.amountCents;
+        break;
+      default:
+        break;
     }
   }
 
@@ -1839,6 +2023,7 @@ export class BankSimulation {
           { label: 'Holds placed', value: n('approved') },
           { label: 'Held today', value: money('heldCents') },
           { label: st.id === 'LEDGER_CREDIT' ? 'Over the limit' : 'Not enough funds', value: n('declined'), tone: c('declined') > 0 ? 'warn' : undefined },
+          ...(st.id === 'LEDGER_DEBIT' ? [{ label: 'Direct postings', value: n('posted'), tip: 'posted' }] : []),
         ];
       case 'BNPL':
         return [
@@ -1873,6 +2058,85 @@ export class BankSimulation {
           { label: 'Cleared today', value: `${n('cleared')} · ${money('clearedCents')}` },
         ];
       }
+      default:
+        return this.extendedLines(st);
+    }
+  }
+
+  /** Phase 8 desks: the live metrics the brief names, each with its own tip key. */
+  private extendedLines(st: StationState): StationStats['lines'] {
+    const c = (key: string): number => st.counters[key] ?? 0;
+    const n = (key: string): string => String(c(key));
+    const pctOf = (part: number, whole: number): string => (whole > 0 ? `${Math.round((part / whole) * 1000) / 10}%` : '—');
+    const warn = (key: string, tone: Severity = 'warn'): Severity | undefined => (c(key) > 0 ? tone : undefined);
+    switch (st.id) {
+      case 'GATE_EKYC':
+        return [
+          { label: 'OCR matching', value: c('scans') > 0 ? `${Math.round(c('ocrSum') / c('scans'))}%` : '—', tip: 'ocr' },
+          { label: 'Face liveness pass rate', value: pctOf(c('livePass'), c('scans')), tip: 'liveness' },
+          { label: 'Fake ID detection rate', value: pctOf(c('fakeId'), c('scans')), tone: warn('fakeId'), tip: 'fakeId' },
+          { label: 'Citizen database mismatches', value: n('citizenDb'), tone: warn('citizenDb'), tip: 'citizenDb' },
+          { label: 'Accounts opened', value: n('verified'), tip: 'opened' },
+        ];
+      case 'GATE_QR':
+        return [
+          { label: 'VietQR parsed (dynamic)', value: `${n('parsed')} (${n('dynamic')})`, tip: 'qrParsed' },
+          { label: 'Rejected (CRC / format)', value: n('invalid'), tone: warn('invalid'), tip: 'qrInvalid' },
+          { label: 'Mapped to ISO 8583', value: n('parsed'), tip: 'iso8583' },
+        ];
+      case 'TELLER_CASH': {
+        const waitingIn = st.queue.filter((p) => {
+          const ck = p.plan.stops[p.stopIndex]?.check;
+          return ck?.at === 'TELLER' && ck.direction === 'IN';
+        }).length;
+        const vault = TELLER_VAULT_OPENING_CENTS + c('vaultIn') - c('vaultOut');
+        return [
+          { label: 'Deposit / withdrawal queue', value: `${waitingIn} / ${st.queue.length - waitingIn}`, tip: 'tellerQueue' },
+          { label: 'Vault cash balance', value: formatAud(vault), tone: vault < 2_500_000 ? 'warn' : undefined, tip: 'vault' },
+          { label: 'Suspect note serials', value: n('suspectSerials'), tone: warn('suspectSerials'), tip: 'serials' },
+          { label: 'CTR filed (over $10,000)', value: n('ctr'), tip: 'ctr' },
+          { label: 'Over the till limit', value: n('vaultLimit'), tone: warn('vaultLimit'), tip: 'tillLimit' },
+        ];
+      }
+      case 'SEC_FACEPAY':
+        return [
+          { label: 'Biometric checks (over $400)', value: n('checks'), tip: 'faceChecks' },
+          { label: 'Face match rate', value: pctOf(c('matched'), c('checks')), tip: 'faceMatch' },
+          { label: 'BIOMETRIC_AUTH_REQUIRED', value: n('failed'), tone: warn('failed'), tip: 'faceFailed' },
+          { label: 'No face enrolled', value: n('notEnrolled'), tone: warn('notEnrolled'), tip: 'faceEnrol' },
+        ];
+      case 'SEC_FDS':
+        return [
+          { label: 'Devices scored', value: n('scored'), tip: 'fdsScored' },
+          { label: 'FDS_HIGH_RISK_DEVICE', value: n('blocked'), tone: warn('blocked'), tip: 'fdsBlocked' },
+          { label: 'IP anomalies', value: n('sigIP'), tip: 'fdsIp' },
+          { label: 'Rooted / jailbroken', value: n('sigROOT'), tip: 'fdsRoot' },
+          { label: 'BIN attack bursts', value: n('sigBIN'), tone: warn('sigBIN'), tip: 'fdsBin' },
+          { label: 'STR flags raised', value: n('strFlags'), tip: 'strFlag' },
+        ];
+      case 'AML_DESK':
+        return [
+          { label: 'STR flagged (reviewed)', value: n('reviewed'), tip: 'strFlagged' },
+          { label: 'Suspicious ratio', value: pctOf(c('strFiled'), c('reviewed')), tip: 'suspiciousRatio' },
+          { label: 'Review latency (min)', value: c('reviewed') > 0 ? String(Math.round(c('reviewMin') / c('reviewed'))) : '—', tip: 'reviewLatency' },
+          { label: 'Sanctions matches (OFAC/PEP)', value: n('sanctions'), tone: warn('sanctions', 'crit'), tip: 'sanctions' },
+          { label: 'Released to the ledger', value: n('released'), tip: 'released' },
+        ];
+      case 'DISPUTE_DESK':
+        return [
+          { label: 'Claims worked (CB / pacs.004 / ATM)', value: `${n('claims')} (${n('chargebacks')} / ${n('returns')} / ${n('atmClaims')})`, tip: 'claims' },
+          { label: 'Refunded', value: `${n('refunds')} · ${formatAud(c('refundCents'))}`, tip: 'refunds' },
+          { label: 'Past the SLA', value: n('lateClaims'), tone: warn('lateClaims'), tip: 'sla' },
+          { label: 'Rejected on evidence', value: n('rejected'), tip: 'evidence' },
+        ];
+      case 'GATE_SWIFT':
+        return [
+          { label: 'pacs.008 validated', value: n('valid'), tip: 'pacs008' },
+          { label: 'Rejected as malformed', value: n('invalid'), tone: warn('invalid'), tip: 'swiftInvalid' },
+          { label: 'Sent abroad (AUD)', value: formatAud(c('sentCents')), tip: 'swiftValue' },
+        ];
+      default:
+        return [];
     }
   }
 
@@ -1886,6 +2150,12 @@ export class BankSimulation {
     else if (stop?.place === 'ATM_CASH') detail = 'cash bay';
     else if (stop?.place === 'SEC_3DS') detail = `risk ${p.riskScore}`;
     else if (stop?.place === 'BNPL') detail = `score ${p.score}`;
+    else if (stop?.place === 'AML_DESK') detail = 'STR_PENDING';
+    else if (p.kind === 'ONBOARD') detail = 'new account';
+    else if (p.kind === 'QR') detail = 'VietQR';
+    else if (p.kind === 'SWIFT') detail = 'SWIFT pacs.008';
+    else if (p.kind === 'TELLER') detail = stop?.check?.at === 'TELLER' && stop.check.direction === 'OUT' ? 'cash out' : 'cash in';
+    else if (p.kind === 'DISPUTE') detail = 'claim';
     else detail = p.kind === 'POS' ? 'card present' : p.kind === 'VIRTUAL' ? 'virtual card' : p.kind === 'BNPL' ? 'Pay-in-4' : p.kind === 'A2A' ? 'instant transfer' : 'online';
     return { id: p.id, kind: p.kind, scenario: scenarioLabelEn(p.scenario), cardType: p.cardType, amountCents: p.amountCents, waitedMin: Math.max(0, Math.round(waited * 10) / 10), detail };
   }

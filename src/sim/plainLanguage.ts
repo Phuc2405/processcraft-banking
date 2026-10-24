@@ -16,6 +16,8 @@ import type { TermMode } from './terms';
 
 const GL_PLAIN_EN: Readonly<Record<string, string>> = {
   '1015': 'Cash Inside ATMs',
+  '1012': 'Cash at the Branch Counter',
+  '1430': 'Bank’s Accounts Abroad',
   '1110': 'Pending Debit Card Hold',
   '1120': 'Pending Card Hold',
   '1130': 'Pending Prepaid Hold',
@@ -40,6 +42,8 @@ const GL_PLAIN_EN: Readonly<Record<string, string>> = {
 /** Vietnamese account names. The seven the course leans on most use the bank's exact wording. */
 const GL_NAME_VI: Readonly<Record<string, string>> = {
   '1015': 'Quỹ tiền mặt tồn trong cây ATM/CDM',
+  '1012': 'Quỹ tiền mặt tại quầy giao dịch',
+  '1430': 'Tài khoản Nostro tại ngân hàng đại lý (SWIFT)',
   '1110': 'Khoanh giữ tài khoản thanh toán khả dụng',
   '1120': 'Tạm khóa hạn mức thẻ tín dụng',
   '1130': 'Khoanh giữ ví trả trước',
@@ -187,6 +191,8 @@ export const ACCOUNT_DESC_VI_BY_CODE: Readonly<Record<string, string>> = {
   '2420': 'Các khoản ngân hàng đã giải phóng cho khách nhưng chưa quyết toán với ngân hàng nhận.',
   '1510': 'Tiền ngân hàng đã ứng trước cho chủ thẻ và dự kiến đòi lại từ tổ chức thẻ qua tra soát.',
   '5010': 'Gian lận ngân hàng phải tự chịu vì không ai khác có trách nhiệm: không thể tra soát.',
+  '1012': 'Tiền mặt trong két và ngăn kéo của giao dịch viên tại chi nhánh. Ghi Có ở đây là tiền mặt đã chi qua quầy.',
+  '1430': 'Tài khoản của ngân hàng tại các ngân hàng đại lý ở nước ngoài, dùng để chi trả chuyển tiền quốc tế. Ghi Có ở đây là giá trị đã gửi ra nước ngoài.',
 };
 
 /** What an account is for, in the given language (the English is the chart of accounts' own description). */

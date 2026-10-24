@@ -31,6 +31,8 @@ export interface NodeCopy {
   loadLook(load: number): LoadLook;
   /** A plain tip. */
   tip(key: TipKey, testId?: string): MetricInfo;
+  /** The tip of a desk-specific counter row: its own explanation when it has one (`line_<key>`), the generic one otherwise. */
+  lineTip(key: string | undefined): string;
   /** A hybrid tip: the standard definition plus what the metric means at this kind of desk. */
   hybrid(metric: HybridMetric, testId?: string): MetricInfo;
   /** The scale-out button's text for this node and mode. */
@@ -51,7 +53,9 @@ export function useNodeCopy(id: StationId): NodeCopy {
       workerName: (worker, index) => {
         if (!automated) return worker.name;
         const w = machineWorkerName(id, index);
-        return w.kind === 'cluster' ? n('cluster', { letter: w.letter }) : n('thread', { n: w.n });
+        if (w.kind === 'cluster') return n('cluster', { letter: w.letter });
+        if (w.kind === 'engine') return n(`engine_${w.engine}`, { n: w.n });
+        return n('thread', { n: w.n });
       },
       loadLook: (load) => {
         if (load >= 85) return { label: n('loadSaturated'), hex: '#fb7185', text: 'text-rose-300', bar: 'bg-rose-500' };
@@ -60,6 +64,7 @@ export function useNodeCopy(id: StationId): NodeCopy {
         return { label: n('loadIdle'), hex: '#34d399', text: 'text-emerald-300', bar: 'bg-emerald-400' };
       },
       tip: (key, testId) => ({ text: m(key), ...(testId ? { testId } : {}) }),
+      lineTip: (key) => (key && `line_${key}` in tipMessages.messages ? m(`line_${key}` as TipKey) : m('lines')),
       hybrid: (metric, testId) => ({ text: m(metric), example: { title: m('atThisDesk'), text: m(`${metric}_${family}` as TipKey) }, ...(testId ? { testId } : {}) }),
       scaleLabel: (beginner, cost) => {
         const values = { cost: formatMoney(cost, true) };

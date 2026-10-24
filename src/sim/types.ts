@@ -11,7 +11,10 @@ import type { Phase } from './clock';
 import type { BankRules } from './rules';
 import type { DepartmentId, ExternalId, PlaceId, StationId } from './topology';
 
-export type CheckoutKind = 'VIRTUAL' | 'POS' | 'ECOM' | 'BNPL' | 'A2A' | 'ATM';
+export type CheckoutKind = 'VIRTUAL' | 'POS' | 'ECOM' | 'BNPL' | 'A2A' | 'ATM' | 'ONBOARD' | 'QR' | 'TELLER' | 'SWIFT' | 'DISPUTE';
+
+/** The Phase 8 channels: they run through the checkpoint interceptor (sim/amlEngine.ts), not a Build Lab diagram. */
+export type ExtendedKind = Extract<CheckoutKind, 'ONBOARD' | 'QR' | 'TELLER' | 'SWIFT' | 'DISPUTE'>;
 export type PacketKind = CheckoutKind | 'SETTLEMENT';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -55,12 +58,126 @@ export interface Customer {
   scenario: string;
   /** Set for ATM withdrawals. */
   atm?: AtmSession;
+  /** Set for the Phase 8 channels: what the checkpoints will read (identity, device, face, cash, QR, SWIFT, claim). */
+  ext?: ExtendedContext;
   /** Minute of the day they arrive. */
   minute: number;
   payload: BankingPayload;
   /** Whether they will type the OTP if they are asked to. Decided in advance so tomorrow can be replayed under other rules. */
   otpCompletes: boolean;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 8: what the extended checkpoints read
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** What the eKYC engine reads from the CCCD scan and the selfie video. */
+export interface IdentityContext {
+  /** 0-100: how closely the OCR'd CCCD fields agree with what the customer typed. */
+  ocrMatchPct: number;
+  /** 0-100: passive liveness score of the selfie (a printed photo, a screen replay or a mask scores low). */
+  livenessScore: number;
+  /** 0-100: selfie against the chip photo / National Citizen Database portrait. */
+  faceMatchPct: number;
+  /** Whether the CCCD number, name and date of birth are found in the National Citizen Database. */
+  citizenDbMatch: boolean;
+  /** 0-100: document tamper signals (font, hologram, MRZ checksum). Above the line the card is treated as fake. */
+  tamperScore: number;
+}
+
+/** The device fingerprint the FDS scores. */
+export interface DeviceContext {
+  /** The IP's geolocation or ASN disagrees with the customer's history (VPN, hosting range, another country). */
+  ipAnomaly: boolean;
+  /** Root or jailbreak detected by the app's integrity check. */
+  jailbroken: boolean;
+  /** Attempts from the same card BIN in the last five minutes across the bank (a BIN attack enumerates numbers fast). */
+  binVelocity: number;
+  /** First time this device has been seen on the account. */
+  newDevice: boolean;
+}
+
+/** The FacePay check on a high-value transfer. */
+export interface BiometricContext {
+  /** Whether the customer enrolled a face at onboarding. Without it a high-value transfer cannot be authorised. */
+  enrolled: boolean;
+  faceMatchPct: number;
+  livenessScore: number;
+}
+
+/** A cash transaction at the teller counter. */
+export interface CashContext {
+  direction: 'IN' | 'OUT';
+  /** Notes the counting machine flagged (UV, magnetic ink or serial on the counterfeit list). Their serials are recorded. */
+  suspectSerials: number;
+  /** Cash in the teller's till when the customer reaches the counter. A withdrawal over it waits for a vault top-up. */
+  tillCents: number;
+  /** The customer's other cash deposits in the last 7 days, for the structuring check. */
+  recentCashCents: number[];
+}
+
+/** A VietQR payment: the EMVCo string the customer's app scanned. */
+export interface QrContext {
+  payload: string;
+}
+
+/** An outward cross-border remittance. */
+export interface SwiftContext {
+  endToEndId: string;
+  debtorAgent: string;
+  creditorAgent: string;
+  /** Settlement amount in the foreign currency's minor units. */
+  foreignMinor: number;
+  currency: string;
+  /** Minor units of AUD per minor unit of the foreign currency. */
+  fxRate: number;
+  /** ISO 3166 alpha-2 country of the beneficiary bank. */
+  country: string;
+}
+
+/** A customer claim worked at the disputes desk. */
+export interface DisputeClaim {
+  type: 'CHARGEBACK' | 'PACS004_RETURN' | 'ATM_MISMATCH';
+  /** Days since the original transaction. Each claim type has its own time limit. */
+  ageDays: number;
+  /** For a chargeback: the merchant sent compelling evidence (proof of delivery, signed receipt). */
+  merchantEvidence: boolean;
+  /** For an ATM mismatch: the machine's electronic journal shows the notes were presented and taken. */
+  journalShowsDispensed: boolean;
+  /** For a pacs.004: the receiving bank confirmed the funds are still on the beneficiary account. */
+  fundsRecoverable: boolean;
+}
+
+/** The person behind the payment, as the AML screen sees them. */
+export interface AmlSubject {
+  name: string;
+  /** Politically exposed person, from the bank's own customer risk rating. */
+  pep: boolean;
+}
+
+export interface ExtendedContext {
+  identity?: IdentityContext;
+  device?: DeviceContext;
+  biometric?: BiometricContext;
+  cash?: CashContext;
+  qr?: QrContext;
+  swift?: SwiftContext;
+  dispute?: DisputeClaim;
+  subject: AmlSubject;
+}
+
+/** What one Phase 8 checkpoint decided. The engine writes it on the stop; the desk counters and the activity line read it. */
+export type Checkpoint =
+  | { at: 'EKYC'; verdict: 'VERIFIED' | 'LIVENESS_FAILED' | 'FACE_MISMATCH' | 'FAKE_ID' | 'CITIZEN_DB_MISMATCH'; ocrMatchPct: number; livenessScore: number; faceMatchPct: number }
+  | { at: 'QR'; verdict: 'PARSED' | 'INVALID'; mode: 'STATIC' | 'DYNAMIC' | null; issue: 'CRC' | 'FORMAT' | 'AMOUNT' | null }
+  | { at: 'SWIFT'; verdict: 'VALID' | 'INVALID'; currency: string; field: string | null }
+  | { at: 'FACEPAY'; verdict: 'MATCHED' | 'FAILED' | 'NOT_ENROLLED'; faceMatchPct: number }
+  | { at: 'FDS'; verdict: 'CLEAR' | 'HIGH_RISK'; score: number; signals: Array<'IP' | 'ROOT' | 'BIN' | 'NEW_DEVICE'> }
+  | { at: 'AML_SCREEN'; verdict: 'CLEAN' | 'STR_PENDING' | 'SANCTION_MATCH'; reason: 'NONE' | 'PEP' | 'STRUCTURING' | 'LARGE_CROSS_BORDER' | 'OFAC'; ctr: boolean; score: number }
+  | { at: 'AML_REVIEW'; verdict: 'RELEASED' | 'STR_FILED_RELEASED' | 'BLOCKED_STR' | 'BLOCKED_SANCTION'; reason: 'NONE' | 'PEP' | 'STRUCTURING' | 'LARGE_CROSS_BORDER' | 'OFAC' }
+  | { at: 'TELLER'; verdict: 'COUNTED' | 'VAULT_LIMIT' | 'SUSPECT_NOTES'; direction: 'IN' | 'OUT'; suspectSerials: number; ctr: boolean }
+  | { at: 'DISPUTE'; verdict: 'REFUND' | 'REJECTED_SLA' | 'REJECTED_EVIDENCE'; type: DisputeClaim['type'] }
+  | { at: 'POSTING'; verdict: 'ACCOUNT_OPENED' | 'DEBITED' | 'CREDITED' | 'REFUNDED' | 'NO_FUNDS' };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // A payment's route, worked out by running the real process diagram
@@ -82,6 +199,10 @@ export interface Stop {
   facts: Partial<DerivedFacts>;
   /** How many multiples of the desk's normal time this item takes. */
   weight: number;
+  /** Phase 8 channels: what the checkpoint at this stop decided. */
+  check?: Checkpoint;
+  /** The automated AML screen run in the same call (on the FDS stop and the teller counter). */
+  screen?: Extract<Checkpoint, { at: 'AML_SCREEN' }>;
 }
 
 /** Why a payment was declined, in the bank's own categories. */
@@ -97,7 +218,18 @@ export type DeclineReason =
   | 'A2A_INVALID'
   | 'ATM_JAM'
   | 'TIMEOUT'
-  | 'PROCESS_ERROR';
+  | 'PROCESS_ERROR'
+  // Phase 8 checkpoints
+  | 'EKYC_LIVENESS_FAILED'
+  | 'BIOMETRIC_AUTH_REQUIRED'
+  | 'FDS_HIGH_RISK_DEVICE'
+  | 'AML_SANCTION_MATCH'
+  | 'AML_STR_BLOCKED'
+  | 'QR_PAYLOAD_INVALID'
+  | 'SWIFT_INVALID'
+  | 'TELLER_VAULT_LIMIT'
+  | 'TELLER_SUSPECT_NOTE'
+  | 'DISPUTE_REJECTED';
 
 export interface RoutePlan {
   stops: Stop[];
@@ -258,7 +390,7 @@ export interface StationStats {
   /** 0-1 share of staff time spent working in the last beat. */
   utilisation: number;
   /** Station-specific lines, e.g. "Challenged: 14". */
-  lines: Array<{ label: string; value: string; tone?: Severity }>;
+  lines: Array<{ label: string; value: string; tone?: Severity; /** Key of the metric's own tip (inspectorTips `line_<tip>`); the generic tip otherwise. */ tip?: string }>;
 }
 
 export interface StationView {
@@ -342,6 +474,29 @@ export interface DayKpis {
     jams: number;
     jamCents: MinorUnits;
     /** Jammed money paid back to the customer after the cash count. */
+    refundedCents: MinorUnits;
+  };
+  /** Phase 8: onboarding, QR, SWIFT, teller cash, biometrics, FDS, AML and disputes. */
+  ext: {
+    accountsOpened: number;
+    ekycRejected: number;
+    qrPaid: number;
+    swiftSent: number;
+    swiftCents: MinorUnits;
+    tellerDeposits: number;
+    tellerWithdrawals: number;
+    /** Cash Transaction Reports filed for cash at or over $10,000. */
+    ctrFiled: number;
+    biometricChecks: number;
+    biometricFailed: number;
+    fdsBlocked: number;
+    /** Payments the screen held as STR_PENDING for an analyst. */
+    strHeld: number;
+    /** Suspicious Transaction Reports the analysts filed. */
+    strFiled: number;
+    sanctionsBlocked: number;
+    disputesRefunded: number;
+    disputesRejected: number;
     refundedCents: MinorUnits;
   };
   bnpl: {

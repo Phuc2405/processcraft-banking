@@ -29,7 +29,17 @@ export type FlowNodeId =
   | 'batch_processor'
   | 'clearing_house'
   | 'settlement_desk'
-  | 'reconciliation_desk';
+  | 'reconciliation_desk'
+  // Phase 8
+  | 'ekyc_gate'
+  | 'aml_screen'
+  | 'casa_posting'
+  | 'teller_counter'
+  | 'qr_gateway'
+  | 'facepay'
+  | 'fds_engine'
+  | 'swift_gateway'
+  | 'dispute_desk';
 
 /** The flow-to-node contract, exactly as the brief names it. */
 export const GUIDED_FLOW_NODES: Readonly<Record<FlowId, readonly FlowNodeId[]>> = {
@@ -37,6 +47,10 @@ export const GUIDED_FLOW_NODES: Readonly<Record<FlowId, readonly FlowNodeId[]>> 
   2: ['web_checkout', 'token_vault', 'fraud_desk', 'otp_service', 'auth_engine'],
   3: ['cdm_kiosk', 'cash_sorter', 'casa_desk'],
   4: ['batch_processor', 'clearing_house', 'settlement_desk', 'reconciliation_desk'],
+  5: ['ekyc_gate', 'aml_screen', 'casa_posting'],
+  6: ['teller_counter', 'aml_screen', 'casa_posting'],
+  7: ['qr_gateway', 'facepay', 'fds_engine', 'aml_screen', 'casa_posting'],
+  8: ['swift_gateway', 'facepay', 'fds_engine', 'aml_screen', 'casa_posting', 'dispute_desk'],
 };
 
 export interface FlowStep {
@@ -112,6 +126,59 @@ export const GUIDED_FLOWS: Readonly<Record<FlowId, FlowDef>> = {
       step('clearing_house', ['EOD_BATCH'], 'Batch Clearing', 'At 23:00 the day’s payments are packed into one clearing file.', 'Builds the clearing (presentment) file from the day’s authorisations.'),
       step('settlement_desk', ['EOD_VISA'], 'Visa Settlement', 'Visa works out who owes whom and the money moves.', 'Scheme net settlement; holds are captured: Dr Customer / Cr CASA Hold.'),
       step('reconciliation_desk', ['RECON', 'SUSPENSE', 'OUT_SETTLED'], '3-Way Reconciliation', 'Three records must agree; anything odd waits in a holding account.', 'Ledger vs clearing vs switch match; breaks post to RECON_SUSPENSE until cleared.'),
+    ],
+  },
+  5: {
+    id: 5,
+    code: '05',
+    title: 'eKYC Onboarding',
+    accent: '#2dd4bf',
+    blurb: 'A new customer opens an account from their phone: ID scan, selfie, citizen-database check, then a sanctions screen.',
+    steps: [
+      step('ekyc_gate', ['GATE_EKYC'], 'eKYC & Identity', 'The app reads the ID card and checks the selfie is a real, matching face.', 'OCR of the CCCD, passive liveness, face match to the chip photo, and C06 citizen-database lookup; a failure is EKYC_LIVENESS_FAILED.'),
+      step('aml_screen', ['AML_DESK'], 'AML & Sanctions', 'A name on a sanctions list, or a politically exposed person, is checked by an analyst.', 'OFAC/PEP fuzzy match (Jaro-Winkler ≥ 85 is AML_SANCTION_MATCH); a PEP is held as STR_PENDING for review.'),
+      step('casa_posting', ['LEDGER_DEBIT', 'OUT_APPROVED', 'OUT_DECLINED'], 'Account Opened', 'The account opens and the first deposit lands in it.', 'Core banking opens the CASA: Dr 1410 Instant Settlement / Cr 2010 Customer CASA for the opening deposit.'),
+    ],
+  },
+  6: {
+    id: 6,
+    code: '06',
+    title: 'Teller Cash & CTR',
+    accent: '#84cc16',
+    blurb: 'Cash over the branch counter: notes counted, fakes caught, and every cash transaction over $10,000 reported.',
+    steps: [
+      step('teller_counter', ['TELLER_CASH'], 'Teller Counter', 'The teller counts the notes, checks for fakes and that the till has enough cash.', 'Note count against the till (GL 1012), suspect serials recorded (TELLER_SUSPECT_NOTE), CTR filed at $10,000 or more.'),
+      step('aml_screen', ['AML_DESK'], 'AML Review', 'Cash split into pieces just under the reporting line is held for an analyst.', 'Structuring (smurfing) detection: deposits ≥ 80% of the CTR line that sum past it are STR_PENDING.'),
+      step('casa_posting', ['LEDGER_DEBIT', 'OUT_APPROVED', 'OUT_DECLINED'], 'Customer CASA', 'The account is credited, or debited for the cash handed over.', 'Dr 1012 Teller Vault Cash / Cr 2010 Customer CASA for a deposit; the reverse for a withdrawal.'),
+    ],
+  },
+  7: {
+    id: 7,
+    code: '07',
+    title: 'VietQR & FacePay',
+    accent: '#06b6d4',
+    blurb: 'A QR payment through Napas247: the code is checked, a big one needs a face scan, and the device is scored for fraud.',
+    steps: [
+      step('qr_gateway', ['GATE_QR'], 'Napas247 QR Gateway', 'The bank reads the scanned QR code and checks it has not been altered.', 'EMVCo TLV parse (tag 38 Napas GUID + BIN, tag 54 amount), CRC-16 check of tag 63, mapped to an ISO 8583 0200.'),
+      step('facepay', ['SEC_FACEPAY'], 'FacePay Biometrics', 'Over $400, the customer must scan their face.', 'Transfers over 10M VND need a face match ≥ 85% with liveness ≥ 80, or BIOMETRIC_AUTH_REQUIRED.'),
+      step('fds_engine', ['SEC_FDS'], 'FDS & Device Fingerprint', 'The phone behind the payment is checked for signs of fraud.', 'IP anomaly, root/jailbreak and BIN-velocity signals; a score ≥ 70 is FDS_HIGH_RISK_DEVICE. The automated AML screen runs here too.'),
+      step('aml_screen', ['AML_DESK'], 'AML Review', 'A flagged payment waits for an analyst; most go straight on.', 'STR_PENDING items are reviewed and released or blocked (AML_STR_BLOCKED).'),
+      step('casa_posting', ['LEDGER_DEBIT', 'OUT_APPROVED', 'OUT_DECLINED'], 'Customer CASA', 'The money leaves the account and reaches the shop at once.', 'Dr 2010 Customer CASA / Cr 1410 Instant Payments Settlement.'),
+    ],
+  },
+  8: {
+    id: 8,
+    code: '08',
+    title: 'SWIFT & Disputes',
+    accent: '#fb923c',
+    blurb: 'Money sent abroad in ISO 20022, screened for sanctions, and the claims desk that handles returns and chargebacks.',
+    steps: [
+      step('swift_gateway', ['GATE_SWIFT'], 'SWIFT / ISO 20022 Gateway', 'The transfer is written in the international format and converted to the other currency.', 'pacs.008 validation (EndToEndId, DbtrAgt/CdtrAgt BICs, IntrBkSttlmAmt + currency) and FX conversion.'),
+      step('facepay', ['SEC_FACEPAY'], 'FacePay Biometrics', 'A transfer this size needs the customer’s face.', 'Over 10M VND: face match ≥ 85%, liveness ≥ 80, or BIOMETRIC_AUTH_REQUIRED.'),
+      step('fds_engine', ['SEC_FDS'], 'FDS & AML Screen', 'The device is scored and the beneficiary screened against sanctions lists.', 'Device score ≥ 70 is FDS_HIGH_RISK_DEVICE; a large cross-border payment is STR_PENDING; a sanctions hit is frozen.'),
+      step('aml_screen', ['AML_DESK'], 'AML & Sanctions Review', 'An analyst confirms a sanctions match or releases a held payment.', 'OFAC match confirmed → AML_SANCTION_MATCH, funds to 2510 AML Restrained Funds; otherwise STR filed or released.'),
+      step('casa_posting', ['LEDGER_DEBIT', 'OUT_APPROVED', 'OUT_DECLINED'], 'Customer CASA', 'The customer is debited and the bank abroad is paid.', 'Dr 2010 Customer CASA / Cr 1430 Correspondent Nostro (SWIFT).'),
+      step('dispute_desk', ['DISPUTE_DESK'], 'Disputes & Returns', 'If something went wrong, a specialist decides the claim and refunds the customer.', 'pacs.004 payment return, card chargeback (120-day SLA) or ATM mismatch from the electronic journal.'),
     ],
   },
 };
@@ -237,6 +304,47 @@ const FLOW_VI: Readonly<Record<FlowId, FlowWords>> = {
       { name: 'Bù trừ theo lô', standard: 'Lúc 23:00 các giao dịch trong ngày được đóng gói vào một tệp bù trừ.', expert: 'Tạo tệp bù trừ (presentment) từ các lần cấp phép trong ngày.' },
       { name: 'Quyết toán Visa', standard: 'Visa tính ai nợ ai và tiền dịch chuyển.', expert: 'Quyết toán ròng của tổ chức thẻ; khoản khoanh giữ được ghi nhận: Nợ Khách hàng / Có Khoanh giữ CASA.' },
       { name: 'Đối soát 3 bên', standard: 'Ba bản ghi phải khớp; điều gì bất thường chờ trong tài khoản treo.', expert: 'Khớp sổ cái với tệp bù trừ và bộ chuyển mạch; sai lệch ghi vào RECON_SUSPENSE cho tới khi xử lý.' },
+    ],
+  },
+  5: {
+    title: 'Mở tài khoản eKYC',
+    blurb: 'Khách mới mở tài khoản trên điện thoại: quét CCCD, chụp selfie, đối chiếu cơ sở dữ liệu dân cư, rồi sàng lọc cấm vận.',
+    steps: [
+      { name: 'Cổng eKYC & Định danh', standard: 'Ứng dụng đọc CCCD và kiểm tra ảnh selfie là người thật, khớp khuôn mặt.', expert: 'OCR CCCD, kiểm tra liveness thụ động, đối chiếu khuôn mặt với ảnh trong chip và tra cứu CSDL dân cư C06; thất bại là EKYC_LIVENESS_FAILED.' },
+      { name: 'AML & Cấm vận', standard: 'Tên trong danh sách cấm vận, hoặc người có ảnh hưởng chính trị, được chuyên viên kiểm tra.', expert: 'So khớp mờ OFAC/PEP (Jaro-Winkler ≥ 85 là AML_SANCTION_MATCH); PEP bị giữ ở trạng thái STR_PENDING để rà soát.' },
+      { name: 'Mở tài khoản', standard: 'Tài khoản được mở và khoản tiền gửi đầu tiên vào ngay.', expert: 'Ngân hàng lõi mở CASA: Nợ 1410 Quyết toán tức thì / Có 2010 Tài khoản của khách cho khoản tiền gửi mở tài khoản.' },
+    ],
+  },
+  6: {
+    title: 'Tiền mặt tại quầy & CTR',
+    blurb: 'Tiền mặt qua quầy chi nhánh: đếm tiền, phát hiện tiền giả, và báo cáo mọi giao dịch tiền mặt trên $10,000.',
+    steps: [
+      { name: 'Quầy giao dịch viên', standard: 'Giao dịch viên đếm tiền, kiểm tra tiền giả và xem ngăn kéo có đủ tiền không.', expert: 'Đếm tiền theo quỹ quầy (TK 1012), ghi số seri tiền nghi giả (TELLER_SUSPECT_NOTE), lập CTR từ $10,000 trở lên.' },
+      { name: 'Rà soát AML', standard: 'Tiền mặt bị chia nhỏ ngay dưới ngưỡng báo cáo được giữ lại cho chuyên viên.', expert: 'Phát hiện chia nhỏ giao dịch (smurfing): các lần nộp ≥ 80% ngưỡng CTR mà tổng vượt ngưỡng sẽ là STR_PENDING.' },
+      { name: 'Tài khoản thanh toán của khách', standard: 'Tài khoản được ghi có, hoặc ghi nợ số tiền mặt đã chi.', expert: 'Nợ 1012 Quỹ tiền mặt tại quầy / Có 2010 Tài khoản của khách khi nộp; ngược lại khi rút.' },
+    ],
+  },
+  7: {
+    title: 'VietQR & FacePay',
+    blurb: 'Thanh toán QR qua Napas247: mã được kiểm tra, giao dịch lớn cần quét khuôn mặt, và thiết bị được chấm điểm gian lận.',
+    steps: [
+      { name: 'Cổng QR Napas247', standard: 'Ngân hàng đọc mã QR đã quét và kiểm tra mã chưa bị sửa.', expert: 'Đọc EMVCo TLV (thẻ 38 GUID Napas + BIN, thẻ 54 số tiền), kiểm tra CRC-16 của thẻ 63, ánh xạ sang ISO 8583 0200.' },
+      { name: 'Sinh trắc học FacePay', standard: 'Trên $400, khách phải quét khuôn mặt.', expert: 'Giao dịch trên 10 triệu VND cần khớp khuôn mặt ≥ 85% và liveness ≥ 80, nếu không là BIOMETRIC_AUTH_REQUIRED.' },
+      { name: 'FDS & Dấu chân thiết bị', standard: 'Điện thoại đứng sau giao dịch được kiểm tra dấu hiệu gian lận.', expert: 'Tín hiệu IP bất thường, root/jailbreak và tần suất BIN; điểm ≥ 70 là FDS_HIGH_RISK_DEVICE. Sàng lọc AML tự động cũng chạy tại đây.' },
+      { name: 'Rà soát AML', standard: 'Giao dịch bị gắn cờ chờ chuyên viên; phần lớn đi thẳng.', expert: 'Các mục STR_PENDING được rà soát rồi giải phóng hoặc chặn (AML_STR_BLOCKED).' },
+      { name: 'Tài khoản thanh toán của khách', standard: 'Tiền rời tài khoản và tới cửa hàng ngay lập tức.', expert: 'Nợ 2010 Tài khoản của khách / Có 1410 Quyết toán thanh toán tức thì.' },
+    ],
+  },
+  8: {
+    title: 'SWIFT & Khiếu nại',
+    blurb: 'Tiền gửi ra nước ngoài theo ISO 20022, sàng lọc cấm vận, và quầy khiếu nại xử lý hoàn trả và tra soát.',
+    steps: [
+      { name: 'Cổng SWIFT / ISO 20022', standard: 'Lệnh chuyển được viết theo định dạng quốc tế và quy đổi sang tiền tệ nước nhận.', expert: 'Kiểm tra pacs.008 (EndToEndId, mã BIC DbtrAgt/CdtrAgt, IntrBkSttlmAmt + loại tiền) và quy đổi ngoại tệ.' },
+      { name: 'Sinh trắc học FacePay', standard: 'Giao dịch cỡ này cần khuôn mặt của khách.', expert: 'Trên 10 triệu VND: khớp khuôn mặt ≥ 85%, liveness ≥ 80, nếu không là BIOMETRIC_AUTH_REQUIRED.' },
+      { name: 'FDS & Sàng lọc AML', standard: 'Thiết bị được chấm điểm và người thụ hưởng được đối chiếu danh sách cấm vận.', expert: 'Điểm thiết bị ≥ 70 là FDS_HIGH_RISK_DEVICE; chuyển tiền quốc tế lớn là STR_PENDING; trùng cấm vận bị phong tỏa.' },
+      { name: 'Rà soát AML & Cấm vận', standard: 'Chuyên viên xác nhận trùng cấm vận hoặc giải phóng giao dịch bị giữ.', expert: 'Xác nhận trùng OFAC → AML_SANCTION_MATCH, tiền chuyển vào 2510 Tiền bị phong tỏa AML; nếu không thì lập STR hoặc giải phóng.' },
+      { name: 'Tài khoản thanh toán của khách', standard: 'Khách bị ghi nợ và ngân hàng nước ngoài được thanh toán.', expert: 'Nợ 2010 Tài khoản của khách / Có 1430 Nostro tại ngân hàng đại lý (SWIFT).' },
+      { name: 'Khiếu nại & Hoàn trả', standard: 'Nếu có sự cố, chuyên viên quyết định khiếu nại và hoàn tiền cho khách.', expert: 'Hoàn trả pacs.004, tra soát thẻ (thời hạn 120 ngày) hoặc lệch tiền ATM theo nhật ký điện tử.' },
     ],
   },
 };

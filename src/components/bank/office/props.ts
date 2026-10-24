@@ -173,5 +173,22 @@ export function stationProp(id: StationId): PropParts {
     case 'GATE_ATM':
     case 'ATM_CASH':
       return { solid: [], glow: [] };
+    // Phase 8 desks reuse the closest prop: an ID check, a QR stand, a strongbox for the till, a shield, the network.
+    case 'GATE_EKYC':
+      return dcvv();
+    case 'GATE_QR':
+      return transfer();
+    case 'TELLER_CASH':
+      return strongbox();
+    case 'SEC_FACEPAY':
+      return shield();
+    case 'SEC_FDS':
+      return network();
+    case 'AML_DESK':
+      return recon();
+    case 'DISPUTE_DESK':
+      return ledgerBook('#7c2d12');
+    case 'GATE_SWIFT':
+      return network();
   }
 }

@@ -16,6 +16,11 @@ export const PACKET_HEX: Record<PacketKind, string> = {
   BNPL: '#ec4899',
   A2A: '#14b8a6',
   ATM: '#16a34a',
+  ONBOARD: '#2dd4bf',
+  QR: '#06b6d4',
+  TELLER: '#84cc16',
+  SWIFT: '#fb923c',
+  DISPUTE: '#f87171',
   SETTLEMENT: '#f59e0b',
 };
 

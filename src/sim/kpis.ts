@@ -5,7 +5,7 @@
 
 import type { CheckoutKind, DayKpis, DayReport, DeclineReason } from './types';
 
-export const CHECKOUT_KINDS: readonly CheckoutKind[] = ['POS', 'ECOM', 'VIRTUAL', 'BNPL', 'A2A', 'ATM'];
+export const CHECKOUT_KINDS: readonly CheckoutKind[] = ['POS', 'ECOM', 'VIRTUAL', 'BNPL', 'A2A', 'ATM', 'ONBOARD', 'QR', 'TELLER', 'SWIFT', 'DISPUTE'];
 
 export const DECLINE_REASONS: readonly DeclineReason[] = [
   'FUNDS',
@@ -20,6 +20,16 @@ export const DECLINE_REASONS: readonly DeclineReason[] = [
   'ATM_JAM',
   'TIMEOUT',
   'PROCESS_ERROR',
+  'EKYC_LIVENESS_FAILED',
+  'BIOMETRIC_AUTH_REQUIRED',
+  'FDS_HIGH_RISK_DEVICE',
+  'AML_SANCTION_MATCH',
+  'AML_STR_BLOCKED',
+  'QR_PAYLOAD_INVALID',
+  'SWIFT_INVALID',
+  'TELLER_VAULT_LIMIT',
+  'TELLER_SUSPECT_NOTE',
+  'DISPUTE_REJECTED',
 ];
 
 /** Why a payment was turned away, in a few plain words. */
@@ -36,12 +46,45 @@ export const DECLINE_LABEL: Record<DeclineReason, string> = {
   ATM_JAM: 'ATM dispenser jammed',
   TIMEOUT: 'Customer gave up waiting',
   PROCESS_ERROR: 'Process error',
+  EKYC_LIVENESS_FAILED: 'eKYC identity not proven',
+  BIOMETRIC_AUTH_REQUIRED: 'FacePay face match failed',
+  FDS_HIGH_RISK_DEVICE: 'FDS high-risk device',
+  AML_SANCTION_MATCH: 'Sanctions list match',
+  AML_STR_BLOCKED: 'Blocked after STR review',
+  QR_PAYLOAD_INVALID: 'VietQR payload invalid',
+  SWIFT_INVALID: 'SWIFT message rejected',
+  TELLER_VAULT_LIMIT: 'Teller vault cash limit',
+  TELLER_SUSPECT_NOTE: 'Suspect notes at the counter',
+  DISPUTE_REJECTED: 'Dispute claim rejected',
 };
+
+/** The Phase 8 channels' own numbers. */
+export function emptyExtKpis(): DayKpis['ext'] {
+  return {
+    accountsOpened: 0,
+    ekycRejected: 0,
+    qrPaid: 0,
+    swiftSent: 0,
+    swiftCents: 0,
+    tellerDeposits: 0,
+    tellerWithdrawals: 0,
+    ctrFiled: 0,
+    biometricChecks: 0,
+    biometricFailed: 0,
+    fdsBlocked: 0,
+    strHeld: 0,
+    strFiled: 0,
+    sanctionsBlocked: 0,
+    disputesRefunded: 0,
+    disputesRejected: 0,
+    refundedCents: 0,
+  };
+}
 
 export function emptyKpis(): DayKpis {
   return {
     arrivals: 0,
-    byKind: { POS: 0, ECOM: 0, VIRTUAL: 0, BNPL: 0, A2A: 0, ATM: 0 },
+    byKind: { POS: 0, ECOM: 0, VIRTUAL: 0, BNPL: 0, A2A: 0, ATM: 0, ONBOARD: 0, QR: 0, TELLER: 0, SWIFT: 0, DISPUTE: 0 },
     approved: 0,
     declined: 0,
     approvedCents: 0,
@@ -58,6 +101,7 @@ export function emptyKpis(): DayKpis {
     virtual: { checkouts: 0, expired: 0, mismatch: 0, unknown: 0 },
     a2a: { transfers: 0, released: 0, invalid: 0, feeCents: 0 },
     atm: { sessions: 0, dispensed: 0, dispensedCents: 0, pinLocked: 0, jams: 0, jamCents: 0, refundedCents: 0 },
+    ext: emptyExtKpis(),
     bnpl: { applications: 0, plans: 0, fallbackApproved: 0, downPaymentDeclined: 0, cardDeclined: 0, basketCents: 0, financedCents: 0, expectedLossCents: 0 },
     latencySumMs: 0,
     waitSumMin: 0,

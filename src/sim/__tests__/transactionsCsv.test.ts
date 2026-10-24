@@ -87,8 +87,10 @@ describe('the Master Transactions log', () => {
     const k = report.kpis;
     for (const t of log) {
       if (t.status === 'DECLINED') expect(t.recon, t.txId).toBe('N/A');
-      if (t.status === 'APPROVED' && (t.kind === 'A2A' || t.kind === 'ATM')) expect(t.recon, t.txId).toBe('N/A');
-      if (t.status === 'APPROVED' && t.kind !== 'A2A' && t.kind !== 'ATM') expect(['YES', 'NO', 'SUSPENDED'], t.txId).toContain(t.recon);
+      // A2A, ATM cash and the Phase 8 channels settle on their own rails; only card payments are reconciled overnight.
+      const card = t.kind === 'POS' || t.kind === 'ECOM' || t.kind === 'VIRTUAL' || t.kind === 'BNPL';
+      if (t.status === 'APPROVED' && !card) expect(t.recon, t.txId).toBe('N/A');
+      if (t.status === 'APPROVED' && card) expect(['YES', 'NO', 'SUSPENDED'], t.txId).toContain(t.recon);
     }
     // Day 1 carries nothing from the night before, so every record the night team worked is one of today's payments.
     expect(log.filter((t) => t.recon === 'YES' && t.status === 'APPROVED')).toHaveLength(k.recon.matched);
@@ -130,7 +132,7 @@ describe('the Master Transactions CSV', () => {
     for (const [time, id, channel, amount, fee, status, reason, fraud, recon] of body) {
       expect(time).toMatch(/^\d{2}:\d{2}:\d{2}$/);
       expect(id).toMatch(/^TX-1\d{4}$/);
-      expect(['CARD_PAYMENT', 'PAY_IN_4', 'INSTANT_A2A', 'ATM_WITHDRAWAL']).toContain(channel);
+      expect(['CARD_PAYMENT', 'PAY_IN_4', 'INSTANT_A2A', 'ATM_WITHDRAWAL', 'EKYC_ONBOARDING', 'VIETQR_NAPAS247', 'TELLER_CASH', 'SWIFT_REMITTANCE', 'DISPUTE_CLAIM']).toContain(channel);
       expect(amount).toMatch(/^\d+\.\d{2}$/);
       expect(fee).toMatch(/^\d+\.\d{2}$/);
       expect(['APPROVED', 'DECLINED', 'JAMMED']).toContain(status);
@@ -145,7 +147,19 @@ describe('the Master Transactions CSV', () => {
   });
 
   it('maps every channel to a standard channel type', () => {
-    expect(CHANNEL_TYPE).toEqual({ POS: 'CARD_PAYMENT', ECOM: 'CARD_PAYMENT', VIRTUAL: 'CARD_PAYMENT', BNPL: 'PAY_IN_4', A2A: 'INSTANT_A2A', ATM: 'ATM_WITHDRAWAL' });
+    expect(CHANNEL_TYPE).toEqual({
+      POS: 'CARD_PAYMENT',
+      ECOM: 'CARD_PAYMENT',
+      VIRTUAL: 'CARD_PAYMENT',
+      BNPL: 'PAY_IN_4',
+      A2A: 'INSTANT_A2A',
+      ATM: 'ATM_WITHDRAWAL',
+      ONBOARD: 'EKYC_ONBOARDING',
+      QR: 'VIETQR_NAPAS247',
+      TELLER: 'TELLER_CASH',
+      SWIFT: 'SWIFT_REMITTANCE',
+      DISPUTE: 'DISPUTE_CLAIM',
+    });
   });
 
   it('writes the time of day with seconds', () => {

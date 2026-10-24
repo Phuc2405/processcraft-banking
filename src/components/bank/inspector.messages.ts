@@ -8,6 +8,9 @@ export const nodeMessages = defineMessages('inspectorNode', {
   onDutyHuman: { en: '{n} on duty', vi: '{n} người trực' },
   cluster: { en: 'Gateway Cluster {letter}', vi: 'Cụm Gateway {letter}' },
   thread: { en: 'Server Thread #{n}', vi: 'Luồng máy chủ #{n}' },
+  engine_ekyc: { en: 'eKYC Identity Bot #{n}', vi: 'Bot định danh eKYC #{n}' },
+  engine_facepay: { en: 'FacePay Biometric Engine #{n}', vi: 'Máy sinh trắc học FacePay #{n}' },
+  engine_fds: { en: 'FDS Risk Engine #{n}', vi: 'Máy chấm rủi ro FDS #{n}' },
   machineRole: { en: 'Server Worker Thread', vi: 'Luồng xử lý máy chủ' },
 
   loadTitle: { en: 'CPU / thread load', vi: 'Mức tải CPU / Luồng' },

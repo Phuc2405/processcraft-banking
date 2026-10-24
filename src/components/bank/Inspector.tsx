@@ -393,7 +393,7 @@ function StationPanel({ id }: { id: StationId }) {
                 <div key={l.label} className="flex items-center justify-between px-2.5 py-1.5">
                   <dt className="flex items-center text-slate-400">
                     {terms.t(t(l.label))}
-                    <InfoTip label={terms.t(t(l.label))} text={copy.tip('lines').text} testId={i === 0 ? 'tip-line' : undefined} />
+                    <InfoTip label={terms.t(t(l.label))} text={copy.lineTip(l.tip)} testId={l.tip ? `tip-line-${l.tip}` : i === 0 ? 'tip-line' : undefined} />
                   </dt>
                   <dd className={`font-medium tabular-nums ${SEVERITY_TEXT[l.tone ?? 'info']}`}>{l.value}</dd>
                 </div>

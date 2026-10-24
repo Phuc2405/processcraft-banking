@@ -1,7 +1,14 @@
 // Frozen 3D floor plan (pre-Phase 1A 2D geometry). 2D layout changes must not move 3D rooms.
+// Phase 8 adds a wing inside the front of the building for the extended flows (the band of the 2D map, same shape) and moves
+// the sidewalk ATM down with the new front wall (+370 stage units).
 
 import type { DepartmentId, PlaceId } from '../../../sim/topology';
-import { buildWires, CARD, R, type DeptBox, type PlaceBox, type RouteSpec, type Wire } from '../layout';
+import { bandBoxes, bandDepts, bandRoutes, buildWires, CARD, R, type DeptBox, type PlaceBox, type RouteSpec, type Wire } from '../layout';
+
+/** The first row of the Phase 8 wing on the office plan. */
+export const BAND_ROW_3D = 932;
+/** How far the pavement (and the ATM on it) moved down when the wing was added. */
+export const WING_SHIFT = 370;
 
 const card = (cx: number, cy: number): PlaceBox => ({ cx, cy, ...CARD });
 
@@ -21,12 +28,13 @@ export const OFFICE_PLACE_BOX: Record<PlaceId, PlaceBox> = {
   EOD_VISA: card(320, 728),
   RECON: card(540, 728),
   SUSPENSE: card(760, 728),
-  GATE_ATM: card(580, 890),
-  ATM_CASH: card(780, 890),
+  GATE_ATM: card(580, 890 + WING_SHIFT),
+  ATM_CASH: card(780, 890 + WING_SHIFT),
   CUSTOMER_OTP: { cx: 500, cy: 312, w: 150, h: 62 },
   OUT_DECLINED: { cx: 1000, cy: 150, w: 110, h: 100 },
   OUT_APPROVED: { cx: 1000, cy: 354, w: 110, h: 100 },
   OUT_SETTLED: { cx: 985, cy: 728, w: 110, h: 92 },
+  ...bandBoxes(BAND_ROW_3D),
 };
 
 export const OFFICE_DEPT_BOX: Record<DepartmentId, DeptBox> = {
@@ -35,7 +43,8 @@ export const OFFICE_DEPT_BOX: Record<DepartmentId, DeptBox> = {
   LEDGER: { x: 688, y: 160, w: 184, h: 280 },
   BNPL: { x: 208, y: 460, w: 184, h: 140 },
   EOD: { x: 10, y: 646, w: 1060, h: 140 },
-  ATM: { x: 480, y: 826, w: 400, h: 142 },
+  ATM: { x: 480, y: 826 + WING_SHIFT, w: 400, h: 142 },
+  ...bandDepts(BAND_ROW_3D),
 };
 
 const OFFICE_ROUTES: Record<string, RouteSpec> = {
@@ -79,10 +88,13 @@ const OFFICE_ROUTES: Record<string, RouteSpec> = {
   // The sidewalk ATM. A jam goes straight up into the suspense account. Declines join the lane the 3DS rejections already take up the
   // right-hand margin; cash paid out gets a lane of its own beside it.
   'GATE_ATM>ATM_CASH': R(['r'], ['l'], { quiet: true }),
-  'GATE_ATM>OUT_DECLINED': R(['b', -30], ['r'], { via: [[550, 956], [1066, 956], [1066, 150]], labelAt: [680, 956] }),
-  'ATM_CASH>OUT_DECLINED': R(['b', 30], ['r'], { via: [[810, 946], [1066, 946], [1066, 150]], quiet: true }),
-  'ATM_CASH>OUT_APPROVED': R(['r', -10], ['r', 30], { via: [[1090, 880], [1090, 384]], labelAt: [970, 880] }),
-  'ATM_CASH>SUSPENSE': R(['t'], ['b', 20]),
+  'GATE_ATM>OUT_DECLINED': R(['b', -30], ['r'], { via: [[550, 956 + WING_SHIFT], [1066, 956 + WING_SHIFT], [1066, 150]], labelAt: [680, 956 + WING_SHIFT] }),
+  'ATM_CASH>OUT_DECLINED': R(['b', 30], ['r'], { via: [[810, 946 + WING_SHIFT], [1066, 946 + WING_SHIFT], [1066, 150]], quiet: true }),
+  'ATM_CASH>OUT_APPROVED': R(['r', -10], ['r', 30], { via: [[1090, 880 + WING_SHIFT], [1090, 384]], labelAt: [970, 880 + WING_SHIFT] }),
+  // A jam climbs to the suspense desk up the aisle between the compliance wing and the ledger trunk.
+  'ATM_CASH>SUSPENSE': R(['t', 50], ['b', 70]),
+  // The Phase 8 wing: declines take a lane of their own beside the 3DS and ATM lane up the right-hand side.
+  ...bandRoutes(BAND_ROW_3D, (y) => ({ via: [[1058, y], [1058, 180]], to: ['r', 30] })),
 };
 
 export const OFFICE_WIRES: Wire[] = buildWires(OFFICE_PLACE_BOX, OFFICE_ROUTES);

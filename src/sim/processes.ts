@@ -13,7 +13,10 @@
  *   dispute        Level 10 (Academy chapter 6 only)
  *   settlement     Level 3  recon desk -> settled, or one of three suspense queues
  *
- * The sidewalk ATM is the one exception: it has no diagram of its own. The machine is the process, and engine/atm.ts
+ * The Phase 8 channels (eKYC onboarding, VietQR, SWIFT, teller cash, claims) run through the checkpoint interceptor in
+ * amlEngine.ts instead of a diagram: eKYC / FacePay, then the FDS, then AML screening, then the CASA ledger.
+ *
+ * The sidewalk ATM is the other exception: it has no diagram of its own. The machine is the process, and engine/atm.ts
  * (PIN tries, note counting, jams) plays the part a diagram would.
  */
 
@@ -35,6 +38,7 @@ import type {
   ProcessNode,
   TestCase,
 } from '../types/processLearning';
+import { planExtended } from './amlEngine';
 import type { BankRules } from './rules';
 import { hasWire, type PlaceId, type StationId } from './topology';
 import type { Customer, DeclineReason, RoutePlan, Stop } from './types';
@@ -421,6 +425,13 @@ export function planCheckout(customer: Customer, graphs: BankGraphs): RoutePlan 
 
     case 'ATM':
       return planAtm(customer);
+
+    case 'ONBOARD':
+    case 'QR':
+    case 'TELLER':
+    case 'SWIFT':
+    case 'DISPUTE':
+      return planExtended(customer);
 
     case 'BNPL': {
       const w = walk(graphs.bnpl, payload, 'GATE_ECOM');

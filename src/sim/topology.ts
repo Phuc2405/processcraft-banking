@@ -24,6 +24,16 @@ export const STATION_IDS = [
   'GATE_A2A',
   'GATE_ATM',
   'ATM_CASH',
+  // Phase 8, the extended flows: onboarding, branch cash, QR and SWIFT gateways, biometrics, fraud detection, AML and disputes.
+  // Appended for the same reason: every older desk keeps its staff.
+  'GATE_EKYC',
+  'GATE_QR',
+  'TELLER_CASH',
+  'SEC_FACEPAY',
+  'SEC_FDS',
+  'AML_DESK',
+  'DISPUTE_DESK',
+  'GATE_SWIFT',
 ] as const;
 export type StationId = (typeof STATION_IDS)[number];
 
@@ -33,7 +43,7 @@ export type ExternalId = (typeof EXTERNAL_IDS)[number];
 
 export type PlaceId = StationId | ExternalId;
 
-export type DepartmentId = 'GATES' | 'SECURITY' | 'LEDGER' | 'BNPL' | 'EOD' | 'ATM';
+export type DepartmentId = 'GATES' | 'SECURITY' | 'LEDGER' | 'BNPL' | 'EOD' | 'ATM' | 'ENTRANCE' | 'COMPLIANCE' | 'BACKOFFICE';
 
 export interface DepartmentDef {
   id: DepartmentId;
@@ -86,6 +96,27 @@ export const DEPARTMENTS: Record<DepartmentId, DepartmentDef> = {
     accent: '#38bdf8',
     stations: ['GATE_ATM', 'ATM_CASH'],
   },
+  ENTRANCE: {
+    id: 'ENTRANCE',
+    name: 'Entrance & Authentication',
+    blurb: 'Where new customers and walk-in cash meet the bank: eKYC onboarding, the VietQR gateway, the teller counter and FacePay biometrics for high-value transfers.',
+    accent: '#2dd4bf',
+    stations: ['GATE_EKYC', 'GATE_QR', 'TELLER_CASH', 'SEC_FACEPAY'],
+  },
+  COMPLIANCE: {
+    id: 'COMPLIANCE',
+    name: 'Fraud Detection & AML Compliance',
+    blurb: 'The FDS scores every device and pattern; the AML analysts review suspicious activity and confirm sanctions hits.',
+    accent: '#f87171',
+    stations: ['SEC_FDS', 'AML_DESK'],
+  },
+  BACKOFFICE: {
+    id: 'BACKOFFICE',
+    name: 'Disputes & International',
+    blurb: 'Cross-border SWIFT remittances in ISO 20022, and the specialists who resolve chargebacks, pacs.004 returns and ATM mismatches.',
+    accent: '#fb923c',
+    stations: ['GATE_SWIFT', 'DISPUTE_DESK'],
+  },
 };
 
 export const DEPARTMENT_IDS = Object.keys(DEPARTMENTS) as DepartmentId[];
@@ -111,6 +142,8 @@ export interface StationDef {
   processes: Array<'A' | 'B' | 'C' | 'D' | 'E' | 'F'>;
   /** A machine, not a team: it has no one to tire out and nobody to make a mistake. */
   automated?: boolean;
+  /** Customers arrive as messages from an app, not on foot: no door and no walk-in queue in the 3D office. */
+  digital?: boolean;
 }
 
 export const STATIONS: Record<StationId, StationDef> = {
@@ -295,6 +328,100 @@ export const STATIONS: Record<StationId, StationDef> = {
     processes: [],
     automated: true,
   },
+
+  GATE_EKYC: {
+    id: 'GATE_EKYC',
+    department: 'ENTRANCE',
+    name: 'eKYC & Identity Onboarding',
+    blurb: 'Opens accounts remotely: OCR reads the CCCD, a liveness check proves a live face, and the selfie is matched against the National Citizen Database before any account exists.',
+    kind: 'GATE',
+    capability: null,
+    minutesPerItem: 0.4,
+    staff: 1,
+    processes: ['F'],
+    digital: true,
+  },
+  GATE_QR: {
+    id: 'GATE_QR',
+    department: 'ENTRANCE',
+    name: 'Napas247 QR Gateway',
+    blurb: 'Parses VietQR payloads (EMVCo TLV, static or dynamic), checks the CRC and maps the payment to the Napas247 switch message before it is screened.',
+    kind: 'GATE',
+    capability: 'A2A_GATEWAY',
+    minutesPerItem: 0.08,
+    staff: 1,
+    processes: ['E'],
+    digital: true,
+  },
+  TELLER_CASH: {
+    id: 'TELLER_CASH',
+    department: 'ENTRANCE',
+    name: 'Teller Cash In/Out Desk',
+    blurb: 'Branch tellers count notes in and out against the vault, record serial numbers of suspect notes, and file a CTR for any cash transaction over $10,000.',
+    kind: 'DESK',
+    capability: 'CORE_LEDGER_CHECK',
+    minutesPerItem: 4,
+    staff: 2,
+    openHoursOnly: true,
+    processes: ['F'],
+  },
+  SEC_FACEPAY: {
+    id: 'SEC_FACEPAY',
+    department: 'ENTRANCE',
+    name: 'FacePay Biometric Authentication',
+    blurb: 'Every transfer over $400 (10M VND) must be authorised with a face match against the biometrics enrolled at onboarding.',
+    kind: 'DESK',
+    capability: 'DCVV_VERIFIER',
+    minutesPerItem: 0.3,
+    staff: 1,
+    processes: ['B'],
+  },
+  SEC_FDS: {
+    id: 'SEC_FDS',
+    department: 'COMPLIANCE',
+    name: 'FDS & Device Fingerprint',
+    blurb: 'The Fraud Detection System scores the device and the pattern: IP anomalies, jailbroken or rooted phones, and BIN-attack bursts. It also runs the automated AML screen.',
+    kind: 'SYSTEM',
+    capability: 'THREE_DS_EVALUATOR',
+    minutesPerItem: 0.05,
+    staff: 1,
+    processes: ['F'],
+  },
+  AML_DESK: {
+    id: 'AML_DESK',
+    department: 'COMPLIANCE',
+    name: 'AML & Sanctions Screening Desk',
+    blurb: 'Compliance analysts review held payments: they file an STR or release it, and confirm OFAC/PEP sanctions hits before the funds are blocked.',
+    kind: 'DESK',
+    capability: 'AML_SCREENING',
+    minutesPerItem: 12,
+    staff: 2,
+    processes: ['F'],
+  },
+  DISPUTE_DESK: {
+    id: 'DISPUTE_DESK',
+    department: 'BACKOFFICE',
+    name: 'Disputes & Chargebacks Desk',
+    blurb: 'Specialists work customer claims: card chargebacks, pacs.004 payment returns and ATM cash mismatches, inside the scheme SLA.',
+    kind: 'DESK',
+    capability: 'CHARGEBACK_DESK',
+    minutesPerItem: 10,
+    staff: 2,
+    openHoursOnly: true,
+    processes: ['F'],
+  },
+  GATE_SWIFT: {
+    id: 'GATE_SWIFT',
+    department: 'BACKOFFICE',
+    name: 'SWIFT / ISO 20022 Gateway',
+    blurb: 'Parses cross-border pacs.008 remittances (BICs, EndToEndId, settlement amount and currency) and converts the foreign-currency amount before the payment is screened.',
+    kind: 'GATE',
+    capability: 'A2A_GATEWAY',
+    minutesPerItem: 0.3,
+    staff: 1,
+    processes: ['E'],
+    digital: true,
+  },
 };
 
 /**
@@ -308,11 +435,19 @@ export const SERVICE_ORDER: StationId[] = [
   'GATE_ECOM',
   'GATE_A2A',
   'GATE_ATM',
+  'GATE_EKYC',
+  'GATE_QR',
+  'GATE_SWIFT',
+  'TELLER_CASH',
+  'DISPUTE_DESK',
   'SEC_VAULT',
   'SEC_DCVV',
   'SEC_3DS',
   'BNPL',
   'ATM_CASH',
+  'SEC_FACEPAY',
+  'SEC_FDS',
+  'AML_DESK',
   'LEDGER_DEBIT',
   'LEDGER_CREDIT',
   'EOD_BATCH',
@@ -359,6 +494,28 @@ export const WIRES: ReadonlyArray<readonly [PlaceId, PlaceId, string?]> = [
   ['RECON', 'OUT_SETTLED', 'matched'],
   ['RECON', 'SUSPENSE', 'break'],
   ['SUSPENSE', 'OUT_SETTLED', 'cleared'],
+  // Phase 8: the extended flows. Biometrics come before the FDS, the FDS before AML, and only clean money reaches the ledger.
+  ['GATE_EKYC', 'LEDGER_DEBIT', 'account opened'],
+  ['GATE_EKYC', 'AML_DESK', 'watchlist hit'],
+  ['GATE_EKYC', 'OUT_DECLINED', 'liveness failed'],
+  ['GATE_QR', 'SEC_FACEPAY', 'over $400'],
+  ['GATE_QR', 'SEC_FDS', 'VietQR parsed'],
+  ['GATE_QR', 'OUT_DECLINED', 'bad QR'],
+  ['GATE_SWIFT', 'SEC_FACEPAY', 'over $400'],
+  ['GATE_SWIFT', 'SEC_FDS', 'pacs.008 valid'],
+  ['GATE_SWIFT', 'OUT_DECLINED', 'invalid pacs.008'],
+  ['SEC_FACEPAY', 'SEC_FDS', 'face matched'],
+  ['SEC_FACEPAY', 'OUT_DECLINED', 'no face match'],
+  ['SEC_FDS', 'AML_DESK', 'STR flag'],
+  ['SEC_FDS', 'LEDGER_DEBIT', 'clean'],
+  ['SEC_FDS', 'OUT_DECLINED', 'high-risk device'],
+  ['TELLER_CASH', 'AML_DESK', 'CTR / STR'],
+  ['TELLER_CASH', 'LEDGER_DEBIT', 'cash posted'],
+  ['TELLER_CASH', 'OUT_DECLINED', 'vault limit'],
+  ['AML_DESK', 'LEDGER_DEBIT', 'released'],
+  ['AML_DESK', 'OUT_DECLINED', 'blocked'],
+  ['DISPUTE_DESK', 'LEDGER_DEBIT', 'refund'],
+  ['DISPUTE_DESK', 'OUT_DECLINED', 'claim rejected'],
 ];
 
 const WIRE_SET = new Set(WIRES.map(([a, b]) => edgeId(a, b)));

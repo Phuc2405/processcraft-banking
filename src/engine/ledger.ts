@@ -61,6 +61,8 @@ export const CHART_OF_ACCOUNTS: Readonly<Record<AccountId, AccountDef>> = {
   AML_RESTRAINED_FUNDS: account('AML_RESTRAINED_FUNDS', '2510', 'AML Restrained Funds', 'LIABILITY', 'COMPLIANCE', 'Customer money frozen while compliance reviews a payment. It belongs to the customer and cannot be used.'),
   OUTWARD_PAYMENTS_CLEARING: account('OUTWARD_PAYMENTS_CLEARING', '2420', 'Outward Payments Clearing', 'LIABILITY', 'PAYMENTS', 'Payments the bank has released for a customer and not yet settled with the receiving bank.'),
   DISPUTE_RECEIVABLE: account('DISPUTE_RECEIVABLE', '1510', 'Scheme Dispute Receivable', 'ASSET', 'DISPUTES', 'Money the bank has paid a cardholder in advance and expects to win back from the card scheme through a chargeback.'),
+  TELLER_VAULT_CASH: account('TELLER_VAULT_CASH', '1012', 'Branch Teller Vault Cash', 'ASSET', 'PAYMENTS', 'The notes in the branch tellers’ tills and vault. A credit here is cash handed over the counter.'),
+  SWIFT_NOSTRO: account('SWIFT_NOSTRO', '1430', 'Correspondent Nostro (SWIFT)', 'ASSET', 'PAYMENTS', 'The bank’s accounts with correspondent banks abroad, used to pay cross-border remittances. A credit here is value sent overseas.'),
   FRAUD_LOSS_EXPENSE: account('FRAUD_LOSS_EXPENSE', '5010', 'Fraud Loss Expense', 'EXPENSE', 'DISPUTES', 'Fraud the bank has to absorb because nobody else is liable: it cannot be charged back.'),
 };
 

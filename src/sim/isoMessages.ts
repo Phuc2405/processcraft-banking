@@ -34,6 +34,16 @@ const DECLINE_RC: Record<DeclineReason, readonly [string, string]> = {
   ATM_JAM: ['96', 'System Malfunction (dispenser jam)'],
   TIMEOUT: ['68', 'Response Received Too Late'],
   PROCESS_ERROR: ['96', 'System Malfunction'],
+  EKYC_LIVENESS_FAILED: ['57', 'eKYC Liveness Failed'],
+  BIOMETRIC_AUTH_REQUIRED: ['1A', 'Biometric Authentication Required'],
+  FDS_HIGH_RISK_DEVICE: ['59', 'Suspected Fraud (FDS)'],
+  AML_SANCTION_MATCH: ['62', 'Restricted: Sanctions Match'],
+  AML_STR_BLOCKED: ['62', 'Restricted: Suspicious Activity'],
+  QR_PAYLOAD_INVALID: ['30', 'Format Error (QR payload)'],
+  SWIFT_INVALID: ['RJCT', 'Rejected: FF01 Invalid Message'],
+  TELLER_VAULT_LIMIT: ['61', 'Exceeds Cash Limit'],
+  TELLER_SUSPECT_NOTE: ['05', 'Do Not Honour (suspect notes)'],
+  DISPUTE_REJECTED: ['05', 'Do Not Honour (claim rejected)'],
 };
 
 /** The response-code texts in Vietnamese (the English stays in DECLINE_RC, which the raw message and the tests use). */
@@ -52,6 +62,15 @@ const RC_TEXT_VI: Readonly<Record<string, string>> = {
   'Awaiting response': 'Đang chờ phản hồi',
   'Settlement Completed': 'Đã quyết toán xong (Settlement Completed)',
   Approved: 'Chấp thuận (Approved)',
+  'eKYC Liveness Failed': 'Xác thực eKYC thất bại (eKYC Liveness Failed)',
+  'Biometric Authentication Required': 'Yêu cầu xác thực sinh trắc học (Biometric Authentication Required)',
+  'Suspected Fraud (FDS)': 'Nghi ngờ gian lận (FDS)',
+  'Restricted: Sanctions Match': 'Hạn chế: trùng danh sách cấm vận (Sanctions Match)',
+  'Restricted: Suspicious Activity': 'Hạn chế: hoạt động đáng ngờ (Suspicious Activity)',
+  'Format Error (QR payload)': 'Lỗi định dạng (mã QR)',
+  'Exceeds Cash Limit': 'Vượt hạn mức tiền mặt (Exceeds Cash Limit)',
+  'Do Not Honour (suspect notes)': 'Không chấp thuận (tiền nghi giả)',
+  'Do Not Honour (claim rejected)': 'Không chấp thuận (khiếu nại bị từ chối)',
 };
 
 /** A response-code text in the active language. */

@@ -16,7 +16,8 @@ import type { A2aContext, BankingPayload, CardType, FundingSource, Id, MinorUnit
 import { clamp, hashSeed, Rng } from './prng';
 import { WORK_END, WORK_START, beatMinutes } from './clock';
 import { scenariosFor } from './scenarios';
-import type { AtmSession, CheckoutKind, Customer, DayEvent, DayEventId, SettlementTruth } from './types';
+import type { AtmSession, CheckoutKind, Customer, DayEvent, DayEventId, ExtendedContext, ExtendedKind, SettlementTruth } from './types';
+import { audToVnd, buildVietQr } from './amlEngine';
 import { activeLocale } from '../i18n/locale';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -41,7 +42,7 @@ export const DAY_EVENTS: Record<DayEventId, DayEvent> = {
     watch: 'The 3DS Risk Desk and the Pay-in-4 desk will be short of hands. Watch the queues, and the tired staff behind them.',
     // Tuned so the surge lands where `watch` says: the 3DS desk ends the day worn out (the Debit CASA desk has three clerks).
     volume: 1.25,
-    mix: { ECOM: 1.9, BNPL: 2.4, VIRTUAL: 1.2, POS: 0.9, ATM: 0.8 },
+    mix: { ECOM: 1.9, BNPL: 2.4, VIRTUAL: 1.2, POS: 0.9, ATM: 0.8, QR: 1.5 },
     fraud: {},
     breaks: 1.2,
   },
@@ -52,7 +53,7 @@ export const DAY_EVENTS: Record<DayEventId, DayEvent> = {
     watch: 'How much fraud slips through on the frictionless path, and what does tightening the 3DS line cost your genuine customers?',
     volume: 1,
     mix: {},
-    fraud: { ECOM: 6, VIRTUAL: 4, BNPL: 2.5, A2A: 5, ATM: 3 },
+    fraud: { ECOM: 6, VIRTUAL: 4, BNPL: 2.5, A2A: 5, ATM: 3, ONBOARD: 3, QR: 4, SWIFT: 3, TELLER: 2, DISPUTE: 2 },
     breaks: 1,
   },
   VISA_GLITCH: {
@@ -71,7 +72,7 @@ export const DAY_EVENTS: Record<DayEventId, DayEvent> = {
     blurb: 'Salaries landed overnight. Card swipes are up, balances are healthy, and fewer people need to split a bill.',
     watch: 'Shop-floor volume on the POS gate and the debit ledger. Declines for funds should fall.',
     volume: 1.3,
-    mix: { POS: 1.35, ECOM: 1.1, BNPL: 0.6, VIRTUAL: 1, A2A: 1.4, ATM: 1.5 },
+    mix: { POS: 1.35, ECOM: 1.1, BNPL: 0.6, VIRTUAL: 1, A2A: 1.4, ATM: 1.5, TELLER: 1.4, SWIFT: 1.2, QR: 1.3 },
     fraud: {},
     breaks: 1,
   },
@@ -119,8 +120,17 @@ const BASE_RATE = { POS: 3.0, ECOM: 2.5, VIRTUAL: 1.3, BNPL: 1.1 } as const;
  */
 const EXTRA_RATE = { A2A: 0.6, ATM: 1.0 } as const;
 
+/**
+ * The Phase 8 channels: eKYC onboarding, VietQR, the teller counter, SWIFT and claims. They draw from a third stream, so
+ * adding them left every card, A2A and ATM customer of every seeded day exactly as it was.
+ */
+export const PHASE8_RATE: Readonly<Record<ExtendedKind, number>> = { ONBOARD: 0.25, QR: 1.0, TELLER: 0.5, SWIFT: 0.18, DISPUTE: 0.12 };
+/** Free blocks under 5001 (A2A), so the four-digit TX ids keep their shape: the card channels never reach 2000 in a day. */
+const PHASE8_SERIAL: Readonly<Record<ExtendedKind, number>> = { ONBOARD: 2000, QR: 2500, TELLER: 3000, SWIFT: 3500, DISPUTE: 4000 };
+const PHASE8_KINDS = Object.keys(PHASE8_RATE) as ExtendedKind[];
+
 /** Share of attempts that are fraud on an ordinary day. Fraud is mostly a card-not-present problem. */
-const FRAUD_RATE: Record<CheckoutKind, number> = { POS: 0.001, ECOM: 0.04, VIRTUAL: 0.03, BNPL: 0.01, A2A: 0.012, ATM: 0.008 };
+const FRAUD_RATE: Record<CheckoutKind, number> = { POS: 0.001, ECOM: 0.04, VIRTUAL: 0.03, BNPL: 0.01, A2A: 0.012, ATM: 0.008, ONBOARD: 0.05, QR: 0.02, TELLER: 0.015, SWIFT: 0.03, DISPUTE: 0.08 };
 
 export const WORKING_BEATS = (WORK_END - WORK_START) / beatMinutes('WORKING');
 
@@ -187,6 +197,23 @@ export function generateDay(seed: number, day: number): DayTraffic {
       for (let i = 0; i < n; i++) {
         const serial = ++serials[kind];
         const minute = beatStart + Math.min(4, Math.floor(extras.next() * 5));
+        const customer = makeCustomer(seed, day, `d${day}-${serial}`, kind, minute, event);
+        beats[b]!.push(customer);
+        customers.push(customer);
+      }
+    }
+  }
+
+  const phase8 = new Rng(hashSeed(seed, 'arrivals-phase8', day));
+  const serials8 = { ...PHASE8_SERIAL };
+  for (let b = 0; b < WORKING_BEATS; b++) {
+    const beatStart = WORK_START + b * beatMinutes('WORKING');
+    const intensity = intensityAt(beatStart + 2.5);
+    for (const kind of PHASE8_KINDS) {
+      const n = phase8.poisson(PHASE8_RATE[kind] * event.volume * (event.mix[kind] ?? 1) * intensity);
+      for (let i = 0; i < n; i++) {
+        const serial = ++serials8[kind];
+        const minute = beatStart + Math.min(4, Math.floor(phase8.next() * 5));
         const customer = makeCustomer(seed, day, `d${day}-${serial}`, kind, minute, event);
         beats[b]!.push(customer);
         customers.push(customer);
@@ -278,7 +305,7 @@ export function makeCustomer(seed: number, day: number, id: Id, kind: CheckoutKi
   const fraud = rng.chance(fraudRate);
   // The old random amount is still drawn, and thrown away, so every other draw about this customer (funds, risk, OTP,
   // dCVV) falls exactly where it did before the scenarios existed.
-  if (kind !== 'A2A' && kind !== 'ATM') amountFor(rng, kind, fraud);
+  if (kind === 'POS' || kind === 'ECOM' || kind === 'VIRTUAL' || kind === 'BNPL') amountFor(rng, kind, fraud);
   const scenario = scenarioFor(seed, day, id, kind, fraud);
   const amount = scenario.amount;
   const clientTimestamp = EPOCH_2026 + (day - 1) * 86_400_000 + minute * 60_000 + rng.int(0, 299) * 1000;
@@ -431,6 +458,124 @@ export function makeCustomer(seed: number, day: number, id: Id, kind: CheckoutKi
         ...fundsFor(rng, 'DEBIT', event, fraud),
       };
       return { id, kind, scenario: scenario.id, atm, minute, payload, otpCompletes: true };
+    }
+
+    case 'ONBOARD':
+    case 'QR':
+    case 'TELLER':
+    case 'SWIFT':
+    case 'DISPUTE': {
+      const ext = extendedContext(rng, day, kind, scenario.id, amount, fraud);
+      // Someone moving a large sum usually has it; a few genuine customers are short.
+      const short = rng.chance(fraud ? 0.02 : 0.06);
+      const availableBalance = kind === 'ONBOARD' ? amount : short ? Math.max(100, Math.round(amount * rng.next() * 0.9)) : Math.round(Math.max(amount, 10_000) * clamp(rng.lognormal(3, 0.6), 1.2, 40));
+      const payload: BankingPayload = {
+        ...common,
+        channel: kind === 'TELLER' ? 'POS' : 'IN_APP',
+        cardType: 'DEBIT',
+        rawCvv: '',
+        riskScore: Math.round(clamp(fraud ? rng.normal(60, 15) : rng.normal(10, 6), 0, 100)),
+        availableBalance,
+        creditLimit: 0,
+      };
+      return { id, kind, scenario: scenario.id, minute, payload, otpCompletes: true, ext };
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 8: what each extended customer brings to the checkpoints
+// ─────────────────────────────────────────────────────────────────────────────
+
+const GIVEN = ['Minh', 'Lan', 'Huy', 'Thao', 'Quang', 'Mai', 'Duc', 'Ngoc', 'Tuan', 'Hoa', 'James', 'Olivia', 'Arjun', 'Sofia', 'Kenji', 'Amara'] as const;
+const FAMILY = ['Nguyen', 'Tran', 'Le', 'Pham', 'Hoang', 'Vu', 'Dang', 'Bui', 'Smith', 'Patel', 'Garcia', 'Okafor', 'Sato', 'Rossi'] as const;
+/** Transliterations a mule ring uses to slip a sanctioned name past an exact match. */
+const ALIAS_OF_LISTED = ['Viktor Volkanov', 'Victor Volkanoff', 'Rashid Al Tamimi', 'Hassan R. Moradi'] as const;
+const NAPAS_BINS = ['970436', '970415', '970418', '970422', '970407'] as const;
+const SWIFT_ROUTES: ReadonlyArray<readonly [currency: string, bic: string, country: string, audCentsPerMinor: number]> = [
+  ['USD', 'CHASUS33XXX', 'US', 1.52],
+  ['EUR', 'DEUTDEFFXXX', 'DE', 1.65],
+  ['GBP', 'BARCGB22XXX', 'GB', 1.92],
+  ['SGD', 'DBSSSGSGXXX', 'SG', 1.13],
+  ['VND', 'BFTVVNVXXXX', 'VN', 0.0062],
+];
+
+function extendedContext(rng: Rng, day: number, kind: ExtendedKind, scenario: string, amount: MinorUnits, fraud: boolean): ExtendedContext {
+  const listed = fraud && (scenario === 'ekyc-mule' || scenario === 'swift-bec') && rng.chance(0.3);
+  const subject = { name: listed ? rng.pick(ALIAS_OF_LISTED) : `${rng.pick(GIVEN)} ${rng.pick(FAMILY)}`, pep: !fraud && rng.chance(0.03) };
+  const pct = (mean: number, sd: number): number => Math.round(clamp(rng.normal(mean, sd), 0, 100));
+  const device = {
+    ipAnomaly: rng.chance(fraud ? 0.6 : 0.04),
+    jailbroken: rng.chance(fraud ? 0.35 : 0.02),
+    binVelocity: scenario === 'qr-bin-burst' ? rng.int(6, 20) : rng.int(0, fraud ? 4 : 2),
+    newDevice: rng.chance(fraud ? 0.7 : 0.12),
+  };
+  // A fraudster holding the victim's phone passes the PIN, not the face.
+  const biometric = { enrolled: rng.chance(fraud ? 0.9 : 0.97), faceMatchPct: fraud ? pct(55, 20) : pct(95, 3), livenessScore: fraud ? pct(70, 15) : pct(94, 4) };
+
+  switch (kind) {
+    case 'ONBOARD': {
+      // A mule ring brings a forged CCCD, a deepfake selfie, or a real stranger's card with their own face.
+      const attack = fraud ? rng.weighted<'forged' | 'deepfake' | 'stranger' | 'clean'>([['forged', 30], ['deepfake', 30], ['stranger', 20], ['clean', 20]]) : 'clean';
+      return {
+        subject,
+        identity: {
+          ocrMatchPct: attack === 'forged' ? pct(78, 8) : pct(97, 2),
+          livenessScore: attack === 'deepfake' ? pct(55, 15) : pct(93, 4),
+          faceMatchPct: attack === 'stranger' ? pct(60, 12) : pct(94, 3),
+          citizenDbMatch: attack === 'forged' ? rng.chance(0.2) : rng.chance(0.995),
+          tamperScore: attack === 'forged' ? pct(75, 10) : pct(10, 6),
+        },
+      };
+    }
+    case 'QR': {
+      const dynamic = rng.chance(0.7);
+      let payload = buildVietQr({ bin: rng.pick(NAPAS_BINS), account: String(rng.int(10_000_000, 99_999_999)), ...(dynamic ? { amountVnd: audToVnd(amount) } : {}) });
+      if (rng.chance(fraud ? 0.06 : 0.01)) payload = payload.slice(0, -1) + (payload.endsWith('0') ? '1' : '0');
+      return { subject, device, biometric, qr: { payload } };
+    }
+    case 'SWIFT': {
+      const [currency, bic, country, rate] = rng.pick(SWIFT_ROUTES);
+      const flaw = rng.chance(fraud ? 0.03 : 0.015);
+      return {
+        subject,
+        device,
+        biometric,
+        swift: {
+          endToEndId: `SWIFT-${day}-${String(rng.int(0, 999_999)).padStart(6, '0')}`,
+          debtorAgent: 'NOVAAU2SXXX',
+          creditorAgent: flaw ? bic.slice(0, 5) : bic,
+          foreignMinor: Math.max(1, Math.round(amount / rate)),
+          currency,
+          fxRate: rate,
+          country,
+        },
+      };
+    }
+    case 'TELLER': {
+      const direction = scenario === 'teller-withdrawal' || scenario === 'teller-large-cash' ? 'OUT' : 'IN';
+      return {
+        subject,
+        cash: {
+          direction,
+          suspectSerials: scenario === 'teller-counterfeit' ? rng.int(2, 5) : rng.chance(0.015) ? 1 : 0,
+          tillCents: Math.round(clamp(rng.normal(9000, 2500), 2000, 20_000)) * 100,
+          recentCashCents: scenario === 'teller-split-cash' ? [rng.int(8_200, 9_800) * 100, rng.int(8_200, 9_800) * 100] : [],
+        },
+      };
+    }
+    case 'DISPUTE': {
+      const type = scenario === 'claim-wrong-account' ? 'PACS004_RETURN' : scenario === 'claim-atm-short' ? 'ATM_MISMATCH' : 'CHARGEBACK';
+      return {
+        subject,
+        dispute: {
+          type,
+          ageDays: Math.round(clamp(rng.lognormal(fraud ? 40 : 12, 0.9), 0, 400)),
+          merchantEvidence: rng.chance(fraud ? 0.85 : 0.25),
+          journalShowsDispensed: rng.chance(0.2),
+          fundsRecoverable: rng.chance(0.75),
+        },
+      };
     }
   }
 }

@@ -74,6 +74,35 @@ export const SCENARIOS: readonly Scenario[] = [
   s('ATM', 'atm-50', '🏧', 'Sidewalk ATM Quick Cash', 50, 15, 0, true),
   s('ATM', 'atm-200', '🏧', 'Sidewalk ATM Weekend Cash', 200, 15, 0, true),
   s('ATM', 'atm-max', '🏧', 'Sidewalk ATM Maximum Withdrawal', 1000, 0, 100, true),
+
+  // Phase 8 (none of these is in the original brief, so all are marked extra). eKYC onboarding: the price is the opening deposit.
+  s('ONBOARD', 'ekyc-student', '🪪', 'Student Account via eKYC', 50, 55, 0, true),
+  s('ONBOARD', 'ekyc-freelancer', '🪪', 'Freelancer Account via eKYC', 200, 45, 0, true),
+  s('ONBOARD', 'ekyc-mule', '🎭', 'Money-Mule Account Attempt', 20, 0, 100, true),
+  // VietQR through Napas247: small everyday payments, and a few over the $400 FacePay line.
+  s('QR', 'qr-street-food', '🍜', 'VietQR Street Food', 3.2, 45, 0, true),
+  s('QR', 'qr-market', '🧺', 'VietQR Market Stall', 18, 30, 0, true),
+  s('QR', 'qr-phone-shop', '📱', 'VietQR Phone Shop', 780, 12, 0, true),
+  s('QR', 'qr-room-rent', '🏠', 'VietQR Room Rent', 520, 13, 0, true),
+  s('QR', 'qr-scam-merchant', '⚠️', 'VietQR to a Scam Merchant', 650, 0, 70, true),
+  s('QR', 'qr-bin-burst', '🤖', 'VietQR BIN Attack Burst', 1.5, 0, 30, true),
+  // The teller counter. Cash at or over $10,000 files a CTR.
+  s('TELLER', 'teller-deposit', '💵', 'Teller Cash Deposit', 1500, 40, 0, true),
+  s('TELLER', 'teller-withdrawal', '💵', 'Teller Cash Withdrawal', 800, 35, 0, true),
+  s('TELLER', 'teller-takings', '🏪', 'Shop Takings Deposit', 4200, 15, 0, true),
+  s('TELLER', 'teller-large-cash', '🏦', 'Large Cash Withdrawal', 12000, 10, 0, true),
+  s('TELLER', 'teller-split-cash', '🧩', 'Split Cash Deposit', 9200, 0, 60, true),
+  s('TELLER', 'teller-counterfeit', '🔍', 'Deposit with Counterfeit Notes', 2000, 0, 40, true),
+  // Outward SWIFT remittances.
+  s('SWIFT', 'swift-tuition', '🎓', 'Overseas Tuition Fee', 6800, 40, 0, true),
+  s('SWIFT', 'swift-family', '👪', 'Family Remittance Home', 650, 45, 0, true),
+  s('SWIFT', 'swift-supplier', '🚢', 'Supplier Invoice Abroad', 14500, 15, 0, true),
+  s('SWIFT', 'swift-bec', '📧', 'Business Email Compromise Transfer', 22000, 0, 100, true),
+  // Claims at the disputes desk.
+  s('DISPUTE', 'claim-chargeback', '🧾', 'Card Charge Not Recognised', 240, 45, 0, true),
+  s('DISPUTE', 'claim-wrong-account', '↩️', 'Transfer Sent to Wrong Account', 300, 30, 0, true),
+  s('DISPUTE', 'claim-atm-short', '🏧', 'ATM Short-Changed', 200, 25, 0, true),
+  s('DISPUTE', 'claim-friendly-fraud', '🎣', 'Friendly-Fraud Chargeback', 480, 0, 100, true),
 ];
 
 /**
@@ -86,6 +115,15 @@ export const PRESET_SCENARIOS: readonly Scenario[] = [
   s('VIRTUAL', 'preset-token-45', '🎯', 'Practice Token Checkout', 45, 0, 0, true),
   s('ECOM', 'preset-3ds-250', '🎯', 'Practice 3DS Checkout', 250, 0, 0, true),
   s('ATM', 'preset-cdm-200', '🎯', 'Practice Cash Deposit', 200, 0, 0, true),
+  s('ONBOARD', 'preset-ekyc-open', '🎯', 'Practice eKYC Account', 50, 0, 0, true),
+  s('ONBOARD', 'preset-ekyc-deepfake', '🎯', 'Practice Deepfake Selfie', 50, 0, 0, true),
+  s('TELLER', 'preset-teller-12k', '🎯', 'Practice Large Cash Withdrawal', 12_000, 0, 0, true),
+  s('TELLER', 'preset-teller-smurf', '🎯', 'Practice Split Cash Deposit', 9_300, 0, 0, true),
+  s('QR', 'preset-qr-780', '🎯', 'Practice VietQR Payment', 780, 0, 0, true),
+  s('QR', 'preset-qr-rooted', '🎯', 'Practice VietQR on a Rooted Phone', 120, 0, 0, true),
+  s('SWIFT', 'preset-swift-6800', '🎯', 'Practice SWIFT Tuition', 6_800, 0, 0, true),
+  s('SWIFT', 'preset-swift-sanction', '🎯', 'Practice SWIFT to a Listed Name', 3_000, 0, 0, true),
+  s('DISPUTE', 'preset-claim-return', '🎯', 'Practice pacs.004 Return', 300, 0, 0, true),
 ];
 
 /** The botnet's card-testing attempt on day 3 (Chaos Monkey). Not in SCENARIOS, so ordinary days never draw it. */
@@ -128,8 +166,40 @@ export const SCENARIO_TITLE_VI: Readonly<Record<string, string>> = {
   'Practice Token Checkout': 'Thanh toán token luyện tập',
   'Practice 3DS Checkout': 'Thanh toán 3DS luyện tập',
   'Practice Cash Deposit': 'Nộp tiền mặt luyện tập',
+  'Practice eKYC Account': 'Mở tài khoản eKYC luyện tập',
+  'Practice Deepfake Selfie': 'Selfie deepfake luyện tập',
+  'Practice Large Cash Withdrawal': 'Rút tiền mặt lớn luyện tập',
+  'Practice Split Cash Deposit': 'Nộp tiền mặt chia nhỏ luyện tập',
+  'Practice VietQR Payment': 'Thanh toán VietQR luyện tập',
+  'Practice VietQR on a Rooted Phone': 'VietQR trên điện thoại đã root luyện tập',
+  'Practice SWIFT Tuition': 'Học phí SWIFT luyện tập',
+  'Practice SWIFT to a Listed Name': 'SWIFT tới tên bị cấm vận luyện tập',
+  'Practice pacs.004 Return': 'Hoàn trả pacs.004 luyện tập',
   'Botnet $1 Card Test': 'Botnet dò thẻ $1',
   'Large Business Transfer': 'Chuyển khoản doanh nghiệp lớn',
+  'Student Account via eKYC': 'Mở tài khoản sinh viên qua eKYC',
+  'Freelancer Account via eKYC': 'Mở tài khoản người làm tự do qua eKYC',
+  'Money-Mule Account Attempt': 'Mở tài khoản "nuôi" để rửa tiền',
+  'VietQR Street Food': 'VietQR quán ăn vỉa hè',
+  'VietQR Market Stall': 'VietQR sạp chợ',
+  'VietQR Phone Shop': 'VietQR cửa hàng điện thoại',
+  'VietQR Room Rent': 'VietQR tiền thuê phòng',
+  'VietQR to a Scam Merchant': 'VietQR tới cửa hàng lừa đảo',
+  'VietQR BIN Attack Burst': 'VietQR tấn công dò BIN',
+  'Teller Cash Deposit': 'Nộp tiền mặt qua giao dịch viên',
+  'Teller Cash Withdrawal': 'Rút tiền mặt qua giao dịch viên',
+  'Shop Takings Deposit': 'Nộp doanh thu cửa hàng',
+  'Large Cash Withdrawal': 'Rút tiền mặt lớn',
+  'Split Cash Deposit': 'Nộp tiền mặt chia nhỏ',
+  'Deposit with Counterfeit Notes': 'Nộp tiền có lẫn tiền giả',
+  'Overseas Tuition Fee': 'Học phí du học',
+  'Family Remittance Home': 'Chuyển tiền về cho gia đình',
+  'Supplier Invoice Abroad': 'Thanh toán nhà cung cấp nước ngoài',
+  'Business Email Compromise Transfer': 'Chuyển tiền do email doanh nghiệp bị giả mạo',
+  'Card Charge Not Recognised': 'Giao dịch thẻ không nhận ra',
+  'Transfer Sent to Wrong Account': 'Chuyển nhầm tài khoản',
+  'ATM Short-Changed': 'ATM trả thiếu tiền',
+  'Friendly-Fraud Chargeback': 'Tra soát gian lận "thân thiện"',
 };
 
 /** A scenario's title in English: the canonical text the simulation, the exports and the stores keep. Never depends on the language. */

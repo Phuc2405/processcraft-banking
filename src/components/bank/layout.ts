@@ -12,9 +12,9 @@ import { edgeId, WIRES, type DepartmentId, type PlaceId } from '../../sim/topolo
  * The branch itself is the BUILDING (the old stage). The pavement outside, with the sidewalk ATM and the right-hand gutter that
  * its wires run up, is the extra STAGE area around it.
  */
-export const BUILDING = { width: 1080, height: 810 } as const;
-// 2D stage (Phase 1A compact grid: EOD moved under the outcome column).
-export const STAGE = { width: 1320, height: 900 } as const;
+export const BUILDING = { width: 1080, height: 1180 } as const;
+// 2D stage (Phase 1A compact grid: EOD moved under the outcome column; Phase 8 adds the extended-flows band below it).
+export const STAGE = { width: 1320, height: 1264 } as const;
 
 // Right-side clusters (Flows 3 and 4): `right` px of extra free space so the zoom toolbar never covers them and the camera
 // never parks against the edge. Triggered by an edge within `band` of the stage's right side, or a centre past `centre`.
@@ -22,6 +22,9 @@ export const EDGE_PAD = { right: 120, band: 240, centre: 0.55 } as const;
 export const needsRightPad = (r: { x0: number; x1: number }): boolean => r.x1 >= STAGE.width - EDGE_PAD.band || (r.x0 + r.x1) / 2 >= STAGE.width * EDGE_PAD.centre;
 
 export const CARD = { w: 160, h: 92 } as const;
+
+/** Phase 8: the y of the extended band's first row on the 2D stage. */
+export const BAND_ROW_2D = 1012;
 
 export interface PlaceBox {
   /** Centre. */
@@ -32,6 +35,50 @@ export interface PlaceBox {
 }
 
 const card = (cx: number, cy: number): PlaceBox => ({ cx, cy, ...CARD });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 8: the extended-flows band (shared by the 2D map and the 3D office)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Two rows of four, under the rest of the bank:
+ *
+ *   SWIFT      eKYC      VietQR     FDS          ← row 1 (y = r1)
+ *   Disputes   Teller    FacePay    AML desk     ← row 2 (y = r1 + 140)
+ *
+ * Every ledger-bound wire joins one trunk at x 884 that climbs to the right side of the Debit CASA card; every decline joins a
+ * lane above row 1 or below row 2 and leaves by `decline` (a gutter on the 2D map, the existing right-hand lane in 3D).
+ * Lanes above row 1, top to bottom: declines, eKYC → CASA, SWIFT → FDS. Between the rows: eKYC → AML, SWIFT → FacePay.
+ * Below row 2: teller → AML, the ledger lane, declines.
+ */
+export const BAND = { cols: [100, 300, 500, 700] as const, rowGap: 140, trunk: 884 } as const;
+
+const bandCard = (cx: number, cy: number): PlaceBox => ({ cx, cy, w: 160, h: 92 });
+
+export function bandBoxes(r1: number): Pick<Record<PlaceId, PlaceBox>, 'GATE_SWIFT' | 'DISPUTE_DESK' | 'GATE_EKYC' | 'TELLER_CASH' | 'GATE_QR' | 'SEC_FACEPAY' | 'SEC_FDS' | 'AML_DESK'> {
+  const [c1, c2, c3, c4] = BAND.cols;
+  const r2 = r1 + BAND.rowGap;
+  return {
+    GATE_SWIFT: bandCard(c1, r1),
+    DISPUTE_DESK: bandCard(c1, r2),
+    GATE_EKYC: bandCard(c2, r1),
+    TELLER_CASH: bandCard(c2, r2),
+    GATE_QR: bandCard(c3, r1),
+    SEC_FACEPAY: bandCard(c3, r2),
+    SEC_FDS: bandCard(c4, r1),
+    AML_DESK: bandCard(c4, r2),
+  };
+}
+
+export function bandDepts(r1: number): Pick<Record<DepartmentId, DeptBox>, 'BACKOFFICE' | 'ENTRANCE' | 'COMPLIANCE'> {
+  const y = r1 - 82;
+  const h = BAND.rowGap + 138;
+  return {
+    BACKOFFICE: { x: 10, y, w: 180, h },
+    ENTRANCE: { x: 208, y, w: 384, h },
+    COMPLIANCE: { x: 608, y, w: 184, h },
+  };
+}
 
 export const PLACE_BOX: Record<PlaceId, PlaceBox> = {
   GATE_VIRTUAL: card(100, 118),
@@ -56,6 +103,7 @@ export const PLACE_BOX: Record<PlaceId, PlaceBox> = {
   OUT_DECLINED: { cx: 1000, cy: 150, w: 110, h: 100 },
   OUT_APPROVED: { cx: 1000, cy: 354, w: 110, h: 100 },
   OUT_SETTLED: { cx: 1105, cy: 802, w: 110, h: 92 },
+  ...bandBoxes(BAND_ROW_2D),
 };
 
 export interface DeptBox {
@@ -72,6 +120,7 @@ export const DEPT_BOX: Record<DepartmentId, DeptBox> = {
   BNPL: { x: 208, y: 460, w: 184, h: 140 },
   EOD: { x: 910, y: 466, w: 390, h: 416 },
   ATM: { x: 480, y: 626, w: 400, h: 142 },
+  ...bandDepts(BAND_ROW_2D),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -95,6 +144,49 @@ export interface RouteSpec {
 }
 
 export const R = (from: Port, to: Port, extra: Partial<RouteSpec> = {}): RouteSpec => ({ from, to, ...extra });
+
+/** How a decline leaves the band from a lane at `y`: the corners after the lane, and the port it enters Declined by. */
+export type DeclineTail = (y: number) => { via: readonly Pt[]; to: Port };
+
+export function bandRoutes(r1: number, decline: DeclineTail): Record<string, RouteSpec> {
+  const r2 = r1 + BAND.rowGap;
+  const T = BAND.trunk;
+  const LD = r1 - 116;
+  const LE = r1 - 104;
+  const LS = r1 - 92;
+  const M1 = r1 + 66;
+  const M2 = r1 + 78;
+  const B1 = r2 + 64;
+  const B2 = r2 + 76;
+  const B3 = r2 + 88;
+  const out = (fromX: number, lane: number, from: Port): RouteSpec => {
+    const tail = decline(lane);
+    return R(from, tail.to, { via: [[fromX, lane], ...tail.via], quiet: true });
+  };
+  return {
+    'GATE_EKYC>LEDGER_DEBIT': R(['t', 40], ['r', 40], { via: [[340, LE], [T, LE], [T, 280]], labelAt: [420, LE] }),
+    'GATE_EKYC>AML_DESK': R(['b', 40], ['l', -15], { via: [[340, M1], [604, M1], [604, r2 - 15]], labelAt: [470, M1] }),
+    'GATE_EKYC>OUT_DECLINED': out(270, LD, ['t', -30]),
+    'GATE_QR>SEC_FACEPAY': R(['b'], ['t'], { labelAt: [540, r1 + 60] }),
+    'GATE_QR>SEC_FDS': R(['r'], ['l'], { quiet: true }),
+    'GATE_QR>OUT_DECLINED': out(500, LD, ['t']),
+    'GATE_SWIFT>SEC_FACEPAY': R(['r', 20], ['l', -10], { via: [[196, r1 + 20], [196, M2], [410, M2], [410, r2 - 10]], labelAt: [300, M2] }),
+    'GATE_SWIFT>SEC_FDS': R(['t', 30], ['t', -10], { via: [[130, LS], [690, LS]], quiet: true }),
+    'GATE_SWIFT>OUT_DECLINED': out(70, LD, ['t', -30]),
+    'SEC_FACEPAY>SEC_FDS': R(['r', 10], ['l', 20], { via: [[596, r2 + 10], [596, r1 + 20]], quiet: true }),
+    'SEC_FACEPAY>OUT_DECLINED': out(500, B3, ['b']),
+    'SEC_FDS>AML_DESK': R(['b'], ['t'], { labelAt: [740, r1 + 70] }),
+    'SEC_FDS>LEDGER_DEBIT': R(['r'], ['r', 20], { via: [[T, r1], [T, 260]], labelAt: [832, r1] }),
+    'SEC_FDS>OUT_DECLINED': out(730, LD, ['t', 30]),
+    'TELLER_CASH>AML_DESK': R(['b', 30], ['b', -60], { via: [[330, B1], [640, B1]], labelAt: [480, B1] }),
+    'TELLER_CASH>LEDGER_DEBIT': R(['b', -10], ['r', 40], { via: [[290, B2], [T, B2], [T, 280]], quiet: true }),
+    'TELLER_CASH>OUT_DECLINED': out(260, B3, ['b', -40]),
+    'AML_DESK>LEDGER_DEBIT': R(['r'], ['r', 30], { via: [[T, r2], [T, 270]], labelAt: [832, r2] }),
+    'AML_DESK>OUT_DECLINED': out(740, B3, ['b', 40]),
+    'DISPUTE_DESK>LEDGER_DEBIT': R(['b', 20], ['r', 40], { via: [[120, B2], [T, B2], [T, 280]], labelAt: [190, B2] }),
+    'DISPUTE_DESK>OUT_DECLINED': out(80, B3, ['b', -20]),
+  };
+}
 
 const ROUTES: Record<string, RouteSpec> = {
   // Virtual cards
@@ -140,6 +232,8 @@ const ROUTES: Record<string, RouteSpec> = {
   'ATM_CASH>OUT_DECLINED': R(['t', -30], ['r'], { via: [[750, 446], [1066, 446], [1066, 150]], quiet: true }),
   'ATM_CASH>OUT_APPROVED': R(['t', 40], ['b', -35], { via: [[820, 455], [965, 455]], labelAt: [820, 560] }),
   'ATM_CASH>SUSPENSE': R(['r'], ['l'], { bendX: 890 }),
+  // Phase 8 band: declines climb the right-hand gutter and enter Declined from above.
+  ...bandRoutes(BAND_ROW_2D, (y) => ({ via: [[1305, y], [1305, 32], [1040, 32]], to: ['t', 40] })),
 };
 
 function anchor(b: PlaceBox, [side, d = 0]: Port): Pt {

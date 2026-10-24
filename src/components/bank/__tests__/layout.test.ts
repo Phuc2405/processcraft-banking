@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEPARTMENT_IDS, EXTERNAL_IDS, STATION_IDS, WIRES, edgeId, type PlaceId } from '../../../sim/topology';
+import { DEPARTMENT_IDS, DEPARTMENTS, EXTERNAL_IDS, STATION_IDS, WIRES, edgeId, type PlaceId } from '../../../sim/topology';
 import { OFFICE_PLACE_BOX } from '../office/officePlan';
 import { deskPose, toWorld } from '../office/layout3d';
 import { BANK_WIRES, CARD, DEPT_BOX, PLACE_BOX, STAGE, TIP_SIDE, pathOfWire, roundedPath, tipRect, wireById } from '../layout';
@@ -123,9 +123,9 @@ describe('where a desk’s description opens', () => {
     }
   });
 
-  it('covers no other desk, except gate-column desks and the compact night grid', () => {
+  it('covers no other desk, except gate-column desks, the compact night grid and the Phase 8 band', () => {
     const crowded = places.filter((id) => cost(id, TIP_SIDE[id]) > 0).sort();
-    expect(crowded).toEqual(['EOD_VISA', 'GATE_A2A', 'GATE_ECOM', 'GATE_VIRTUAL', 'RECON', 'SUSPENSE']);
+    expect(crowded).toEqual(['DISPUTE_DESK', 'EOD_VISA', 'GATE_A2A', 'GATE_ECOM', 'GATE_SWIFT', 'GATE_VIRTUAL', 'RECON', 'SEC_FACEPAY', 'SUSPENSE', 'TELLER_CASH']);
   });
 
   it('opens the everyday-account desk’s description away from the credit-card desk under it', () => {
@@ -176,9 +176,13 @@ describe('Phase 1A compact grid', () => {
       }
   });
 
-  it('is more landscape than the old 1120x980 stage', () => {
-    expect(STAGE.width / STAGE.height).toBeGreaterThan(1120 / 980);
-    expect(STAGE.height).toBeLessThan(980);
+  it('keeps the Phase 1A grid landscape above the Phase 8 band', () => {
+    const band = new Set(DEPARTMENTS.ENTRANCE.stations.concat(DEPARTMENTS.COMPLIANCE.stations, DEPARTMENTS.BACKOFFICE.stations));
+    const core = (Object.keys(PLACE_BOX) as PlaceId[]).filter((p) => !band.has(p as never));
+    const bottom = Math.max(...core.map((p) => PLACE_BOX[p].cy + PLACE_BOX[p].h / 2));
+    expect(STAGE.width / bottom).toBeGreaterThan(1120 / 980);
+    expect(bottom).toBeLessThan(900);
+    for (const id of band) expect(PLACE_BOX[id].cy - PLACE_BOX[id].h / 2, id).toBeGreaterThan(bottom);
   });
 
   it('leaves the 3D rooms where they were', () => {

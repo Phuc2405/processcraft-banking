@@ -9,16 +9,28 @@ import { useNodeCopy } from '../useNodeCopy';
 
 afterEach(() => setActiveLocale('en'));
 
-describe('16-node classification', () => {
-  it('splits every station into 11 automated and 5 human, with no overlap', () => {
-    expect(AUTOMATED_NODES).toHaveLength(11);
-    expect(HUMAN_NODES).toHaveLength(5);
+describe('24-node classification', () => {
+  it('splits every station into 16 automated and 8 human, with no overlap', () => {
+    expect(AUTOMATED_NODES).toHaveLength(16);
+    expect(HUMAN_NODES).toHaveLength(8);
     expect(new Set([...AUTOMATED_NODES, ...HUMAN_NODES])).toEqual(new Set(STATION_IDS));
   });
 
   it('runs gateways, security, the core ledger and the ATM on servers, and the back office by hand', () => {
     for (const id of ['GATE_VIRTUAL', 'GATE_POS', 'GATE_A2A', 'GATE_ECOM', 'SEC_VAULT', 'SEC_DCVV', 'SEC_3DS', 'LEDGER_DEBIT', 'LEDGER_CREDIT', 'GATE_ATM', 'ATM_CASH'] as StationId[]) expect(isAutomatedNode(id), id).toBe(true);
     for (const id of ['BNPL', 'EOD_BATCH', 'EOD_VISA', 'SUSPENSE', 'RECON'] as StationId[]) expect(isAutomatedNode(id), id).toBe(false);
+  });
+
+  it('runs eKYC, VietQR, FacePay, the FDS and SWIFT on servers, and the teller, AML and disputes desks by hand', () => {
+    for (const id of ['GATE_EKYC', 'GATE_QR', 'SEC_FACEPAY', 'SEC_FDS', 'GATE_SWIFT'] as StationId[]) expect(isAutomatedNode(id), id).toBe(true);
+    for (const id of ['TELLER_CASH', 'AML_DESK', 'DISPUTE_DESK'] as StationId[]) expect(isAutomatedNode(id), id).toBe(false);
+  });
+
+  it('names the identity, biometric and fraud engines as AI engines', () => {
+    expect(machineWorkerName('GATE_EKYC', 0)).toEqual({ kind: 'engine', engine: 'ekyc', n: '01' });
+    expect(machineWorkerName('SEC_FACEPAY', 1)).toEqual({ kind: 'engine', engine: 'facepay', n: '02' });
+    expect(machineWorkerName('SEC_FDS', 0)).toEqual({ kind: 'engine', engine: 'fds', n: '01' });
+    expect(machineWorkerName('GATE_SWIFT', 0)).toEqual({ kind: 'cluster', letter: 'Alpha' });
   });
 
   it('names gateway workers as clusters and other machines as threads', () => {

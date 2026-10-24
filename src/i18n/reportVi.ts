@@ -48,7 +48,8 @@ const LABEL_VI: Readonly<Record<string, string>> = {
   'Not enough money': 'Không đủ tiền',
   'OTP abandoned': 'Bỏ dở OTP',
   'Risk & security blocks': 'Chặn do rủi ro & bảo mật',
-  'ATM hardware': 'Phần cứng ATM',
+  'ATM & branch cash': 'ATM & tiền mặt tại quầy',
+  'Identity & compliance': 'Định danh & tuân thủ',
   'Queues & errors': 'Hàng chờ & lỗi',
 };
 
@@ -78,7 +79,7 @@ const GLOSSARY_VI: Readonly<Record<string, string>> = {
   'Customer base & churn': 'Khách có tài khoản, khách mới tham gia hôm nay, và khách tốt bỏ đi sau khi bị từ chối.',
   'Top revenue drain': 'Dòng tổn thất duy nhất khiến ngân hàng mất nhiều nhất hôm nay.',
   'Revenue vs losses': 'Mọi thứ thu được hôm nay so với mọi thứ bị mất hoặc xóa sổ; phần chênh là kết quả trong ngày.',
-  'Decline breakdown': 'Lý do giao dịch bị từ chối hôm nay, gom theo tiền, bỏ dở OTP, chặn rủi ro, phần cứng ATM và hàng chờ.',
+  'Decline breakdown': 'Lý do giao dịch bị từ chối hôm nay, gom theo tiền, bỏ dở OTP, chặn rủi ro, định danh, tiền mặt và hàng chờ.',
 };
 
 const DECLINE_LABEL_VI: Readonly<Record<DeclineReason, string>> = {
@@ -94,6 +95,16 @@ const DECLINE_LABEL_VI: Readonly<Record<DeclineReason, string>> = {
   ATM_JAM: 'Kẹt bộ nhả tiền ATM',
   TIMEOUT: 'Khách bỏ đi vì chờ lâu',
   PROCESS_ERROR: 'Lỗi xử lý',
+  EKYC_LIVENESS_FAILED: 'eKYC không xác minh được danh tính',
+  BIOMETRIC_AUTH_REQUIRED: 'FacePay không khớp khuôn mặt',
+  FDS_HIGH_RISK_DEVICE: 'FDS: thiết bị rủi ro cao',
+  AML_SANCTION_MATCH: 'Trùng danh sách cấm vận',
+  AML_STR_BLOCKED: 'Bị chặn sau khi rà soát STR',
+  QR_PAYLOAD_INVALID: 'Mã VietQR không hợp lệ',
+  SWIFT_INVALID: 'Điện SWIFT bị từ chối',
+  TELLER_VAULT_LIMIT: 'Vượt hạn mức tiền mặt tại quầy',
+  TELLER_SUSPECT_NOTE: 'Tiền nghi giả tại quầy',
+  DISPUTE_REJECTED: 'Khiếu nại bị từ chối',
 };
 
 const DECLINE_GLOSSARY_VI: Readonly<Record<DeclineReason, string>> = {
@@ -109,6 +120,16 @@ const DECLINE_GLOSSARY_VI: Readonly<Record<DeclineReason, string>> = {
   ATM_JAM: 'Tiền giấy bị kẹt trong khay ATM; tiền đã trừ được đưa vào tài khoản treo chờ kiểm toán.',
   TIMEOUT: 'Khách bỏ đi vì chờ trong hàng trước khi quầy kịp phục vụ.',
   PROCESS_ERROR: 'Chính sơ đồ quy trình bị lỗi trên giao dịch này (không nên xảy ra với các sơ đồ có sẵn).',
+  EKYC_LIVENESS_FAILED: 'Ảnh selfie không qua kiểm tra người thật, không khớp ảnh CCCD, thẻ có dấu hiệu giả, hoặc Cơ sở dữ liệu quốc gia về dân cư không khớp, nên không mở tài khoản.',
+  BIOMETRIC_AUTH_REQUIRED: 'Giao dịch chuyển tiền trên $400 (10 triệu VND) cần xác thực khuôn mặt FacePay, và khuôn mặt không khớp hoặc chưa đăng ký sinh trắc học.',
+  FDS_HIGH_RISK_DEVICE: 'Hệ thống phát hiện gian lận (FDS) chấm thiết bị quá rủi ro: IP bất thường, điện thoại đã root/jailbreak, hoặc dồn dập tấn công dò BIN.',
+  AML_SANCTION_MATCH: 'Tên trùng danh sách cấm vận OFAC; chuyên viên đã xác nhận và tiền bị phong tỏa.',
+  AML_STR_BLOCKED: 'Giao dịch bị giữ chờ chuyên viên AML, người xác định hoạt động đáng ngờ, lập Báo cáo giao dịch đáng ngờ (STR) và chặn giao dịch.',
+  QR_PAYLOAD_INVALID: 'Chuỗi VietQR sai mã CRC, sai định dạng thẻ EMVCo, hoặc số tiền trong mã không khớp giao dịch.',
+  SWIFT_INVALID: 'Điện pacs.008 quốc tế vi phạm quy tắc định dạng ISO 20022 (EndToEndId, mã BIC, loại tiền hoặc số tiền).',
+  TELLER_VAULT_LIMIT: 'Ngăn kéo tiền của giao dịch viên không đủ tiền mặt cho lần rút; khách được hẹn quay lại sau khi tiếp quỹ.',
+  TELLER_SUSPECT_NOTE: 'Máy đếm tiền gắn cờ tiền nghi giả; số seri đã được ghi lại và giao dịch nộp tiền bị từ chối.',
+  DISPUTE_REJECTED: 'Khiếu nại nộp quá thời hạn, hoặc bằng chứng (chứng từ của cửa hàng, nhật ký ATM, ngân hàng thụ hưởng) không có lợi cho khách.',
 };
 
 /** A report label in the active language. */
@@ -136,6 +157,16 @@ const DECLINE_BY_EN_LOWER: Readonly<Record<string, string>> = {
   'atm dispenser jammed': 'kẹt bộ nhả tiền ATM',
   'customer gave up waiting': 'khách bỏ đi vì chờ lâu',
   'process error': 'lỗi xử lý',
+  'ekyc identity not proven': 'eKYC không xác minh được danh tính',
+  'facepay face match failed': 'facePay không khớp khuôn mặt',
+  'fds high-risk device': 'fDS: thiết bị rủi ro cao',
+  'sanctions list match': 'trùng danh sách cấm vận',
+  'blocked after str review': 'bị chặn sau khi rà soát STR',
+  'vietqr payload invalid': 'mã VietQR không hợp lệ',
+  'swift message rejected': 'điện SWIFT bị từ chối',
+  'teller vault cash limit': 'vượt hạn mức tiền mặt tại quầy',
+  'suspect notes at the counter': 'tiền nghi giả tại quầy',
+  'dispute claim rejected': 'khiếu nại bị từ chối',
 };
 
 const TIP_RULES: ReadonlyArray<readonly [RegExp, (m: RegExpExecArray) => string]> = [

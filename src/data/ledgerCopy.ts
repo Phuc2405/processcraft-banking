@@ -124,6 +124,12 @@ const EN: LedgerBook = {
     ATM_REFUND: 'ATM jam refunded',
     ATM_DEPOSIT: 'Cash deposited',
     CHARGEBACK_REVERSAL: 'Chargeback reversal',
+    TELLER_DEPOSIT: 'Teller cash deposit',
+    TELLER_WITHDRAWAL: 'Teller cash withdrawal',
+    SWIFT_REMITTANCE: 'SWIFT remittance sent',
+    ATM_MISMATCH_REFUND: 'ATM mismatch refunded',
+    PAYMENT_RETURN: 'pacs.004 return credited',
+    OPENING_DEPOSIT: 'Opening deposit',
   },
 };
 
@@ -193,6 +199,12 @@ const VI: LedgerBook = {
     ATM_REFUND: 'Hoàn tiền kẹt ATM',
     ATM_DEPOSIT: 'Nộp tiền mặt',
     CHARGEBACK_REVERSAL: 'Đảo tiền tra soát (chargeback)',
+    TELLER_DEPOSIT: 'Nộp tiền mặt tại quầy',
+    TELLER_WITHDRAWAL: 'Rút tiền mặt tại quầy',
+    SWIFT_REMITTANCE: 'Chuyển tiền quốc tế SWIFT',
+    ATM_MISMATCH_REFUND: 'Hoàn tiền lệch ATM',
+    PAYMENT_RETURN: 'Hoàn trả pacs.004',
+    OPENING_DEPOSIT: 'Tiền gửi mở tài khoản',
   },
 };
 
