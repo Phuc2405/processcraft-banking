@@ -304,6 +304,8 @@ export interface Packet {
   bot?: boolean;
   /** Latency Chaos Monkey's network congestion added, on top of the diagram's own. */
   extraLatencyMs?: number;
+  /** Phase 8 channels: what the checkpoints read, kept for the Staff Roleplay payload card. */
+  ext?: ExtendedContext;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

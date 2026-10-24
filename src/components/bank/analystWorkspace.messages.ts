@@ -1,0 +1,173 @@
+import { defineMessages } from '../../utils/i18nHelper';
+
+/**
+ * The Staff Roleplay Workspace: role briefs, SOP decision matrices, payload field headers and the shift objective.
+ * SOP thresholds are placeholders filled from the engine's own policies (sim/amlEngine.ts, sim/staffRoleplay.ts).
+ */
+export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
+  // ── Shell ──────────────────────────────────────────────────────────────────
+  enterRoleplay: { en: '🎭 Enter Staff Roleplay', vi: '🎭 Vào vai nhân viên' },
+  title: { en: 'Staff Roleplay Workspace', vi: 'Không gian nhập vai nhân viên' },
+  close: { en: 'Leave desk', vi: 'Rời quầy' },
+  paused: { en: 'The bank clock is paused while you work the desk.', vi: 'Đồng hồ ngân hàng tạm dừng trong lúc bạn làm việc tại quầy.' },
+  keysHint: { en: 'A approve · R reject · Esc leave', vi: 'A duyệt · R từ chối · Esc rời quầy' },
+
+  // ── Panel A ────────────────────────────────────────────────────────────────
+  missionBrief: { en: 'Mission brief', vi: 'Nhiệm vụ' },
+  slaTarget: { en: 'SLA target < {sec}s per review', vi: 'Mục tiêu SLA < {sec} giây mỗi hồ sơ' },
+  sopTitle: { en: 'Cheat-sheet SOP decision matrix', vi: 'Ma trận quyết định SOP (tóm tắt)' },
+
+  // ── Panel B ────────────────────────────────────────────────────────────────
+  payloadTitle: { en: 'Transaction payload inspector', vi: 'Kiểm tra dữ liệu giao dịch' },
+  amount: { en: 'Amount', vi: 'Số tiền' },
+  waited: { en: '{min} min in queue', vi: '{min} phút trong hàng chờ' },
+  queueAhead: { en: '{n} more waiting', vi: 'còn {n} hồ sơ chờ' },
+  slaTimer: { en: 'SLA {sec}s', vi: 'SLA {sec} giây' },
+  slaBreached: { en: 'SLA breached', vi: 'Vượt SLA' },
+  emptyQueue: { en: 'Queue clear', vi: 'Hàng chờ trống' },
+  emptyHint: {
+    en: 'No review is waiting at this desk. Resume the clock or trigger a guided flow to send work here.',
+    vi: 'Không có hồ sơ nào chờ tại quầy này. Hãy chạy tiếp đồng hồ hoặc gửi một luồng có hướng dẫn tới đây.',
+  },
+  advance: { en: 'Advance the clock one beat', vi: 'Chạy tiếp đồng hồ một nhịp' },
+  breach: { en: 'Breaches SOP', vi: 'Vi phạm SOP' },
+  yes: { en: 'Yes', vi: 'Có' },
+  no: { en: 'No', vi: 'Không' },
+
+  // ── Panel C ────────────────────────────────────────────────────────────────
+  actionsTitle: { en: 'Decision', vi: 'Quyết định' },
+  approve: { en: '🟢 Approve', vi: '🟢 Cho qua' },
+  reject: { en: '🔴 Reject & Block', vi: '🔴 Phong tỏa' },
+  correct: { en: 'Matches the SOP', vi: 'Đúng quy trình SOP' },
+  incorrect: { en: 'Against the SOP. The desk verdict was {expected}.', vi: 'Sai quy trình SOP. Kết luận đúng của quầy là {expected}.' },
+  expectedAPPROVE: { en: 'approve', vi: 'cho qua' },
+  expectedREJECT: { en: 'reject', vi: 'phong tỏa' },
+  statusCode: { en: 'Status code {code}', vi: 'Mã trạng thái {code}' },
+  shiftTitle: { en: 'Shift objective', vi: 'Mục tiêu ca làm việc' },
+  shiftTarget: { en: 'Target: {reviews} Reviews | Accuracy > {acc}%', vi: 'Mục tiêu: {reviews} hồ sơ | Độ chính xác > {acc}%' },
+  shiftReviews: { en: '{n} / {target} reviews', vi: '{n} / {target} hồ sơ' },
+  shiftAccuracy: { en: 'Accuracy {pct}', vi: 'Độ chính xác {pct}' },
+  shiftLatency: { en: 'Avg {sec}s per review', vi: 'Trung bình {sec} giây mỗi hồ sơ' },
+  objectiveMet: { en: '✅ SHIFT OBJECTIVE MET', vi: '✅ ĐÃ ĐẠT MỤC TIÊU CA' },
+
+  // ── Roles ──────────────────────────────────────────────────────────────────
+  role_aml_title: { en: 'AML Compliance Officer', vi: 'Chuyên viên Tuân thủ AML' },
+  role_aml_brief: {
+    en: 'Payments the automated screen held as STR_PENDING wait for you. Release genuine customers, block sanctions hits and mule activity.',
+    vi: 'Các giao dịch bị sàng lọc tự động giữ lại (STR_PENDING) đang chờ bạn. Giải phóng khách hàng thật, phong tỏa trường hợp trùng cấm vận và tài khoản la (mule).',
+  },
+  role_dispute_title: { en: 'Dispute Specialist', vi: 'Chuyên viên Tra soát Khiếu nại' },
+  role_dispute_brief: {
+    en: 'Work customer claims within the scheme window. Refund what the evidence supports, reject what the merchant or the journal disproves.',
+    vi: 'Xử lý khiếu nại của khách trong thời hạn của tổ chức thẻ. Hoàn tiền khi bằng chứng ủng hộ, từ chối khi người bán hoặc nhật ký máy chứng minh ngược lại.',
+  },
+  role_bnpl_title: { en: 'BNPL Credit Officer', vi: 'Chuyên viên Tín dụng BNPL' },
+  role_bnpl_brief: {
+    en: 'Underwrite Pay-in-4 applications at checkout. Approve affordable plans, decline anyone the policy says cannot carry four instalments.',
+    vi: 'Thẩm định hồ sơ trả góp 4 kỳ tại quầy thanh toán. Duyệt các khoản vay vừa khả năng chi trả, từ chối người không đủ điều kiện gánh 4 kỳ.',
+  },
+  role_cashier_title: { en: 'Branch Cashier', vi: 'Giao dịch viên Quầy tiền mặt' },
+  role_cashier_brief: {
+    en: 'Count cash in and out against the till. Refuse suspect notes and withdrawals the till cannot cover. Large cash is reported automatically.',
+    vi: 'Kiểm đếm tiền nộp và rút theo quỹ quầy. Từ chối tiền nghi giả và lệnh rút vượt quỹ. Giao dịch tiền mặt lớn được báo cáo tự động.',
+  },
+  role_ekyc_title: { en: 'eKYC Reviewer', vi: 'Chuyên viên Thẩm định eKYC' },
+  role_ekyc_brief: {
+    en: 'Second-look new accounts the onboarding bot scored. Only real, matching faces with a valid citizen record get an account.',
+    vi: 'Rà soát lại các hồ sơ mở tài khoản mà bot đã chấm điểm. Chỉ khuôn mặt thật, khớp giấy tờ và có hồ sơ dân cư hợp lệ mới được mở tài khoản.',
+  },
+  role_fds_title: { en: 'FDS Fraud Analyst', vi: 'Chuyên viên Phân tích Gian lận FDS' },
+  role_fds_brief: {
+    en: 'Score device fingerprints on incoming payments. Block high-risk devices before money moves, let ordinary customers through.',
+    vi: 'Chấm điểm dấu vân tay thiết bị của giao dịch. Chặn thiết bị rủi ro cao trước khi tiền đi, cho khách hàng bình thường đi qua.',
+  },
+  role_swift_title: { en: 'Cross-Border Officer', vi: 'Chuyên viên Thanh toán Quốc tế' },
+  role_swift_brief: {
+    en: 'Validate outward pacs.008 remittances before they leave the nostro. A malformed message is returned, never sent.',
+    vi: 'Kiểm tra điện chuyển tiền đi pacs.008 trước khi rời tài khoản nostro. Điện sai định dạng bị trả lại, không bao giờ được gửi đi.',
+  },
+
+  // ── SOP decision matrices ──────────────────────────────────────────────────
+  sop_aml_1: { en: 'Sanctions name score ≥ {sanction}% (OFAC) → Reject & Block, freeze the funds.', vi: 'Điểm trùng tên cấm vận ≥ {sanction}% (OFAC) → Phong tỏa và đóng băng tiền.' },
+  sop_aml_2: { en: 'Velocity ≥ {velocity} transactions in 24h → Reject & Block, file an STR.', vi: 'Tần suất ≥ {velocity} giao dịch trong 24 giờ → Phong tỏa và lập STR.' },
+  sop_aml_3: { en: 'PEP or cross-border ≥ {xb} with normal velocity → Approve (release).', vi: 'PEP hoặc chuyển tiền quốc tế ≥ {xb} với tần suất bình thường → Cho qua (giải phóng).' },
+  sop_aml_4: { en: 'Structuring with normal velocity → Approve, the STR is filed on release.', vi: 'Chia nhỏ giao dịch với tần suất bình thường → Cho qua, STR được lập khi giải phóng.' },
+  sop_dispute_1: { en: 'Claim past its window (chargeback {cb} d, pacs.004 {ret} d, ATM {atm} d) → Reject.', vi: 'Khiếu nại quá hạn (chargeback {cb} ngày, pacs.004 {ret} ngày, ATM {atm} ngày) → Từ chối.' },
+  sop_dispute_2: { en: 'Chargeback with merchant proof of delivery → Reject. No proof → Approve refund.', vi: 'Chargeback có bằng chứng giao hàng của người bán → Từ chối. Không có → Duyệt hoàn tiền.' },
+  sop_dispute_3: { en: 'ATM mismatch where the EJ shows notes taken → Reject. Otherwise → Approve.', vi: 'Lệch tiền ATM mà nhật ký EJ cho thấy tiền đã được lấy → Từ chối. Ngược lại → Duyệt.' },
+  sop_dispute_4: { en: 'pacs.004 return with funds recoverable → Approve. Not recoverable → Reject.', vi: 'Hoàn trả pacs.004 còn thu hồi được tiền → Duyệt. Không thu hồi được → Từ chối.' },
+  sop_bnpl_1: { en: 'Credit score below {min} → Reject.', vi: 'Điểm tín dụng dưới {min} → Từ chối.' },
+  sop_bnpl_2: { en: 'Debt-to-income above {dti}% → Reject.', vi: 'Tỷ lệ nợ trên thu nhập (DTI) trên {dti}% → Từ chối.' },
+  sop_bnpl_3: { en: 'More than {missed} missed Pay-in-4 instalment → Reject.', vi: 'Trễ hạn hơn {missed} kỳ trả góp 4 kỳ → Từ chối.' },
+  sop_bnpl_4: { en: 'All three within policy → Approve, instalment 1 is collected today.', vi: 'Cả ba tiêu chí đạt → Duyệt, kỳ 1 được thu ngay hôm nay.' },
+  sop_cashier_1: { en: 'Deposit with any suspect note serial → Reject and record the serials.', vi: 'Tiền nộp có số seri nghi giả → Từ chối và ghi lại số seri.' },
+  sop_cashier_2: { en: 'Withdrawal above the till cash → Reject until the vault tops up.', vi: 'Lệnh rút vượt quỹ quầy → Từ chối cho tới khi két bổ sung tiền.' },
+  sop_cashier_3: { en: 'Cash ≥ {ctr} files a CTR automatically. It is not a reason to reject.', vi: 'Tiền mặt ≥ {ctr} được lập CTR tự động. Đây không phải lý do để từ chối.' },
+  sop_cashier_4: { en: 'Counted clean → Approve.', vi: 'Kiểm đếm hợp lệ → Duyệt.' },
+  sop_ekyc_1: { en: 'Face match below {face}% → Reject.', vi: 'Độ khớp khuôn mặt dưới {face}% → Từ chối.' },
+  sop_ekyc_2: { en: 'Liveness below {live}% → Reject (EKYC_LIVENESS_FAILED).', vi: 'Điểm người thật (liveness) dưới {live}% → Từ chối (EKYC_LIVENESS_FAILED).' },
+  sop_ekyc_3: { en: 'OCR match below {ocr}% or tamper score above {tamper} → Reject as a fake ID.', vi: 'Độ khớp OCR dưới {ocr}% hoặc điểm giả mạo trên {tamper} → Từ chối vì giấy tờ giả.' },
+  sop_ekyc_4: { en: 'No National Citizen DB record → Reject. All checks pass → Approve.', vi: 'Không có trong CSDL quốc gia về dân cư → Từ chối. Đạt tất cả → Duyệt.' },
+  sop_fds_1: { en: 'Device score = IP anomaly {ip} + jailbreak {root} + BIN attack {bin} + new device {nd}.', vi: 'Điểm thiết bị = IP bất thường {ip} + root/jailbreak {root} + dò BIN {bin} + thiết bị mới {nd}.' },
+  sop_fds_2: { en: 'Score ≥ {high} → Reject & Block (FDS_HIGH_RISK_DEVICE).', vi: 'Điểm ≥ {high} → Phong tỏa (FDS_HIGH_RISK_DEVICE).' },
+  sop_fds_3: { en: 'Score below {high} → Approve. One weak signal alone is not enough to block.', vi: 'Điểm dưới {high} → Cho qua. Một tín hiệu yếu đơn lẻ chưa đủ để chặn.' },
+  sop_swift_1: { en: 'EndToEndId missing or longer than 35 characters → Reject.', vi: 'EndToEndId thiếu hoặc dài hơn 35 ký tự → Từ chối.' },
+  sop_swift_2: { en: 'Debtor or creditor BIC not a valid 8/11-character BIC → Reject.', vi: 'Mã BIC bên chuyển hoặc bên nhận không hợp lệ (8/11 ký tự) → Từ chối.' },
+  sop_swift_3: { en: 'Currency not ISO 4217, or AUD on an outward pacs.008 → Reject.', vi: 'Loại tiền không theo ISO 4217, hoặc là AUD trên điện pacs.008 chuyển đi → Từ chối.' },
+  sop_swift_4: { en: 'All fields valid → Approve. Watch the nostro balance.', vi: 'Mọi trường hợp lệ → Duyệt. Theo dõi số dư nostro.' },
+
+  // ── Payload field headers ──────────────────────────────────────────────────
+  field_strScore: { en: 'STR score', vi: 'Điểm STR' },
+  field_watchlist: { en: 'OFAC / PEP watchlist', vi: 'Danh sách OFAC / PEP' },
+  field_nameScore: { en: 'Sanctions name score', vi: 'Điểm trùng tên cấm vận' },
+  field_holdReason: { en: 'Hold reason', vi: 'Lý do tạm giữ' },
+  field_velocity: { en: 'Velocity (tx / 24h)', vi: 'Tần suất (giao dịch / 24 giờ)' },
+  field_merchant: { en: 'Merchant', vi: 'Người bán' },
+  field_cbCode: { en: 'Chargeback code', vi: 'Mã tra soát' },
+  field_claimAge: { en: 'Claim age / window', vi: 'Tuổi khiếu nại / thời hạn' },
+  field_claimNotes: { en: 'Claim notes', vi: 'Ghi chú khiếu nại' },
+  field_proofMerchant: { en: 'Merchant proof of delivery', vi: 'Bằng chứng giao hàng của người bán' },
+  field_proofJournal: { en: 'EJ shows notes dispensed', vi: 'Nhật ký EJ ghi nhận đã nhả tiền' },
+  field_proofRecoverable: { en: 'Funds recoverable', vi: 'Có thể thu hồi tiền' },
+  field_creditScore: { en: 'Credit score', vi: 'Điểm tín dụng' },
+  field_dti: { en: 'Debt-to-income (DTI)', vi: 'Tỷ lệ nợ trên thu nhập (DTI)' },
+  field_payIn4History: { en: 'Pay-in-4 history', vi: 'Lịch sử trả góp 4 kỳ' },
+  field_downPayment: { en: 'Instalment 1 due today', vi: 'Kỳ 1 thu hôm nay' },
+  field_direction: { en: 'Direction', vi: 'Loại giao dịch' },
+  field_vaultBalance: { en: 'Vault cash balance', vi: 'Tồn quỹ két' },
+  field_tillCash: { en: 'Till cash', vi: 'Tiền tại quầy' },
+  field_serialMismatch: { en: 'Serial mismatches', vi: 'Số seri nghi vấn' },
+  field_ctrRequired: { en: 'CTR required ($10k+)', vi: 'Cần lập CTR ($10k+)' },
+  field_faceMatch: { en: 'Face match', vi: 'Độ khớp khuôn mặt' },
+  field_liveness: { en: 'Liveness score', vi: 'Điểm người thật' },
+  field_ocrMatch: { en: 'OCR match', vi: 'Độ khớp OCR' },
+  field_tamper: { en: 'Document tamper score', vi: 'Điểm giả mạo giấy tờ' },
+  field_nationalDb: { en: 'National DB match', vi: 'Khớp CSDL quốc gia' },
+  field_deviceScore: { en: 'Device risk score', vi: 'Điểm rủi ro thiết bị' },
+  field_ipAnomaly: { en: 'IP location anomaly', vi: 'IP bất thường' },
+  field_jailbreak: { en: 'Jailbreak / root flag', vi: 'Thiết bị root / jailbreak' },
+  field_binAttack: { en: 'BIN attack pattern', vi: 'Dấu hiệu dò BIN' },
+  field_newDevice: { en: 'New device', vi: 'Thiết bị mới' },
+  field_fxRate: { en: 'FX rate', vi: 'Tỷ giá' },
+  field_pacs008: { en: 'ISO 20022 pacs.008 header', vi: 'Tiêu đề điện ISO 20022 pacs.008' },
+  field_invalidField: { en: 'Invalid field', vi: 'Trường không hợp lệ' },
+  field_nostro: { en: 'Nostro balance', vi: 'Số dư nostro' },
+
+  // ── Payload values ─────────────────────────────────────────────────────────
+  val_watchOfac: { en: 'OFAC match', vi: 'Trùng OFAC' },
+  val_watchPep: { en: 'PEP', vi: 'Người có ảnh hưởng chính trị (PEP)' },
+  val_watchNone: { en: 'No match', vi: 'Không trùng' },
+  val_holdNONE: { en: 'None', vi: 'Không có' },
+  val_holdPEP: { en: 'Politically exposed person', vi: 'Người có ảnh hưởng chính trị' },
+  val_holdSTRUCTURING: { en: 'Structuring', vi: 'Chia nhỏ giao dịch' },
+  val_holdLARGE_CROSS_BORDER: { en: 'Large cross-border', vi: 'Chuyển tiền quốc tế lớn' },
+  val_holdOFAC: { en: 'Sanctions list', vi: 'Danh sách cấm vận' },
+  val_noteCHARGEBACK: { en: 'Cardholder says the goods never arrived.', vi: 'Chủ thẻ cho biết chưa nhận được hàng.' },
+  val_notePACS004_RETURN: { en: 'Customer sent a transfer to the wrong account.', vi: 'Khách chuyển nhầm tài khoản.' },
+  val_noteATM_MISMATCH: { en: 'Customer says the ATM debited but gave no cash.', vi: 'Khách cho biết ATM đã trừ tiền nhưng không nhả tiền.' },
+  val_cashIn: { en: 'Cash deposit', vi: 'Nộp tiền mặt' },
+  val_cashOut: { en: 'Cash withdrawal', vi: 'Rút tiền mặt' },
+  val_none: { en: 'None', vi: 'Không có' },
+});
+
+export type AnalystWorkspaceKey = keyof typeof analystWorkspaceMessages.messages;

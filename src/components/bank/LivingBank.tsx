@@ -6,6 +6,7 @@ import { useAcademyStore } from '../../store/academyStore';
 import { AcademySplitLayout } from '../academy/AcademySplitLayout';
 import { GuidedBar, ResumeWalkthrough, WalkChip } from '../education/GuidedWalkthrough';
 import { WalkDock } from '../education/WalkDock';
+import { AnalystWorkspaceModal } from './AnalystWorkspaceModal';
 import { BankMap } from './BankMap';
 import { BankSidebar } from './BankSidebar';
 import { ClockBar } from './ClockBar';
@@ -162,6 +163,7 @@ export function LivingBank() {
       <DayReportModal />
       <CourseCatalog />
       <LearningHub />
+      <AnalystWorkspaceModal />
     </div>
   );
 }
