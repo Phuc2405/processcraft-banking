@@ -49,8 +49,8 @@ type Controls = {
   enableDamping: boolean;
   target: Vector3;
   update(): void;
-  addEventListener(type: 'change' | 'start', fn: () => void): void;
-  removeEventListener(type: 'change' | 'start', fn: () => void): void;
+  addEventListener(type: 'change' | 'start' | 'end', fn: () => void): void;
+  removeEventListener(type: 'change' | 'start' | 'end', fn: () => void): void;
 };
 
 const RESET_MS = 520;
@@ -93,6 +93,10 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
   const glide = useRef<Glide | null>(null);
   // Until the learner moves the camera themselves, the floor is re-fitted whenever the window changes size.
   const touched = useRef(false);
+  // While the learner drags the office, the view is theirs: glides asked for meanwhile wait for the release.
+  const interacting = useRef(false);
+  const pendingGlide = useRef<Parameters<typeof glideTo> | null>(null);
+  const gl = useThree((s) => s.gl);
   const lastReset = useRef(resetKey);
   const focusRef = useRef<CamFocus | null>(focus);
   focusRef.current = focus;
@@ -106,9 +110,13 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
   const homeTarget = (): Vector3 => new Vector3(HOME_TARGET[0], 0, HOME_TARGET[1]);
 
   /** Slides the camera to look at (x, z) from direction `az` at `zoom`. */
-  const glideTo = (x: number, z: number, az: number, zoom: number, ms: number): void => {
+  function glideTo(x: number, z: number, az: number, zoom: number, ms: number): void {
     const c = controls.current;
     if (!c) return;
+    if (interacting.current) {
+      pendingGlide.current = [x, z, az, zoom, ms];
+      return;
+    }
     const fromTarget = c.target.clone();
     const fromAz = Math.atan2(camera.position.x - fromTarget.x, camera.position.z - fromTarget.z);
     if (ms <= 0 || prefersReducedMotion()) {
@@ -127,7 +135,7 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
     }
     glide.current = { t0: performance.now(), ms, fromTarget, toTarget: new Vector3(x, 0, z), fromAz, toAz: az, fromZoom: camera.zoom, toZoom: zoom };
     invalidate();
-  };
+  }
 
   const placeHome = (animate: boolean): void => {
     const c = controls.current;
@@ -264,17 +272,32 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
         c.target.z += dz;
       }
     };
+    const canvas = gl.domElement;
+    canvas.classList.add('bk-office-canvas');
     const onStart = (): void => {
       touched.current = true;
       glide.current = null;
+      interacting.current = true;
+      canvas.dataset.grabbing = '';
+    };
+    const onEnd = (): void => {
+      interacting.current = false;
+      delete canvas.dataset.grabbing;
+      const pending = pendingGlide.current;
+      pendingGlide.current = null;
+      if (pending) glideTo(...pending);
     };
     c.addEventListener('change', onChange);
     c.addEventListener('start', onStart);
+    c.addEventListener('end', onEnd);
     return () => {
       c.removeEventListener('change', onChange);
       c.removeEventListener('start', onStart);
+      c.removeEventListener('end', onEnd);
+      delete canvas.dataset.grabbing;
     };
-  }, [camera]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [camera, gl]);
 
   return (
     <OrbitControls

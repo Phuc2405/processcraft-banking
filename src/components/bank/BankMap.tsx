@@ -17,7 +17,7 @@ import { StepPreviewBody } from './StepPreview';
 import { useDockInset } from './ViewportControls';
 import { PathTraveller } from '../canvas/edges/PathTraveller';
 import { WorkstationGraphic } from '../canvas/nodes/WorkstationGraphic';
-import { BANK_WIRES, CARD, DEPT_BOX, EDGE_PAD, pathOfWire, PLACE_BOX, STAGE, TIP_SIDE, type TipSide } from './layout';
+import { BANK_WIRES, CARD, DEPT_BOX, pathOfWire, PLACE_BOX, STAGE, TIP_SIDE, type TipSide } from './layout';
 import { SpotlightOverlay, SpotlightToken } from './Spotlight';
 import { StageScaleContext, useStageScale } from './stage';
 import { lookOfKind, RUN_STATUS, STATUS_DOT_CLASS, STATUS_TEXT_CLASS, statusLabel, WorkerFace } from './ui';
@@ -563,7 +563,7 @@ function BankMapView() {
   // The zoom toolbar (and the inspector, when open) float over the right edge.
   const rightInset = useBankStore((s) => ZOOM_TOOLBAR_GUTTER + (s.selection.kind !== 'none' ? s.inspectorWidth : 0));
   const insets = useMemo<ViewInsets>(() => ({ top: inset, right: rightInset, bottom: bottomInset, left: 0 }), [inset, rightInset, bottomInset]);
-  const { zoom, content, panned, camera } = useZoomPan(ref, fit, insets);
+  const { zoom, pan, panning, panned, camera } = useZoomPan(ref, fit, insets);
   useSmartZoom(camera);
   const scale = fit * zoom;
   const view = useBankStore((s) => s.view);
@@ -590,10 +590,9 @@ function BankMapView() {
 
   return (
     <StageScaleContext.Provider value={scale}>
-      <div ref={ref} className="relative h-full w-full overflow-auto" onClick={(e) => e.target === e.currentTarget && !panned.current && clearSelection()} data-testid="bank-map" data-zoom={Math.round(scale * 100)} data-phase={view.phase} data-day={view.day} data-touring={focus ? 'yes' : 'no'} data-spot={spotlit ?? undefined} data-flow={flow?.flow ?? undefined}>
-        {/* Zoomed in, the scroll area reaches past the stage edges so an edge cluster can be centred clear of the chrome. */}
-        <div data-pan-bg="" style={zoom > 1.001 ? { width: 'max-content', minWidth: '100%', paddingRight: rightInset + EDGE_PAD.right, paddingBottom: bottomInset } : undefined}>
-        <div ref={content} className="relative mx-auto" style={{ width: STAGE.width * scale, height: STAGE.height * scale, marginTop: inset }}>
+      <div ref={ref} className="bk-pan-surface relative h-full w-full touch-none overflow-hidden" data-panning={panning || undefined} onClick={(e) => e.target === e.currentTarget && !panned.current && clearSelection()} data-testid="bank-map" data-zoom={Math.round(scale * 100)} data-phase={view.phase} data-day={view.day} data-touring={focus ? 'yes' : 'no'} data-spot={spotlit ?? undefined} data-flow={flow?.flow ?? undefined}>
+        {/* The stage is placed by transform: useZoomPan owns where it sits (drag, wheel, toolbar, smart-zoom glides). */}
+        <div className="absolute left-0 top-0 will-change-transform" data-testid="bank-pan" style={{ width: STAGE.width * scale, height: STAGE.height * scale, transform: `translate3d(${pan.x}px, ${pan.y}px, 0)` }}>
           <div
             className={`bk-stage relative ${night ? 'bk-night' : ''} ${focus ? 'bk-touring' : ''}`}
             style={{ width: STAGE.width, height: STAGE.height, transform: `scale(${scale})`, transformOrigin: 'top left' }}
@@ -622,7 +621,6 @@ function BankMapView() {
             <SearchGlow />
           </div>
           <SpotlightOverlay />
-        </div>
         </div>
       </div>
     </StageScaleContext.Provider>

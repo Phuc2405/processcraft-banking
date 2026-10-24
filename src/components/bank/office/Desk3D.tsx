@@ -12,10 +12,9 @@ import { box, merge } from './kit';
 import { COUNTER, WING, accentOf, customerShirt, deskPose, hasWing, queueSlots, queueStyle, seatOffsets, surgeLevel, wingPose } from './layout3d';
 import { blobMaterial, glow, solid } from './materials';
 import { STATUS_HEX } from './palette';
+import { cursor } from './cursor';
 
-export const cursor = (on: boolean): void => {
-  document.body.style.cursor = on ? 'pointer' : '';
-};
+export { cursor } from './cursor';
 
 /** A glowing outline on the floor around a selected desk: four thin bars. */
 export function SelectionFrame({ w, d }: { w: number; d: number }) {

@@ -789,3 +789,31 @@ body,
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--chip-accent) 55%, transparent), 0 0 28px 4px color-mix(in srgb, var(--chip-accent) 55%, transparent);
   }
 }
+
+/* 2D map drag-to-pan: grab over empty map, grabbing while held; cards and buttons keep their pointer. */
+.bk-pan-surface {
+  cursor: grab;
+}
+.bk-pan-surface :is(button, a, [role='button'], label, select) {
+  cursor: pointer;
+}
+.bk-pan-surface :is(input, textarea) {
+  cursor: text;
+}
+.bk-pan-surface[data-panning],
+.bk-pan-surface[data-panning] * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+/* 3D office: grab to pan, grabbing while held, pointer over a desk, a person or the ATM. */
+.bk-office-canvas {
+  cursor: grab;
+}
+body[data-hover3d] .bk-office-canvas {
+  cursor: pointer;
+}
+.bk-office-canvas[data-grabbing],
+body[data-hover3d] .bk-office-canvas[data-grabbing] {
+  cursor: grabbing;
+}
