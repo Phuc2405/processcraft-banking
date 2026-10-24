@@ -1,10 +1,15 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { bankStore, useBankStore } from '../../store/bankStore';
 import { useUiStore } from '../../store/uiStore';
 import { formatNodes, useMessages, type Translate } from '../../utils/i18nHelper';
 import { LanguageToggle } from '../shell/LanguageToggle';
 import { ScopeNote } from '../shell/ScopeNote';
 import { welcomeMessages } from './welcomeModal.messages';
+import { analystWorkspaceMessages, type AnalystWorkspaceKey } from './analystWorkspace.messages';
+import { ROLE_ICON, ROLE_STATION, type StaffRoleId } from '../../sim/staffRoleplay';
+
+/** The quick role selector's order: compliance first, then front office and back office. */
+const ROLE_PICKS: readonly StaffRoleId[] = ['aml', 'ekyc', 'fds', 'dispute', 'bnpl', 'cashier', 'swift'];
 
 /**
  * "Choose Your Experience Mode": one question, three answers. It opens by itself on the first visit (uiStore remembers that it
@@ -60,6 +65,9 @@ export function WelcomeModal({ onOpenAcademy, onChooseBank }: { onOpenAcademy: (
   const solid = useBankStore((s) => s.viewMode === '3d');
   const scope = useBankStore((s) => s.scope);
   const academyOpen = useBankStore((s) => s.academyOpen);
+  const staffDesk = useBankStore((s) => s.staffDesk);
+  const ws = useMessages(analystWorkspaceMessages);
+  const [rolesOpen, setRolesOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -92,6 +100,15 @@ export function WelcomeModal({ onOpenAcademy, onChooseBank }: { onOpenAcademy: (
   const academy = (): void => {
     close();
     onOpenAcademy();
+  };
+  const roleplay = (role: StaffRoleId): void => {
+    const s = bankStore.getState();
+    s.setScope('advanced');
+    s.setDimension('2d');
+    onChooseBank();
+    close();
+    setRolesOpen(false);
+    bankStore.getState().openStaffDesk(ROLE_STATION[role]);
   };
 
   return (
@@ -140,6 +157,37 @@ export function WelcomeModal({ onOpenAcademy, onChooseBank }: { onOpenAcademy: (
             m={m}
             body={m('academyBody')}
           />
+          <Choice
+            icon="🧑‍💼"
+            title={m('roleplayTitle')}
+            badge={m('roleplayBadge')}
+            accent="#fbbf24"
+            testId="welcome-roleplay"
+            onPick={() => setRolesOpen((v) => !v)}
+            current={staffDesk !== null}
+            m={m}
+            body={m('roleplayBody')}
+          />
+          {rolesOpen && (
+            <div role="menu" aria-label={m('roleplayPick')} className="rounded-xl border border-amber-400/40 bg-slate-950/80 p-2" data-testid="welcome-roleplay-menu">
+              <div className="px-1.5 pb-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-amber-200/80">{m('roleplayPick')}</div>
+              <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+                {ROLE_PICKS.map((role) => (
+                  <button
+                    key={role}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => roleplay(role)}
+                    data-testid={`welcome-role-${ROLE_STATION[role]}`}
+                    className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12.5px] text-slate-100 transition hover:bg-amber-400/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300"
+                  >
+                    <span aria-hidden="true">{ROLE_ICON[role]}</span>
+                    <span className="min-w-0 flex-1 truncate">{ws(`role_${role}_title` as AnalystWorkspaceKey)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <div className="mt-4 flex items-center justify-between text-[11.5px] text-slate-500">
           <span>
