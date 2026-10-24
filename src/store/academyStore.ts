@@ -16,6 +16,10 @@ export const ACADEMY_KEY = 'processcraft:v1:academy';
 export const PANEL_WIDTH = { min: 300, max: 560, initial: 400 } as const;
 export const clampPanelWidth = (px: number): number => (Number.isFinite(px) ? Math.round(Math.min(PANEL_WIDTH.max, Math.max(PANEL_WIDTH.min, px))) : PANEL_WIDTH.initial);
 
+/** The share of the lesson panel the course roadmap takes above the step details (the rest is the lesson). */
+export const CATALOG_SPLIT = { min: 0.15, max: 0.85, initial: 0.4 } as const;
+export const clampCatalogRatio = (r: number): number => (Number.isFinite(r) ? Math.round(Math.min(CATALOG_SPLIT.max, Math.max(CATALOG_SPLIT.min, r)) * 1000) / 1000 : CATALOG_SPLIT.initial);
+
 export type LessonSet = Readonly<Record<LevelId, true>>;
 
 /** How a chapter's quiz went: the best and the latest score out of `total`. */
@@ -41,6 +45,8 @@ export interface AcademyState {
   startedLessons: LessonSet;
   /** Width of the lesson panel in pixels. */
   panelWidth: number;
+  /** The roadmap's share of the panel height, above the draggable divider. */
+  catalogRatio: number;
   /** The result of each chapter quiz the learner has taken. */
   quizScores: QuizScores;
   /** The section of the panel on show. Not remembered across reloads. */
@@ -60,6 +66,7 @@ export interface AcademyState {
   toggleMaximized(): void;
   completeLesson(id: LevelId): void;
   setPanelWidth(px: number): void;
+  setCatalogRatio(ratio: number): void;
   /** Keeps a chapter quiz result: `last` is always the newest, `best` the highest so far. */
   recordQuiz(chapter: ChapterId, score: number): void;
   setStudyTab(tab: StudyTab): void;
@@ -70,9 +77,9 @@ export interface AcademyState {
 
 export type StudyTab = 'lessons' | 'cards' | 'quiz';
 
-type Saved = Pick<AcademyState, 'activeChapterId' | 'activeLevelId' | 'isSplitScreenOpen' | 'completedLessons' | 'startedLessons' | 'panelWidth' | 'quizScores'>;
+type Saved = Pick<AcademyState, 'activeChapterId' | 'activeLevelId' | 'isSplitScreenOpen' | 'completedLessons' | 'startedLessons' | 'panelWidth' | 'catalogRatio' | 'quizScores'>;
 
-const DEFAULTS: Saved = { activeChapterId: 1, activeLevelId: null, isSplitScreenOpen: false, completedLessons: {}, startedLessons: {}, panelWidth: PANEL_WIDTH.initial, quizScores: {} };
+const DEFAULTS: Saved = { activeChapterId: 1, activeLevelId: null, isSplitScreenOpen: false, completedLessons: {}, startedLessons: {}, panelWidth: PANEL_WIDTH.initial, catalogRatio: CATALOG_SPLIT.initial, quizScores: {} };
 
 function readSet(v: unknown): LessonSet {
   const out: Record<LevelId, true> = {};
@@ -109,6 +116,7 @@ export function loadAcademy(storage: KeyValueStorage | null): Saved {
       completedLessons: readSet(j.completedLessons),
       startedLessons: readSet(j.startedLessons),
       panelWidth: typeof j.panelWidth === 'number' ? clampPanelWidth(j.panelWidth) : PANEL_WIDTH.initial,
+      catalogRatio: typeof j.catalogRatio === 'number' ? clampCatalogRatio(j.catalogRatio) : CATALOG_SPLIT.initial,
       quizScores: readQuizScores(j.quizScores),
     };
   } catch {
@@ -118,7 +126,7 @@ export function loadAcademy(storage: KeyValueStorage | null): Saved {
 
 function saveAcademy(storage: KeyValueStorage | null, s: AcademyState): void {
   try {
-    const saved: Saved = { activeChapterId: s.activeChapterId, activeLevelId: s.activeLevelId, isSplitScreenOpen: s.isSplitScreenOpen, completedLessons: s.completedLessons, startedLessons: s.startedLessons, panelWidth: s.panelWidth, quizScores: s.quizScores };
+    const saved: Saved = { activeChapterId: s.activeChapterId, activeLevelId: s.activeLevelId, isSplitScreenOpen: s.isSplitScreenOpen, completedLessons: s.completedLessons, startedLessons: s.startedLessons, panelWidth: s.panelWidth, catalogRatio: s.catalogRatio, quizScores: s.quizScores };
     storage?.setItem(ACADEMY_KEY, JSON.stringify(saved));
   } catch {
     // Remembering progress is a nicety.
@@ -179,6 +187,10 @@ export function createAcademyStore(options: { storage?: KeyValueStorage | null }
     setPanelWidth: (px) => {
       const panelWidth = clampPanelWidth(px);
       if (panelWidth !== get().panelWidth) set({ panelWidth });
+    },
+    setCatalogRatio: (r) => {
+      const catalogRatio = clampCatalogRatio(r);
+      if (catalogRatio !== get().catalogRatio) set({ catalogRatio });
     },
   }));
   store.subscribe((s) => saveAcademy(storage, s));

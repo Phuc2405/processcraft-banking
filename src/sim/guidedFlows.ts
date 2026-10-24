@@ -4,7 +4,7 @@
  *
  *   01  In-Store POS      a card tapped in a shop: POS gate → Debit CASA → the authorisation answer
  *   02  Web & 3DS         an online checkout: token vault and dCVV, or the 3DS risk desk and an SMS code
- *   03  CDM Cash-In       cash paid in at the sidewalk machine, credited to the account straight away
+ *   03  Automated Cash Deposit   cash paid in at the sidewalk machine, credited to the account straight away
  *   04  Overnight EOD     the night cycle: batch clearing, Visa settlement, 3-way reconciliation
  *
  * Every flow is written twice: as the logical nodes of the brief (pos_terminal, casa_desk, auth_engine, ...) and as the real
@@ -92,7 +92,7 @@ export const GUIDED_FLOWS: Readonly<Record<FlowId, FlowDef>> = {
   3: {
     id: 3,
     code: '03',
-    title: 'CDM Cash-In',
+    title: 'Automated Cash Deposit',
     accent: '#38bdf8',
     blurb: 'Cash paid in at the sidewalk cash deposit machine: notes counted, account credited on the spot.',
     steps: [
@@ -221,7 +221,7 @@ const FLOW_VI: Readonly<Record<FlowId, FlowWords>> = {
     ],
   },
   3: {
-    title: 'Nộp tiền CDM',
+    title: 'Nộp tiền mặt qua ATM/CDM',
     blurb: 'Nộp tiền mặt tại máy nộp tiền trên vỉa hè: đếm tiền, ghi có vào tài khoản ngay tại chỗ.',
     steps: [
       { name: 'Máy nộp tiền mặt', standard: 'Khách đưa thẻ vào và nhập PIN.', expert: 'Đọc thẻ và xác minh PIN tại CDM (ba lần thử trước khi máy giữ thẻ).' },

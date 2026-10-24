@@ -4,7 +4,7 @@ import { noticeText } from '../../i18n/simVi';
 import { activeFlowOf, useBankStore } from '../../store/bankStore';
 import { useAcademyStore } from '../../store/academyStore';
 import { AcademySplitLayout } from '../academy/AcademySplitLayout';
-import { GuidedBar, ResumeWalkthrough, WalkBadge } from '../education/GuidedWalkthrough';
+import { GuidedBar, ResumeWalkthrough, WalkChip } from '../education/GuidedWalkthrough';
 import { WalkDock } from '../education/WalkDock';
 import { BankMap } from './BankMap';
 import { BankSidebar } from './BankSidebar';
@@ -149,7 +149,7 @@ export function LivingBank() {
               <LedgerDrawer />
               <HudToasts />
               <PresetDock />
-              <WalkBadge />
+              <WalkChip />
               <ResumeWalkthrough />
               <Notice />
               <Inspector />

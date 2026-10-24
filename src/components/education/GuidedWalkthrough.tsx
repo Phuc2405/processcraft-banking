@@ -8,8 +8,12 @@ import { isStation } from '../../sim/topology';
 import { quizzesOf } from '../../sim/walkQuiz';
 import type { StepTone } from '../../sim/walkthrough';
 import { bankStore, useBankStore } from '../../store/bankStore';
+import { useWalkthroughDock } from '../../hooks/useWalkthroughDock';
+import { useMessages } from '../../utils/i18nHelper';
 import { useSpotlightFocus, type Focus } from '../bank/useSpotlight';
 import { useTerms } from '../bank/useTerms';
+import { ScenarioPicker } from './ScenarioPicker';
+import { walkMessages } from './walkthrough.messages';
 
 /**
  * The guided walkthrough: the part of Learn & Explore the learner reads and answers.
@@ -55,7 +59,7 @@ export function Kickoff({ focus }: { focus: Focus }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Enter' && !(e.target instanceof HTMLSelectElement)) begin();
+      if (e.key === 'Enter' && !e.defaultPrevented) begin();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -78,21 +82,7 @@ export function Kickoff({ focus }: { focus: Focus }) {
           <div className="mt-3 rounded-lg border border-slate-700 bg-slate-900/70 p-3">
             <div className="flex items-center justify-between gap-3">
               <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">{ui.thisRun}</span>
-              <label className="flex items-center gap-2 text-[11px] text-slate-400">
-                {ui.example}
-                <select
-                  value={focus.tour.exampleId}
-                  onChange={(e) => setExample(e.target.value)}
-                  data-testid="walk-example"
-                  className="max-w-[240px] rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-[12px] text-slate-100"
-                >
-                  {lesson.examples.map((ex) => (
-                    <option key={ex.id} value={ex.id}>
-                      {ex.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <ScenarioPicker lessonId={lesson.id} examples={lesson.examples} value={focus.tour.exampleId} onChange={setExample} accent={focus.accent} placement="down" testId="walk-example" />
             </div>
             <p className="mt-1.5 text-[12.5px] leading-relaxed text-slate-300">{terms.t(example.story)}</p>
             <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
@@ -309,7 +299,7 @@ export function GuidedBar() {
   const exit = useBankStore((s) => s.exitSpotlight);
   const prev = useBankStore((s) => s.spotlightPrev);
   const next = useBankStore((s) => s.spotlightNext);
-  const go = useBankStore((s) => s.spotlightGo);
+  const { jumpTo: go } = useWalkthroughDock();
   const setAuto = useBankStore((s) => s.setSpotlightAuto);
   const setExample = useBankStore((s) => s.setSpotlightExample);
   const openHub = useBankStore((s) => s.openHub);
@@ -429,21 +419,9 @@ export function GuidedBar() {
           {quizzes.length === 0 ? ui.noQuestions : ui.score(rightCount, quizzes.length)}
           {quizzes.length > 0 && answered.length < quizzes.length ? tr({ en: ` (${answered.length}/${quizzes.length} answered)`, vi: ` (đã trả lời ${answered.length}/${quizzes.length})` }) : ''}
         </span>
-        <label className="ml-auto flex items-center gap-2 whitespace-nowrap">
-          <span>{ui.example}</span>
-          <select
-            value={tour.exampleId}
-            onChange={(e) => setExample(e.target.value)}
-            data-testid="walk-example-bar"
-            className="max-w-[260px] rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-[12px] text-slate-100"
-          >
-            {lesson.examples.map((ex) => (
-              <option key={ex.id} value={ex.id}>
-                {ex.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="ml-auto">
+          <ScenarioPicker lessonId={lesson.id} examples={lesson.examples} value={tour.exampleId} onChange={setExample} accent={focus.accent} placement="up" testId="walk-example-bar" />
+        </div>
       </div>
     </div>
   );
@@ -453,28 +431,41 @@ export function GuidedBar() {
 // The step card folded away, and the way back into a tour that was left
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** The step card minimised: "📖 Chapter 2: Step 3/10". Click it to bring the card back. */
-export function WalkBadge() {
-  const focus = useSpotlightFocus();
-  const collapsed = useBankStore((s) => s.walkCollapsed);
-  const expand = useBankStore((s) => s.setWalkCollapsed);
-  if (!focus || !collapsed || focus.tour.intro) return null;
-  const chapter = lessonOf(focus.tour.process).chapter;
+/**
+ * [📘 Chapter 5: Step 1/4]: the chapter chip at the map's bottom-left, on screen for the whole tour. It glows when the step
+ * changes (new content to read) and clicking it opens or folds the step-details column. State lives in useWalkthroughDock.
+ */
+export function WalkChip() {
+  const m = useMessages(walkMessages);
+  const dock = useWalkthroughDock();
+  if (!dock.active || !dock.focus) return null;
+  const { focus, collapsed, pulsing } = dock;
   return (
     <button
       type="button"
-      onClick={() => expand(false)}
-      title={tr({ en: 'Show the step card again', vi: 'Hiện lại thẻ bước' })}
+      onClick={dock.toggle}
+      aria-expanded={!collapsed}
+      aria-label={`${m('chip', { chapter: dock.chapter, step: dock.step, total: dock.total })}. ${collapsed ? m('chipShow') : m('chipHide')}`}
+      title={collapsed ? m('chipShow') : m('chipHide')}
       data-testid="walk-badge"
-      className="absolute bottom-3 left-3 z-40 flex items-center gap-2 rounded-full border bg-slate-900/95 px-3 py-1.5 text-[12px] font-semibold text-slate-100 shadow-xl transition hover:bg-slate-800"
-      style={{ borderColor: focus.accent, boxShadow: `0 0 18px ${focus.accent}44` }}
+      data-collapsed={collapsed}
+      data-pulsing={pulsing || undefined}
+      className={`bk-walk-chip absolute bottom-3 left-3 z-40 flex items-center gap-2 rounded-full border-2 bg-slate-950/90 py-1.5 pl-2 pr-3 text-[12.5px] font-bold text-slate-50 backdrop-blur transition hover:-translate-y-px hover:bg-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${pulsing ? 'bk-walk-chip--pulse' : ''}`}
+      style={{ borderColor: focus.accent, ['--chip-accent' as string]: focus.accent, boxShadow: `0 0 0 1px ${focus.accent}55, 0 0 20px ${focus.accent}55` }}
     >
-      <span aria-hidden="true">📖</span>
-      <span className="tabular-nums">
-        {tr({ en: `Chapter ${chapter}: Step ${focus.index + 1}/${focus.plan.steps.length}`, vi: `Chương ${chapter}: Bước ${focus.index + 1}/${focus.plan.steps.length}` })}
+      <span className="grid h-6 w-6 place-items-center rounded-full text-[13px]" style={{ background: `${focus.accent}2e` }} aria-hidden="true">
+        📘
       </span>
-      {focus.blocked && <span className="rounded-full bg-amber-400/20 px-1.5 text-[10.5px] text-amber-200">{tr({ en: 'question waiting', vi: 'câu hỏi đang chờ' })}</span>}
-      <span aria-hidden="true" className="text-slate-400">▴</span>
+      <span className="tabular-nums">{m('chip', { chapter: dock.chapter, step: dock.step, total: dock.total })}</span>
+      {focus.blocked && <span className="rounded-full bg-amber-400/20 px-1.5 text-[10.5px] font-semibold text-amber-200">{m('questionWaiting')}</span>}
+      {pulsing && collapsed && (
+        <span className="sr-only" role="status">
+          {m('chipNew')}
+        </span>
+      )}
+      <span aria-hidden="true" className="text-slate-400">
+        {collapsed ? '▸' : '◂'}
+      </span>
     </button>
   );
 }
