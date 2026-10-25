@@ -16,6 +16,7 @@ import {
   type StaffCase,
   type StaffDecision,
   type StaffDecisionResult,
+  type StaffDrillNo,
   type StaffField,
   type StaffRoleId,
   type StaffTaskNo,
@@ -49,9 +50,26 @@ const money = (cents: number): string => formatMoney(cents);
 const k = (key: string): AnalystWorkspaceKey => key as AnalystWorkspaceKey;
 const suffix = (mode: WorkspaceMode): 'Std' | 'Exp' => (mode === 'standard' ? 'Std' : 'Exp');
 
-/** The SOP lines a task shows: its own rule, or every drill's rule on the random shift. */
-export const sopKeys = (role: StaffRoleId, task: StaffTaskNo): AnalystWorkspaceKey[] =>
-  (task === RANDOM_TASK ? STAFF_DRILLS : [task]).map((n) => k(`task_${role}_${n}_sop`));
+/** Steps in each Expert compliance procedure. */
+export const EXPERT_SOP_STEPS = 3;
+
+/** The SOP a task shows, grouped by drill: one plain rule per drill in Standard, a 3-step procedure per drill in Expert. */
+export function sopGroups(role: StaffRoleId, task: StaffTaskNo, mode: WorkspaceMode = 'standard'): { drill: StaffDrillNo; keys: AnalystWorkspaceKey[] }[] {
+  const drills: readonly StaffDrillNo[] = task === RANDOM_TASK ? STAFF_DRILLS : [task as StaffDrillNo];
+  return drills.map((drill) => ({
+    drill,
+    keys: mode === 'expert' ? Array.from({ length: EXPERT_SOP_STEPS }, (_, i) => k(`task_${role}_${drill}_sopExp_${i + 1}`)) : [k(`task_${role}_${drill}_sop`)],
+  }));
+}
+
+/** Every SOP line a task shows in a mode, in order. */
+export const sopKeys = (role: StaffRoleId, task: StaffTaskNo, mode: WorkspaceMode = 'standard'): AnalystWorkspaceKey[] => sopGroups(role, task, mode).flatMap((g) => g.keys);
+
+export type RiskKind = 'approve' | 'reject' | 'benefit';
+
+/** A risk/benefit card: specific to the drill on task-matrix cases, the desk's generic card on live-queue cases. */
+export const riskKey = (role: StaffRoleId, drill: StaffDrillNo | undefined, kind: RiskKind, mode: WorkspaceMode): AnalystWorkspaceKey =>
+  k(drill ? `risk_${role}_t${drill}_${kind}${suffix(mode)}` : `risk_${role}_${kind}${suffix(mode)}`);
 
 /** Every task's title key for a role, in order. */
 export const taskTitleKey = (role: StaffRoleId, task: StaffTaskNo): AnalystWorkspaceKey => k(`task_${role}_${task}_title`);
@@ -167,14 +185,33 @@ function MissionPanel({ role, task, mode, m, deskName }: { role: StaffRoleId; ta
         <p className="mb-1.5 mt-0.5 text-[10.5px] italic leading-snug text-slate-500" data-testid="workspace-sop-note">
           {m('sopNote')}
         </p>
-        <ol className="space-y-1.5" data-testid="workspace-sop">
-          {sopKeys(role, task).map((key, i) => (
-            <li key={key} className="flex gap-2 rounded-lg border border-slate-800 bg-slate-950/50 px-2.5 py-1.5 text-[12px] leading-snug text-slate-200">
-              <span className="font-mono text-[10px] text-slate-500">{task === RANDOM_TASK ? STAFF_DRILLS[i] : task}</span>
-              <span>{m(key)}</span>
-            </li>
-          ))}
-        </ol>
+        {expert ? (
+          <div className="space-y-2" data-testid="workspace-sop" data-sop="expert">
+            <div className="text-[10.5px] font-semibold uppercase tracking-wider text-violet-300">{m('sopExpTitle')}</div>
+            {sopGroups(role, task, mode).map((g) => (
+              <div key={g.drill} data-drill={g.drill}>
+                {task === RANDOM_TASK && <div className="mb-1 text-[11px] font-semibold text-sky-200">{m('taskOption', { n: g.drill, title: m(taskTitleKey(role, g.drill)) })}</div>}
+                <ol className="space-y-1.5">
+                  {g.keys.map((key, i) => (
+                    <li key={key} className="rounded-lg border border-violet-400/20 bg-slate-950/50 px-2.5 py-1.5 text-[11.5px] leading-snug text-slate-200">
+                      <div className="font-mono text-[10px] font-semibold uppercase text-violet-300">{m('sopStep', { n: i + 1 })}</div>
+                      {m(key)}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <ol className="space-y-1.5" data-testid="workspace-sop" data-sop="standard">
+            {sopKeys(role, task).map((key, i) => (
+              <li key={key} className="flex gap-2 rounded-lg border border-slate-800 bg-slate-950/50 px-2.5 py-1.5 text-[12px] leading-snug text-slate-200">
+                <span className="font-mono text-[10px] text-slate-500">{task === RANDOM_TASK ? STAFF_DRILLS[i] : task}</span>
+                <span>{m(key)}</span>
+              </li>
+            ))}
+          </ol>
+        )}
       </div>
     </section>
   );
@@ -283,9 +320,9 @@ function ScenarioCard({ current, queued, elapsed, mode, m, onAdvance, canAdvance
       <div data-testid="workspace-risk">
         <div className="text-[11px] font-bold text-slate-200">{m('riskTitle')}</div>
         <div className="mt-1.5 grid gap-1.5 md:grid-cols-3">
-          <RiskBox tone="rose" title={m('falseApproveTitle')} text={m(k(`risk_${current.role}_approve${s}`))} testId="risk-false-approve" />
-          <RiskBox tone="amber" title={m('falseRejectTitle')} text={m(k(`risk_${current.role}_reject${s}`))} testId="risk-false-reject" />
-          <RiskBox tone="emerald" title={m('benefitTitle')} text={m(k(`risk_${current.role}_benefit${s}`))} testId="risk-benefit" />
+          <RiskBox tone="rose" title={m('falseApproveTitle')} text={m(riskKey(current.role, current.drill, 'approve', mode))} testId="risk-false-approve" />
+          <RiskBox tone="amber" title={m('falseRejectTitle')} text={m(riskKey(current.role, current.drill, 'reject', mode))} testId="risk-false-reject" />
+          <RiskBox tone="emerald" title={m('benefitTitle')} text={m(riskKey(current.role, current.drill, 'benefit', mode))} testId="risk-benefit" />
         </div>
       </div>
     </section>
@@ -314,14 +351,14 @@ function RiskBox({ tone, title, text, testId }: { tone: keyof typeof RISK_TONE; 
 interface Consequence {
   result: StaffDecisionResult;
   role: StaffRoleId;
+  /** The drill of the decided case, so the overlay quotes that task's card. */
+  drill?: StaffDrillNo;
   errors: number;
 }
 
 /** What the overlay explains: the benefit when right, the risk the learner just took when wrong. */
-export function consequenceKey(c: Pick<Consequence, 'result' | 'role'>, mode: WorkspaceMode): AnalystWorkspaceKey {
-  const s = suffix(mode);
-  if (c.result.correct) return k(`risk_${c.role}_benefit${s}`);
-  return k(`risk_${c.role}_${c.result.decision === 'APPROVE' ? 'approve' : 'reject'}${s}`);
+export function consequenceKey(c: Pick<Consequence, 'result' | 'role' | 'drill'>, mode: WorkspaceMode): AnalystWorkspaceKey {
+  return riskKey(c.role, c.drill, c.result.correct ? 'benefit' : c.result.decision === 'APPROVE' ? 'approve' : 'reject', mode);
 }
 
 export function ConsequenceOverlay({ consequence, mode, m }: { consequence: Consequence; mode: WorkspaceMode; m: M }) {
@@ -494,7 +531,7 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
     (d: StaffDecision) => {
       if (!current || !role || consequence || pendingRole) return;
       const { result, errors } = onDecide(current.id, d, elapsedRef.current);
-      if (result.ok) setConsequence({ result, role, errors });
+      if (result.ok) setConsequence({ result, role, drill: current.drill, errors });
     },
     [current, role, consequence, pendingRole, onDecide],
   );
