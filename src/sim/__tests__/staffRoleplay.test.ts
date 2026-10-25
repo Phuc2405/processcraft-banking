@@ -99,7 +99,7 @@ describe('staff roleplay engine', () => {
     expect(bundleProblems(analystWorkspaceMessages)).toEqual([]);
     for (const role of STAFF_ROLES) {
       expect(`role_${role}_title` in analystWorkspaceMessages.messages).toBe(true);
-      expect(`task_${role}_1_sop` in analystWorkspaceMessages.messages).toBe(true);
+      for (const reg of ['sopStd', 'sopExp']) expect(`task_${role}_1_${reg}_1` in analystWorkspaceMessages.messages).toBe(true);
     }
   });
 });
