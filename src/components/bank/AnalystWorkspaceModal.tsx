@@ -50,16 +50,14 @@ const money = (cents: number): string => formatMoney(cents);
 const k = (key: string): AnalystWorkspaceKey => key as AnalystWorkspaceKey;
 const suffix = (mode: WorkspaceMode): 'Std' | 'Exp' => (mode === 'standard' ? 'Std' : 'Exp');
 
-/** Steps in each Expert compliance procedure. */
-export const EXPERT_SOP_STEPS = 3;
+/** Steps in every task procedure. Both modes show all of them: Standard in plain words, Expert with citations and metrics. */
+export const SOP_STEPS = 3;
 
-/** The SOP a task shows, grouped by drill: one plain rule per drill in Standard, a 3-step procedure per drill in Expert. */
+/** The SOP a task shows, grouped by drill: the same 3-step procedure per drill in either register. */
 export function sopGroups(role: StaffRoleId, task: StaffTaskNo, mode: WorkspaceMode = 'standard'): { drill: StaffDrillNo; keys: AnalystWorkspaceKey[] }[] {
   const drills: readonly StaffDrillNo[] = task === RANDOM_TASK ? STAFF_DRILLS : [task as StaffDrillNo];
-  return drills.map((drill) => ({
-    drill,
-    keys: mode === 'expert' ? Array.from({ length: EXPERT_SOP_STEPS }, (_, i) => k(`task_${role}_${drill}_sopExp_${i + 1}`)) : [k(`task_${role}_${drill}_sop`)],
-  }));
+  const register = mode === 'expert' ? 'sopExp' : 'sopStd';
+  return drills.map((drill) => ({ drill, keys: Array.from({ length: SOP_STEPS }, (_, i) => k(`task_${role}_${drill}_${register}_${i + 1}`)) }));
 }
 
 /** Every SOP line a task shows in a mode, in order. */
@@ -185,33 +183,22 @@ function MissionPanel({ role, task, mode, m, deskName }: { role: StaffRoleId; ta
         <p className="mb-1.5 mt-0.5 text-[10.5px] italic leading-snug text-slate-500" data-testid="workspace-sop-note">
           {m('sopNote')}
         </p>
-        {expert ? (
-          <div className="space-y-2" data-testid="workspace-sop" data-sop="expert">
-            <div className="text-[10.5px] font-semibold uppercase tracking-wider text-violet-300">{m('sopExpTitle')}</div>
-            {sopGroups(role, task, mode).map((g) => (
-              <div key={g.drill} data-drill={g.drill}>
-                {task === RANDOM_TASK && <div className="mb-1 text-[11px] font-semibold text-sky-200">{m('taskOption', { n: g.drill, title: m(taskTitleKey(role, g.drill)) })}</div>}
-                <ol className="space-y-1.5">
-                  {g.keys.map((key, i) => (
-                    <li key={key} className="rounded-lg border border-violet-400/20 bg-slate-950/50 px-2.5 py-1.5 text-[11.5px] leading-snug text-slate-200">
-                      <div className="font-mono text-[10px] font-semibold uppercase text-violet-300">{m('sopStep', { n: i + 1 })}</div>
-                      {m(key)}
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <ol className="space-y-1.5" data-testid="workspace-sop" data-sop="standard">
-            {sopKeys(role, task).map((key, i) => (
-              <li key={key} className="flex gap-2 rounded-lg border border-slate-800 bg-slate-950/50 px-2.5 py-1.5 text-[12px] leading-snug text-slate-200">
-                <span className="font-mono text-[10px] text-slate-500">{task === RANDOM_TASK ? STAFF_DRILLS[i] : task}</span>
-                <span>{m(key)}</span>
-              </li>
-            ))}
-          </ol>
-        )}
+        <div className="space-y-2" data-testid="workspace-sop" data-sop={mode}>
+          <div className={`text-[10.5px] font-semibold uppercase tracking-wider ${expert ? 'text-violet-300' : 'text-sky-300'}`}>{m(expert ? 'sopExpTitle' : 'sopStdTitle')}</div>
+          {sopGroups(role, task, mode).map((g) => (
+            <div key={g.drill} data-drill={g.drill}>
+              {task === RANDOM_TASK && <div className="mb-1 text-[11px] font-semibold text-sky-200">{m('taskOption', { n: g.drill, title: m(taskTitleKey(role, g.drill)) })}</div>}
+              <ol className="space-y-1.5">
+                {g.keys.map((key, i) => (
+                  <li key={key} className={`rounded-lg border bg-slate-950/50 px-2.5 py-1.5 leading-snug text-slate-200 ${expert ? 'border-violet-400/20 text-[11.5px]' : 'border-sky-400/20 text-[12px]'}`}>
+                    <div className={`font-mono text-[10px] font-semibold uppercase ${expert ? 'text-violet-300' : 'text-sky-300'}`}>{m('sopStep', { n: i + 1 })}</div>
+                    {m(key)}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -292,8 +279,14 @@ function ScenarioCard({ current, queued, elapsed, mode, m, onAdvance, canAdvance
           )}
         </div>
         <div className="shrink-0 text-right">
-          <Kicker>{m('amount')}</Kicker>
-          <div className="text-[16px] font-bold tabular-nums text-slate-50">{money(current.amountCents)}</div>
+          {current.amountCents > 0 && (
+            <>
+              <Kicker>{m('amount')}</Kicker>
+              <div className="text-[16px] font-bold tabular-nums text-slate-50" data-testid="workspace-amount">
+                {money(current.amountCents)}
+              </div>
+            </>
+          )}
           <div className={`mt-0.5 text-[11px] font-semibold tabular-nums ${late ? 'text-rose-300' : left < 10 ? 'text-amber-300' : 'text-emerald-300'}`} data-testid="workspace-timer" data-late={late || undefined}>
             {late ? m('slaBreached') : m('slaTimer', { sec: Math.ceil(left) })}
           </div>

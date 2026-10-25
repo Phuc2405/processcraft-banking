@@ -18,7 +18,7 @@ import {
 import { createBankStore, EMPTY_SHIFT } from '../../../store/bankStore';
 import { bundleProblems, hasVietnamese } from '../../../utils/i18nHelper';
 import { analystWorkspaceMessages, PERSONAS, type AnalystWorkspaceKey } from '../analystWorkspace.messages';
-import { AnalystWorkspaceView, ConsequenceOverlay, consequenceKey, EXPERT_SOP_STEPS, personaFor, riskKey, sopKeys, SwitchDeskDialog, type AnalystWorkspaceViewProps, type WorkspaceMode } from '../AnalystWorkspaceModal';
+import { AnalystWorkspaceView, ConsequenceOverlay, consequenceKey, SOP_STEPS, personaFor, riskKey, sopKeys, SwitchDeskDialog, type AnalystWorkspaceViewProps, type WorkspaceMode } from '../AnalystWorkspaceModal';
 
 const msgs = analystWorkspaceMessages.messages;
 const has = (key: string): boolean => key in msgs;
@@ -42,7 +42,6 @@ describe('workspace copy covers every role, scene, field and mode', () => {
         expect(has(`task_${role}_${task}_title`), `${role} task ${task}`).toBe(true);
         for (const key of sopKeys(role, task)) expect(has(key), key).toBe(true);
       }
-      expect(sopKeys(role, RANDOM_TASK)).toHaveLength(3);
       for (const kind of ['approve', 'reject', 'benefit']) for (const s of ['Std', 'Exp']) expect(has(`risk_${role}_${kind}${s}`), `${role} ${kind}${s}`).toBe(true);
     }
   });
@@ -68,16 +67,22 @@ describe('workspace copy covers every role, scene, field and mode', () => {
           }
   });
 
-  it('gives every drill a 3-step Expert procedure and its own risk & benefit cards in both modes', () => {
+  it('gives every drill the same 3-step procedure in both registers and its own risk & benefit cards', () => {
     for (const role of STAFF_ROLES) {
       for (const drill of STAFF_DRILLS) {
-        expect(sopKeys(role, drill, 'expert')).toHaveLength(EXPERT_SOP_STEPS);
-        for (const key of sopKeys(role, drill, 'expert')) expect(has(key), key).toBe(true);
+        const std = sopKeys(role, drill, 'standard');
+        const exp = sopKeys(role, drill, 'expert');
+        expect(std).toHaveLength(SOP_STEPS);
+        expect(exp).toHaveLength(SOP_STEPS);
+        expect(std.map((key) => key.replace('_sopStd_', '_step_'))).toEqual(exp.map((key) => key.replace('_sopExp_', '_step_')));
+        for (const key of [...std, ...exp]) expect(has(key), key).toBe(true);
+        std.forEach((key, i) => expect(msgs[key].en, key).not.toBe(msgs[exp[i]!].en));
         for (const kind of ['approve', 'reject', 'benefit'] as const)
           for (const mode of ['standard', 'expert'] as const) expect(has(riskKey(role, drill, kind, mode)), `${role} ${drill} ${kind} ${mode}`).toBe(true);
       }
-      expect(sopKeys(role, RANDOM_TASK, 'expert')).toHaveLength(3 * EXPERT_SOP_STEPS);
-      expect(sopKeys(role, 1)).toEqual([`task_${role}_1_sop`]);
+      expect(sopKeys(role, RANDOM_TASK, 'expert')).toHaveLength(3 * SOP_STEPS);
+      expect(sopKeys(role, RANDOM_TASK, 'standard')).toHaveLength(3 * SOP_STEPS);
+      expect(Object.keys(msgs).some((key) => key === `task_${role}_1_sop`)).toBe(false);
       const benefits = STAFF_DRILLS.map((d) => msgs[riskKey(role, d, 'benefit', 'expert')].en);
       expect(new Set(benefits).size, role).toBe(3);
     }
@@ -184,14 +189,15 @@ describe('the task workspace on screen', () => {
   const view = (role: (typeof STAFF_ROLES)[number], task: (typeof STAFF_TASKS)[number], initialMode: WorkspaceMode = 'standard'): string =>
     renderToStaticMarkup(createElement(AnalystWorkspaceView, { desk: ROLE_STATION[role], cases: taskDeck(role, task, 0), shift: EMPTY_SHIFT, initialMode, task, canAdvance: true, ...handlers }));
 
-  it('shows the plain rule in Standard and the 3-step procedure in Expert, with the task\'s own risk cards', () => {
+  it('shows all 3 steps in both modes, plain in Standard and formal in Expert, with the task\'s own risk cards', () => {
     for (const role of STAFF_ROLES)
       for (const task of STAFF_TASKS) {
         const drill = taskDeck(role, task, 0)[0]!.drill!;
         const std = view(role, task, 'standard');
         expect(std).toContain('data-sop="standard"');
         for (const key of sopKeys(role, task, 'standard')) expect(std).toContain(esc(msgs[key].en));
-        expect(std).not.toContain(esc(msgs[sopKeys(role, task, 'expert')[0]!].en));
+        expect(std.match(/>Step \d</g)?.length, `${role} ${task}`).toBe((task === RANDOM_TASK ? 3 : 1) * SOP_STEPS);
+        for (const key of sopKeys(role, task, 'expert')) expect(std).not.toContain(esc(msgs[key].en));
         expect(std).toContain(esc(msgs[riskKey(role, drill, 'approve', 'standard')].en));
         const exp = view(role, task, 'expert');
         expect(exp).toContain('data-sop="expert"');
@@ -209,6 +215,7 @@ describe('the task workspace on screen', () => {
         for (const key of sopKeys(role, task)) expect(out).toContain(esc(msgs[key].en));
         expect(out.includes('data-testid="workspace-drill"')).toBe(task === RANDOM_TASK);
         expect(out).not.toContain('data-testid="workspace-switch-dialog"');
+        expect(out.includes('data-testid="workspace-amount"')).toBe(taskDeck(role, task, 0)[0]!.amountCents > 0);
       }
   });
 
