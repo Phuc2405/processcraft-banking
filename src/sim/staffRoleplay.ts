@@ -79,6 +79,8 @@ export interface StaffField {
   key: string;
   value: StaffFieldValue;
   flag?: boolean;
+  /** An operational warning that does not change the verdict (the low-cassette alert). */
+  alert?: boolean;
 }
 
 export const STAFF_SCENES = [
@@ -99,12 +101,16 @@ export const STAFF_SCENES = [
 ] as const;
 export type StaffScene = (typeof STAFF_SCENES)[number];
 
-/** A task of the 28-task matrix: tasks 1-3 are fixed drills, task 4 is a random shift mixing them. */
-export type StaffTaskNo = 1 | 2 | 3 | 4;
+/** A task of the 28-task matrix: tasks 1-3 are fixed drills, task 4 is a random shift mixing them. Task 5 is the desk's retail-operations queue. */
+export type StaffTaskNo = 1 | 2 | 3 | 4 | 5;
 export type StaffDrillNo = 1 | 2 | 3;
 export const STAFF_TASKS: readonly StaffTaskNo[] = [1, 2, 3, 4];
 export const STAFF_DRILLS: readonly StaffDrillNo[] = [1, 2, 3];
 export const RANDOM_TASK: StaffTaskNo = 4;
+/** Phase 10: the retail-operations queue every desk has beside the 28-task matrix. */
+export const RETAIL_TASK: StaffTaskNo = 5;
+/** Every task the workspace offers: the matrix, then the retail queue. */
+export const WORKSPACE_TASKS: readonly StaffTaskNo[] = [...STAFF_TASKS, RETAIL_TASK];
 export type TaskScene = `task_${StaffRoleId}_${StaffDrillNo}`;
 export const TASK_SCENES: readonly TaskScene[] = STAFF_ROLES.flatMap((r) => STAFF_DRILLS.map((n) => `task_${r}_${n}` as TaskScene));
 
@@ -118,11 +124,13 @@ export interface StaffCase {
   waitedMin: number;
   fields: StaffField[];
   /** The story the card tells (`scene_<scene>_*` in analystWorkspace.messages.ts). It never gives the verdict away. */
-  scene: StaffScene | TaskScene;
+  scene: StaffScene | TaskScene | RetailScene;
   /** The drill a task-matrix case belongs to (absent on live-queue cases). */
   drill?: StaffDrillNo;
   /** The desk incident that surged this case into the queue (Incident Mode). */
   incident?: DeskIncidentId;
+  /** A retail-operations case: its scenario, status codes and the journal each decision posts. */
+  retail?: RetailCaseData;
   /** The bank's verdict for this stop: the answer key. */
   expected: StaffDecision;
 }
@@ -135,6 +143,8 @@ export interface StaffDecisionResult {
   correct: boolean;
   /** The status code the decision applies: an approval code, or the decline reason. */
   statusCode: string;
+  /** Retail cases: the double-entry journal this decision posts to the core ledger. */
+  journal?: JournalEntry;
 }
 
 /** What the desk knows that is not on the packet. */
@@ -664,6 +674,7 @@ function drillCase(role: StaffRoleId, drill: StaffDrillNo, id: string, hit: bool
 
 /** One training case of the 28-task matrix, stable per role, task and sequence number. A desk incident at this role floods the queue with its drill. */
 export function buildTaskCase(role: StaffRoleId, task: StaffTaskNo, seq: number, incident: IncidentId | null = null): StaffCase {
+  if (task === RETAIL_TASK) return buildRetailCase(role, seq);
   const id = `TR-${role.toUpperCase()}-${task}-${String(seq + 1).padStart(3, '0')}`;
   const surge = incident && incidentRole(incident) === role ? (incident as DeskIncidentId) : null;
   const drill = surge ? INCIDENT_DRILL[surge] : drillFor(task, id);
@@ -691,6 +702,7 @@ export function taskDeck(role: StaffRoleId, task: StaffTaskNo, seq: number, size
 
 /** Grades a decision on a task-matrix case against its SOP. */
 export function gradeTaskCase(c: StaffCase, decision: StaffDecision): StaffDecisionResult {
+  if (c.retail) return gradeRetailCase(c, c.retail, decision);
   const drill = c.drill ?? 1;
   return {
     ok: true,
@@ -993,4 +1005,594 @@ export function recordCareerDecision(c: CareerProgress, d: CareerDecision): { ca
   };
   const unlocked = BADGES.filter((b) => earned[b] && !c.badges.includes(b));
   return { career: { ...next, perfectExpertShifts, shift: EMPTY_SHIFT_LOG, badges: [...c.badges, ...unlocked] }, unlocked };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 10: retail banking operations and the double-entry core ledger
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The core ledger's chart of accounts. Balances are kept debit-positive: assets and expenses carry a positive balance, the rest a negative one. */
+export const GL_ACCOUNTS = [
+  { id: 'ATM_CASH', code: '1011', side: 'asset' },
+  { id: 'OVERDRAFT_RECV', code: '1310', side: 'asset' },
+  { id: 'LOAN_PRINCIPAL', code: '1320', side: 'asset' },
+  { id: 'INTEREST_RECV', code: '1330', side: 'asset' },
+  { id: 'PENALTY_RECV', code: '1340', side: 'asset' },
+  { id: 'INTERBANK_SETTLEMENT', code: '1510', side: 'asset' },
+  { id: 'ATM_SUSPENSE', code: '1910', side: 'asset' },
+  { id: 'CASA', code: '2011', side: 'liability' },
+  { id: 'TERM_DEPOSIT', code: '2021', side: 'liability' },
+  { id: 'TD_PLEDGED', code: '2022', side: 'liability' },
+  { id: 'WALLET_SETTLEMENT', code: '2410', side: 'liability' },
+  { id: 'LOYALTY_LIABILITY', code: '2450', side: 'liability' },
+  { id: 'BILLER_PAYABLE', code: '2460', side: 'liability' },
+  { id: 'CLEARING_SUSPENSE', code: '2912', side: 'liability' },
+  { id: 'EQUITY', code: '3010', side: 'equity' },
+  { id: 'FEE_INCOME', code: '4510', side: 'income' },
+  { id: 'PENALTY_INCOME', code: '4520', side: 'income' },
+  { id: 'INTEREST_EXPENSE', code: '5110', side: 'expense' },
+  { id: 'REWARDS_EXPENSE', code: '5410', side: 'expense' },
+  { id: 'SWITCH_FEE_EXPENSE', code: '5420', side: 'expense' },
+] as const satisfies readonly { id: string; code: string; side: 'asset' | 'liability' | 'equity' | 'income' | 'expense' }[];
+
+export type GlAccount = (typeof GL_ACCOUNTS)[number]['id'];
+export type GlSide = (typeof GL_ACCOUNTS)[number]['side'];
+export const GL_IDS: readonly GlAccount[] = GL_ACCOUNTS.map((a) => a.id);
+export const GL_CODE = Object.fromEntries(GL_ACCOUNTS.map((a) => [a.id, a.code])) as Readonly<Record<GlAccount, string>>;
+export const GL_SIDE = Object.fromEntries(GL_ACCOUNTS.map((a) => [a.id, a.side])) as Readonly<Record<GlAccount, GlSide>>;
+
+/** One line of a journal: a debit or a credit, in cents. */
+export interface LedgerLine {
+  gl: GlAccount;
+  dr: number;
+  cr: number;
+}
+
+export interface JournalEntry {
+  caseId: string;
+  scenario: RetailScenarioId;
+  decision: StaffDecision;
+  statusCode: string;
+  /** Debits equal credits; empty for a memo-only decision. */
+  lines: LedgerLine[];
+}
+
+export interface RetailLedger {
+  /** Debit-positive balance per account, in cents. Always sums to zero. */
+  balances: Record<GlAccount, number>;
+  /** The latest journals, newest first (at most RETAIL_JOURNAL_CAP). */
+  journal: JournalEntry[];
+  /** Journals posted since the opening balances. */
+  posted: number;
+}
+
+export const RETAIL_JOURNAL_CAP = 25;
+
+const OPENING_POSITIONS: Partial<Record<GlAccount, number>> = {
+  ATM_CASH: 1_800_000,
+  OVERDRAFT_RECV: 4_000_000,
+  LOAN_PRINCIPAL: 60_000_000,
+  INTEREST_RECV: 1_500_000,
+  PENALTY_RECV: 300_000,
+  INTERBANK_SETTLEMENT: 40_000_000,
+  CASA: -70_000_000,
+  TERM_DEPOSIT: -25_000_000,
+  TD_PLEDGED: -6_000_000,
+  WALLET_SETTLEMENT: -2_000_000,
+  LOYALTY_LIABILITY: -800_000,
+};
+
+/** The opening trial balance: capital & reserves is the balancing figure, so the books start square. */
+export const OPENING_BALANCES: Readonly<Record<GlAccount, number>> = (() => {
+  const b = Object.fromEntries(GL_IDS.map((gl) => [gl, OPENING_POSITIONS[gl] ?? 0])) as Record<GlAccount, number>;
+  b.EQUITY = -GL_IDS.reduce((sum, gl) => sum + b[gl], 0);
+  return b;
+})();
+
+export const openingLedger = (): RetailLedger => ({ balances: { ...OPENING_BALANCES }, journal: [], posted: 0 });
+
+/** True when a journal's debits equal its credits. */
+export const journalBalanced = (lines: readonly LedgerLine[]): boolean => lines.reduce((s, l) => s + l.dr - l.cr, 0) === 0;
+
+/** Posts a journal: every line moves its account, and the journal heads the list. */
+export function postJournal(l: RetailLedger, entry: JournalEntry): RetailLedger {
+  const balances = { ...l.balances };
+  for (const line of entry.lines) balances[line.gl] += line.dr - line.cr;
+  return { balances, journal: [entry, ...l.journal].slice(0, RETAIL_JOURNAL_CAP), posted: l.posted + 1 };
+}
+
+/** A balance the way a statement prints it: debit-natural for assets and expenses, credit-natural for the rest. */
+export const naturalBalance = (gl: GlAccount, debitPositive: number): number => (GL_SIDE[gl] === 'asset' || GL_SIDE[gl] === 'expense' ? debitPositive : -debitPositive);
+
+export interface LedgerSummary {
+  assets: number;
+  liabilities: number;
+  equity: number;
+  income: number;
+  expense: number;
+  /** Income less expenses since the opening balances. */
+  net: number;
+  /** Assets = liabilities + equity + net (true whenever every journal balanced). */
+  balanced: boolean;
+}
+
+export function ledgerSummary(l: RetailLedger): LedgerSummary {
+  const total = (side: GlSide): number => GL_IDS.filter((gl) => GL_SIDE[gl] === side).reduce((s, gl) => s + naturalBalance(gl, l.balances[gl]), 0);
+  const [assets, liabilities, equity, income, expense] = [total('asset'), total('liability'), total('equity'), total('income'), total('expense')];
+  const net = income - expense;
+  return { assets, liabilities, equity, income, expense, net, balanced: assets === liabilities + equity + net };
+}
+
+/** The four figures the workspace keeps in view. */
+export interface RetailKpis {
+  feeIncome: number;
+  atmCash: number;
+  suspense: number;
+  overdraft: number;
+  /** The ATM fleet's cassette cash is under ATM_FLEET_LOW_CENTS. */
+  atmLow: boolean;
+}
+
+/** Below this, the ATM fleet's cassette cash needs a replenishment run. */
+export const ATM_FLEET_LOW_CENTS = 1_000_000;
+
+export function retailKpis(l: RetailLedger): RetailKpis {
+  const nat = (gl: GlAccount): number => naturalBalance(gl, l.balances[gl]);
+  return {
+    feeIncome: nat('FEE_INCOME') + nat('PENALTY_INCOME'),
+    atmCash: nat('ATM_CASH'),
+    suspense: nat('ATM_SUSPENSE') + nat('CLEARING_SUSPENSE'),
+    overdraft: nat('OVERDRAFT_RECV'),
+    atmLow: nat('ATM_CASH') < ATM_FLEET_LOW_CENTS,
+  };
+}
+
+/** The retail scenarios, and the desk that works each one. */
+export const RETAIL_SCENARIOS = [
+  'ANNUAL_FEE',
+  'AUTO_PAY',
+  'CASHBACK',
+  'POINTS_WAIVER',
+  'ATM_INTERBANK',
+  'ATM_LOW_CASH',
+  'ATM_JAM',
+  'CARD_CAPTURED',
+  'DEBT_WATERFALL',
+  'TD_EARLY_BREAK',
+  'TD_PLEDGE',
+  'TD_LIQUIDATION',
+  'WALLET',
+  'RTP_QR',
+  'CLEARING_BREAK',
+] as const;
+export type RetailScenarioId = (typeof RETAIL_SCENARIOS)[number];
+export type RetailScene = `retail_${RetailScenarioId}`;
+export const RETAIL_SCENES: readonly RetailScene[] = RETAIL_SCENARIOS.map((id) => `retail_${id}` as RetailScene);
+
+export const RETAIL_DESK: Readonly<Record<StaffRoleId, readonly RetailScenarioId[]>> = {
+  ekyc: ['ANNUAL_FEE', 'AUTO_PAY'],
+  fds: ['CASHBACK', 'POINTS_WAIVER'],
+  cashier: ['ATM_LOW_CASH', 'TD_EARLY_BREAK'],
+  dispute: ['ATM_JAM', 'CARD_CAPTURED'],
+  swift: ['ATM_INTERBANK', 'CLEARING_BREAK'],
+  bnpl: ['DEBT_WATERFALL', 'TD_PLEDGE', 'TD_LIQUIDATION'],
+  aml: ['WALLET', 'RTP_QR'],
+};
+
+/** Thresholds and tariffs the retail SOPs quote (analystWorkspace.messages.ts `retail_<id>_sop*`). */
+export const RETAIL_SOP = {
+  nsfFeeCents: 3_500,
+  /** Loyalty points per dollar of fee waived (1 point = 1 cent). */
+  pointsPerDollar: 100,
+  cashbackRatePct: { '5541': 1, '5411': 2, '5812': 3, '4511': 4, '5732': 5 },
+  cashbackExcludedMcc: ['6011', '6051', '4829'],
+  /** What the bank charges the customer (flat + % of the amount) and pays the switch, per ATM network. */
+  atmFee: {
+    napas: { flatCents: 110, pct: 0.1, switchCents: 50 },
+    intl: { flatCents: 350, pct: 1, switchCents: 150 },
+  },
+  /** An ATM whose cassette would fall below this after a dispense raises a low-cash alert. */
+  lowCassetteCents: 500_000,
+  /** Early break: interest is recalculated at the demand-deposit rate. */
+  demandRatePct: 0.1,
+  tdMaxLtvPct: 90,
+  /** Days past due at which a secured overdraft is in default. */
+  defaultDpd: 90,
+  walletDailyCapCents: 500_000,
+  rtpLimitCents: 500_000,
+} as const;
+
+/** Share of retail cases that breach their scenario's SOP. */
+export const RETAIL_HIT_RATE = 0.5;
+
+export interface RetailCaseData {
+  id: RetailScenarioId;
+  /** Status codes for an approval and a rejection. */
+  codes: readonly [string, string];
+  /** The journal each decision posts. */
+  approve: LedgerLine[];
+  reject: LedgerLine[];
+}
+
+type Leg = readonly [GlAccount, number];
+/** A journal from its debit legs and credit legs; zero legs are dropped. */
+const journal = (debits: readonly Leg[], credits: readonly Leg[]): LedgerLine[] => [
+  ...debits.filter(([, c]) => c > 0).map(([gl, c]) => ({ gl, dr: c, cr: 0 })),
+  ...credits.filter(([, c]) => c > 0).map(([gl, c]) => ({ gl, dr: 0, cr: c })),
+];
+
+/** Debiting a customer: what the balance covers comes off deposits, the rest is lent on the overdraft. */
+const customerDebit = (balance: number, cents: number): Leg[] => {
+  const fromDeposit = Math.max(0, Math.min(balance, cents));
+  return [
+    ['CASA', fromDeposit],
+    ['OVERDRAFT_RECV', cents - fromDeposit],
+  ];
+};
+
+const MCCS_EARNING = ['5541', '5411', '5812', '4511', '5732'] as const;
+const QR_MERCHANTS = ['HIGHLANDS COFFEE', 'CIRCLE K', 'PHUC LONG TEA', 'WINMART'] as const;
+const MULE_NAMES = ['NGUYEN VAN AN', 'TRAN THI BICH', 'LE MINH TUAN'] as const;
+
+interface RetailDrill extends Drill {
+  data: Omit<RetailCaseData, 'id'>;
+}
+
+/** One retail case. `hit` = the case breaches its SOP's red flag, which is always a REJECT. */
+function retailDrill(scenario: RetailScenarioId, id: string, hit: boolean): RetailDrill {
+  const b = (purpose: string, lo: number, hi: number): number => between(id, purpose, lo, hi);
+  const S = RETAIL_SOP;
+  const expected: StaffDecision = hit ? 'REJECT' : 'APPROVE';
+  switch (scenario) {
+    case 'ANNUAL_FEE': {
+      const card = unit(id, 'kind') < 0.65;
+      const fee = card ? pickOf(id, 'fee', [9_000, 15_000]) : 1_100;
+      const limit = b('od', 50, 200) * 1_000;
+      const balance = hit ? -(limit - b('room', 0, fee / 100 - 1) * 100) : unit(id, 'neg') < 0.5 ? b('bal', fee / 100 + 20, 3_000) * 100 : 0 - b('used', 0, Math.floor((limit - fee) / 100) - 1) * 100;
+      const headroom = balance + limit;
+      return {
+        amountCents: fee,
+        expected,
+        fields: [
+          { key: 'feeType', value: msg(card ? 'feeCardAnnual' : 'feeAccountMaintenance') },
+          { key: 'accountBalance', value: cash(balance) },
+          { key: 'overdraftLimit', value: cash(limit) },
+          { key: 'headroom', value: cash(headroom), flag: headroom < fee },
+        ],
+        data: { codes: ['FEE_POSTED', 'FEE_HELD_OVER_LIMIT'], approve: journal(customerDebit(balance, fee), [['FEE_INCOME', fee]]), reject: [] },
+      };
+    }
+    case 'AUTO_PAY': {
+      const biller = pickOf(id, 'biller', ['billerElectric', 'billerWater', 'billerInternet'] as const);
+      const bill = (biller === 'billerElectric' ? b('bill', 60, 320) : biller === 'billerWater' ? b('bill', 20, 90) : b('bill', 40, 110)) * 100;
+      const balance = hit ? b('bal', 0, bill / 100 - 1) * 100 : b('bal', bill / 100 + 10, 4_000) * 100;
+      return {
+        amountCents: bill,
+        expected,
+        fields: [
+          { key: 'biller', value: msg(biller) },
+          { key: 'accountBalance', value: cash(balance), flag: balance < bill },
+          { key: 'nsfFee', value: cash(S.nsfFeeCents) },
+        ],
+        data: {
+          codes: ['DD_PAID', 'DD_RETURNED_NSF'],
+          approve: journal([['CASA', bill]], [['BILLER_PAYABLE', bill]]),
+          reject: journal(customerDebit(balance, S.nsfFeeCents), [['PENALTY_INCOME', S.nsfFeeCents]]),
+        },
+      };
+    }
+    case 'CASHBACK': {
+      const excluded = hit && unit(id, 'why') < 0.6;
+      const reversed = hit && !excluded;
+      const mcc = excluded ? pickOf(id, 'mcc', S.cashbackExcludedMcc) : pickOf(id, 'mcc', MCCS_EARNING);
+      // An excluded MCC still shows the 1% default the rewards engine proposed: spotting the MCC is the job.
+      const rate = excluded ? 1 : S.cashbackRatePct[mcc as (typeof MCCS_EARNING)[number]];
+      const amount = b('amt', 20, 1_500) * 100;
+      const reward = Math.round((amount * rate) / 100);
+      const points = unit(id, 'program') < 0.4;
+      return {
+        amountCents: amount,
+        expected,
+        fields: [
+          { key: 'mcc', value: msg(`mcc${mcc}`), flag: excluded },
+          { key: 'txnStatus', value: msg(reversed ? 'statusReversed' : 'statusSettled'), flag: reversed },
+          { key: 'rewardRate', value: pct(rate) },
+          points ? { key: 'proposedPoints', value: num(reward) } : { key: 'proposedCashback', value: cash(reward) },
+        ],
+        data: { codes: ['REWARD_CREDITED', 'REWARD_INELIGIBLE'], approve: journal([['REWARDS_EXPENSE', reward]], [[points ? 'LOYALTY_LIABILITY' : 'CASA', reward]]), reject: [] },
+      };
+    }
+    case 'POINTS_WAIVER': {
+      const fee = pickOf(id, 'fee', [9_000, 15_000]);
+      const needed = Math.round((fee * S.pointsPerDollar) / 100);
+      const points = hit ? b('pts', 0, needed - 500) : b('pts', needed, needed + 40_000);
+      return {
+        amountCents: fee,
+        expected,
+        fields: [
+          { key: 'feeType', value: msg('feeCardAnnual') },
+          { key: 'pointsBalance', value: num(points), flag: points < needed },
+          { key: 'pointsNeeded', value: num(needed) },
+        ],
+        data: { codes: ['FEE_WAIVED_POINTS', 'FEE_CHARGED_NO_POINTS'], approve: journal([['LOYALTY_LIABILITY', fee]], [['FEE_INCOME', fee]]), reject: journal([['CASA', fee]], [['FEE_INCOME', fee]]) },
+      };
+    }
+    case 'ATM_INTERBANK': {
+      const intl = unit(id, 'net') < 0.4;
+      const t = intl ? S.atmFee.intl : S.atmFee.napas;
+      const amount = b('amt', 10, 50) * 1_000;
+      const fee = atmFeeCents(intl ? 'intl' : 'napas', amount);
+      const total = amount + fee;
+      // The trap: the balance covers the cash but not the network fee on top.
+      const balance = hit ? (unit(id, 'trap') < 0.6 ? amount + b('short', 0, fee - 1) : b('bal', 0, amount / 100 - 1) * 100) : total + b('spare', 0, 2_000) * 100;
+      return {
+        amountCents: amount,
+        expected,
+        fields: [
+          { key: 'atmNetwork', value: msg(intl ? 'netIntl' : 'netNapas') },
+          { key: 'networkFee', value: cash(fee) },
+          { key: 'totalDebit', value: cash(total) },
+          { key: 'accountBalance', value: cash(balance), flag: balance < total },
+        ],
+        data: {
+          codes: ['ATM_INTERBANK_PAID', 'ATM_NSF_WITH_FEE'],
+          approve: journal(
+            [
+              ['CASA', total],
+              ['SWITCH_FEE_EXPENSE', t.switchCents],
+            ],
+            [
+              ['INTERBANK_SETTLEMENT', amount + t.switchCents],
+              ['FEE_INCOME', fee],
+            ],
+          ),
+          reject: [],
+        },
+      };
+    }
+    case 'ATM_LOW_CASH': {
+      const amount = b('amt', 10, 80) * 1_000;
+      const low = S.lowCassetteCents;
+      const cassette = hit ? b('cas', 0, amount / 1_000 - 1) * 1_000 : unit(id, 'low') < 0.5 ? amount + b('cas', 0, low / 1_000 - 1) * 1_000 : amount + low + b('cas', 0, 5_000) * 1_000;
+      const after = cassette - amount;
+      const alert = !hit && after < low;
+      return {
+        amountCents: amount,
+        expected,
+        fields: [
+          { key: 'atmId', value: code(`ATM-${pickOf(id, 'site', ['HAN', 'SGN', 'DAD'])}-${String(b('n', 1, 48)).padStart(3, '0')}`) },
+          { key: 'cassetteCash', value: cash(cassette), flag: hit },
+          { key: 'cashAfter', value: cash(after), flag: hit, ...(alert ? { alert } : {}) },
+          { key: 'lowCashThreshold', value: cash(low) },
+        ],
+        data: { codes: [alert ? 'ATM_DISPENSED_REPLENISH' : 'ATM_DISPENSED', 'ATM_CASSETTE_SHORT'], approve: journal([['CASA', amount]], [['ATM_CASH', amount]]), reject: [] },
+      };
+    }
+    case 'ATM_JAM': {
+      const amount = b('amt', 10, 50) * 1_000;
+      return {
+        amountCents: amount,
+        expected,
+        fields: [
+          { key: 'atmFault', value: msg(pickOf(id, 'fault', ['faultCashJam', 'faultTimeout'])) },
+          { key: 'ejStatus', value: msg(hit ? 'ejPresented' : 'ejRetracted'), flag: hit },
+          { key: 'cashCountSurplus', value: cash(hit ? 0 : amount), flag: hit },
+        ],
+        data: { codes: ['ATM_SUSPENSE_REFUND', 'ATM_DISPENSE_CONFIRMED'], approve: journal([['ATM_SUSPENSE', amount]], [['CASA', amount]]), reject: [] },
+      };
+    }
+    case 'CARD_CAPTURED': {
+      const hot = hit && unit(id, 'why') < 0.5;
+      const noId = hit && !hot;
+      return {
+        amountCents: 0,
+        expected,
+        fields: [
+          { key: 'captureReason', value: msg(hot ? 'captureHotlist' : pickOf(id, 'reason', ['captureTimeout', 'captureHostDown', 'capturePinTries'])), flag: hot },
+          { key: 'cardStatus', value: msg(hot ? 'cardHotlisted' : 'cardActive'), flag: hot },
+          { key: 'idVerified', value: bool(!noId), flag: noId },
+        ],
+        // A captured card moves no money: the decision is logged as a memo.
+        data: { codes: ['CARD_RETURNED', 'CARD_DESTROYED_REISSUE'], approve: [], reject: [] },
+      };
+    }
+    case 'DEBT_WATERFALL': {
+      const penalty = b('fee', 15, 60) * 100;
+      const interest = b('int', 20, 250) * 100;
+      const principal = b('prin', 500, 4_000) * 100;
+      const pay = unit(id, 'part') < 0.25 ? penalty + b('part', 1, interest / 100 - 1) * 100 : penalty + interest + b('extra', 0, principal / 100 - 1) * 100;
+      const right = waterfall(pay, penalty, interest, principal);
+      // A misconfigured allocator pays principal first, then interest, and leaves the penalty for last.
+      const p = Math.min(pay, principal);
+      const i = Math.min(pay - p, interest);
+      const proposed = hit ? { penalty: pay - p - i, interest: i, principal: p } : right;
+      const post = (a: typeof right): LedgerLine[] =>
+        journal(
+          [['CASA', pay]],
+          [
+            ['PENALTY_RECV', a.penalty],
+            ['INTEREST_RECV', a.interest],
+            ['LOAN_PRINCIPAL', a.principal],
+          ],
+        );
+      return {
+        amountCents: pay,
+        expected,
+        fields: [
+          { key: 'latePenaltyDue', value: cash(penalty) },
+          { key: 'overdueInterestDue', value: cash(interest) },
+          { key: 'principalDue', value: cash(principal) },
+          { key: 'allocPenalty', value: cash(proposed.penalty), flag: proposed.penalty !== right.penalty },
+          { key: 'allocInterest', value: cash(proposed.interest), flag: proposed.interest !== right.interest },
+          { key: 'allocPrincipal', value: cash(proposed.principal), flag: proposed.principal !== right.principal },
+        ],
+        data: { codes: ['REPAYMENT_POSTED', 'WATERFALL_REALLOCATED'], approve: post(proposed), reject: post(right) },
+      };
+    }
+    case 'TD_EARLY_BREAK': {
+      const principal = b('p', 50, 500) * 10_000;
+      const rate = pickOf(id, 'rate', [4.8, 5.2, 5.5, 6]);
+      const days = b('days', 30, 330);
+      const right = tdInterestCents(principal, S.demandRatePct, days);
+      const paid = hit ? tdInterestCents(principal, rate, days) : right;
+      const post = (interest: number): LedgerLine[] =>
+        journal(
+          [
+            ['TERM_DEPOSIT', principal],
+            ['INTEREST_EXPENSE', interest],
+          ],
+          [['CASA', principal + interest]],
+        );
+      return {
+        amountCents: principal,
+        expected,
+        fields: [
+          { key: 'contractRate', value: pct(rate) },
+          { key: 'daysHeld', value: code(`${days} / 365 d`) },
+          { key: 'appliedRate', value: pct(hit ? rate : S.demandRatePct), flag: hit },
+          { key: 'payoutInterest', value: cash(paid), flag: hit },
+        ],
+        data: { codes: ['TD_BROKEN_DEMAND_RATE', 'TD_INTEREST_RECALCULATED'], approve: post(paid), reject: post(right) },
+      };
+    }
+    case 'TD_PLEDGE': {
+      const td = b('td', 50, 500) * 10_000;
+      const ltv = hit ? b('ltv', S.tdMaxLtvPct + 1, 120) : b('ltv', 40, S.tdMaxLtvPct);
+      return {
+        amountCents: Math.round((td * ltv) / 100),
+        expected,
+        fields: [
+          { key: 'tdBalance', value: cash(td) },
+          { key: 'ltv', value: pct(ltv), flag: ltv > S.tdMaxLtvPct },
+          { key: 'lienStatus', value: msg('lienNone') },
+        ],
+        data: { codes: ['TD_LIEN_MARKED', 'TD_LTV_EXCEEDED'], approve: journal([['TERM_DEPOSIT', td]], [['TD_PLEDGED', td]]), reject: [] },
+      };
+    }
+    case 'TD_LIQUIDATION': {
+      const owed = b('od', 20, 400) * 10_000;
+      const td = owed + b('extra', 0, 300) * 10_000;
+      const dpd = hit ? b('dpd', 5, S.defaultDpd - 1) : b('dpd', S.defaultDpd, 180);
+      return {
+        amountCents: owed,
+        expected,
+        fields: [
+          { key: 'pledgedTd', value: cash(td) },
+          { key: 'daysPastDue', value: num(dpd), flag: dpd < S.defaultDpd },
+          { key: 'surplusToCustomer', value: cash(td - owed) },
+        ],
+        data: {
+          codes: ['COLLATERAL_LIQUIDATED', 'LIEN_RETAINED'],
+          approve: journal(
+            [['TD_PLEDGED', td]],
+            [
+              ['OVERDRAFT_RECV', owed],
+              ['CASA', td - owed],
+            ],
+          ),
+          reject: [],
+        },
+      };
+    }
+    case 'WALLET': {
+      const topUp = unit(id, 'dir') < 0.5;
+      const amount = b('amt', 50, 2_000) * 100;
+      const nameMismatch = hit && unit(id, 'why') < 0.5;
+      const overCap = hit && !nameMismatch;
+      const cap = S.walletDailyCapCents;
+      const used = overCap ? cap - amount + b('over', 1, 500) * 100 : b('used', 0, (cap - amount) / 100) * 100;
+      const headroom = cap - used;
+      return {
+        amountCents: amount,
+        expected,
+        fields: [
+          { key: 'walletProvider', value: code(pickOf(id, 'wallet', ['PayPal', 'Apple Pay', 'Revolut'])) },
+          { key: 'walletDirection', value: msg(topUp ? 'walletTopUp' : 'walletCashOut') },
+          { key: 'linkedNameMatch', value: bool(!nameMismatch), flag: nameMismatch },
+          { key: 'walletHeadroom', value: cash(headroom), flag: amount > headroom },
+        ],
+        data: { codes: ['WALLET_SETTLED', 'WALLET_BLOCKED'], approve: topUp ? journal([['CASA', amount]], [['WALLET_SETTLEMENT', amount]]) : journal([['WALLET_SETTLEMENT', amount]], [['CASA', amount]]), reject: [] },
+      };
+    }
+    case 'RTP_QR': {
+      const badCrc = hit && unit(id, 'why') < 0.4;
+      const mismatch = hit && !badCrc && unit(id, 'why2') < 0.6;
+      const overLimit = hit && !badCrc && !mismatch;
+      const amount = overLimit ? S.rtpLimitCents + b('over', 1, 2_000) * 100 : b('amt', 5, 300) * 1_000;
+      const merchant = pickOf(id, 'merchant', QR_MERCHANTS);
+      return {
+        amountCents: amount,
+        expected,
+        fields: [
+          { key: 'qrMerchant', value: code(merchant) },
+          { key: 'lookupName', value: code(mismatch ? pickOf(id, 'mule', MULE_NAMES) : merchant), flag: mismatch },
+          { key: 'qrCrcValid', value: bool(!badCrc), flag: badCrc },
+          { key: 'instantLimit', value: cash(S.rtpLimitCents), flag: overLimit },
+        ],
+        data: { codes: ['RTP_ACSC', 'RTP_REJECTED'], approve: journal([['CASA', amount]], [['INTERBANK_SETTLEMENT', amount]]), reject: [] },
+      };
+    }
+    case 'CLEARING_BREAK': {
+      const amount = b('amt', 20, 900) * 1_000;
+      return {
+        amountCents: amount,
+        expected,
+        fields: [
+          { key: 'coreStatus', value: msg('coreDebited') },
+          { key: 'networkStatus', value: code(hit ? 'pacs.002 ACSC' : pickOf(id, 'net', ['pacs.002 RJCT', 'TIMEOUT · no pacs.002'])), flag: hit },
+          { key: 'inSettlementFile', value: bool(hit), flag: hit },
+          { key: 'eodDifference', value: cash(hit ? 0 : amount) },
+        ],
+        data: { codes: ['CLEARING_SUSPENSE_PARKED', 'CLEARING_MATCHED'], approve: journal([['INTERBANK_SETTLEMENT', amount]], [['CLEARING_SUSPENSE', amount]]), reject: [] },
+      };
+    }
+  }
+}
+
+/** The customer's ATM fee on a network: flat plus a share of the amount. */
+export function atmFeeCents(network: keyof typeof RETAIL_SOP.atmFee, amountCents: number): number {
+  const t = RETAIL_SOP.atmFee[network];
+  return t.flatCents + Math.round((amountCents * t.pct) / 100);
+}
+
+/** Simple interest on a term deposit for `days` of a 365-day year. */
+export const tdInterestCents = (principalCents: number, ratePct: number, days: number): number => Math.round((principalCents * ratePct * days) / (100 * 365));
+
+/** The debt-recovery waterfall: late penalty fees first, then overdue interest, then principal. */
+export function waterfall(pay: number, penalty: number, interest: number, principal: number): { penalty: number; interest: number; principal: number } {
+  const f = Math.min(pay, penalty);
+  const i = Math.min(pay - f, interest);
+  return { penalty: f, interest: i, principal: Math.min(pay - f - i, principal) };
+}
+
+/** One case of a desk's retail queue, stable per role and sequence number. */
+export function buildRetailCase(role: StaffRoleId, seq: number): StaffCase {
+  const id = `RT-${role.toUpperCase()}-${String(seq + 1).padStart(3, '0')}`;
+  const scenario = pickOf(id, 'scenario', RETAIL_DESK[role]);
+  const d = retailDrill(scenario, id, unit(id, 'hit') < RETAIL_HIT_RATE);
+  return {
+    id,
+    station: ROLE_STATION[role],
+    role,
+    scenario: '',
+    amountCents: d.amountCents,
+    waitedMin: between(id, 'wait', 0, 6),
+    fields: d.fields,
+    scene: `retail_${scenario}`,
+    retail: { id: scenario, ...d.data },
+    expected: d.expected,
+  };
+}
+
+function gradeRetailCase(c: StaffCase, r: RetailCaseData, decision: StaffDecision): StaffDecisionResult {
+  const statusCode = decision === 'APPROVE' ? r.codes[0] : r.codes[1];
+  return {
+    ok: true,
+    packetId: c.id,
+    decision,
+    expected: c.expected,
+    correct: decision === c.expected,
+    statusCode,
+    journal: { caseId: c.id, scenario: r.id, decision, statusCode, lines: decision === 'APPROVE' ? r.approve : r.reject },
+  };
 }

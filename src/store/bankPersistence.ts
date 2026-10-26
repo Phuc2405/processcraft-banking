@@ -16,7 +16,7 @@ import { isTermMode, type TermMode } from '../sim/terms';
 import { DAY_EVENTS } from '../sim/traffic';
 import type { CarryRecord, CarryState, DayEvent, DayReport, NightShiftReport, SuspenseItem } from '../sim/types';
 import { STATION_IDS } from '../sim/topology';
-import { BADGES, EMPTY_CAREER, EMPTY_SHIFT_LOG, type BadgeId, type CareerProgress } from '../sim/staffRoleplay';
+import { BADGES, EMPTY_CAREER, EMPTY_SHIFT_LOG, GL_IDS, journalBalanced, openingLedger, RETAIL_JOURNAL_CAP, RETAIL_SCENARIOS, type BadgeId, type CareerProgress, type GlAccount, type JournalEntry, type LedgerLine, type RetailLedger, type RetailScenarioId } from '../sim/staffRoleplay';
 import { browserStorage, memoryStorage, STORAGE_VERSION, type KeyValueStorage } from './persistence';
 
 export { browserStorage, memoryStorage };
@@ -358,5 +358,67 @@ export function saveCareer(storage: KeyValueStorage | null, career: CareerProgre
     storage?.setItem(CAREER_KEY, JSON.stringify(career));
   } catch {
     // A lost badge is a pity, not an error.
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Retail core ledger: account balances and the latest journals
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const RETAIL_LEDGER_KEY = `processcraft:v${STORAGE_VERSION}:retailLedger`;
+
+const cents = (v: unknown): number | null => (typeof v === 'number' && Number.isSafeInteger(v) ? v : null);
+
+function decodeLine(v: unknown): LedgerLine | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  const dr = cents(o.dr);
+  const cr = cents(o.cr);
+  if (!GL_IDS.includes(o.gl as GlAccount) || dr === null || cr === null || dr < 0 || cr < 0) return null;
+  return { gl: o.gl as GlAccount, dr, cr };
+}
+
+function decodeJournal(v: unknown): JournalEntry | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  if (typeof o.caseId !== 'string' || typeof o.statusCode !== 'string' || !RETAIL_SCENARIOS.includes(o.scenario as RetailScenarioId)) return null;
+  if (o.decision !== 'APPROVE' && o.decision !== 'REJECT') return null;
+  if (!Array.isArray(o.lines)) return null;
+  const lines = o.lines.map(decodeLine);
+  if (lines.some((l) => l === null) || !journalBalanced(lines as LedgerLine[])) return null;
+  return { caseId: o.caseId, scenario: o.scenario as RetailScenarioId, decision: o.decision, statusCode: o.statusCode, lines: lines as LedgerLine[] };
+}
+
+/** Reads the ledger back. Books that do not sum to zero cannot be trusted, so they restart from the opening balances. */
+export function decodeRetailLedger(raw: string | null): RetailLedger {
+  if (!raw) return openingLedger();
+  try {
+    const o = JSON.parse(raw) as Partial<Record<keyof RetailLedger, unknown>>;
+    const src = (o.balances && typeof o.balances === 'object' ? o.balances : {}) as Record<string, unknown>;
+    const balances = Object.fromEntries(GL_IDS.map((gl) => [gl, cents(src[gl]) ?? 0])) as Record<GlAccount, number>;
+    if (GL_IDS.reduce((s, gl) => s + balances[gl], 0) !== 0) return openingLedger();
+    const journal = (Array.isArray(o.journal) ? o.journal : [])
+      .slice(0, RETAIL_JOURNAL_CAP)
+      .map(decodeJournal)
+      .filter((j): j is JournalEntry => j !== null);
+    return { balances, journal, posted: count(o.posted) };
+  } catch {
+    return openingLedger();
+  }
+}
+
+export function loadRetailLedger(storage: KeyValueStorage | null): RetailLedger {
+  try {
+    return decodeRetailLedger(storage ? storage.getItem(RETAIL_LEDGER_KEY) : null);
+  } catch {
+    return openingLedger();
+  }
+}
+
+export function saveRetailLedger(storage: KeyValueStorage | null, ledger: RetailLedger): void {
+  try {
+    storage?.setItem(RETAIL_LEDGER_KEY, JSON.stringify(ledger));
+  } catch {
+    // The books reopen at their opening balances.
   }
 }

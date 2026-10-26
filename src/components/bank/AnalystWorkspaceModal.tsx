@@ -23,6 +23,21 @@ import {
   maskedFields,
   type ActiveIncident,
   RANDOM_TASK,
+  RETAIL_DESK,
+  RETAIL_TASK,
+  WORKSPACE_TASKS,
+  GL_ACCOUNTS,
+  GL_CODE,
+  ATM_FLEET_LOW_CENTS,
+  ledgerSummary,
+  naturalBalance,
+  openingLedger,
+  retailKpis,
+  type GlSide,
+  type LedgerLine,
+  type RetailKpis,
+  type RetailLedger,
+  type RetailScenarioId,
   tallyAccuracy,
   type ChallengeGrade,
   type ChallengeTally,
@@ -33,7 +48,6 @@ import {
   STAFF_DRILLS,
   STAFF_ROLES,
   STAFF_SLA_SECONDS,
-  STAFF_TASKS,
   STAFF_XP_PER_CORRECT,
   taskDeck,
   type StaffCase,
@@ -58,11 +72,12 @@ import { useTerms } from './useTerms';
  * Phase 8 Step 2: the Staff Roleplay Workspace, a scenario-driven review desk in two registers.
  *
  *   ⌂  Header: desk picker (switching desks asks first, then restarts at Task 1), task picker (instant), language, complexity.
- *   A  Mission brief, regulatory reference (Expert), the current task of the 28-task matrix and its SOP.
+ *   A  Mission brief, regulatory reference (Expert), the current task of the 28-task matrix (or the retail queue) and its SOP.
  *   B  The 4-part scenario card: persona & story, trigger context, highlighted payload tags, risk & benefit analysis.
  *   C  Approve / Reject, a 2-second consequence overlay (+XP or an error), and the shift objective.
  *
- * Decisions go through useBankStore.staffTrain, which grades the task case against its SOP and books the shift.
+ * Decisions go through useBankStore.staffTrain, which grades the task case against its SOP and books the shift. A retail-operations
+ * decision also posts its double-entry journal to the core ledger, shown in the 📒 balance sheet.
  */
 
 export type WorkspaceMode = 'standard' | 'expert';
@@ -78,11 +93,20 @@ const suffix = (mode: WorkspaceMode): 'Std' | 'Exp' => (mode === 'standard' ? 'S
 /** Steps in every task procedure. Both modes show all of them: Standard in plain words, Expert with citations and metrics. */
 export const SOP_STEPS = 3;
 
-/** The SOP a task shows, grouped by drill: the same 3-step procedure per drill in either register. */
-export function sopGroups(role: StaffRoleId, task: StaffTaskNo, mode: WorkspaceMode = 'standard'): { drill: StaffDrillNo; keys: AnalystWorkspaceKey[] }[] {
-  const drills: readonly StaffDrillNo[] = task === RANDOM_TASK ? STAFF_DRILLS : [task as StaffDrillNo];
+/** One block of a task's SOP: a drill of the matrix, or a retail scenario of the desk. */
+export interface SopGroup {
+  drill?: StaffDrillNo;
+  retail?: RetailScenarioId;
+  keys: AnalystWorkspaceKey[];
+}
+
+/** The SOP a task shows, grouped by drill (or by retail scenario): the same 3-step procedure per group in either register. */
+export function sopGroups(role: StaffRoleId, task: StaffTaskNo, mode: WorkspaceMode = 'standard'): SopGroup[] {
   const register = mode === 'expert' ? 'sopExp' : 'sopStd';
-  return drills.map((drill) => ({ drill, keys: Array.from({ length: SOP_STEPS }, (_, i) => k(`task_${role}_${drill}_${register}_${i + 1}`)) }));
+  const steps = (prefix: string): AnalystWorkspaceKey[] => Array.from({ length: SOP_STEPS }, (_, i) => k(`${prefix}_${register}_${i + 1}`));
+  if (task === RETAIL_TASK) return RETAIL_DESK[role].map((retail) => ({ retail, keys: steps(`retail_${retail}`) }));
+  const drills: readonly StaffDrillNo[] = task === RANDOM_TASK ? STAFF_DRILLS : [task as StaffDrillNo];
+  return drills.map((drill) => ({ drill, keys: steps(`task_${role}_${drill}`) }));
 }
 
 /** Every SOP line a task shows in a mode, in order. */
@@ -90,9 +114,9 @@ export const sopKeys = (role: StaffRoleId, task: StaffTaskNo, mode: WorkspaceMod
 
 export type RiskKind = 'approve' | 'reject' | 'benefit';
 
-/** A risk/benefit card: specific to the drill on task-matrix cases, the desk's generic card on live-queue cases. */
-export const riskKey = (role: StaffRoleId, drill: StaffDrillNo | undefined, kind: RiskKind, mode: WorkspaceMode): AnalystWorkspaceKey =>
-  k(drill ? `risk_${role}_t${drill}_${kind}${suffix(mode)}` : `risk_${role}_${kind}${suffix(mode)}`);
+/** A risk/benefit card: specific to the retail scenario or the drill on training cases, the desk's generic card on live-queue cases. */
+export const riskKey = (role: StaffRoleId, drill: StaffDrillNo | undefined, kind: RiskKind, mode: WorkspaceMode, retail?: RetailScenarioId): AnalystWorkspaceKey =>
+  k(retail ? `risk_retail_${retail}_${kind}${suffix(mode)}` : drill ? `risk_${role}_t${drill}_${kind}${suffix(mode)}` : `risk_${role}_${kind}${suffix(mode)}`);
 
 /** Every task's title key for a role, in order. */
 export const taskTitleKey = (role: StaffRoleId, task: StaffTaskNo): AnalystWorkspaceKey => k(`task_${role}_${task}_title`);
@@ -200,6 +224,7 @@ function MissionPanel({ role, task, mode, m, deskName, sla = STAFF_SLA_SECONDS }
         <Kicker>{m('taskTitle')}</Kicker>
         <div className="mt-0.5 text-[13px] font-semibold text-sky-100">{m('taskOption', { n: task, title: m(taskTitleKey(role, task)) })}</div>
         {task === RANDOM_TASK && <p className="mt-1 text-[11px] leading-snug text-slate-400">{m('taskRandomNote')}</p>}
+        {task === RETAIL_TASK && <p className="mt-1 text-[11px] leading-snug text-slate-400">{m('taskRetailNote')}</p>}
       </div>
       <div>
         <div className="text-[11px] font-bold tracking-wide text-amber-200" data-testid="workspace-sop-title">
@@ -211,8 +236,9 @@ function MissionPanel({ role, task, mode, m, deskName, sla = STAFF_SLA_SECONDS }
         <div className="space-y-2" data-testid="workspace-sop" data-sop={mode}>
           <div className={`text-[10.5px] font-semibold uppercase tracking-wider ${expert ? 'text-violet-300' : 'text-sky-300'}`}>{m(expert ? 'sopExpTitle' : 'sopStdTitle')}</div>
           {sopGroups(role, task, mode).map((g) => (
-            <div key={g.drill} data-drill={g.drill}>
-              {task === RANDOM_TASK && <div className="mb-1 text-[11px] font-semibold text-sky-200">{m('taskOption', { n: g.drill, title: m(taskTitleKey(role, g.drill)) })}</div>}
+            <div key={g.retail ?? g.drill} data-drill={g.drill} data-retail={g.retail}>
+              {task === RANDOM_TASK && g.drill && <div className="mb-1 text-[11px] font-semibold text-sky-200">{m('taskOption', { n: g.drill, title: m(taskTitleKey(role, g.drill)) })}</div>}
+              {g.retail && <div className="mb-1 text-[11px] font-semibold text-emerald-200">{m(k(`retail_${g.retail}_title`))}</div>}
               <ol className="space-y-1.5">
                 {g.keys.map((key, i) => (
                   <li key={key} className={`rounded-lg border bg-slate-950/50 px-2.5 py-1.5 leading-snug text-slate-200 ${expert ? 'border-violet-400/20 text-[11.5px]' : 'border-sky-400/20 text-[12px]'}`}>
@@ -249,20 +275,27 @@ function PayloadTag({ field, mode, m, locale, masked = false }: { field: StaffFi
       </div>
     );
   }
+  const alert = field.alert && !field.flag;
   return (
     <div
-      className={`flex min-w-0 flex-col rounded-lg border px-2.5 py-1.5 ${field.flag ? 'border-rose-400/60 bg-rose-500/10' : 'border-sky-400/25 bg-sky-400/[0.06]'}`}
+      className={`flex min-w-0 flex-col rounded-lg border px-2.5 py-1.5 ${field.flag ? 'border-rose-400/60 bg-rose-500/10' : alert ? 'border-amber-400/60 bg-amber-400/10' : 'border-sky-400/25 bg-sky-400/[0.06]'}`}
       data-field={field.key}
       data-flag={field.flag || undefined}
+      data-alert={alert || undefined}
     >
       <span className="flex items-center text-[10.5px] text-slate-400">
         {label}
         <InfoTip label={label} text={m(k(`tip_${field.key}_${mode === 'standard' ? 'std' : 'exp'}`))} testId={`workspace-tip-${field.key}`} />
       </span>
-      <span className={`mt-0.5 flex items-center gap-1 break-all text-[13px] font-semibold tabular-nums ${field.flag ? 'text-rose-200' : 'text-slate-50'}`}>
+      <span className={`mt-0.5 flex items-center gap-1 break-all text-[13px] font-semibold tabular-nums ${field.flag ? 'text-rose-200' : alert ? 'text-amber-100' : 'text-slate-50'}`}>
         {field.flag && (
           <span aria-label={m('breach')} title={m('breach')}>
             ⚠
+          </span>
+        )}
+        {alert && (
+          <span aria-label={m('alertLabel')} title={m('alertLabel')}>
+            🔔
           </span>
         )}
         {fieldText(field, m, locale)}
@@ -338,6 +371,11 @@ function ScenarioCard({
               {m('taskDrillTag', { n: current.drill })}
             </span>
           )}
+          {current.retail && (
+            <span className="ml-1 mt-1 inline-flex rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-200" data-testid="workspace-retail" data-retail={current.retail.id}>
+              {m('retailTag', { title: m(k(`retail_${current.retail.id}_title`)) })}
+            </span>
+          )}
           {current.incident && (
             <span className="ml-1 mt-1 inline-flex rounded-full border border-rose-400/50 bg-rose-500/15 px-2 py-0.5 text-[10.5px] font-semibold text-rose-200" data-testid="workspace-incident-case" data-incident={current.incident}>
               {m('incidentSurgeTag')}
@@ -379,9 +417,9 @@ function ScenarioCard({
       <div data-testid="workspace-risk">
         <div className="text-[11px] font-bold text-slate-200">{m('riskTitle')}</div>
         <div className="mt-1.5 grid gap-1.5 md:grid-cols-3">
-          <RiskBox tone="rose" title={m('falseApproveTitle')} text={m(riskKey(current.role, current.drill, 'approve', mode))} testId="risk-false-approve" />
-          <RiskBox tone="amber" title={m('falseRejectTitle')} text={m(riskKey(current.role, current.drill, 'reject', mode))} testId="risk-false-reject" />
-          <RiskBox tone="emerald" title={m('benefitTitle')} text={m(riskKey(current.role, current.drill, 'benefit', mode))} testId="risk-benefit" />
+          <RiskBox tone="rose" title={m('falseApproveTitle')} text={m(riskKey(current.role, current.drill, 'approve', mode, current.retail?.id))} testId="risk-false-approve" />
+          <RiskBox tone="amber" title={m('falseRejectTitle')} text={m(riskKey(current.role, current.drill, 'reject', mode, current.retail?.id))} testId="risk-false-reject" />
+          <RiskBox tone="emerald" title={m('benefitTitle')} text={m(riskKey(current.role, current.drill, 'benefit', mode, current.retail?.id))} testId="risk-benefit" />
         </div>
       </div>
     </section>
@@ -410,8 +448,9 @@ function RiskBox({ tone, title, text, testId }: { tone: keyof typeof RISK_TONE; 
 interface Consequence {
   result: StaffDecisionResult;
   role: StaffRoleId;
-  /** The drill of the decided case, so the overlay quotes that task's card. */
+  /** The drill (or retail scenario) of the decided case, so the overlay quotes that task's card. */
   drill?: StaffDrillNo;
+  retail?: RetailScenarioId;
   errors: number;
   /** Challenge Mode only: the XP this decision scored and the speed bonus inside it. */
   points?: number;
@@ -422,8 +461,8 @@ interface Consequence {
 }
 
 /** What the overlay explains: the benefit when right, the risk the learner just took when wrong. */
-export function consequenceKey(c: Pick<Consequence, 'result' | 'role' | 'drill'>, mode: WorkspaceMode): AnalystWorkspaceKey {
-  return riskKey(c.role, c.drill, c.result.correct ? 'benefit' : c.result.decision === 'APPROVE' ? 'approve' : 'reject', mode);
+export function consequenceKey(c: Pick<Consequence, 'result' | 'role' | 'drill' | 'retail'>, mode: WorkspaceMode): AnalystWorkspaceKey {
+  return riskKey(c.role, c.drill, c.result.correct ? 'benefit' : c.result.decision === 'APPROVE' ? 'approve' : 'reject', mode, c.retail);
 }
 
 export function ConsequenceOverlay({ consequence, mode, m }: { consequence: Consequence; mode: WorkspaceMode; m: M }) {
@@ -466,7 +505,174 @@ export function ConsequenceOverlay({ consequence, mode, m }: { consequence: Cons
       )}
       {consequence.points !== undefined && !!consequence.bonus && <div className="text-[11px] font-semibold text-amber-200">{m('overlayBonus', { bonus: consequence.bonus })}</div>}
       <div className="font-mono text-[10.5px] text-slate-400">{m('statusCode', { code: result.statusCode })}</div>
+      {result.journal && (
+        <div className="w-full rounded-lg border border-slate-600/70 bg-slate-950/70 px-2 py-1.5 text-left" data-testid="workspace-consequence-journal">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{m('overlayJournal')}</div>
+          <JournalLines lines={result.journal.lines} m={m} compact />
+        </div>
+      )}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Core ledger: journal lines, the four KPIs and the balance sheet
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A journal's Debit and Credit lines, debits first; a decision that moves no money shows the memo note. */
+export function JournalLines({ lines, m, compact = false }: { lines: readonly LedgerLine[]; m: M; compact?: boolean }) {
+  if (lines.length === 0) return <p className="mt-0.5 text-[10.5px] italic text-slate-400">{m('ledgerMemo')}</p>;
+  return (
+    <ul className={`mt-0.5 space-y-0.5 font-mono tabular-nums ${compact ? 'text-[10px]' : 'text-[11px]'}`}>
+      {lines.map((l, i) => (
+        <li key={`${l.gl}-${i}`} className={`flex items-baseline gap-1.5 ${l.cr ? 'pl-3' : ''}`} data-gl={l.gl} data-side={l.dr ? 'dr' : 'cr'}>
+          <span className={`shrink-0 font-bold ${l.dr ? 'text-sky-300' : 'text-amber-300'}`}>{m(l.dr ? 'ledgerDr' : 'ledgerCr')}</span>
+          <span className="shrink-0 text-slate-500">{GL_CODE[l.gl]}</span>
+          <span className="min-w-0 flex-1 truncate font-sans text-slate-200">{m(k(`gl_${l.gl}`))}</span>
+          <span className="shrink-0 text-slate-50">{money(l.dr || l.cr)}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function KpiTiles({ kpis, m, compact = false }: { kpis: RetailKpis; m: M; compact?: boolean }) {
+  const tile = (key: AnalystWorkspaceKey, cents: number, testId: string, warn = false) => (
+    <div className={`rounded-lg border px-2 py-1 ${warn ? 'border-amber-400/60 bg-amber-400/10' : 'border-slate-700 bg-slate-950/60'}`} data-testid={testId} data-warn={warn || undefined}>
+      <div className="truncate text-[9.5px] font-semibold uppercase tracking-wider text-slate-400">{m(key)}</div>
+      <div className={`font-bold tabular-nums ${compact ? 'text-[12px]' : 'text-[15px]'} ${warn ? 'text-amber-100' : 'text-slate-50'}`}>{money(cents)}</div>
+    </div>
+  );
+  return (
+    <div className="grid grid-cols-2 gap-1.5">
+      {tile('kpiFeeIncome', kpis.feeIncome, 'ledger-kpi-fees')}
+      {tile('kpiAtmCash', kpis.atmCash, 'ledger-kpi-atm', kpis.atmLow)}
+      {tile('kpiSuspense', kpis.suspense, 'ledger-kpi-suspense')}
+      {tile('kpiOverdraft', kpis.overdraft, 'ledger-kpi-overdraft')}
+    </div>
+  );
+}
+
+/** The retail queue's live view of the books, under the decision buttons. */
+function LedgerStrip({ ledger, m, onOpen }: { ledger: RetailLedger; m: M; onOpen: () => void }) {
+  const kpis = retailKpis(ledger);
+  return (
+    <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/[0.06] p-2" data-testid="workspace-ledger-strip">
+      <div className="mb-1 flex items-center justify-between">
+        <Kicker>{m('ledgerStrip')}</Kicker>
+        <button type="button" onClick={onOpen} className="text-[10.5px] font-semibold text-emerald-200 underline-offset-2 hover:underline">
+          {m('ledgerOpen')}
+        </button>
+      </div>
+      <KpiTiles kpis={kpis} m={m} compact />
+      {kpis.atmLow && <p className="mt-1 text-[10.5px] font-semibold text-amber-200">{m('kpiAtmLow', { min: money(ATM_FLEET_LOW_CENTS) })}</p>}
+    </div>
+  );
+}
+
+const SHEET_SIDES: readonly { side: GlSide; title: AnalystWorkspaceKey }[] = [
+  { side: 'asset', title: 'ledgerAssets' },
+  { side: 'liability', title: 'ledgerLiabilities' },
+  { side: 'equity', title: 'ledgerEquity' },
+  { side: 'income', title: 'ledgerIncome' },
+  { side: 'expense', title: 'ledgerExpense' },
+];
+
+/** The workspace's core ledger: the four KPIs, the balance sheet and P&L by account, the balance check and the latest journals. */
+export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: RetailLedger; m: M; onClose: () => void; onReset: () => void }) {
+  const sum = ledgerSummary(ledger);
+  const kpis = retailKpis(ledger);
+  const totals: Readonly<Record<GlSide, number>> = { asset: sum.assets, liability: sum.liabilities, equity: sum.equity, income: sum.income, expense: sum.expense };
+  return (
+    <div className="absolute inset-0 z-30 grid place-items-center bg-slate-950/80 p-4 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()} data-testid="workspace-ledger-backdrop">
+      <div role="dialog" aria-modal="true" aria-labelledby="workspace-ledger-title" data-testid="workspace-ledger" className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-emerald-400/40 bg-slate-900 shadow-2xl">
+        <div className="flex items-start justify-between gap-3 border-b border-slate-800 px-5 py-3">
+          <div>
+            <h3 id="workspace-ledger-title" className="text-[17px] font-extrabold text-emerald-100">
+              {m('ledgerTitle')}
+            </h3>
+            <p className="mt-0.5 text-[12px] text-slate-400">
+              {m('ledgerSubtitle')} · {m('ledgerPosted', { n: ledger.posted })}
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button type="button" onClick={onReset} data-testid="workspace-ledger-reset" className="rounded-lg border border-slate-600 px-3 py-1.5 text-[12px] font-medium text-slate-300 transition hover:bg-slate-800">
+              {m('ledgerReset')}
+            </button>
+            <button type="button" onClick={onClose} autoFocus data-testid="workspace-ledger-close" className="rounded-lg border border-emerald-400/60 bg-emerald-400 px-3 py-1.5 text-[12px] font-bold text-slate-950 transition hover:bg-emerald-300">
+              {m('ledgerClose')}
+            </button>
+          </div>
+        </div>
+        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-5 md:grid-cols-[1fr_minmax(260px,320px)]">
+          <div className="space-y-3">
+            <KpiTiles kpis={kpis} m={m} />
+            {kpis.atmLow && (
+              <p className="rounded-lg border border-amber-400/50 bg-amber-400/10 px-2.5 py-1.5 text-[12px] font-semibold text-amber-100" data-testid="ledger-atm-low">
+                {m('kpiAtmLow', { min: money(ATM_FLEET_LOW_CENTS) })}
+              </p>
+            )}
+            <div className={`rounded-lg px-2.5 py-1.5 text-[12px] font-semibold tabular-nums ${sum.balanced ? 'bg-emerald-500/15 text-emerald-200' : 'bg-rose-500/20 text-rose-100'}`} data-testid="ledger-balanced" data-balanced={sum.balanced}>
+              {sum.balanced ? m('ledgerBalanced', { a: money(sum.assets), b: money(sum.liabilities + sum.equity + sum.net) }) : m('ledgerUnbalanced', { diff: money(sum.assets - sum.liabilities - sum.equity - sum.net) })}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {SHEET_SIDES.map(({ side, title }) => (
+                <section key={side} className="rounded-xl border border-slate-800 bg-slate-950/50 p-2.5" data-testid={`ledger-side-${side}`}>
+                  <div className="flex items-baseline justify-between">
+                    <Kicker>{m(title)}</Kicker>
+                    <span className="text-[12px] font-bold tabular-nums text-slate-100">{money(totals[side])}</span>
+                  </div>
+                  <ul className="mt-1 space-y-0.5 text-[11.5px] tabular-nums">
+                    {GL_ACCOUNTS.filter((a) => a.side === side).map((a) => (
+                      <li key={a.id} className="flex items-baseline gap-1.5" data-gl={a.id}>
+                        <span className="shrink-0 font-mono text-[10.5px] text-slate-500">{a.code}</span>
+                        <span className="min-w-0 flex-1 truncate text-slate-300">{m(k(`gl_${a.id}`))}</span>
+                        <span className="shrink-0 font-semibold text-slate-50">{money(naturalBalance(a.id, ledger.balances[a.id]))}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+              <section className="rounded-xl border border-slate-800 bg-slate-950/50 p-2.5">
+                <Kicker>{m('ledgerNet')}</Kicker>
+                <div className={`mt-1 text-[18px] font-black tabular-nums ${sum.net < 0 ? 'text-rose-200' : 'text-emerald-200'}`} data-testid="ledger-net">
+                  {money(sum.net)}
+                </div>
+              </section>
+            </div>
+          </div>
+          <div>
+            <Kicker>{m('ledgerJournal')}</Kicker>
+            {ledger.journal.length === 0 ? (
+              <p className="mt-1 text-[12px] text-slate-400">{m('ledgerEmpty')}</p>
+            ) : (
+              <ol className="mt-1 space-y-2" data-testid="ledger-journal">
+                {ledger.journal.map((j, i) => (
+                  <li key={`${j.caseId}-${i}`} className="rounded-lg border border-slate-800 bg-slate-950/60 px-2.5 py-1.5" data-case={j.caseId}>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="truncate text-[11.5px] font-semibold text-slate-100">{m(k(`retail_${j.scenario}_title`))}</span>
+                      <span className={`shrink-0 text-[10px] font-bold ${j.decision === 'APPROVE' ? 'text-emerald-300' : 'text-rose-300'}`}>{m(j.decision === 'APPROVE' ? 'approve' : 'reject')}</span>
+                    </div>
+                    <div className="font-mono text-[10px] text-slate-500">
+                      {j.caseId} · {j.statusCode}
+                    </div>
+                    <JournalLines lines={j.lines} m={m} compact />
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LedgerButton({ kpis, onOpen, m }: { kpis: RetailKpis; onOpen: () => void; m: M }) {
+  return (
+    <button type="button" onClick={onOpen} title={m('ledgerSubtitle')} data-testid="workspace-ledger-open" data-warn={kpis.atmLow || undefined} className={`rounded-lg border px-2.5 py-1.5 text-[12px] font-semibold transition ${kpis.atmLow ? 'border-amber-400/60 bg-amber-400/15 text-amber-100' : 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20'}`}>
+      {m('ledgerButton')}
+    </button>
   );
 }
 
@@ -868,6 +1074,8 @@ function DecisionPanel({
   mode,
   m,
   challenge,
+  ledger = null,
+  onOpenLedger = () => undefined,
 }: {
   shift: ShiftProgress;
   current: StaffCase | null;
@@ -876,6 +1084,9 @@ function DecisionPanel({
   mode: WorkspaceMode;
   m: M;
   challenge: { tally: ChallengeTally; remainingSec: number } | null;
+  /** The core ledger, shown on the retail queue only. */
+  ledger?: RetailLedger | null;
+  onOpenLedger?: () => void;
 }) {
   const accuracy = shift.reviews > 0 ? (shift.correct / shift.reviews) * 100 : 0;
   const met = shift.reviews >= SHIFT_TARGET.reviews && accuracy > SHIFT_TARGET.accuracyPct;
@@ -904,6 +1115,7 @@ function DecisionPanel({
           {m('reject')}
         </button>
       </div>
+      {ledger && <LedgerStrip ledger={ledger} m={m} onOpen={onOpenLedger} />}
       <div className="mt-auto rounded-xl border border-slate-800 bg-slate-950/50 p-2.5" data-testid="workspace-shift" data-met={met || undefined}>
         <Kicker>{m('shiftTitle')}</Kicker>
         <div className="mt-1 text-[11.5px] font-medium text-slate-300">{m('shiftTarget', { reviews: SHIFT_TARGET.reviews, acc: SHIFT_TARGET.accuracyPct })}</div>
@@ -949,7 +1161,7 @@ function RolePicker({ role, onPick, m }: { role: StaffRoleId; onPick: (role: Sta
 function TaskPicker({ role, task, onPick, m }: { role: StaffRoleId; task: StaffTaskNo; onPick: (task: StaffTaskNo) => void; m: M }) {
   return (
     <select aria-label={m('taskSelectLabel')} value={task} onChange={(e) => onPick(Number(e.target.value) as StaffTaskNo)} data-testid="workspace-task-select" className={PICKER}>
-      {STAFF_TASKS.map((n) => (
+      {WORKSPACE_TASKS.map((n) => (
         <option key={n} value={n}>
           {`🎯 ${m('taskOption', { n, title: m(taskTitleKey(role, n)) })}`}
         </option>
@@ -1012,10 +1224,14 @@ export interface AnalystWorkspaceViewProps {
   career?: CareerProgress;
   badgeUnlocks?: readonly BadgeId[];
   onDismissBadgeUnlock?: () => void;
+  /** The retail core ledger and its reset. */
+  ledger?: RetailLedger;
+  onResetLedger?: () => void;
 }
 
 const NO_CHALLENGE: ChallengeState = { run: null, finished: null };
 const NO_UNLOCKS: readonly BadgeId[] = [];
+const OPENING_LEDGER = openingLedger();
 const NO_CONTROLS: ChallengeControls = { start: () => undefined, stop: () => undefined, record: () => undefined, tick: () => undefined, dismiss: () => undefined };
 
 /** The workspace itself, driven by props (the store-connected modal below feeds it). */
@@ -1039,8 +1255,11 @@ export function AnalystWorkspaceView({
   career = EMPTY_CAREER,
   badgeUnlocks = NO_UNLOCKS,
   onDismissBadgeUnlock = () => undefined,
+  ledger = OPENING_LEDGER,
+  onResetLedger = () => undefined,
 }: AnalystWorkspaceViewProps) {
   const [badgesOpen, setBadgesOpen] = useState(false);
+  const [ledgerOpen, setLedgerOpen] = useState(false);
   const unlock = badgeUnlocks[0] ?? null;
   const terms = useTerms();
   const m = useMessages(analystWorkspaceMessages);
@@ -1065,7 +1284,7 @@ export function AnalystWorkspaceView({
 
   const decide = useCallback(
     (d: StaffDecision) => {
-      if (!current || !role || consequence || pendingRole || challenge.finished || unlock || badgesOpen) return;
+      if (!current || !role || consequence || pendingRole || challenge.finished || unlock || badgesOpen || ledgerOpen) return;
       const latency = elapsedRef.current;
       const { result, errors, xp, combo } = onDecide(current.id, d, latency, mode === 'expert');
       if (!result.ok) return;
@@ -1074,10 +1293,10 @@ export function AnalystWorkspaceView({
       if (challenge.run) {
         const rules = incidentRules(incidentId);
         cc.record(result.correct, latency);
-        setConsequence({ result, role, drill: current.drill, errors, xp, combo: streak, points: challengePoints(result.correct, latency, rules), bonus: result.correct ? challengeBonus(latency, rules) : 0 });
-      } else setConsequence({ result, role, drill: current.drill, errors, xp, combo: streak });
+        setConsequence({ result, role, drill: current.drill, retail: current.retail?.id, errors, xp, combo: streak, points: challengePoints(result.correct, latency, rules), bonus: result.correct ? challengeBonus(latency, rules) : 0 });
+      } else setConsequence({ result, role, drill: current.drill, retail: current.retail?.id, errors, xp, combo: streak });
     },
-    [current, role, consequence, pendingRole, onDecide, challenge, cc, shift.comboCount, incidentId, mode, unlock, badgesOpen],
+    [current, role, consequence, pendingRole, onDecide, challenge, cc, shift.comboCount, incidentId, mode, unlock, badgesOpen, ledgerOpen],
   );
 
   useEffect(() => {
@@ -1086,17 +1305,18 @@ export function AnalystWorkspaceView({
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return;
       if (e.key === 'Escape') {
         if (unlock) onDismissBadgeUnlock();
+        else if (ledgerOpen) setLedgerOpen(false);
         else if (badgesOpen) setBadgesOpen(false);
         else if (challenge.finished) cc.dismiss();
         else if (pendingRole) setPendingRole(null);
         else onClose();
-      } else if (pendingRole || challenge.finished || unlock || badgesOpen) return;
+      } else if (pendingRole || challenge.finished || unlock || badgesOpen || ledgerOpen) return;
       else if (e.key === 'a' || e.key === 'A') decide('APPROVE');
       else if (e.key === 'r' || e.key === 'R') decide('REJECT');
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, decide, pendingRole, challenge, cc, unlock, badgesOpen, onDismissBadgeUnlock]);
+  }, [onClose, decide, pendingRole, challenge, cc, unlock, badgesOpen, ledgerOpen, onDismissBadgeUnlock]);
 
   useEffect(() => {
     if (unlock && uiStore.getState().soundOn) play('badgeUnlock');
@@ -1151,6 +1371,7 @@ export function AnalystWorkspaceView({
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <IncidentToggle on={incidentMode} onToggle={onToggleIncidentMode} m={m} />
             <BadgesButton unlocked={career.badges.length} onOpen={() => setBadgesOpen(true)} m={m} />
+            <LedgerButton kpis={retailKpis(ledger)} onOpen={() => setLedgerOpen(true)} m={m} />
             <SoundToggle m={m} />
             <LanguageToggle variant="globe" testId="workspace-language" />
             <ModeToggle mode={mode} onChange={setMode} m={m} />
@@ -1164,12 +1385,23 @@ export function AnalystWorkspaceView({
         <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(250px,300px)_1fr_minmax(230px,270px)] lg:overflow-hidden">
           <MissionPanel role={role} task={task} mode={mode} m={m} deskName={terms.stationTitle(desk)} sla={sla} />
           <ScenarioCard current={current} queued={Math.max(0, cases.length - 1)} elapsed={elapsed} mode={mode} m={m} onAdvance={onAdvance} canAdvance={canAdvance} showDrill={task === RANDOM_TASK} sla={sla} masked={masked} />
-          <DecisionPanel shift={shift} current={current} onDecide={decide} consequence={consequence} mode={mode} m={m} challenge={challenge.run ? { tally: challenge.run.tally, remainingSec } : null} />
+          <DecisionPanel
+            shift={shift}
+            current={current}
+            onDecide={decide}
+            consequence={consequence}
+            mode={mode}
+            m={m}
+            challenge={challenge.run ? { tally: challenge.run.tally, remainingSec } : null}
+            ledger={task === RETAIL_TASK ? ledger : null}
+            onOpenLedger={() => setLedgerOpen(true)}
+          />
         </div>
         {incidentId === 'POWER_GRID_FAILOVER' && <PowerFlicker />}
         {consequence && !consequence.result.correct && <SopViolationPulse m={m} />}
         {challenge.finished && <ChallengeScorecard tally={challenge.finished} m={m} onAgain={cc.start} onClose={cc.dismiss} />}
         {badgesOpen && <BadgeDrawer career={career} m={m} onClose={() => setBadgesOpen(false)} />}
+        {ledgerOpen && <CoreLedgerSheet ledger={ledger} m={m} onClose={() => setLedgerOpen(false)} onReset={onResetLedger} />}
         {unlock && <BadgeUnlockModal key={unlock} badge={unlock} m={m} onClose={onDismissBadgeUnlock} />}
         {pendingRole && <SwitchDeskDialog target={pendingRole} m={m} onCancel={() => setPendingRole(null)} onConfirm={confirmSwitch} />}
       </div>
@@ -1177,7 +1409,7 @@ export function AnalystWorkspaceView({
   );
 }
 
-/** The store-connected modal: open while `staffDesk` is set. Cases come from the 28-task matrix. */
+/** The store-connected modal: open while `staffDesk` is set. Cases come from the 28-task matrix or the desk's retail queue. */
 export function AnalystWorkspaceModal() {
   const desk = useBankStore((s) => s.staffDesk);
   const role = desk ? roleForStation(desk) : null;
@@ -1189,6 +1421,8 @@ export function AnalystWorkspaceModal() {
   const career = useBankStore((s) => s.career);
   const badgeUnlocks = useBankStore((s) => s.badgeUnlocks);
   const dismissBadgeUnlock = useBankStore((s) => s.dismissBadgeUnlock);
+  const ledger = useBankStore((s) => s.retailLedger);
+  const resetLedger = useBankStore((s) => s.resetRetailLedger);
   const setTask = useBankStore((s) => s.setStaffTask);
   const switchDesk = useBankStore((s) => s.switchStaffDesk);
   const step = useBankStore((s) => s.step);
@@ -1246,6 +1480,8 @@ export function AnalystWorkspaceModal() {
       career={career}
       badgeUnlocks={badgeUnlocks}
       onDismissBadgeUnlock={dismissBadgeUnlock}
+      ledger={ledger}
+      onResetLedger={resetLedger}
     />
   );
 }
