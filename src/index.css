@@ -853,3 +853,55 @@ body[data-hover3d] .bk-office-canvas {
 body[data-hover3d] .bk-office-canvas[data-grabbing] {
   cursor: grabbing;
 }
+
+/* Incident Mode: the toggle's red/amber glow, and the power-failover screen flicker. */
+@keyframes pc-incident-glow-kf {
+  0%,
+  100% {
+    box-shadow: 0 0 6px 1px rgb(244 63 94 / 0.55);
+    border-color: rgb(251 113 133 / 0.9);
+  }
+  50% {
+    box-shadow: 0 0 18px 3px rgb(251 191 36 / 0.6);
+    border-color: rgb(251 191 36 / 0.9);
+  }
+}
+.pc-incident-glow {
+  animation: pc-incident-glow-kf 1.6s ease-in-out infinite;
+}
+
+@keyframes pc-flicker-kf {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.35;
+  }
+  10% {
+    opacity: 0.05;
+  }
+  12% {
+    opacity: 0.3;
+  }
+  14%,
+  60% {
+    opacity: 0;
+  }
+  62% {
+    opacity: 0.2;
+  }
+  64% {
+    opacity: 0;
+  }
+}
+.pc-flicker {
+  animation: pc-flicker-kf 2.4s steps(1, end) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-incident-glow,
+  .pc-flicker {
+    animation: none;
+  }
+}

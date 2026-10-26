@@ -8,6 +8,12 @@ import {
   challengePoints,
   comboMultiplier,
   comboTier,
+  incidentClockRate,
+  incidentRole,
+  incidentRules,
+  incidentSlaSeconds,
+  maskedFields,
+  type ActiveIncident,
   RANDOM_TASK,
   tallyAccuracy,
   type ChallengeGrade,
@@ -158,7 +164,7 @@ function ModeToggle({ mode, onChange, m }: { mode: WorkspaceMode; onChange: (mod
 // Panel A
 // ─────────────────────────────────────────────────────────────────────────────
 
-function MissionPanel({ role, task, mode, m, deskName }: { role: StaffRoleId; task: StaffTaskNo; mode: WorkspaceMode; m: M; deskName: string }) {
+function MissionPanel({ role, task, mode, m, deskName, sla = STAFF_SLA_SECONDS }: { role: StaffRoleId; task: StaffTaskNo; mode: WorkspaceMode; m: M; deskName: string; sla?: number }) {
   const expert = mode === 'expert';
   return (
     <section className="flex min-h-0 flex-col gap-3 overflow-y-auto rounded-xl border border-slate-800 bg-slate-900/50 p-3.5" data-testid="workspace-mission">
@@ -173,7 +179,7 @@ function MissionPanel({ role, task, mode, m, deskName }: { role: StaffRoleId; ta
           {m(k(expert ? `role_${role}_brief` : `role_${role}_briefStd`))}
         </p>
         <div className={`mt-2 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${expert ? 'border-rose-400/40 bg-rose-400/10 text-rose-200' : 'border-amber-400/40 bg-amber-400/10 text-amber-200'}`} data-testid="workspace-sla">
-          {m(expert ? 'slaTargetExp' : 'slaTarget', { sec: STAFF_SLA_SECONDS })}
+          {m(expert ? 'slaTargetExp' : 'slaTarget', { sec: sla })}
         </div>
         {expert && (
           <div className="mt-2 rounded-lg border border-violet-400/30 bg-violet-500/10 px-2.5 py-1.5" data-testid="workspace-reg">
@@ -219,8 +225,22 @@ function MissionPanel({ role, task, mode, m, deskName }: { role: StaffRoleId; ta
 // Panel B: the 4-part scenario card
 // ─────────────────────────────────────────────────────────────────────────────
 
-function PayloadTag({ field, mode, m, locale }: { field: StaffField; mode: WorkspaceMode; m: M; locale: Locale }) {
+/** What CORRUPTED_PAYLOAD leaves of a field's value. */
+export const MASK = '██████';
+const NONE_MASKED: ReadonlySet<string> = new Set();
+
+function PayloadTag({ field, mode, m, locale, masked = false }: { field: StaffField; mode: WorkspaceMode; m: M; locale: Locale; masked?: boolean }) {
   const label = m(k(`field_${field.key}`));
+  if (masked) {
+    return (
+      <div className="flex min-w-0 flex-col rounded-lg border border-dashed border-slate-500/60 bg-slate-800/60 px-2.5 py-1.5" data-field={field.key} data-masked="true">
+        <span className="text-[10.5px] text-slate-400">{label}</span>
+        <span className="mt-0.5 font-mono text-[13px] font-semibold tracking-tight text-slate-500" title={m('incidentMasked')} aria-label={m('incidentMasked')}>
+          {MASK}
+        </span>
+      </div>
+    );
+  }
   return (
     <div
       className={`flex min-w-0 flex-col rounded-lg border px-2.5 py-1.5 ${field.flag ? 'border-rose-400/60 bg-rose-500/10' : 'border-sky-400/25 bg-sky-400/[0.06]'}`}
@@ -243,7 +263,29 @@ function PayloadTag({ field, mode, m, locale }: { field: StaffField; mode: Works
   );
 }
 
-function ScenarioCard({ current, queued, elapsed, mode, m, onAdvance, canAdvance, showDrill }: { current: StaffCase | null; queued: number; elapsed: number; mode: WorkspaceMode; m: M; onAdvance: () => void; canAdvance: boolean; showDrill: boolean }) {
+function ScenarioCard({
+  current,
+  queued,
+  elapsed,
+  mode,
+  m,
+  onAdvance,
+  canAdvance,
+  showDrill,
+  sla = STAFF_SLA_SECONDS,
+  masked = NONE_MASKED,
+}: {
+  current: StaffCase | null;
+  queued: number;
+  elapsed: number;
+  mode: WorkspaceMode;
+  m: M;
+  onAdvance: () => void;
+  canAdvance: boolean;
+  showDrill: boolean;
+  sla?: number;
+  masked?: ReadonlySet<string>;
+}) {
   const locale = useLocale();
   if (!current) {
     return (
@@ -259,7 +301,7 @@ function ScenarioCard({ current, queued, elapsed, mode, m, onAdvance, canAdvance
     );
   }
   const persona = personaFor(current.id);
-  const left = STAFF_SLA_SECONDS - elapsed;
+  const left = sla - elapsed;
   const late = left < 0;
   const s = suffix(mode);
   const story = m(k(`scene_${current.scene}_story`), { name: persona.name, amount: money(current.amountCents) });
@@ -286,6 +328,11 @@ function ScenarioCard({ current, queued, elapsed, mode, m, onAdvance, canAdvance
           {showDrill && current.drill && (
             <span className="mt-1 inline-flex rounded-full border border-violet-400/40 bg-violet-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-violet-200" data-testid="workspace-drill" data-drill={current.drill}>
               {m('taskDrillTag', { n: current.drill })}
+            </span>
+          )}
+          {current.incident && (
+            <span className="ml-1 mt-1 inline-flex rounded-full border border-rose-400/50 bg-rose-500/15 px-2 py-0.5 text-[10.5px] font-semibold text-rose-200" data-testid="workspace-incident-case" data-incident={current.incident}>
+              {m('incidentSurgeTag')}
             </span>
           )}
         </div>
@@ -315,7 +362,7 @@ function ScenarioCard({ current, queued, elapsed, mode, m, onAdvance, canAdvance
         <Kicker>{m('payloadTitle')}</Kicker>
         <div className="mt-1.5 grid grid-cols-2 gap-1.5 sm:grid-cols-3" data-testid="workspace-fields">
           {current.fields.map((f) => (
-            <PayloadTag key={f.key} field={f} mode={mode} m={m} locale={locale} />
+            <PayloadTag key={f.key} field={f} mode={mode} m={m} locale={locale} masked={masked.has(f.key)} />
           ))}
         </div>
       </div>
@@ -404,6 +451,11 @@ export function ConsequenceOverlay({ consequence, mode, m }: { consequence: Cons
             {m('comboBroken')}
           </div>
         ))}
+      {!ok && consequence.points === undefined && (consequence.xp ?? 0) < 0 && (
+        <div className="text-[12px] font-bold text-rose-200" data-testid="workspace-audit-penalty">
+          {m('incidentAuditPenalty', { xp: Math.abs(consequence.xp ?? 0) })}
+        </div>
+      )}
       {consequence.points !== undefined && !!consequence.bonus && <div className="text-[11px] font-semibold text-amber-200">{m('overlayBonus', { bonus: consequence.bonus })}</div>}
       <div className="font-mono text-[10.5px] text-slate-400">{m('statusCode', { code: result.statusCode })}</div>
     </div>
@@ -605,6 +657,80 @@ function SoundToggle({ m }: { m: M }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Incident Mode: toggle, live-incident banner, power-failover flicker
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function IncidentToggle({ on, onToggle, m }: { on: boolean; onToggle: () => void; m: M }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={onToggle}
+      title={m('incidentToggleHint')}
+      data-testid="workspace-incident-toggle"
+      data-on={on || undefined}
+      className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] font-bold tracking-wide transition ${on ? 'pc-incident-glow border-rose-400 bg-gradient-to-r from-rose-500/20 to-amber-400/15 text-amber-100' : 'border-slate-700 bg-slate-900 text-slate-400 hover:bg-slate-800'}`}
+    >
+      <span aria-hidden="true">[</span>
+      <span aria-hidden="true" className={on ? 'animate-pulse text-amber-300 drop-shadow-[0_0_6px_rgba(251,191,36,0.9)]' : 'grayscale'} data-testid="workspace-incident-badge">
+        ⚡
+      </span>
+      {m(on ? 'incidentToggleOn' : 'incidentToggleOff')}
+      <span aria-hidden="true">]</span>
+    </button>
+  );
+}
+
+export function IncidentBanner({ incident, reviews, sla, m }: { incident: ActiveIncident; reviews: number; sla: number; m: M }) {
+  const id = incident.id;
+  const audit = id === 'AUDIT_DAY';
+  const rate = incidentClockRate(id);
+  const left = SHIFT_TARGET.reviews - (reviews % SHIFT_TARGET.reviews);
+  return (
+    <div
+      role="alert"
+      data-testid="workspace-incident"
+      data-incident={id}
+      className={`flex flex-wrap items-start gap-x-4 gap-y-1.5 border-b px-4 py-2 ${audit ? 'border-rose-500/70 bg-rose-950/70' : 'border-amber-400/50 bg-gradient-to-r from-rose-950/60 via-amber-950/40 to-slate-950'}`}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`rounded-md px-2 py-0.5 text-[11px] font-black tracking-wider ${audit ? 'animate-pulse bg-rose-600 text-white shadow-[0_0_16px_rgba(244,63,94,0.8)]' : 'bg-amber-400 text-slate-950'}`} data-testid="workspace-incident-alert">
+            {m(k(`incident_${id}_alert`))}
+          </span>
+          <span className="text-[13px] font-bold text-slate-50">{m(k(`incident_${id}_title`))}</span>
+          <span className="rounded-full border border-slate-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-300">{m(incidentRole(id) ? 'incidentScopeDesk' : 'incidentScopeGlobal')}</span>
+        </div>
+        <div className="mt-1 grid gap-x-4 gap-y-0.5 text-[11.5px] leading-snug md:grid-cols-2">
+          <p className="text-slate-300">
+            <span className="font-semibold text-amber-200">{m('incidentPhenomenon')}: </span>
+            {m(k(`incident_${id}_phenomenon`))}
+          </p>
+          <p className="text-slate-200" data-testid="workspace-incident-rule">
+            <span className="font-semibold text-rose-200">{m('incidentRule')}: </span>
+            {m(k(`incident_${id}_rule`))}
+          </p>
+        </div>
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-1 text-[11px] font-semibold tabular-nums">
+        {audit && (
+          <span className={`rounded-full px-2 py-0.5 ${incident.compliance < 70 ? 'bg-rose-500/25 text-rose-100' : 'bg-emerald-500/15 text-emerald-200'}`} data-testid="workspace-incident-compliance" data-compliance={incident.compliance}>
+            {m('incidentCompliance', { pct: incident.compliance })}
+          </span>
+        )}
+        {sla !== STAFF_SLA_SECONDS && <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-rose-100">{m('incidentSlaCut', { sec: sla })}</span>}
+        {rate !== 1 && <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-amber-100">{m('incidentClockFast', { rate })}</span>}
+        <span className="text-[10.5px] font-normal text-slate-400">{m('incidentShiftLeft', { n: left })}</span>
+      </div>
+    </div>
+  );
+}
+
+function PowerFlicker() {
+  return <div className="pc-flicker pointer-events-none absolute inset-0 z-[24] rounded-2xl bg-amber-200/40 mix-blend-overlay" aria-hidden="true" data-testid="workspace-power-flicker" />;
+}
+
 function DecisionPanel({
   shift,
   current,
@@ -749,13 +875,34 @@ export interface AnalystWorkspaceViewProps {
   /** The Time-Attack challenge, held by the caller so it outlives remounts. */
   challenge?: ChallengeState;
   challengeControls?: ChallengeControls;
+  /** Incident Mode (on by default) and the crisis event running at this desk. */
+  incidentMode?: boolean;
+  incident?: ActiveIncident | null;
+  onToggleIncidentMode?: () => void;
 }
 
 const NO_CHALLENGE: ChallengeState = { run: null, finished: null };
 const NO_CONTROLS: ChallengeControls = { start: () => undefined, stop: () => undefined, record: () => undefined, tick: () => undefined, dismiss: () => undefined };
 
 /** The workspace itself, driven by props (the store-connected modal below feeds it). */
-export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, canAdvance, onClose, onAdvance, onDecide, onTaskChange, onSwitchRole, challenge = NO_CHALLENGE, challengeControls: cc = NO_CONTROLS }: AnalystWorkspaceViewProps) {
+export function AnalystWorkspaceView({
+  desk,
+  cases,
+  shift,
+  initialMode,
+  task,
+  canAdvance,
+  onClose,
+  onAdvance,
+  onDecide,
+  onTaskChange,
+  onSwitchRole,
+  challenge = NO_CHALLENGE,
+  challengeControls: cc = NO_CONTROLS,
+  incidentMode = true,
+  incident = null,
+  onToggleIncidentMode = () => undefined,
+}: AnalystWorkspaceViewProps) {
   const terms = useTerms();
   const m = useMessages(analystWorkspaceMessages);
   const [mode, setMode] = useState<WorkspaceMode>(initialMode);
@@ -764,7 +911,10 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
   const remainingSec = useCountdown(challenge.run, cc.tick);
   const role = roleForStation(desk);
   const current = cases[0] ?? null;
-  const elapsed = useCaseTimer(consequence ? null : (current?.id ?? null));
+  const incidentId = incident?.id ?? null;
+  const sla = incidentSlaSeconds(incidentId);
+  const masked = useMemo(() => (current ? maskedFields(current, incidentId) : NONE_MASKED), [current, incidentId]);
+  const elapsed = useCaseTimer(consequence ? null : (current?.id ?? null)) * incidentClockRate(incidentId);
   const elapsedRef = useRef(elapsed);
   elapsedRef.current = elapsed;
 
@@ -783,11 +933,12 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
       const streak = combo ?? (result.correct ? (shift.comboCount ?? 0) + 1 : 0);
       if (uiStore.getState().soundOn) play(reviewSound(result.correct, streak));
       if (challenge.run) {
+        const rules = incidentRules(incidentId);
         cc.record(result.correct, latency);
-        setConsequence({ result, role, drill: current.drill, errors, xp, combo: streak, points: challengePoints(result.correct, latency), bonus: result.correct ? challengeBonus(latency) : 0 });
+        setConsequence({ result, role, drill: current.drill, errors, xp, combo: streak, points: challengePoints(result.correct, latency, rules), bonus: result.correct ? challengeBonus(latency, rules) : 0 });
       } else setConsequence({ result, role, drill: current.drill, errors, xp, combo: streak });
     },
-    [current, role, consequence, pendingRole, onDecide, challenge, cc, shift.comboCount],
+    [current, role, consequence, pendingRole, onDecide, challenge, cc, shift.comboCount, incidentId],
   );
 
   useEffect(() => {
@@ -822,7 +973,20 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/75 p-3 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()} data-testid="analyst-workspace-backdrop">
-      <div role="dialog" aria-modal="true" aria-labelledby="analyst-workspace-title" data-testid="analyst-workspace" data-station={desk} data-role={role} data-mode={mode} data-challenge={challenge.run ? 'running' : undefined} data-combo-tier={tier} className={`relative flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border bg-slate-950 shadow-2xl transition-shadow duration-500 ${tier === 'zone' ? 'border-amber-300/80' : 'border-slate-700'}`} style={{ boxShadow: glow }}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="analyst-workspace-title"
+        data-testid="analyst-workspace"
+        data-station={desk}
+        data-role={role}
+        data-mode={mode}
+        data-challenge={challenge.run ? 'running' : undefined}
+        data-combo-tier={tier}
+        data-incident={incidentId ?? undefined}
+        className={`relative flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border bg-slate-950 shadow-2xl transition-shadow duration-500 ${incidentId === 'AUDIT_DAY' ? 'border-rose-500/80' : tier === 'zone' ? 'border-amber-300/80' : 'border-slate-700'}`}
+        style={{ boxShadow: glow }}
+      >
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-4 py-2.5 xl:flex-nowrap">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 xl:flex-nowrap">
             <div className="min-w-0 xl:max-w-[18rem]">
@@ -839,6 +1003,7 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <IncidentToggle on={incidentMode} onToggle={onToggleIncidentMode} m={m} />
             <SoundToggle m={m} />
             <LanguageToggle variant="globe" testId="workspace-language" />
             <ModeToggle mode={mode} onChange={setMode} m={m} />
@@ -848,11 +1013,13 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
             </button>
           </div>
         </header>
+        {incident && <IncidentBanner incident={incident} reviews={shift.reviews} sla={sla} m={m} />}
         <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(250px,300px)_1fr_minmax(230px,270px)] lg:overflow-hidden">
-          <MissionPanel role={role} task={task} mode={mode} m={m} deskName={terms.stationTitle(desk)} />
-          <ScenarioCard current={current} queued={Math.max(0, cases.length - 1)} elapsed={elapsed} mode={mode} m={m} onAdvance={onAdvance} canAdvance={canAdvance} showDrill={task === RANDOM_TASK} />
+          <MissionPanel role={role} task={task} mode={mode} m={m} deskName={terms.stationTitle(desk)} sla={sla} />
+          <ScenarioCard current={current} queued={Math.max(0, cases.length - 1)} elapsed={elapsed} mode={mode} m={m} onAdvance={onAdvance} canAdvance={canAdvance} showDrill={task === RANDOM_TASK} sla={sla} masked={masked} />
           <DecisionPanel shift={shift} current={current} onDecide={decide} consequence={consequence} mode={mode} m={m} challenge={challenge.run ? { tally: challenge.run.tally, remainingSec } : null} />
         </div>
+        {incidentId === 'POWER_GRID_FAILOVER' && <PowerFlicker />}
         {consequence && !consequence.result.correct && <SopViolationPulse m={m} />}
         {challenge.finished && <ChallengeScorecard tally={challenge.finished} m={m} onAgain={cc.start} onClose={cc.dismiss} />}
         {pendingRole && <SwitchDeskDialog target={pendingRole} m={m} onCancel={() => setPendingRole(null)} onConfirm={confirmSwitch} />}
@@ -875,7 +1042,11 @@ export function AnalystWorkspaceModal() {
   const step = useBankStore((s) => s.step);
   const dayOver = useBankStore((s) => s.view.dayOver);
   const termMode = useBankStore((s) => s.termMode);
-  const cases = useMemo(() => (role ? taskDeck(role, task, seq) : []), [role, task, seq]);
+  const incidentMode = useBankStore((s) => s.staffIncidentMode);
+  const incident = useBankStore((s) => s.staffIncident);
+  const setIncidentMode = useBankStore((s) => s.setIncidentMode);
+  const incidentId = incident?.id ?? null;
+  const cases = useMemo(() => (role ? taskDeck(role, task, seq, 4, incidentId) : []), [role, task, seq, incidentId]);
   const run = useBankStore((s) => s.staffChallenge);
   const finished = useBankStore((s) => s.staffChallengeResult);
   const challenge = useMemo<ChallengeState>(() => ({ run, finished }), [run, finished]);
@@ -892,7 +1063,7 @@ export function AnalystWorkspaceModal() {
   const onDecide = useCallback<AnalystWorkspaceViewProps['onDecide']>(
     (caseId, decision, latencySec) => {
       const before = role ? (bankStore.getState().staffShift[role] ?? EMPTY_SHIFT) : EMPTY_SHIFT;
-      const result = train(caseId, decision, latencySec, STAFF_SLA_SECONDS);
+      const result = train(caseId, decision, latencySec, incidentSlaSeconds(bankStore.getState().staffIncident?.id));
       const after = role ? (bankStore.getState().staffShift[role] ?? EMPTY_SHIFT) : EMPTY_SHIFT;
       return { result, errors: after.errors, xp: after.xp - before.xp, combo: after.comboCount };
     },
@@ -917,6 +1088,9 @@ export function AnalystWorkspaceModal() {
       onSwitchRole={onSwitchRole}
       challenge={challenge}
       challengeControls={challengeControls}
+      incidentMode={incidentMode}
+      incident={incident}
+      onToggleIncidentMode={() => setIncidentMode(!incidentMode)}
     />
   );
 }

@@ -1003,6 +1003,150 @@ export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
   heat_green: { en: "Normal (fewer than {warn} waiting)", vi: "Bình thường (dưới {warn} hồ sơ chờ)" },
   heat_orange: { en: "Warning ({warn}–{crit} waiting)", vi: "Cảnh báo ({warn}–{crit} hồ sơ chờ)" },
   heat_red: { en: "Critical congestion (over {crit} waiting or SLA breached)", vi: "Ùn tắc nghiêm trọng (trên {crit} hồ sơ chờ hoặc vượt SLA)" },
+  // ── Incident Mode: toggle, banner and the 25 crisis events (title · phenomenon · rule · alert) ──
+  incidentToggleOn: { en: 'Incident Mode: ON', vi: 'Sự cố thảm họa: BẬT' },
+  incidentToggleOff: { en: 'Incident Mode: OFF', vi: 'Sự cố thảm họa: TẮT' },
+  incidentToggleHint: {
+    en: 'Incident Mode fires real-time crisis events: every shift has a 25% chance of an audit, an outage or a fraud wave that changes the rules. Click to turn it off at any time.',
+    vi: 'Chế độ Sự cố kích hoạt các tình huống khủng hoảng theo thời gian thực: mỗi ca có 25% khả năng xảy ra kiểm toán, sự cố hệ thống hoặc làn sóng gian lận làm thay đổi luật chơi. Nhấn để tắt bất cứ lúc nào.',
+  },
+  incidentKicker: { en: '⚡ Live incident', vi: '⚡ Sự cố đang diễn ra' },
+  incidentScopeGlobal: { en: 'Bank-wide · every desk', vi: 'Toàn hệ thống · mọi quầy' },
+  incidentScopeDesk: { en: 'This desk only', vi: 'Chỉ quầy này' },
+  incidentPhenomenon: { en: 'What is happening', vi: 'Hiện tượng' },
+  incidentRule: { en: 'Rule in force', vi: 'Quy tắc áp dụng' },
+  incidentCompliance: { en: 'Compliance score {pct}%', vi: 'Điểm tuân thủ {pct}%' },
+  incidentShiftLeft: { en: 'Ends with this shift ({n} reviews left)', vi: 'Kết thúc cùng ca này (còn {n} hồ sơ)' },
+  incidentSlaCut: { en: 'SLA cut to {sec}s', vi: 'SLA rút còn {sec} giây' },
+  incidentClockFast: { en: 'SLA clock ×{rate}', vi: 'Đồng hồ SLA ×{rate}' },
+  incidentMasked: { en: 'Corrupted field', vi: 'Trường dữ liệu bị lỗi' },
+  incidentSurgeTag: { en: '⚡ Incident case', vi: '⚡ Hồ sơ sự cố' },
+  incidentAuditPenalty: { en: 'Audit penalty −{xp} XP', vi: 'Phạt kiểm toán −{xp} XP' },
+
+  incident_AUDIT_DAY_title: { en: 'Central bank audit team on site', vi: 'Đoàn Kiểm toán NHNN' },
+  incident_AUDIT_DAY_phenomenon: { en: 'Inspectors are reviewing every decision live. A red AUDIT IN PROGRESS banner flashes over the floor.', vi: 'Thanh tra đang soát xét trực tiếp từng quyết định. Banner đỏ AUDIT IN PROGRESS chớp sáng trên toàn sàn.' },
+  incident_AUDIT_DAY_rule: { en: 'Speed XP bonus is off. Every wrong approval or rejection costs 3x XP and drops your compliance score.', vi: 'Tắt Speed XP Bonus. Mỗi lỗi duyệt/chặn sai trừ 3x XP và làm rớt điểm Compliance.' },
+  incident_AUDIT_DAY_alert: { en: '🚨 AUDIT IN PROGRESS', vi: '🚨 ĐANG KIỂM TOÁN (AUDIT IN PROGRESS)' },
+
+  incident_NETWORK_LATENCY_title: { en: 'Core banking network congestion', vi: 'Nghẽn mạng Core Banking' },
+  incident_NETWORK_LATENCY_phenomenon: { en: 'The core is lagging and every review loses 30% of its SLA window.', vi: 'Hệ thống trễ, đồng hồ SLA của mỗi hồ sơ bị cắt giảm 30% thời lượng.' },
+  incident_NETWORK_LATENCY_rule: { en: 'Decide about 1.5 times faster than usual to stay inside the SLA.', vi: 'Phải quyết định nhanh hơn khoảng 1.5 lần bình thường để giữ SLA.' },
+  incident_NETWORK_LATENCY_alert: { en: '📶 CORE LATENCY · SLA −30%', vi: '📶 NGHẼN CORE · SLA −30%' },
+
+  incident_CORRUPTED_PAYLOAD_title: { en: 'Data leak and corrupted payload ranges', vi: 'Rò rỉ & Lỗi Dải Dữ liệu' },
+  incident_CORRUPTED_PAYLOAD_phenomenon: { en: '1-2 fields on each card arrive blanked out as ██████.', vi: '1-2 trường dữ liệu trên mỗi card bị che mờ bằng ██████.' },
+  incident_CORRUPTED_PAYLOAD_rule: { en: 'Infer the verdict from the technical values that are still readable.', vi: 'Suy đoán quyết định dựa trên các thông số kỹ thuật còn lại.' },
+  incident_CORRUPTED_PAYLOAD_alert: { en: '🧩 PAYLOAD CORRUPTED', vi: '🧩 DỮ LIỆU BỊ LỖI' },
+
+  incident_POWER_GRID_FAILOVER_title: { en: 'Backup generator failover', vi: 'Sự cố Máy phát Điện Dự phòng' },
+  incident_POWER_GRID_FAILOVER_phenomenon: { en: 'Screens flicker with power warnings while the building runs on the generator.', vi: 'Màn hình nhấp nháy hiệu ứng cảnh báo nguồn trong lúc tòa nhà chạy máy phát.' },
+  incident_POWER_GRID_FAILOVER_rule: { en: 'The SLA timer runs 1.5 times faster.', vi: 'Đồng hồ SLA chạy nhanh gấp 1.5 lần.' },
+  incident_POWER_GRID_FAILOVER_alert: { en: '⚡ POWER FAILOVER', vi: '⚡ CHUYỂN NGUỒN DỰ PHÒNG' },
+
+  incident_AML_SMURF_WAVE_title: { en: 'Smurfing storm', vi: 'Bão Rửa tiền Chia nhỏ' },
+  incident_AML_SMURF_WAVE_phenomenon: { en: '6-8 transfers of $9,800–$9,950 land within 60 seconds from different accounts.', vi: 'Dồn dập 6-8 giao dịch $9,800–$9,950 trong 60 giây từ các tài khoản khác nhau.' },
+  incident_AML_SMURF_WAVE_rule: { en: 'Block them all and file an STR for structuring under the $10k CTR line.', vi: 'Block tất cả & lập báo cáo STR vì cố tình né ngưỡng CTR $10k.' },
+  incident_AML_SMURF_WAVE_alert: { en: '🌊 STRUCTURING WAVE', vi: '🌊 SÓNG CHIA NHỎ GIAO DỊCH' },
+
+  incident_AML_SANCTION_FLASH_UPDATE_title: { en: 'Emergency sanctions list update', vi: 'Cập nhật Danh sách Cấm vận Đột xuất' },
+  incident_AML_SANCTION_FLASH_UPDATE_phenomenon: { en: 'OFAC published new designations in the middle of the shift.', vi: 'OFAC cập nhật danh sách cấm vận ngay giữa ca trực.' },
+  incident_AML_SANCTION_FLASH_UPDATE_rule: { en: 'A beneficiary on the new list is blocked immediately.', vi: 'Tên người hưởng nằm trong danh sách mới -> Block lập tức.' },
+  incident_AML_SANCTION_FLASH_UPDATE_alert: { en: '📜 OFAC LIST UPDATED', vi: '📜 OFAC VỪA CẬP NHẬT' },
+
+  incident_AML_PASS_THROUGH_BURST_title: { en: 'Funnel account emergency freeze', vi: 'Tài khoản Phễu Đóng băng Khẩn' },
+  incident_AML_PASS_THROUGH_BURST_phenomenon: { en: 'An account receives $100k from abroad and sweeps it out to 20 e-wallets within 3 minutes.', vi: 'Tài khoản nhận $100k quốc tế và đẩy sạch ra 20 ví điện tử trong 3 phút.' },
+  incident_AML_PASS_THROUGH_BURST_rule: { en: 'Block and freeze the account at once.', vi: 'Block & phong tỏa tài khoản tức thì.' },
+  incident_AML_PASS_THROUGH_BURST_alert: { en: '🕳️ PASS-THROUGH BURST', vi: '🕳️ DÒNG TIỀN PHỄU' },
+
+  incident_EKYC_DEEPFAKE_BOTNET_title: { en: 'AI liveness spoofing storm', vi: 'Bão Giả mạo AI Liveness' },
+  incident_EKYC_DEEPFAKE_BOTNET_phenomenon: { en: '10 applications in a row show liveness under 60% from deepfake video.', vi: '10 hồ sơ liên tiếp có Liveness Score < 60% từ video deepfake.' },
+  incident_EKYC_DEEPFAKE_BOTNET_rule: { en: 'Reject every application suspected of spoofing.', vi: 'Reject toàn bộ hồ sơ nghi vấn spoofing.' },
+  incident_EKYC_DEEPFAKE_BOTNET_alert: { en: '🤖 DEEPFAKE BOTNET', vi: '🤖 BÃO TẤN CÔNG DEEPFAKE' },
+
+  incident_EKYC_DOCUMENT_FORGERY_RING_title: { en: 'Forged ID / MRZ ring', vi: 'Đường dây Làm giả CCCD/MRZ' },
+  incident_EKYC_DOCUMENT_FORGERY_RING_phenomenon: { en: 'ID photos fail the MRZ checksum and the NFC chip area is glared out.', vi: 'Ảnh CCCD bị lỗi mã checksum MRZ và lóa đèn vùng chip NFC.' },
+  incident_EKYC_DOCUMENT_FORGERY_RING_rule: { en: 'OCR match under 80% or a bad MRZ -> reject and ask for a new capture.', vi: 'OCR Match < 80% hoặc sai MRZ -> Reject và yêu cầu chụp lại.' },
+  incident_EKYC_DOCUMENT_FORGERY_RING_alert: { en: '🪪 FORGED DOCUMENTS', vi: '🪪 GIẤY TỜ GIẢ' },
+
+  incident_EKYC_UNDERAGE_IDENTITY_THEFT_title: { en: 'Minor passport impersonation', vi: 'Mạo danh Hộ chiếu Người vị thành niên' },
+  incident_EKYC_UNDERAGE_IDENTITY_THEFT_phenomenon: { en: 'Expired passports or falsely declared ages are used to open high-limit accounts.', vi: 'Hộ chiếu hết hạn hoặc khai gian tuổi để mở hạn mức cao.' },
+  incident_EKYC_UNDERAGE_IDENTITY_THEFT_rule: { en: 'Expired passport or an age that does not match the document -> reject.', vi: 'Hộ chiếu hết hạn hoặc tuổi khai không khớp giấy tờ -> Reject.' },
+  incident_EKYC_UNDERAGE_IDENTITY_THEFT_alert: { en: '🛂 IDENTITY THEFT', vi: '🛂 MẠO DANH DANH TÍNH' },
+
+  incident_FDS_BIN_STORM_title: { en: 'BIN attack barrage', vi: 'Tấn công Dồn dập BIN Attack' },
+  incident_FDS_BIN_STORM_phenomenon: { en: '50 transactions of $1 in 30 seconds from rotating IPs on an unknown e-commerce site.', vi: '50 giao dịch $1 đẩy dồn dập trong 30 giây từ IP động trên trang thương mại điện tử lạ.' },
+  incident_FDS_BIN_STORM_rule: { en: 'Velocity over 10 txn/min -> block the IP range and decline.', vi: 'Velocity > 10 giao dịch/phút -> Block dải IP & từ chối giao dịch.' },
+  incident_FDS_BIN_STORM_alert: { en: '💥 BIN STORM', vi: '💥 TẤN CÔNG BIN DỒN DẬP' },
+
+  incident_FDS_RAT_MALWARE_OUTBREAK_title: { en: 'Remote-access trojan outbreak', vi: 'Mã độc Điều khiển Từ xa RAT' },
+  incident_FDS_RAT_MALWARE_OUTBREAK_phenomenon: { en: 'The banking app detects rooted or jailbroken phones running RAT software.', vi: 'Banking App phát hiện môi trường Root/Jailbreak kèm phần mềm RAT.' },
+  incident_FDS_RAT_MALWARE_OUTBREAK_rule: { en: 'Disable transactions and freeze the account.', vi: 'Tắt quyền giao dịch & phong tỏa tài khoản.' },
+  incident_FDS_RAT_MALWARE_OUTBREAK_alert: { en: '🦠 RAT OUTBREAK', vi: '🦠 BÙNG PHÁT MÃ ĐỘC RAT' },
+
+  incident_FDS_IMPOSSIBLE_TRAVEL_SPIKE_title: { en: 'Impossible travel spike', vi: 'Vị trí Bất hợp lý' },
+  incident_FDS_IMPOSSIBLE_TRAVEL_SPIKE_phenomenon: { en: 'App login in Vietnam at 02:00, then a POS swipe in Europe at 02:03.', vi: 'Đăng nhập tại VN lúc 2h00, đến 2h03 quẹt thẻ POS tại Châu Âu.' },
+  incident_FDS_IMPOSSIBLE_TRAVEL_SPIKE_rule: { en: 'Locations too far apart for the time between them -> block the card.', vi: 'Khác biệt vị trí trong thời gian quá ngắn -> Block thẻ.' },
+  incident_FDS_IMPOSSIBLE_TRAVEL_SPIKE_alert: { en: '✈️ IMPOSSIBLE TRAVEL', vi: '✈️ DI CHUYỂN BẤT KHẢ THI' },
+
+  incident_DISPUTE_DOUBLE_DEBIT_GLITCH_title: { en: 'Gateway double-debit glitch', vi: 'Lỗi Cổng Thanh toán Thu trùng' },
+  incident_DISPUTE_DOUBLE_DEBIT_GLITCH_phenomenon: { en: '100 customers were charged twice on the same supermarket POS.', vi: '100 khách cùng bị trừ tiền 2 lần tại 1 máy POS siêu thị.' },
+  incident_DISPUTE_DOUBLE_DEBIT_GLITCH_rule: { en: 'Same ARN and timestamp -> approve a refund of one charge.', vi: 'Trùng ARN / thời gian -> Duyệt hoàn tiền 1 khoản.' },
+  incident_DISPUTE_DOUBLE_DEBIT_GLITCH_alert: { en: '🔁 DOUBLE DEBITS', vi: '🔁 THU TIỀN TRÙNG' },
+
+  incident_DISPUTE_ROGUE_MERCHANT_SURGE_title: { en: 'Rogue online merchant surge', vi: 'Merchant Quịt hàng Online' },
+  incident_DISPUTE_ROGUE_MERCHANT_SURGE_phenomenon: { en: 'A wave of online-purchase claims past SLA where the merchant never delivered.', vi: 'Sóng khiếu nại mua hàng online quá SLA nhưng Merchant không giao hàng.' },
+  incident_DISPUTE_ROGUE_MERCHANT_SURGE_rule: { en: 'Invoice on file and a silent merchant -> approve the chargeback.', vi: 'Đủ hóa đơn + Merchant im lặng -> Duyệt Chargeback đòi tiền.' },
+  incident_DISPUTE_ROGUE_MERCHANT_SURGE_alert: { en: '📦 ROGUE MERCHANT', vi: '📦 MERCHANT QUỊT HÀNG' },
+
+  incident_DISPUTE_FRIENDLY_FRAUD_RING_title: { en: 'Friendly fraud chargeback ring', vi: 'Gian lận Đòi bồi hoàn' },
+  incident_DISPUTE_FRIENDLY_FRAUD_RING_phenomenon: { en: 'Cardholders report cards lost to claim back genuine chip-and-PIN purchases.', vi: 'Chủ thẻ cố tình báo mất thẻ để đòi tiền sau khi quẹt POS chip chuẩn.' },
+  incident_DISPUTE_FRIENDLY_FRAUD_RING_rule: { en: 'Purchase made before the loss was reported -> refuse the chargeback.', vi: 'Giao dịch phát sinh trước thời điểm báo mất -> Từ chối Chargeback.' },
+  incident_DISPUTE_FRIENDLY_FRAUD_RING_alert: { en: '🎭 FRIENDLY FRAUD', vi: '🎭 GIAN LẬN BỒI HOÀN' },
+
+  incident_BNPL_BUSTOUT_RING_title: { en: 'New-limit bust-out ring', vi: 'Đường dây Bùng nợ Hạn mức Mới' },
+  incident_BNPL_BUSTOUT_RING_phenomenon: { en: 'A cluster of accounts under 72 hours old asks for $3,000 limits on electronics.', vi: 'Nhóm tài khoản mới tạo < 72 giờ xin duyệt $3,000 mua đồ công nghệ.' },
+  incident_BNPL_BUSTOUT_RING_rule: { en: 'Account younger than 30 days -> refuse the high limit.', vi: 'Tuổi tài khoản < 30 ngày -> Từ chối duyệt hạn mức cao.' },
+  incident_BNPL_BUSTOUT_RING_alert: { en: '💣 BUST-OUT RING', vi: '💣 ĐƯỜNG DÂY BÙNG NỢ' },
+
+  incident_BNPL_DEFAULT_CASCADE_title: { en: 'Pay-in-4 delinquency cascade', vi: 'Sóng Quá hạn Pay-in-4' },
+  incident_BNPL_DEFAULT_CASCADE_phenomenon: { en: 'Customers with two plans over 15 days late ask for more credit.', vi: 'Khách có 2 hợp đồng quá hạn > 15 ngày xin cấp thêm hạn mức.' },
+  incident_BNPL_DEFAULT_CASCADE_rule: { en: 'Any late-payment history -> refuse the credit.', vi: 'Có lịch sử trễ hạn -> Từ chối cấp tín dụng.' },
+  incident_BNPL_DEFAULT_CASCADE_alert: { en: '📉 DEFAULT CASCADE', vi: '📉 SÓNG NỢ QUÁ HẠN' },
+
+  incident_BNPL_INCOME_STUB_FORGERY_title: { en: 'Forged income documents', vi: 'Hồ sơ Thu nhập Giả mạo' },
+  incident_BNPL_INCOME_STUB_FORGERY_phenomenon: { en: 'Fake payslips share the same font template and the real DTI is above 50%.', vi: 'Sao kê lương giả cùng mẫu phông chữ và DTI thực tế > 50%.' },
+  incident_BNPL_INCOME_STUB_FORGERY_rule: { en: 'DTI over 45% -> refuse.', vi: 'DTI > 45% -> Từ chối duyệt.' },
+  incident_BNPL_INCOME_STUB_FORGERY_alert: { en: '🧾 FAKE PAYSLIPS', vi: '🧾 SAO KÊ LƯƠNG GIẢ' },
+
+  incident_CASH_COUNTERFEIT_RING_title: { en: 'Sequential-serial counterfeit ring', vi: 'Đường dây Tiền giả Seri Liền kề' },
+  incident_CASH_COUNTERFEIT_RING_phenomenon: { en: 'A $2,000 polymer deposit holds notes with the wrong substrate or consecutive serials.', vi: 'Nộp $2,000 tiền polymer có tờ sai chất liệu hoặc seri liền kề nghi giả.' },
+  incident_CASH_COUNTERFEIT_RING_rule: { en: 'Retain the suspect notes and write up a counterfeit report.', vi: 'Tạm giữ thu hồi & lập biên bản tiền giả.' },
+  incident_CASH_COUNTERFEIT_RING_alert: { en: '💵 COUNTERFEIT NOTES', vi: '💵 TIỀN GIẢ' },
+
+  incident_CASH_VAULT_DRAIN_title: { en: 'Withdrawal over the till float', vi: 'Rút Tiền vượt Quỹ Quầy' },
+  incident_CASH_VAULT_DRAIN_phenomenon: { en: 'A customer wants $20,000 but the till holds only $12,000.', vi: 'Khách rút $20,000 nhưng quỹ quầy chỉ còn $12,000.' },
+  incident_CASH_VAULT_DRAIN_rule: { en: 'Pause the transaction and request a top-up from the vault.', vi: 'Tạm dừng giao dịch & gửi yêu cầu tiếp quỹ từ Vault.' },
+  incident_CASH_VAULT_DRAIN_alert: { en: '🏦 TILL DRAINED', vi: '🏦 CẠN QUỸ QUẦY' },
+
+  incident_CASH_CTR_SPLIT_CIRCUMVENTION_title: { en: 'Cash split to dodge the CTR', vi: 'Chia nhỏ Tiền né Báo cáo CTR' },
+  incident_CASH_CTR_SPLIT_CIRCUMVENTION_phenomenon: { en: 'A customer brings $15,000 and asks to split it across two counters.', vi: 'Khách nộp $15,000 và đòi chia làm 2 giao dịch ở 2 quầy khác nhau.' },
+  incident_CASH_CTR_SPLIT_CIRCUMVENTION_rule: { en: 'The deposit may go ahead, but the CTR is filed automatically and ID must be verified.', vi: 'Cho phép nộp nhưng hệ thống bắt buộc tự động lập Báo cáo CTR và phải xác minh giấy tờ.' },
+  incident_CASH_CTR_SPLIT_CIRCUMVENTION_alert: { en: '✂️ CTR SPLITTING', vi: '✂️ CHIA NHỎ NÉ CTR' },
+
+  incident_SWIFT_FLASH_SANCTION_ROUTE_title: { en: 'Correspondent bank sanctioned', vi: 'Ngân hàng Đại lý bị Cấm vận' },
+  incident_SWIFT_FLASH_SANCTION_ROUTE_phenomenon: { en: 'pacs.008 messages route through a correspondent that was just blacklisted.', vi: 'Điện pacs.008 đi qua Correspondent Bank vừa bị đưa vào danh sách đen.' },
+  incident_SWIFT_FLASH_SANCTION_ROUTE_rule: { en: 'Block the message and reroute through the backup correspondent.', vi: 'Block điện & chuyển tuyến qua ngân hàng đại lý dự phòng.' },
+  incident_SWIFT_FLASH_SANCTION_ROUTE_alert: { en: '🚫 CORRESPONDENT SANCTIONED', vi: '🚫 ĐẠI LÝ BỊ CẤM VẬN' },
+
+  incident_SWIFT_ISO20022_SCHEMA_CORRUPTION_title: { en: 'Malformed SWIFT XML', vi: 'Lỗi Cấu trúc XML Điện SWIFT' },
+  incident_SWIFT_ISO20022_SCHEMA_CORRUPTION_phenomenon: { en: 'Messages arrive without a UETR or a valid creditor address.', vi: 'Điện thiếu mã UETR hoặc thiếu địa chỉ hợp lệ của người hưởng.' },
+  incident_SWIFT_ISO20022_SCHEMA_CORRUPTION_rule: { en: 'Reject and return the message to the originating bank.', vi: 'Reject & trả điện về ngân hàng khởi tạo.' },
+  incident_SWIFT_ISO20022_SCHEMA_CORRUPTION_alert: { en: '🧬 ISO 20022 SCHEMA ERRORS', vi: '🧬 LỖI CẤU TRÚC ISO 20022' },
+
+  incident_SWIFT_NOSTRO_CRUNCH_title: { en: 'Nostro limit crunch', vi: 'Vượt Hạn mức Tồn quỹ Nostro' },
+  incident_SWIFT_NOSTRO_CRUNCH_phenomenon: { en: 'Large FX payments exceed the nostro balance at the correspondent.', vi: 'Giao dịch ngoại tệ lớn vượt hạn mức Nostro tại ngân hàng đại lý.' },
+  incident_SWIFT_NOSTRO_CRUNCH_rule: { en: 'Hold the message and request nostro liquidity rebalancing.', vi: 'Tạm giữ điện & gửi yêu cầu cân bằng thanh khoản Nostro.' },
+  incident_SWIFT_NOSTRO_CRUNCH_alert: { en: '💧 NOSTRO CRUNCH', vi: '💧 CẠN THANH KHOẢN NOSTRO' },
 });
 
 export type AnalystWorkspaceKey = keyof typeof analystWorkspaceMessages.messages;
