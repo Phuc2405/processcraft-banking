@@ -121,6 +121,8 @@ export interface StaffCase {
   scene: StaffScene | TaskScene;
   /** The drill a task-matrix case belongs to (absent on live-queue cases). */
   drill?: StaffDrillNo;
+  /** The desk incident that surged this case into the queue (Incident Mode). */
+  incident?: DeskIncidentId;
   /** The bank's verdict for this stop: the answer key. */
   expected: StaffDecision;
 }
@@ -660,11 +662,12 @@ function drillCase(role: StaffRoleId, drill: StaffDrillNo, id: string, hit: bool
   }
 }
 
-/** One training case of the 28-task matrix, stable per role, task and sequence number. */
-export function buildTaskCase(role: StaffRoleId, task: StaffTaskNo, seq: number): StaffCase {
+/** One training case of the 28-task matrix, stable per role, task and sequence number. A desk incident at this role floods the queue with its drill. */
+export function buildTaskCase(role: StaffRoleId, task: StaffTaskNo, seq: number, incident: IncidentId | null = null): StaffCase {
   const id = `TR-${role.toUpperCase()}-${task}-${String(seq + 1).padStart(3, '0')}`;
-  const drill = drillFor(task, id);
-  const hit = unit(id, 'hit') < TASK_HIT_RATE;
+  const surge = incident && incidentRole(incident) === role ? (incident as DeskIncidentId) : null;
+  const drill = surge ? INCIDENT_DRILL[surge] : drillFor(task, id);
+  const hit = unit(id, 'hit') < (surge ? INCIDENT.surgeHitRate : TASK_HIT_RATE);
   const d = drillCase(role, drill, id, hit);
   return {
     id,
@@ -676,13 +679,14 @@ export function buildTaskCase(role: StaffRoleId, task: StaffTaskNo, seq: number)
     fields: d.fields,
     scene: `task_${role}_${drill}`,
     drill,
+    ...(surge ? { incident: surge } : {}),
     expected: d.expected,
   };
 }
 
 /** The head of a task's queue and the cases behind it. */
-export function taskDeck(role: StaffRoleId, task: StaffTaskNo, seq: number, size = 4): StaffCase[] {
-  return Array.from({ length: size }, (_, i) => buildTaskCase(role, task, seq + i));
+export function taskDeck(role: StaffRoleId, task: StaffTaskNo, seq: number, size = 4, incident: IncidentId | null = null): StaffCase[] {
+  return Array.from({ length: size }, (_, i) => buildTaskCase(role, task, seq + i, incident));
 }
 
 /** Grades a decision on a task-matrix case against its SOP. */
@@ -715,11 +719,20 @@ export const CHALLENGE = {
   penalty: 50,
 } as const;
 
+/** How an incident changes scoring: whether the speed bonus pays, and how many times the error penalty bites. */
+export interface ScoringRules {
+  speedBonus: boolean;
+  penaltyMult: number;
+}
+export const NORMAL_RULES: ScoringRules = { speedBonus: true, penaltyMult: 1 };
+
 /** Speed bonus for a correct decision taken after `latencySec`. */
-export const challengeBonus = (latencySec: number): number => Math.round(CHALLENGE.bonusMax * Math.max(0, 1 - Math.max(0, latencySec) / CHALLENGE.bonusWindowSec));
+export const challengeBonus = (latencySec: number, rules: ScoringRules = NORMAL_RULES): number =>
+  rules.speedBonus ? Math.round(CHALLENGE.bonusMax * Math.max(0, 1 - Math.max(0, latencySec) / CHALLENGE.bonusWindowSec)) : 0;
 
 /** XP a single challenge decision is worth: base plus speed bonus when right, the penalty when wrong. */
-export const challengePoints = (correct: boolean, latencySec: number): number => (correct ? CHALLENGE.base + challengeBonus(latencySec) : -CHALLENGE.penalty);
+export const challengePoints = (correct: boolean, latencySec: number, rules: ScoringRules = NORMAL_RULES): number =>
+  correct ? CHALLENGE.base + challengeBonus(latencySec, rules) : -CHALLENGE.penalty * rules.penaltyMult;
 
 export interface ChallengeTally {
   reviews: number;
@@ -732,14 +745,14 @@ export interface ChallengeTally {
 
 export const EMPTY_TALLY: ChallengeTally = { reviews: 0, correct: 0, xp: 0, bonusXp: 0, penaltyXp: 0 };
 
-export function addToTally(t: ChallengeTally, correct: boolean, latencySec: number): ChallengeTally {
-  const bonus = correct ? challengeBonus(latencySec) : 0;
+export function addToTally(t: ChallengeTally, correct: boolean, latencySec: number, rules: ScoringRules = NORMAL_RULES): ChallengeTally {
+  const bonus = correct ? challengeBonus(latencySec, rules) : 0;
   return {
     reviews: t.reviews + 1,
     correct: t.correct + (correct ? 1 : 0),
-    xp: t.xp + challengePoints(correct, latencySec),
+    xp: t.xp + challengePoints(correct, latencySec, rules),
     bonusXp: t.bonusXp + bonus,
-    penaltyXp: t.penaltyXp + (correct ? 0 : CHALLENGE.penalty),
+    penaltyXp: t.penaltyXp + (correct ? 0 : CHALLENGE.penalty * rules.penaltyMult),
   };
 }
 
@@ -761,3 +774,94 @@ export function challengeGrade(t: Pick<ChallengeTally, 'reviews' | 'correct'>): 
   const acc = tallyAccuracy(t);
   return GRADE_BANDS.find((b) => acc >= b.minAccuracyPct && t.reviews >= b.minReviews)?.grade ?? 'F';
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Incident Mode: 25 crisis events (4 bank-wide, 3 per desk)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const GLOBAL_INCIDENTS = ['AUDIT_DAY', 'NETWORK_LATENCY', 'CORRUPTED_PAYLOAD', 'POWER_GRID_FAILOVER'] as const;
+
+/** Each desk's incidents in drill order: an incident surges its drill into the queue (INCIDENT_DRILL). */
+export const DESK_INCIDENTS = {
+  aml: ['AML_SANCTION_FLASH_UPDATE', 'AML_SMURF_WAVE', 'AML_PASS_THROUGH_BURST'],
+  ekyc: ['EKYC_DOCUMENT_FORGERY_RING', 'EKYC_UNDERAGE_IDENTITY_THEFT', 'EKYC_DEEPFAKE_BOTNET'],
+  fds: ['FDS_IMPOSSIBLE_TRAVEL_SPIKE', 'FDS_BIN_STORM', 'FDS_RAT_MALWARE_OUTBREAK'],
+  dispute: ['DISPUTE_DOUBLE_DEBIT_GLITCH', 'DISPUTE_ROGUE_MERCHANT_SURGE', 'DISPUTE_FRIENDLY_FRAUD_RING'],
+  bnpl: ['BNPL_INCOME_STUB_FORGERY', 'BNPL_DEFAULT_CASCADE', 'BNPL_BUSTOUT_RING'],
+  cashier: ['CASH_CTR_SPLIT_CIRCUMVENTION', 'CASH_COUNTERFEIT_RING', 'CASH_VAULT_DRAIN'],
+  swift: ['SWIFT_ISO20022_SCHEMA_CORRUPTION', 'SWIFT_NOSTRO_CRUNCH', 'SWIFT_FLASH_SANCTION_ROUTE'],
+} as const satisfies Record<StaffRoleId, readonly [string, string, string]>;
+
+export type GlobalIncidentId = (typeof GLOBAL_INCIDENTS)[number];
+export type DeskIncidentId = (typeof DESK_INCIDENTS)[StaffRoleId][number];
+export type IncidentId = GlobalIncidentId | DeskIncidentId;
+
+export const INCIDENT_IDS: readonly IncidentId[] = [...GLOBAL_INCIDENTS, ...STAFF_ROLES.flatMap((r) => DESK_INCIDENTS[r])];
+
+const INCIDENT_HOME = Object.fromEntries(STAFF_ROLES.flatMap((r) => DESK_INCIDENTS[r].map((id, i) => [id, { role: r, drill: (i + 1) as StaffDrillNo }]))) as Readonly<
+  Record<DeskIncidentId, { role: StaffRoleId; drill: StaffDrillNo }>
+>;
+
+/** The drill a desk incident floods the queue with. */
+export const INCIDENT_DRILL = Object.fromEntries(Object.entries(INCIDENT_HOME).map(([id, h]) => [id, h.drill])) as Readonly<Record<DeskIncidentId, StaffDrillNo>>;
+
+/** The desk an incident belongs to, or null for a bank-wide one. */
+export const incidentRole = (id: IncidentId): StaffRoleId | null => (id in INCIDENT_HOME ? INCIDENT_HOME[id as DeskIncidentId].role : null);
+
+export const INCIDENT = {
+  /** Chance a shift opens with an incident. */
+  chance: 0.25,
+  /** Share of surged cases that breach the incident's SOP. */
+  surgeHitRate: 0.9,
+  /** AUDIT_DAY: an error costs this many times STAFF_XP_PER_CORRECT, and this much compliance. */
+  auditPenaltyMult: 3,
+  auditComplianceDrop: 15,
+  /** NETWORK_LATENCY: the SLA keeps this share of its length. */
+  latencySlaFactor: 0.7,
+  /** POWER_GRID_FAILOVER: the SLA clock runs this many times faster. */
+  powerClockRate: 1.5,
+  /** CORRUPTED_PAYLOAD: most fields hidden on one card. */
+  maxMasked: 2,
+} as const;
+
+/** The incident running at a desk, its compliance score (AUDIT_DAY) and the decisions taken under it. */
+export interface ActiveIncident {
+  id: IncidentId;
+  compliance: number;
+  reviews: number;
+}
+
+/** Rolls the incident a new shift at `role` opens with: none 75% of the time, otherwise any bank-wide or desk incident. */
+export function rollIncident(role: StaffRoleId, rand: () => number = Math.random): IncidentId | null {
+  if (rand() >= INCIDENT.chance) return null;
+  const pool: readonly IncidentId[] = [...GLOBAL_INCIDENTS, ...DESK_INCIDENTS[role]];
+  return pool[Math.min(pool.length - 1, Math.floor(rand() * pool.length))]!;
+}
+
+export const startIncident = (id: IncidentId | null): ActiveIncident | null => (id ? { id, compliance: 100, reviews: 0 } : null);
+
+/** The SLA a review has under an incident. */
+export const incidentSlaSeconds = (id: IncidentId | null | undefined): number => (id === 'NETWORK_LATENCY' ? Math.round(STAFF_SLA_SECONDS * INCIDENT.latencySlaFactor) : STAFF_SLA_SECONDS);
+
+/** How fast the SLA clock runs under an incident. */
+export const incidentClockRate = (id: IncidentId | null | undefined): number => (id === 'POWER_GRID_FAILOVER' ? INCIDENT.powerClockRate : 1);
+
+export const incidentRules = (id: IncidentId | null | undefined): ScoringRules => (id === 'AUDIT_DAY' ? { speedBonus: false, penaltyMult: INCIDENT.auditPenaltyMult } : NORMAL_RULES);
+
+/** Shift XP an error costs: nothing normally, 3x a correct decision during an audit. */
+export const incidentErrorXp = (id: IncidentId | null | undefined): number => (id === 'AUDIT_DAY' ? STAFF_XP_PER_CORRECT * INCIDENT.auditPenaltyMult : 0);
+
+/** CORRUPTED_PAYLOAD: the 1-2 field keys a card hides, stable per case, never every field. */
+export function maskedFields(c: Pick<StaffCase, 'id' | 'fields'>, id: IncidentId | null | undefined): ReadonlySet<string> {
+  if (id !== 'CORRUPTED_PAYLOAD' || c.fields.length < 2) return new Set();
+  const n = Math.min(c.fields.length - 1, unit(c.id, 'maskN') < 0.5 ? 1 : INCIDENT.maxMasked);
+  const order = c.fields.map((f) => f.key).sort((a, b) => unit(c.id, `mask:${a}`) - unit(c.id, `mask:${b}`));
+  return new Set(order.slice(0, n));
+}
+
+/** Books one decision on an incident: AUDIT_DAY errors cost compliance. */
+export const advanceIncident = (a: ActiveIncident, correct: boolean): ActiveIncident => ({
+  ...a,
+  reviews: a.reviews + 1,
+  compliance: a.id === 'AUDIT_DAY' && !correct ? Math.max(0, a.compliance - INCIDENT.auditComplianceDrop) : a.compliance,
+});

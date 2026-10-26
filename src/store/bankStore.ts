@@ -22,7 +22,7 @@ import type { TermMode } from '../sim/terms';
 import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
 import type { BankView, Customer, PacketTrace } from '../sim/types';
-import { addToTally, buildTaskCase, CHALLENGE, comboXp, EMPTY_TALLY, gradeTaskCase, roleForStation, type ChallengeTally, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo } from '../sim/staffRoleplay';
+import { addToTally, advanceIncident, buildTaskCase, CHALLENGE, comboXp, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, rollIncident, roleForStation, SHIFT_TARGET, startIncident, type ActiveIncident, type ChallengeTally, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo } from '../sim/staffRoleplay';
 import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
@@ -204,6 +204,12 @@ export interface BankState {
   /** Ends the challenge when its clock has run out and opens the scorecard. */
   tickChallenge(at?: number): void;
   dismissChallengeResult(): void;
+  /** Incident Mode: on by default; each new shift at a desk rolls a 25% chance of a crisis event. */
+  staffIncidentMode: boolean;
+  /** The crisis event running at the open desk, if any. */
+  staffIncident: ActiveIncident | null;
+  /** Switches Incident Mode; turning it on rolls for the open desk at once, turning it off ends any incident. */
+  setIncidentMode(on: boolean): void;
 
   // Clock
   play(): void;
@@ -320,6 +326,8 @@ export interface BankStoreOptions {
   seed?: number;
   /** Chaos Monkey settings to start with. Off unless given. */
   chaos?: Partial<ChaosConfig>;
+  /** The dice Incident Mode rolls with (Math.random unless given). */
+  incidentRandom?: () => number;
 }
 
 /** The process each desk takes part in, first one being its main process. */
@@ -402,6 +410,12 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
     };
     /** Whether the clock was running when the roleplay desk opened. */
     let staffResume = false;
+    const incidentRandom = options.incidentRandom ?? Math.random;
+    /** A fresh roll for a shift at `station`, or none when Incident Mode is off. */
+    const rollFor = (station: StationId | null, on = get().staffIncidentMode): ActiveIncident | null => {
+      const role = station ? roleForStation(station) : null;
+      return on && role ? startIncident(rollIncident(role, incidentRandom)) : null;
+    };
 
     const closeDay = (): void => {
       set({ playing: false, solo: false });
@@ -482,13 +496,17 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       staffTaskSeq: 0,
       staffChallenge: null,
       staffChallengeResult: null,
+      staffIncidentMode: true,
+      staffIncident: null,
 
-      startChallenge: (at = Date.now()) => set({ staffChallenge: { endsAt: at + CHALLENGE.durationSec * 1000, tally: EMPTY_TALLY }, staffChallengeResult: null }),
+      setIncidentMode: (on) => set({ staffIncidentMode: on, staffIncident: on ? rollFor(get().staffDesk, true) : null }),
+
+      startChallenge: (at = Date.now()) => set({ staffChallenge: { endsAt: at + CHALLENGE.durationSec * 1000, tally: EMPTY_TALLY }, staffChallengeResult: null, staffIncident: rollFor(get().staffDesk) }),
       stopChallenge: () => set({ staffChallenge: null }),
       recordChallenge: (correct, latencySec, at = Date.now()) => {
         const run = get().staffChallenge;
         if (!run || at >= run.endsAt) return;
-        set({ staffChallenge: { ...run, tally: addToTally(run.tally, correct, latencySec) } });
+        set({ staffChallenge: { ...run, tally: addToTally(run.tally, correct, latencySec, incidentRules(get().staffIncident?.id)) } });
       },
       tickChallenge: (at = Date.now()) => {
         const run = get().staffChallenge;
@@ -500,7 +518,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         if (!roleForStation(id)) return;
         const s = get();
         if (s.staffDesk === null) staffResume = s.playing;
-        set({ playing: false, ...(s.staffDesk !== id ? { staffTask: 1 as StaffTaskNo, staffTaskSeq: 0 } : {}) });
+        set({ playing: false, ...(s.staffDesk !== id ? { staffTask: 1 as StaffTaskNo, staffTaskSeq: 0, staffIncident: rollFor(id) } : {}) });
         refresh({ staffDesk: id });
       },
 
@@ -512,14 +530,15 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       switchStaffDesk: (id) => {
         const s = get();
         if (!roleForStation(id) || !s.staffDesk || s.staffDesk === id) return;
-        set({ staffShift: {}, staffTask: 1, staffTaskSeq: 0, staffChallenge: null, staffChallengeResult: null });
+        set({ staffShift: {}, staffTask: 1, staffTaskSeq: 0, staffChallenge: null, staffChallengeResult: null, staffIncident: rollFor(id) });
         refresh({ staffDesk: id });
       },
 
       staffTrain: (caseId, decision, latencySec, slaSec) => {
         const s = get();
         const role = s.staffDesk ? roleForStation(s.staffDesk) : null;
-        const head = role ? buildTaskCase(role, s.staffTask, s.staffTaskSeq) : null;
+        const incident = s.staffIncident;
+        const head = role ? buildTaskCase(role, s.staffTask, s.staffTaskSeq, incident?.id ?? null) : null;
         if (!role || !head || head.id !== caseId) return { ok: false, packetId: caseId, decision, expected: null, correct: false, statusCode: 'NO_CASE' };
         const result = gradeTaskCase(head, decision);
         const prev = s.staffShift[role] ?? EMPTY_SHIFT;
@@ -532,7 +551,11 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           ...bookCombo(prev, result.correct),
           last: result,
         };
-        set({ staffShift: { ...s.staffShift, [role]: next }, staffTaskSeq: s.staffTaskSeq + 1 });
+        if (!result.correct) next.xp -= incidentErrorXp(incident?.id);
+        // Every SHIFT_TARGET.reviews decisions close a shift: the incident ends and the next shift rolls again.
+        const shiftOver = next.reviews % SHIFT_TARGET.reviews === 0;
+        const staffIncident = shiftOver ? rollFor(s.staffDesk) : incident && advanceIncident(incident, result.correct);
+        set({ staffShift: { ...s.staffShift, [role]: next }, staffTaskSeq: s.staffTaskSeq + 1, staffIncident });
         return result;
       },
 
@@ -540,7 +563,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         const resume = staffResume && !get().sim.dayOver;
         staffResume = false;
         get().sim.setStaffOverride(null);
-        set({ staffDesk: null, pendingQueueMap: {}, staffChallenge: null, staffChallengeResult: null, ...(resume ? { playing: true } : {}) });
+        set({ staffDesk: null, pendingQueueMap: {}, staffChallenge: null, staffChallengeResult: null, staffIncident: null, ...(resume ? { playing: true } : {}) });
       },
 
       staffDecide: (packetId, decision, latencySec, slaSec) => {

@@ -20,12 +20,23 @@ import {
   STAFF_TASKS,
   TASK_SCENES,
   taskDeck,
+  DESK_INCIDENTS,
+  GLOBAL_INCIDENTS,
+  INCIDENT,
+  INCIDENT_DRILL,
+  INCIDENT_IDS,
+  incidentClockRate,
+  incidentRole,
+  incidentSlaSeconds,
+  maskedFields,
+  rollIncident,
+  startIncident,
   type StaffDecisionResult,
 } from '../../../sim/staffRoleplay';
 import { createBankStore, EMPTY_SHIFT } from '../../../store/bankStore';
 import { bundleProblems, hasVietnamese } from '../../../utils/i18nHelper';
 import { analystWorkspaceMessages, PERSONAS, type AnalystWorkspaceKey } from '../analystWorkspace.messages';
-import { AnalystWorkspaceView, ChallengeScorecard, clockText, ConsequenceOverlay, consequenceKey, SOP_STEPS, personaFor, riskKey, sopKeys, SwitchDeskDialog, type AnalystWorkspaceViewProps, type WorkspaceMode } from '../AnalystWorkspaceModal';
+import { AnalystWorkspaceView, ChallengeScorecard, MASK, clockText, ConsequenceOverlay, consequenceKey, SOP_STEPS, personaFor, riskKey, sopKeys, SwitchDeskDialog, type AnalystWorkspaceViewProps, type WorkspaceMode } from '../AnalystWorkspaceModal';
 
 const msgs = analystWorkspaceMessages.messages;
 const has = (key: string): boolean => key in msgs;
@@ -147,7 +158,7 @@ describe('the 28-task matrix', () => {
   });
 
   it('switches tasks instantly, guards desk switches behind the store action and books training on the shift', () => {
-    const store = createBankStore({ storage: null, seed: 2026 });
+    const store = createBankStore({ storage: null, seed: 2026, incidentRandom: () => 1 });
     store.getState().openStaffDesk(ROLE_STATION.aml);
     expect(store.getState().staffTask).toBe(1);
     const head = buildTaskCase('aml', 1, 0);
@@ -195,7 +206,7 @@ describe('Time-Attack Challenge Mode', () => {
   });
 
   it('keeps the challenge in the store: strict clock, scorecard at 00:00, cleared on leaving or switching desk', () => {
-    const store = createBankStore({ storage: null, seed: 2026 });
+    const store = createBankStore({ storage: null, seed: 2026, incidentRandom: () => 1 });
     store.getState().openStaffDesk(ROLE_STATION.fds);
     store.getState().startChallenge(1_000);
     expect(store.getState().staffChallenge?.endsAt).toBe(1_000 + 180_000);
@@ -380,5 +391,105 @@ describe('the workspace on screen', () => {
     for (const key of ['triggerTitle', 'riskTitle', 'falseApproveTitle', 'falseRejectTitle', 'benefitTitle', 'sopTitle', 'sopNote'] as const) expect(out, key).toContain(esc(msgs[key].vi));
     expect(out).toContain(esc(msgs.scene_bnpl_apply_triggerStd.vi));
     expect(out).not.toContain(esc(msgs.riskTitle.en));
+  });
+});
+
+describe('Incident Mode', () => {
+  const view = (incident: (typeof INCIDENT_IDS)[number] | null, role: (typeof STAFF_ROLES)[number] = 'aml', incidentMode = true): string =>
+    renderToStaticMarkup(
+      createElement(AnalystWorkspaceView, { desk: ROLE_STATION[role], cases: taskDeck(role, 1, 0, 4, incident), shift: EMPTY_SHIFT, initialMode: 'standard', task: 1, canAdvance: true, incidentMode, incident: startIncident(incident), ...handlers }),
+    );
+
+  it('catalogues 25 incidents: 4 bank-wide and 3 per desk, each surging a distinct drill', () => {
+    expect(INCIDENT_IDS).toHaveLength(25);
+    expect(new Set(INCIDENT_IDS).size).toBe(25);
+    for (const id of GLOBAL_INCIDENTS) expect(incidentRole(id)).toBeNull();
+    for (const role of STAFF_ROLES) {
+      expect(DESK_INCIDENTS[role].map((id) => incidentRole(id))).toEqual([role, role, role]);
+      expect(DESK_INCIDENTS[role].map((id) => INCIDENT_DRILL[id]).sort()).toEqual([1, 2, 3]);
+    }
+  });
+
+  it('has a title, phenomenon, rule and alert for every incident in both languages', () => {
+    for (const id of INCIDENT_IDS)
+      for (const part of ['title', 'phenomenon', 'rule', 'alert']) {
+        const key = `incident_${id}_${part}`;
+        expect(has(key), key).toBe(true);
+        expect(hasVietnamese(msgs[key as AnalystWorkspaceKey].vi), key).toBe(true);
+      }
+  });
+
+  it("rolls an incident 25% of the time, from the global pool or the desk's own", () => {
+    expect(rollIncident('fds', () => INCIDENT.chance)).toBeNull();
+    const seq = [0.1, 0.99];
+    expect(rollIncident('fds', () => seq.shift()!)).toBe(DESK_INCIDENTS.fds[2]);
+    const seq2 = [0, 0];
+    expect(rollIncident('fds', () => seq2.shift()!)).toBe('AUDIT_DAY');
+  });
+
+  it('bends the SLA, the clock and the card under the bank-wide incidents', () => {
+    expect(incidentSlaSeconds('NETWORK_LATENCY')).toBe(21);
+    expect(incidentSlaSeconds(null)).toBe(30);
+    expect(incidentClockRate('POWER_GRID_FAILOVER')).toBe(1.5);
+    for (const role of STAFF_ROLES)
+      for (const c of taskDeck(role, 4, 0, 12)) {
+        const hidden = maskedFields(c, 'CORRUPTED_PAYLOAD');
+        expect(hidden.size).toBeGreaterThanOrEqual(1);
+        expect(hidden.size).toBeLessThan(c.fields.length);
+        expect(maskedFields(c, 'AUDIT_DAY').size).toBe(0);
+      }
+  });
+
+  it("floods the desk with the incident's drill, mostly breaching cases, and leaves other desks alone", () => {
+    const deck = taskDeck('aml', 1, 0, 40, 'AML_SMURF_WAVE');
+    expect(deck.every((c) => c.drill === 2 && c.incident === 'AML_SMURF_WAVE')).toBe(true);
+    expect(deck.filter((c) => c.expected === 'REJECT').length).toBeGreaterThan(30);
+    expect(taskDeck('fds', 1, 0, 4, 'AML_SMURF_WAVE')).toEqual(taskDeck('fds', 1, 0, 4));
+  });
+
+  it('charges 3x XP and compliance for errors under audit, and drops the speed bonus', () => {
+    expect(challengePoints(true, 0, { speedBonus: false, penaltyMult: 3 })).toBe(CHALLENGE.base);
+    expect(challengePoints(false, 0, { speedBonus: false, penaltyMult: 3 })).toBe(-CHALLENGE.penalty * 3);
+
+    const seq = [0, 0];
+    const store = createBankStore({ storage: null, seed: 2026, incidentRandom: () => seq.shift() ?? 1 });
+    store.getState().openStaffDesk(ROLE_STATION.aml);
+    expect(store.getState().staffIncident).toMatchObject({ id: 'AUDIT_DAY', compliance: 100 });
+    const head = buildTaskCase('aml', 1, 0);
+    store.getState().staffTrain(head.id, head.expected === 'APPROVE' ? 'REJECT' : 'APPROVE', 2, 30);
+    expect(store.getState().staffShift.aml?.xp).toBe(-300);
+    expect(store.getState().staffIncident).toMatchObject({ compliance: 100 - INCIDENT.auditComplianceDrop, reviews: 1 });
+
+    store.getState().setIncidentMode(false);
+    expect(store.getState()).toMatchObject({ staffIncidentMode: false, staffIncident: null });
+    store.getState().closeStaffDesk();
+  });
+
+  it('defaults Incident Mode on, re-rolls when a shift ends and clears on close', () => {
+    const store = createBankStore({ storage: null, seed: 2026, incidentRandom: () => 0 });
+    expect(store.getState().staffIncidentMode).toBe(true);
+    store.getState().openStaffDesk(ROLE_STATION.swift);
+    expect(store.getState().staffIncident?.id).toBe('AUDIT_DAY');
+    store.getState().closeStaffDesk();
+    expect(store.getState().staffIncident).toBeNull();
+  });
+
+  it('draws the glowing toggle, the banner, masked fields and the flicker', () => {
+    const on = view(null);
+    expect(on).toContain('data-testid="workspace-incident-toggle"');
+    expect(on).toContain('pc-incident-glow');
+    expect(on).toContain(esc(msgs.incidentToggleHint.en));
+    expect(on).not.toContain('data-testid="workspace-incident"');
+    expect(view(null, 'aml', false)).toContain(esc(msgs.incidentToggleOff.en));
+
+    const audit = view('AUDIT_DAY');
+    expect(audit).toContain('data-incident="AUDIT_DAY"');
+    expect(audit).toContain(esc(msgs.incident_AUDIT_DAY_alert.en));
+    expect(audit).toContain('data-testid="workspace-incident-compliance"');
+
+    expect(view('CORRUPTED_PAYLOAD')).toContain(MASK);
+    expect(view('POWER_GRID_FAILOVER')).toContain('data-testid="workspace-power-flicker"');
+    expect(view('NETWORK_LATENCY')).toContain('SLA 21s');
+    expect(view('AML_SANCTION_FLASH_UPDATE')).toContain('data-testid="workspace-incident-case"');
   });
 });
