@@ -16,6 +16,7 @@ import { isTermMode, type TermMode } from '../sim/terms';
 import { DAY_EVENTS } from '../sim/traffic';
 import type { CarryRecord, CarryState, DayEvent, DayReport, NightShiftReport, SuspenseItem } from '../sim/types';
 import { STATION_IDS } from '../sim/topology';
+import { BADGES, EMPTY_CAREER, EMPTY_SHIFT_LOG, type BadgeId, type CareerProgress } from '../sim/staffRoleplay';
 import { browserStorage, memoryStorage, STORAGE_VERSION, type KeyValueStorage } from './persistence';
 
 export { browserStorage, memoryStorage };
@@ -308,5 +309,54 @@ export function saveUiPrefs(storage: KeyValueStorage | null, prefs: UiPrefs): vo
     storage?.setItem(UI_PREFS_KEY, JSON.stringify(prefs));
   } catch {
     // Remembering a preference is a nicety.
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Career: lifetime XP, badges and the streaks that lead to them
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const CAREER_KEY = `processcraft:v${STORAGE_VERSION}:career`;
+
+const count = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
+
+export function decodeCareer(raw: string | null): CareerProgress {
+  if (!raw) return EMPTY_CAREER;
+  try {
+    const o = JSON.parse(raw) as Partial<Record<keyof CareerProgress, unknown>>;
+    const badges = Array.isArray(o.badges) ? BADGES.filter((b) => (o.badges as unknown[]).includes(b)) : [];
+    const sh = (o.shift && typeof o.shift === 'object' ? o.shift : {}) as Record<string, unknown>;
+    return {
+      xp: count(o.xp),
+      badges: badges as BadgeId[],
+      ekycStreak: count(o.ekycStreak),
+      perfectExpertShifts: count(o.perfectExpertShifts),
+      shift: {
+        reviews: count(sh.reviews),
+        correct: count(sh.correct),
+        latencySumSec: typeof sh.latencySumSec === 'number' && sh.latencySumSec >= 0 ? sh.latencySumSec : 0,
+        allExpert: sh.allExpert === undefined ? EMPTY_SHIFT_LOG.allExpert : sh.allExpert === true,
+        amlBlockRun: count(sh.amlBlockRun),
+        amlBlockBest: count(sh.amlBlockBest),
+      },
+    };
+  } catch {
+    return EMPTY_CAREER;
+  }
+}
+
+export function loadCareer(storage: KeyValueStorage | null): CareerProgress {
+  try {
+    return decodeCareer(storage ? storage.getItem(CAREER_KEY) : null);
+  } catch {
+    return EMPTY_CAREER;
+  }
+}
+
+export function saveCareer(storage: KeyValueStorage | null, career: CareerProgress): void {
+  try {
+    storage?.setItem(CAREER_KEY, JSON.stringify(career));
+  } catch {
+    // A lost badge is a pity, not an error.
   }
 }

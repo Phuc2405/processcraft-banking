@@ -761,3 +761,132 @@ export function challengeGrade(t: Pick<ChallengeTally, 'reviews' | 'correct'>): 
   const acc = tallyAccuracy(t);
   return GRADE_BANDS.find((b) => acc >= b.minAccuracyPct && t.reviews >= b.minReviews)?.grade ?? 'F';
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Career progression (lifetime XP → level and rank) and operational badges
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type CareerRankId = 'intern' | 'junior' | 'senior' | 'cro';
+
+/** The four ranks, lowest first. `maxXp` is the last XP inside the rank; `xpPerLevel` only applies to the open-ended top rank. */
+export const CAREER_RANKS: readonly { id: CareerRankId; icon: string; minLevel: number; maxLevel: number | null; minXp: number; maxXp: number | null; xpPerLevel?: number }[] = [
+  { id: 'intern', icon: '🐣', minLevel: 1, maxLevel: 5, minXp: 0, maxXp: 1_500 },
+  { id: 'junior', icon: '🛡️', minLevel: 6, maxLevel: 15, minXp: 1_501, maxXp: 5_000 },
+  { id: 'senior', icon: '⚡', minLevel: 16, maxLevel: 30, minXp: 5_001, maxXp: 15_000 },
+  { id: 'cro', icon: '👑', minLevel: 31, maxLevel: null, minXp: 15_001, maxXp: null, xpPerLevel: 1_000 },
+];
+
+export interface CareerStanding {
+  rank: CareerRankId;
+  icon: string;
+  level: number;
+  xp: number;
+  /** XP at which the next rank starts, or null at the top rank. */
+  nextRankXp: number | null;
+  /** 0-1 through the current rank (1 at the top rank). */
+  rankProgress: number;
+}
+
+/** Level and rank for a lifetime XP total. Levels are spread evenly across each rank's XP band. */
+export function careerStanding(xp: number): CareerStanding {
+  const total = Math.max(0, Math.floor(xp));
+  const tier = [...CAREER_RANKS].reverse().find((r) => total >= r.minXp) ?? CAREER_RANKS[0]!;
+  const into = total - tier.minXp;
+  if (tier.maxXp === null || tier.maxLevel === null) {
+    return { rank: tier.id, icon: tier.icon, level: tier.minLevel + Math.floor(into / (tier.xpPerLevel ?? 1_000)), xp: total, nextRankXp: null, rankProgress: 1 };
+  }
+  const band = tier.maxXp + 1 - tier.minXp;
+  const levels = tier.maxLevel - tier.minLevel + 1;
+  return {
+    rank: tier.id,
+    icon: tier.icon,
+    level: Math.min(tier.maxLevel, tier.minLevel + Math.floor((into * levels) / band)),
+    xp: total,
+    nextRankXp: tier.maxXp + 1,
+    rankProgress: Math.min(1, into / band),
+  };
+}
+
+export type BadgeId = 'ekycHawkEye' | 'amlIronShield' | 'slaMaster' | 'perfectAuditor';
+export const BADGES: readonly BadgeId[] = ['ekycHawkEye', 'amlIronShield', 'slaMaster', 'perfectAuditor'];
+export const BADGE_ICON: Readonly<Record<BadgeId, string>> = { ekycHawkEye: '👁️', amlIronShield: '🛑', slaMaster: '⚡', perfectAuditor: '⚖️' };
+
+/** What each badge asks for. */
+export const BADGE_RULES = {
+  /** eKYC Hawk-Eye: this many eKYC reviews in a row, all correct. */
+  ekycStreak: 10,
+  /** AML Iron Shield: this many structuring or OFAC blocks in a row inside one shift. */
+  amlBlocks: 5,
+  /** SLA Master: a full shift averaging under this many seconds a review. */
+  slaAvgSec: 8,
+  /** Perfect Auditor: this many full Expert-mode shifts in a row at 100%. */
+  auditorShifts: 3,
+} as const;
+
+/** The shift being worked toward the next badge check. */
+export interface CareerShiftLog {
+  reviews: number;
+  correct: number;
+  latencySumSec: number;
+  /** Every decision this shift was taken in Expert mode. */
+  allExpert: boolean;
+  amlBlockRun: number;
+  amlBlockBest: number;
+}
+
+export interface CareerProgress {
+  /** Lifetime XP across every shift. */
+  xp: number;
+  badges: BadgeId[];
+  /** Consecutive correct eKYC reviews (lifetime). */
+  ekycStreak: number;
+  /** Consecutive full Expert shifts at 100% accuracy. */
+  perfectExpertShifts: number;
+  shift: CareerShiftLog;
+}
+
+export const EMPTY_SHIFT_LOG: CareerShiftLog = { reviews: 0, correct: 0, latencySumSec: 0, allExpert: true, amlBlockRun: 0, amlBlockBest: 0 };
+export const EMPTY_CAREER: CareerProgress = { xp: 0, badges: [], ekycStreak: 0, perfectExpertShifts: 0, shift: EMPTY_SHIFT_LOG };
+
+export interface CareerDecision {
+  role: StaffRoleId;
+  drill?: StaffDrillNo;
+  expected: StaffDecision | null;
+  decision: StaffDecision;
+  correct: boolean;
+  latencySec: number;
+  expert: boolean;
+  /** XP the decision booked on the shift. */
+  xp: number;
+}
+
+/** AML structuring (drill 2) and OFAC (drill 1) cases the SOP says to block. */
+const amlBlockCase = (d: CareerDecision): boolean => d.role === 'aml' && (d.drill === 1 || d.drill === 2) && d.expected === 'REJECT';
+
+/** Books a decision on the career; at the end of every SHIFT_TARGET.reviews-review shift, checks the badges. Returns the badges it just unlocked. */
+export function recordCareerDecision(c: CareerProgress, d: CareerDecision): { career: CareerProgress; unlocked: BadgeId[] } {
+  const s = c.shift;
+  const blocked = amlBlockCase(d) && d.correct;
+  const amlBlockRun = blocked ? s.amlBlockRun + 1 : d.correct ? s.amlBlockRun : 0;
+  const shift: CareerShiftLog = {
+    reviews: s.reviews + 1,
+    correct: s.correct + (d.correct ? 1 : 0),
+    latencySumSec: s.latencySumSec + Math.max(0, d.latencySec),
+    allExpert: s.allExpert && d.expert,
+    amlBlockRun,
+    amlBlockBest: Math.max(s.amlBlockBest, amlBlockRun),
+  };
+  const ekycStreak = d.role === 'ekyc' ? (d.correct ? c.ekycStreak + 1 : 0) : c.ekycStreak;
+  const next: CareerProgress = { ...c, xp: Math.max(0, c.xp + d.xp), ekycStreak, shift };
+  if (shift.reviews < SHIFT_TARGET.reviews) return { career: next, unlocked: [] };
+
+  const perfectExpertShifts = shift.allExpert && shift.correct === shift.reviews ? c.perfectExpertShifts + 1 : 0;
+  const earned: Record<BadgeId, boolean> = {
+    ekycHawkEye: ekycStreak >= BADGE_RULES.ekycStreak,
+    amlIronShield: shift.amlBlockBest >= BADGE_RULES.amlBlocks,
+    slaMaster: shift.latencySumSec / shift.reviews < BADGE_RULES.slaAvgSec,
+    perfectAuditor: perfectExpertShifts >= BADGE_RULES.auditorShifts,
+  };
+  const unlocked = BADGES.filter((b) => earned[b] && !c.badges.includes(b));
+  return { career: { ...next, perfectExpertShifts, shift: EMPTY_SHIFT_LOG, badges: [...c.badges, ...unlocked] }, unlocked };
+}

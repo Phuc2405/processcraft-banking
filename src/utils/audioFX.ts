@@ -7,6 +7,7 @@
  *   comboSuccess     a high double beep for a correct review decision
  *   comboUp          an ascending major arpeggio when a combo reaches x1.5 or x2.0
  *   sopError         a low filtered buzz for a review decision against the SOP
+ *   badgeUnlock      a bright rising fanfare with a shimmer when a badge unlocks
  *
  * Browsers only let a page make sound after the person has interacted with it, so the AudioContext is created lazily on the
  * first sound and resumed if it was suspended. Everything is a silent no-op where Web Audio does not exist (tests, old
@@ -23,10 +24,10 @@ type AudioCtor = typeof AudioContext;
 let ctx: AudioContext | null = null;
 let enabled = true;
 /** The time each sound last started, so a burst of events never stacks the same sound on itself. */
-const lastPlayed: Record<SoundName, number> = { posSuccessDing: 0, errorBuzz: 0, botnetSiren: 0, comboSuccess: 0, comboUp: 0, sopError: 0 };
-const MIN_GAP_MS: Record<SoundName, number> = { posSuccessDing: 120, errorBuzz: 350, botnetSiren: 2_500, comboSuccess: 120, comboUp: 300, sopError: 350 };
+const lastPlayed: Record<SoundName, number> = { posSuccessDing: 0, errorBuzz: 0, botnetSiren: 0, comboSuccess: 0, comboUp: 0, sopError: 0, badgeUnlock: 0 };
+const MIN_GAP_MS: Record<SoundName, number> = { posSuccessDing: 120, errorBuzz: 350, botnetSiren: 2_500, comboSuccess: 120, comboUp: 300, sopError: 350, badgeUnlock: 1_200 };
 
-export type SoundName = 'posSuccessDing' | 'errorBuzz' | 'botnetSiren' | 'comboSuccess' | 'comboUp' | 'sopError';
+export type SoundName = 'posSuccessDing' | 'errorBuzz' | 'botnetSiren' | 'comboSuccess' | 'comboUp' | 'sopError' | 'badgeUnlock';
 
 function audioCtor(): AudioCtor | null {
   if (typeof window === 'undefined') return null;
@@ -162,7 +163,16 @@ export function sopError(): void {
   osc.stop(t0 + 0.5);
 }
 
-const SOUNDS: Record<SoundName, () => void> = { posSuccessDing, errorBuzz, botnetSiren, comboSuccess, comboUp, sopError };
+/** A badge unlocked: G5–C6–E6–G6 rising into a held C7 chord with a high shimmer. */
+export function badgeUnlock(): void {
+  const c = context();
+  if (!c) return;
+  [783.99, 1046.5, 1318.5, 1568].forEach((freq, i) => tone(c, { type: 'triangle', freq, at: i * 0.09, dur: 0.22, gain: 0.11 }));
+  [1046.5, 1318.5, 2093].forEach((freq) => tone(c, { type: 'sine', freq, at: 0.38, dur: 0.9, gain: 0.07 }));
+  [4186, 3520, 4698.6].forEach((freq, i) => tone(c, { type: 'sine', freq, at: 0.42 + i * 0.08, dur: 0.18, gain: 0.025 }));
+}
+
+const SOUNDS: Record<SoundName, () => void> = { posSuccessDing, errorBuzz, botnetSiren, comboSuccess, comboUp, sopError, badgeUnlock };
 
 /** Plays a sound by name, unless sound is off or the same sound played a moment ago. */
 export function play(name: SoundName, nowMs: number = Date.now()): boolean {

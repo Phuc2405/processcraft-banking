@@ -853,3 +853,24 @@ body[data-hover3d] .bk-office-canvas {
 body[data-hover3d] .bk-office-canvas[data-grabbing] {
   cursor: grabbing;
 }
+
+/* Badge unlock: a slow gold halo around the badge icon. */
+@keyframes pc-badge-glow-kf {
+  0%,
+  100% {
+    box-shadow: 0 0 18px 4px rgb(251 191 36 / 0.45);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 44px 12px rgb(251 191 36 / 0.75);
+    transform: scale(1.06);
+  }
+}
+.pc-badge-glow {
+  animation: pc-badge-glow-kf 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pc-badge-glow {
+    animation: none;
+  }
+}

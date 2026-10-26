@@ -2,6 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { formatMoney } from '../../sim/kpis';
 import { localizeScenarioText } from '../../sim/scenarios';
 import {
+  BADGE_ICON,
+  BADGE_RULES,
+  BADGES,
+  careerStanding,
+  CAREER_RANKS,
+  EMPTY_CAREER,
+  type BadgeId,
+  type CareerProgress,
   CHALLENGE,
   challengeBonus,
   challengeGrade,
@@ -605,6 +613,127 @@ function SoundToggle({ m }: { m: M }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Career rank card, badge collection and the unlock celebration
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function CareerCard({ career, m }: { career: CareerProgress; m: M }) {
+  const st = careerStanding(career.xp);
+  const next = CAREER_RANKS[CAREER_RANKS.findIndex((r) => r.id === st.rank) + 1];
+  return (
+    <div className="flex min-w-[13rem] items-center gap-2.5 rounded-xl border border-amber-400/30 bg-gradient-to-r from-amber-400/10 to-slate-900 px-2.5 py-1.5" title={m('careerHint')} data-testid="workspace-career" data-rank={st.rank} data-level={st.level}>
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-900 text-[20px] ring-1 ring-amber-400/50" aria-hidden="true">
+        {st.icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-1.5">
+          <span className="rounded bg-amber-400 px-1.5 text-[10.5px] font-black tabular-nums text-slate-950" data-testid="workspace-career-level">
+            {m('careerLevel', { n: st.level })}
+          </span>
+          <span className="truncate text-[12px] font-bold text-amber-100" data-testid="workspace-career-rank">
+            {m(k(`rank_${st.rank}`))}
+          </span>
+        </div>
+        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-800" role="progressbar" aria-label={m('careerKicker')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(st.rankProgress * 100)}>
+          <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-400 transition-[width] duration-500" style={{ width: `${Math.round(st.rankProgress * 100)}%` }} />
+        </div>
+        <div className="mt-0.5 text-[10px] tabular-nums text-slate-400" data-testid="workspace-career-next">
+          {st.nextRankXp !== null && next ? m('careerNext', { xp: st.xp.toLocaleString('en-US'), next: st.nextRankXp.toLocaleString('en-US'), rank: m(k(`rank_${next.id}`)) }) : m('careerTop', { xp: st.xp.toLocaleString('en-US') })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** How far the learner is toward a badge, as `{n}` against its target. */
+export function badgeProgress(id: BadgeId, c: CareerProgress): { n: number | string; target: number } {
+  switch (id) {
+    case 'ekycHawkEye':
+      return { n: Math.min(c.ekycStreak, BADGE_RULES.ekycStreak), target: BADGE_RULES.ekycStreak };
+    case 'amlIronShield':
+      return { n: Math.min(c.shift.amlBlockBest, BADGE_RULES.amlBlocks), target: BADGE_RULES.amlBlocks };
+    case 'slaMaster':
+      return { n: c.shift.reviews > 0 ? (c.shift.latencySumSec / c.shift.reviews).toFixed(1) : '—', target: BADGE_RULES.slaAvgSec };
+    case 'perfectAuditor':
+      return { n: Math.min(c.perfectExpertShifts, BADGE_RULES.auditorShifts), target: BADGE_RULES.auditorShifts };
+  }
+}
+
+const badgeTarget = (id: BadgeId): number => ({ ekycHawkEye: BADGE_RULES.ekycStreak, amlIronShield: BADGE_RULES.amlBlocks, slaMaster: BADGE_RULES.slaAvgSec, perfectAuditor: BADGE_RULES.auditorShifts })[id];
+
+function BadgesButton({ unlocked, onOpen, m }: { unlocked: number; onOpen: () => void; m: M }) {
+  return (
+    <button type="button" onClick={onOpen} data-testid="workspace-badges" className="flex items-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-400/10 px-2.5 py-1.5 text-[12px] font-semibold text-amber-100 transition hover:bg-amber-400/20">
+      {m('badgesButton')}
+      <span className="rounded-full bg-amber-400 px-1.5 text-[10.5px] font-black tabular-nums text-slate-950">
+        {unlocked}/{BADGES.length}
+      </span>
+    </button>
+  );
+}
+
+export function BadgeDrawer({ career, m, onClose }: { career: CareerProgress; m: M; onClose: () => void }) {
+  return (
+    <div className="absolute inset-0 z-30 grid place-items-center bg-slate-950/80 p-4 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()} data-testid="workspace-badges-backdrop">
+      <div role="dialog" aria-modal="true" aria-labelledby="workspace-badges-title" data-testid="workspace-badges-drawer" className="w-full max-w-2xl rounded-2xl border border-amber-400/40 bg-slate-900 p-5 shadow-2xl">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 id="workspace-badges-title" className="text-[17px] font-extrabold text-amber-100">
+              {m('badgesTitle')}
+            </h3>
+            <p className="mt-0.5 text-[12px] text-slate-400">{m('badgesCount', { n: career.badges.length, total: BADGES.length })}</p>
+          </div>
+          <button type="button" onClick={onClose} autoFocus data-testid="workspace-badges-close" className="rounded-lg border border-slate-600 px-3 py-1.5 text-[12px] font-medium text-slate-200 transition hover:bg-slate-800">
+            {m('badgesClose')}
+          </button>
+        </div>
+        <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
+          {BADGES.map((id) => {
+            const on = career.badges.includes(id);
+            const p = badgeProgress(id, career);
+            return (
+              <div key={id} data-badge={id} data-unlocked={on || undefined} className={`flex gap-3 rounded-xl border p-3 ${on ? 'border-amber-300/70 bg-amber-400/10 shadow-[0_0_18px_rgba(251,191,36,0.25)]' : 'border-slate-700 bg-slate-950/60'}`}>
+                <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-full text-[26px] ${on ? 'bg-amber-400/20 ring-2 ring-amber-300' : 'bg-slate-800 opacity-50 grayscale'}`} aria-hidden="true">
+                  {BADGE_ICON[id]}
+                </span>
+                <div className="min-w-0">
+                  <div className={`text-[13.5px] font-bold ${on ? 'text-amber-100' : 'text-slate-300'}`}>{m(k(`badge_${id}_name`))}</div>
+                  <div className={`text-[10.5px] font-semibold ${on ? 'text-emerald-300' : 'text-slate-500'}`}>{m(on ? 'badgeUnlocked' : 'badgeLocked')}</div>
+                  <p className="mt-1 text-[11.5px] leading-snug text-slate-300">{m(k(`badge_${id}_req`), { target: p.target })}</p>
+                  {!on && <p className="mt-1 text-[10.5px] tabular-nums text-sky-300">{m(k(`badge_${id}_progress`), p)}</p>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function BadgeUnlockModal({ badge, m, onClose }: { badge: BadgeId; m: M; onClose: () => void }) {
+  const target = badgeTarget(badge);
+  return (
+    <div className="absolute inset-0 z-40 grid place-items-center bg-slate-950/85 p-4 backdrop-blur-sm" data-testid="workspace-unlock-backdrop">
+      <div role="alertdialog" aria-modal="true" aria-labelledby="workspace-unlock-title" aria-describedby="workspace-unlock-message" data-testid="workspace-unlock" data-badge={badge} className="w-full max-w-sm rounded-2xl border-2 border-amber-300/80 bg-gradient-to-b from-amber-950/80 to-slate-900 p-6 text-center shadow-[0_0_60px_rgba(251,191,36,0.35)]">
+        <div className="text-[12px] font-black uppercase tracking-[0.2em] text-amber-300">{m('unlockKicker')}</div>
+        <div className="pc-badge-glow mx-auto mt-4 grid h-24 w-24 place-items-center rounded-full bg-amber-400/20 text-[52px] ring-4 ring-amber-300" aria-hidden="true">
+          {BADGE_ICON[badge]}
+        </div>
+        <h3 id="workspace-unlock-title" className="mt-4 text-[20px] font-extrabold text-amber-50">
+          {m(k(`badge_${badge}_name`))}
+        </h3>
+        <p id="workspace-unlock-message" className="mt-2 text-[12.5px] leading-snug text-slate-200">
+          {m(k(`badge_${badge}_toast`), { target })}
+        </p>
+        <button type="button" onClick={onClose} autoFocus data-testid="workspace-unlock-close" className="mt-5 rounded-lg border border-amber-400/60 bg-amber-400 px-4 py-1.5 text-[13px] font-bold text-slate-950 transition hover:bg-amber-300">
+          {m('unlockClose')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function DecisionPanel({
   shift,
   current,
@@ -741,7 +870,7 @@ export interface AnalystWorkspaceViewProps {
   onClose: () => void;
   onAdvance: () => void;
   /** Decides the head case; returns the result, the role's error count, and the XP booked and streak after it. */
-  onDecide: (caseId: string, decision: StaffDecision, latencySec: number) => { result: StaffDecisionResult; errors: number; xp?: number; combo?: number };
+  onDecide: (caseId: string, decision: StaffDecision, latencySec: number, expert: boolean) => { result: StaffDecisionResult; errors: number; xp?: number; combo?: number };
   /** Instant: another task at the same desk. */
   onTaskChange: (task: StaffTaskNo) => void;
   /** Called only after the learner confirmed the switch dialog. */
@@ -749,13 +878,37 @@ export interface AnalystWorkspaceViewProps {
   /** The Time-Attack challenge, held by the caller so it outlives remounts. */
   challenge?: ChallengeState;
   challengeControls?: ChallengeControls;
+  /** Lifetime career (XP, badges) and the badges waiting for their celebration. */
+  career?: CareerProgress;
+  badgeUnlocks?: readonly BadgeId[];
+  onDismissBadgeUnlock?: () => void;
 }
 
 const NO_CHALLENGE: ChallengeState = { run: null, finished: null };
+const NO_UNLOCKS: readonly BadgeId[] = [];
 const NO_CONTROLS: ChallengeControls = { start: () => undefined, stop: () => undefined, record: () => undefined, tick: () => undefined, dismiss: () => undefined };
 
 /** The workspace itself, driven by props (the store-connected modal below feeds it). */
-export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, canAdvance, onClose, onAdvance, onDecide, onTaskChange, onSwitchRole, challenge = NO_CHALLENGE, challengeControls: cc = NO_CONTROLS }: AnalystWorkspaceViewProps) {
+export function AnalystWorkspaceView({
+  desk,
+  cases,
+  shift,
+  initialMode,
+  task,
+  canAdvance,
+  onClose,
+  onAdvance,
+  onDecide,
+  onTaskChange,
+  onSwitchRole,
+  challenge = NO_CHALLENGE,
+  challengeControls: cc = NO_CONTROLS,
+  career = EMPTY_CAREER,
+  badgeUnlocks = NO_UNLOCKS,
+  onDismissBadgeUnlock = () => undefined,
+}: AnalystWorkspaceViewProps) {
+  const [badgesOpen, setBadgesOpen] = useState(false);
+  const unlock = badgeUnlocks[0] ?? null;
   const terms = useTerms();
   const m = useMessages(analystWorkspaceMessages);
   const [mode, setMode] = useState<WorkspaceMode>(initialMode);
@@ -776,9 +929,9 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
 
   const decide = useCallback(
     (d: StaffDecision) => {
-      if (!current || !role || consequence || pendingRole || challenge.finished) return;
+      if (!current || !role || consequence || pendingRole || challenge.finished || unlock || badgesOpen) return;
       const latency = elapsedRef.current;
-      const { result, errors, xp, combo } = onDecide(current.id, d, latency);
+      const { result, errors, xp, combo } = onDecide(current.id, d, latency, mode === 'expert');
       if (!result.ok) return;
       const streak = combo ?? (result.correct ? (shift.comboCount ?? 0) + 1 : 0);
       if (uiStore.getState().soundOn) play(reviewSound(result.correct, streak));
@@ -787,7 +940,7 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
         setConsequence({ result, role, drill: current.drill, errors, xp, combo: streak, points: challengePoints(result.correct, latency), bonus: result.correct ? challengeBonus(latency) : 0 });
       } else setConsequence({ result, role, drill: current.drill, errors, xp, combo: streak });
     },
-    [current, role, consequence, pendingRole, onDecide, challenge, cc, shift.comboCount],
+    [current, role, consequence, pendingRole, onDecide, challenge, cc, shift.comboCount, mode, unlock, badgesOpen],
   );
 
   useEffect(() => {
@@ -795,16 +948,22 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return;
       if (e.key === 'Escape') {
-        if (challenge.finished) cc.dismiss();
+        if (unlock) onDismissBadgeUnlock();
+        else if (badgesOpen) setBadgesOpen(false);
+        else if (challenge.finished) cc.dismiss();
         else if (pendingRole) setPendingRole(null);
         else onClose();
-      } else if (pendingRole || challenge.finished) return;
+      } else if (pendingRole || challenge.finished || unlock || badgesOpen) return;
       else if (e.key === 'a' || e.key === 'A') decide('APPROVE');
       else if (e.key === 'r' || e.key === 'R') decide('REJECT');
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, decide, pendingRole, challenge, cc]);
+  }, [onClose, decide, pendingRole, challenge, cc, unlock, badgesOpen, onDismissBadgeUnlock]);
+
+  useEffect(() => {
+    if (unlock && uiStore.getState().soundOn) play('badgeUnlock');
+  }, [unlock]);
 
   const pickRole = (next: StaffRoleId): void => setPendingRole(next === role ? null : next);
   const confirmSwitch = (): void => {
@@ -825,6 +984,7 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
       <div role="dialog" aria-modal="true" aria-labelledby="analyst-workspace-title" data-testid="analyst-workspace" data-station={desk} data-role={role} data-mode={mode} data-challenge={challenge.run ? 'running' : undefined} data-combo-tier={tier} className={`relative flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border bg-slate-950 shadow-2xl transition-shadow duration-500 ${tier === 'zone' ? 'border-amber-300/80' : 'border-slate-700'}`} style={{ boxShadow: glow }}>
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-4 py-2.5 xl:flex-nowrap">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 xl:flex-nowrap">
+            <CareerCard career={career} m={m} />
             <div className="min-w-0 xl:max-w-[18rem]">
               <h2 id="analyst-workspace-title" className="text-[14px] font-bold text-slate-50">
                 {m('title')}
@@ -839,6 +999,7 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <BadgesButton unlocked={career.badges.length} onOpen={() => setBadgesOpen(true)} m={m} />
             <SoundToggle m={m} />
             <LanguageToggle variant="globe" testId="workspace-language" />
             <ModeToggle mode={mode} onChange={setMode} m={m} />
@@ -855,6 +1016,8 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
         </div>
         {consequence && !consequence.result.correct && <SopViolationPulse m={m} />}
         {challenge.finished && <ChallengeScorecard tally={challenge.finished} m={m} onAgain={cc.start} onClose={cc.dismiss} />}
+        {badgesOpen && <BadgeDrawer career={career} m={m} onClose={() => setBadgesOpen(false)} />}
+        {unlock && <BadgeUnlockModal key={unlock} badge={unlock} m={m} onClose={onDismissBadgeUnlock} />}
         {pendingRole && <SwitchDeskDialog target={pendingRole} m={m} onCancel={() => setPendingRole(null)} onConfirm={confirmSwitch} />}
       </div>
     </div>
@@ -870,6 +1033,9 @@ export function AnalystWorkspaceModal() {
   const seq = useBankStore((s) => s.staffTaskSeq);
   const close = useBankStore((s) => s.closeStaffDesk);
   const train = useBankStore((s) => s.staffTrain);
+  const career = useBankStore((s) => s.career);
+  const badgeUnlocks = useBankStore((s) => s.badgeUnlocks);
+  const dismissBadgeUnlock = useBankStore((s) => s.dismissBadgeUnlock);
   const setTask = useBankStore((s) => s.setStaffTask);
   const switchDesk = useBankStore((s) => s.switchStaffDesk);
   const step = useBankStore((s) => s.step);
@@ -890,9 +1056,9 @@ export function AnalystWorkspaceModal() {
   );
 
   const onDecide = useCallback<AnalystWorkspaceViewProps['onDecide']>(
-    (caseId, decision, latencySec) => {
+    (caseId, decision, latencySec, expert) => {
       const before = role ? (bankStore.getState().staffShift[role] ?? EMPTY_SHIFT) : EMPTY_SHIFT;
-      const result = train(caseId, decision, latencySec, STAFF_SLA_SECONDS);
+      const result = train(caseId, decision, latencySec, STAFF_SLA_SECONDS, expert);
       const after = role ? (bankStore.getState().staffShift[role] ?? EMPTY_SHIFT) : EMPTY_SHIFT;
       return { result, errors: after.errors, xp: after.xp - before.xp, combo: after.comboCount };
     },
@@ -917,6 +1083,9 @@ export function AnalystWorkspaceModal() {
       onSwitchRole={onSwitchRole}
       challenge={challenge}
       challengeControls={challengeControls}
+      career={career}
+      badgeUnlocks={badgeUnlocks}
+      onDismissBadgeUnlock={dismissBadgeUnlock}
     />
   );
 }
