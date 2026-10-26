@@ -3,7 +3,14 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { setActiveLocale } from '../../../i18n/locale';
 import {
+  addToTally,
   buildTaskCase,
+  CHALLENGE,
+  CHALLENGE_GRADES,
+  challengeBonus,
+  challengeGrade,
+  challengePoints,
+  EMPTY_TALLY,
   gradeTaskCase,
   RANDOM_TASK,
   ROLE_STATION,
@@ -18,7 +25,7 @@ import {
 import { createBankStore, EMPTY_SHIFT } from '../../../store/bankStore';
 import { bundleProblems, hasVietnamese } from '../../../utils/i18nHelper';
 import { analystWorkspaceMessages, PERSONAS, type AnalystWorkspaceKey } from '../analystWorkspace.messages';
-import { AnalystWorkspaceView, ConsequenceOverlay, consequenceKey, SOP_STEPS, personaFor, riskKey, sopKeys, SwitchDeskDialog, type AnalystWorkspaceViewProps, type WorkspaceMode } from '../AnalystWorkspaceModal';
+import { AnalystWorkspaceView, ChallengeScorecard, clockText, ConsequenceOverlay, consequenceKey, SOP_STEPS, personaFor, riskKey, sopKeys, SwitchDeskDialog, type AnalystWorkspaceViewProps, type WorkspaceMode } from '../AnalystWorkspaceModal';
 
 const msgs = analystWorkspaceMessages.messages;
 const has = (key: string): boolean => key in msgs;
@@ -160,6 +167,81 @@ describe('the 28-task matrix', () => {
   });
 });
 
+describe('Time-Attack Challenge Mode', () => {
+  it('runs a strict 3-minute shift scored +100, up to +50 under 15 s, −50 per error', () => {
+    expect(CHALLENGE.durationSec).toBe(180);
+    expect(challengePoints(true, 0)).toBe(150);
+    expect(challengePoints(true, 7.5)).toBe(125);
+    expect(challengePoints(true, 15)).toBe(100);
+    expect(challengePoints(true, 40)).toBe(100);
+    expect(challengePoints(false, 1)).toBe(-50);
+    expect(challengeBonus(-3)).toBe(50);
+  });
+
+  it('keeps a net tally and grades the shift S to F on accuracy and volume', () => {
+    let t = EMPTY_TALLY;
+    for (let i = 0; i < 12; i++) t = addToTally(t, true, 5);
+    expect(t).toMatchObject({ reviews: 12, correct: 12, bonusXp: 12 * 33, penaltyXp: 0, xp: 12 * 133 });
+    expect(challengeGrade(t)).toBe('S');
+    t = addToTally(t, false, 2);
+    expect(t.xp).toBe(12 * 133 - 50);
+    expect(challengeGrade(t)).toBe('A');
+    expect(challengeGrade({ reviews: 6, correct: 5 })).toBe('B');
+    expect(challengeGrade({ reviews: 3, correct: 2 })).toBe('C');
+    expect(challengeGrade({ reviews: 20, correct: 10 })).toBe('F');
+    expect(challengeGrade({ reviews: 2, correct: 2 })).toBe('F');
+    expect(challengeGrade(EMPTY_TALLY)).toBe('F');
+    for (const g of CHALLENGE_GRADES) expect(has(`grade_${g}`), g).toBe(true);
+  });
+
+  it('keeps the challenge in the store: strict clock, scorecard at 00:00, cleared on leaving or switching desk', () => {
+    const store = createBankStore({ storage: null, seed: 2026 });
+    store.getState().openStaffDesk(ROLE_STATION.fds);
+    store.getState().startChallenge(1_000);
+    expect(store.getState().staffChallenge?.endsAt).toBe(1_000 + 180_000);
+    store.getState().recordChallenge(true, 3, 5_000);
+    store.getState().recordChallenge(false, 3, 9_000);
+    store.getState().tickChallenge(180_999);
+    expect(store.getState().staffChallengeResult).toBeNull();
+    store.getState().recordChallenge(true, 1, 181_000);
+    expect(store.getState().staffChallenge?.tally).toMatchObject({ reviews: 2, correct: 1, xp: 140 - 50 });
+    store.getState().tickChallenge(181_000);
+    expect(store.getState().staffChallenge).toBeNull();
+    expect(store.getState().staffChallengeResult).toMatchObject({ reviews: 2, xp: 90 });
+    store.getState().dismissChallengeResult();
+    store.getState().startChallenge(0);
+    store.getState().switchStaffDesk(ROLE_STATION.aml);
+    expect(store.getState().staffChallenge).toBeNull();
+    store.getState().startChallenge(0);
+    store.getState().closeStaffDesk();
+    expect(store.getState().staffChallenge).toBeNull();
+  });
+
+  it('formats the countdown', () => {
+    expect(clockText(180)).toBe('03:00');
+    expect(clockText(166.2)).toBe('02:47');
+    expect(clockText(0)).toBe('00:00');
+    expect(clockText(-4)).toBe('00:00');
+  });
+
+  it('opens a scorecard with cases, accuracy, net XP and the grade in both languages', () => {
+    const tally = { reviews: 10, correct: 9, xp: 1040, bonusXp: 190, penaltyXp: 50 };
+    for (const lang of ['en', 'vi'] as const) {
+      const m = (key: AnalystWorkspaceKey, values?: Record<string, string | number>): string => {
+        let text: string = msgs[key][lang];
+        for (const [k, v] of Object.entries(values ?? {})) text = text.replace(`{${k}}`, String(v));
+        return text;
+      };
+      const out = renderToStaticMarkup(createElement(ChallengeScorecard, { tally, m, onAgain: () => undefined, onClose: () => undefined }));
+      expect(out).toContain('data-grade="A"');
+      expect(out).toMatch(/data-testid="workspace-scorecard-reviewed"[^>]*>10</);
+      expect(out).toMatch(/data-testid="workspace-scorecard-accuracy"[^>]*>90%</);
+      expect(out).toMatch(/data-testid="workspace-scorecard-xp"[^>]*>1040</);
+      for (const key of ['scorecardTitle', 'scReviewed', 'scAccuracy', 'scNetXp', 'scGrade', 'grade_A', 'scPlayAgain'] as const) expect(out, `${lang} ${key}`).toContain(esc(msgs[key][lang]));
+    }
+  });
+});
+
 describe('the consequence overlay', () => {
   const m = (key: AnalystWorkspaceKey, values?: Record<string, string | number>): string => {
     let text: string = msgs[key].en;
@@ -174,6 +256,11 @@ describe('the consequence overlay', () => {
     expect(bad).toContain('❌ AGAINST THE SOP!');
     expect(bad).toContain('Error #2 this shift');
     expect(bad).toContain(esc(msgs.risk_bnpl_approveExp.en));
+    const timed = renderToStaticMarkup(createElement(ConsequenceOverlay, { consequence: { role: 'aml', errors: 0, points: 142, bonus: 42, result: { ok: true, packetId: 'p', decision: 'REJECT', expected: 'REJECT', correct: true, statusCode: 'X' } }, mode: 'standard', m }));
+    expect(timed).toContain('+142 XP');
+    expect(timed).toContain('+42 speed bonus');
+    const lost = renderToStaticMarkup(createElement(ConsequenceOverlay, { consequence: { role: 'aml', errors: 1, points: -50, bonus: 0, result: { ok: true, packetId: 'p', decision: 'APPROVE', expected: 'REJECT', correct: false, statusCode: 'X' } }, mode: 'standard', m }));
+    expect(lost).toContain('−50 XP');
   });
 });
 
@@ -210,7 +297,7 @@ describe('the task workspace on screen', () => {
     for (const role of STAFF_ROLES)
       for (const task of STAFF_TASKS) {
         const out = view(role, task);
-        for (const id of ['workspace-role-select', 'workspace-task-select', 'workspace-task', 'workspace-sop', 'workspace-scenario', 'workspace-language', 'workspace-mode']) expect(out, `${role} ${task} ${id}`).toContain(`data-testid="${id}"`);
+        for (const id of ['workspace-challenge', 'workspace-role-select', 'workspace-task-select', 'workspace-task', 'workspace-sop', 'workspace-scenario', 'workspace-language', 'workspace-mode']) expect(out, `${role} ${task} ${id}`).toContain(`data-testid="${id}"`);
         expect(out).toContain(`data-task="${task}"`);
         for (const key of sopKeys(role, task)) expect(out).toContain(esc(msgs[key].en));
         expect(out.includes('data-testid="workspace-drill"')).toBe(task === RANDOM_TASK);

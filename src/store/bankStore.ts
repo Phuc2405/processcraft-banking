@@ -22,7 +22,7 @@ import type { TermMode } from '../sim/terms';
 import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
 import type { BankView, Customer, PacketTrace } from '../sim/types';
-import { buildTaskCase, gradeTaskCase, roleForStation, STAFF_XP_PER_CORRECT, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo } from '../sim/staffRoleplay';
+import { addToTally, buildTaskCase, CHALLENGE, EMPTY_TALLY, gradeTaskCase, roleForStation, STAFF_XP_PER_CORRECT, type ChallengeTally, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo } from '../sim/staffRoleplay';
 import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
@@ -185,6 +185,17 @@ export interface BankState {
   switchStaffDesk(id: StationId): void;
   /** Decides the head case of the current task and books it on the shift. */
   staffTrain(caseId: string, decision: StaffDecision, latencySec: number, slaSec: number): StaffDecisionResult;
+  /** The running Time-Attack challenge (kept in the store so a language switch, which remounts the app, cannot reset it). */
+  staffChallenge: { endsAt: number; tally: ChallengeTally } | null;
+  /** The tally of the challenge that just ended, shown on the scorecard until dismissed. */
+  staffChallengeResult: ChallengeTally | null;
+  startChallenge(at?: number): void;
+  stopChallenge(): void;
+  /** Books a challenge decision; ignored once the clock has run out. */
+  recordChallenge(correct: boolean, latencySec: number, at?: number): void;
+  /** Ends the challenge when its clock has run out and opens the scorecard. */
+  tickChallenge(at?: number): void;
+  dismissChallengeResult(): void;
 
   // Clock
   play(): void;
@@ -461,6 +472,21 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
 
       staffTask: 1,
       staffTaskSeq: 0,
+      staffChallenge: null,
+      staffChallengeResult: null,
+
+      startChallenge: (at = Date.now()) => set({ staffChallenge: { endsAt: at + CHALLENGE.durationSec * 1000, tally: EMPTY_TALLY }, staffChallengeResult: null }),
+      stopChallenge: () => set({ staffChallenge: null }),
+      recordChallenge: (correct, latencySec, at = Date.now()) => {
+        const run = get().staffChallenge;
+        if (!run || at >= run.endsAt) return;
+        set({ staffChallenge: { ...run, tally: addToTally(run.tally, correct, latencySec) } });
+      },
+      tickChallenge: (at = Date.now()) => {
+        const run = get().staffChallenge;
+        if (run && at >= run.endsAt) set({ staffChallenge: null, staffChallengeResult: run.tally });
+      },
+      dismissChallengeResult: () => set({ staffChallengeResult: null }),
 
       openStaffDesk: (id) => {
         if (!roleForStation(id)) return;
@@ -478,7 +504,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       switchStaffDesk: (id) => {
         const s = get();
         if (!roleForStation(id) || !s.staffDesk || s.staffDesk === id) return;
-        set({ staffShift: {}, staffTask: 1, staffTaskSeq: 0 });
+        set({ staffShift: {}, staffTask: 1, staffTaskSeq: 0, staffChallenge: null, staffChallengeResult: null });
         refresh({ staffDesk: id });
       },
 
@@ -506,7 +532,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         const resume = staffResume && !get().sim.dayOver;
         staffResume = false;
         get().sim.setStaffOverride(null);
-        set({ staffDesk: null, pendingQueueMap: {}, ...(resume ? { playing: true } : {}) });
+        set({ staffDesk: null, pendingQueueMap: {}, staffChallenge: null, staffChallengeResult: null, ...(resume ? { playing: true } : {}) });
       },
 
       staffDecide: (packetId, decision, latencySec, slaSec) => {

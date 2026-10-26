@@ -30,6 +30,14 @@ import { useSmartZoom, type ViewInsets } from '../../hooks/useSmartZoom';
 import { useFitScale, useZoomPan } from '../../hooks/useZoomPan';
 import { useNavStore } from '../../store/navStore';
 import { roleForStation } from '../../sim/staffRoleplay';
+import { DESK_HEAT, deskHeat, type DeskHeat } from '../../sim/deskHeat';
+import { useMessages } from '../../utils/i18nHelper';
+import { analystWorkspaceMessages } from './analystWorkspace.messages';
+
+/** Border and queue-number colours of the roleplay desks' congestion heat. */
+const HEAT_BORDER: Readonly<Record<DeskHeat, string>> = { green: 'border-emerald-400/60', orange: 'border-amber-400/80', red: 'border-rose-500/90' };
+const HEAT_TEXT: Readonly<Record<DeskHeat, string>> = { green: 'text-emerald-300', orange: 'text-amber-300', red: 'text-rose-300' };
+const HEAT_DOT: Readonly<Record<DeskHeat, string>> = { green: 'bg-emerald-400', orange: 'bg-amber-400', red: 'bg-rose-500' };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scaling the stage to the space it is given
@@ -220,6 +228,7 @@ const StationCard = memo(function StationCard({
 }) {
   const select = useBankStore((s) => s.select);
   const openStaffDesk = useBankStore((s) => s.openStaffDesk);
+  const wm = useMessages(analystWorkspaceMessages);
   const spotlightFocus = useBankStore((s) => s.spotlightFocus);
   const def = STATIONS[id];
   const box = PLACE_BOX[id];
@@ -236,8 +245,13 @@ const StationCard = memo(function StationCard({
   // A long plain-English name takes two lines, so the desk art gives up a little height for it.
   const long = name.length > 22;
 
-  const border =
-    sv.status === 'ALERT' ? 'border-rose-500/70' : sv.status === 'CONGESTED' ? 'border-amber-400/70' : sv.status === 'BUSY' ? 'border-emerald-400/35' : 'border-slate-700/80';
+  // The seven roleplay desks wear their congestion heat (queue length and head-of-queue SLA); every other station keeps its status border.
+  const heat = deskHeat(id, sv);
+  const heatText = heat ? wm(`heat_${heat}`, { warn: DESK_HEAT.warnAt, crit: DESK_HEAT.critAbove }) : null;
+  const border = heat
+    ? HEAT_BORDER[heat]
+    : sv.status === 'ALERT' ? 'border-rose-500/70' : sv.status === 'CONGESTED' ? 'border-amber-400/70' : sv.status === 'BUSY' ? 'border-emerald-400/35' : 'border-slate-700/80';
+  const pulse = focus ? '' : heat === 'red' ? 'bk-heat-red' : !heat && sv.status === 'CONGESTED' ? 'bk-congested' : '';
 
   return (
     <div
@@ -252,14 +266,15 @@ const StationCard = memo(function StationCard({
         onClick={() => (focus ? spotlightFocus(id) : select({ kind: 'station', id }))}
         onDoubleClick={() => !focus && roleForStation(id) && openStaffDesk(id)}
         aria-pressed={selected}
-        aria-label={`${title}: ${statusLabel(sv.status)}, ${sv.queueLength} ${unit}`}
+        aria-label={`${title}: ${statusLabel(sv.status)}, ${sv.queueLength} ${unit}${heatText ? `. ${wm('heatLabel')}: ${heatText}` : ''}`}
         data-testid={`station-${id}`}
         data-status={sv.status}
-        className={`absolute inset-0 rounded-xl border bg-gradient-to-b from-slate-900 to-[#0b1120] transition hover:border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${lit && focus ? 'bk-spot-lit' : flowLit ? 'bk-flow-lit' : border} ${flowHere ? 'bk-flow-here' : ''} ${selected ? 'ring-2 ring-sky-400' : ''} ${sv.status === 'CONGESTED' && !focus ? 'bk-congested' : ''}`}
+        data-heat={heat ?? undefined}
+        className={`absolute inset-0 rounded-xl border bg-gradient-to-b from-slate-900 to-[#0b1120] transition hover:border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${lit && focus ? 'bk-spot-lit' : flowLit ? 'bk-flow-lit' : border} ${flowHere ? 'bk-flow-here' : ''} ${selected ? 'ring-2 ring-sky-400' : ''} ${pulse}`}
       />
       <div className="pointer-events-none absolute inset-0 flex flex-col p-1.5">
         <div className={`flex gap-1.5 ${long ? 'items-start' : 'items-center'}`}>
-          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${long ? 'mt-[3px]' : ''} ${passed && focus ? 'bg-[var(--tour)]' : STATUS_DOT_CLASS[sv.status]}`} />
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${long ? 'mt-[3px]' : ''} ${passed && focus ? 'bg-[var(--tour)]' : heat ? HEAT_DOT[heat] : STATUS_DOT_CLASS[sv.status]}`} title={heatText ?? undefined} data-testid={heat ? `heat-dot-${id}` : undefined} />
           <span className={`font-semibold text-slate-100 ${long ? 'line-clamp-2 text-[10.5px] leading-[1.12]' : 'truncate text-[11.5px] leading-none'}`} data-testid={`station-name-${id}`} title={name}>
             {name}
           </span>
@@ -276,7 +291,7 @@ const StationCard = memo(function StationCard({
             <WorkstationGraphic capability={def.capability ?? 'CORE_LEDGER_CHECK'} status={RUN_STATUS[sv.status]} className={`shrink-0 ${long ? 'h-[40px] w-[54px]' : 'h-[52px] w-[70px]'}`} {...(first ? { profile: first.profile } : {})} />
           )}
           <div className="min-w-0 flex-1 text-right">
-            <div className={`text-[21px] font-bold leading-none tabular-nums ${sv.queueLength > 0 ? (sv.status === 'CONGESTED' || sv.status === 'ALERT' ? 'text-amber-300' : 'text-slate-100') : 'text-slate-600'}`} data-testid={`queue-${id}`}>
+            <div className={`text-[21px] font-bold leading-none tabular-nums ${heat && sv.queueLength > 0 ? HEAT_TEXT[heat] : sv.queueLength > 0 ? (sv.status === 'CONGESTED' || sv.status === 'ALERT' ? 'text-amber-300' : 'text-slate-100') : 'text-slate-600'}`} data-testid={`queue-${id}`}>
               {sv.queueLength}
             </div>
             {/* The unit and the status share a line, so a two-line name never pushes them into the staff and chapter row. */}

@@ -681,3 +681,67 @@ export function gradeTaskCase(c: StaffCase, decision: StaffDecision): StaffDecis
     statusCode: decision === 'APPROVE' ? APPROVE_CODE[c.role] : TASK_REJECT_CODE[c.role][drill],
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Time-Attack Challenge Mode
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const CHALLENGE = {
+  /** Length of a challenge shift, in real seconds. */
+  durationSec: 180,
+  /** XP for a decision that matches the SOP. */
+  base: 100,
+  /** Most speed bonus a correct decision can add. */
+  bonusMax: 50,
+  /** The speed bonus falls from bonusMax at 0 s to nothing at this many seconds. */
+  bonusWindowSec: 15,
+  /** XP lost for a wrong approval or rejection. */
+  penalty: 50,
+} as const;
+
+/** Speed bonus for a correct decision taken after `latencySec`. */
+export const challengeBonus = (latencySec: number): number => Math.round(CHALLENGE.bonusMax * Math.max(0, 1 - Math.max(0, latencySec) / CHALLENGE.bonusWindowSec));
+
+/** XP a single challenge decision is worth: base plus speed bonus when right, the penalty when wrong. */
+export const challengePoints = (correct: boolean, latencySec: number): number => (correct ? CHALLENGE.base + challengeBonus(latencySec) : -CHALLENGE.penalty);
+
+export interface ChallengeTally {
+  reviews: number;
+  correct: number;
+  /** Net XP: base and bonus earned, penalties taken off. */
+  xp: number;
+  bonusXp: number;
+  penaltyXp: number;
+}
+
+export const EMPTY_TALLY: ChallengeTally = { reviews: 0, correct: 0, xp: 0, bonusXp: 0, penaltyXp: 0 };
+
+export function addToTally(t: ChallengeTally, correct: boolean, latencySec: number): ChallengeTally {
+  const bonus = correct ? challengeBonus(latencySec) : 0;
+  return {
+    reviews: t.reviews + 1,
+    correct: t.correct + (correct ? 1 : 0),
+    xp: t.xp + challengePoints(correct, latencySec),
+    bonusXp: t.bonusXp + bonus,
+    penaltyXp: t.penaltyXp + (correct ? 0 : CHALLENGE.penalty),
+  };
+}
+
+export type ChallengeGrade = 'S' | 'A' | 'B' | 'C' | 'F';
+export const CHALLENGE_GRADES: readonly ChallengeGrade[] = ['S', 'A', 'B', 'C', 'F'];
+
+/** What each grade needs, best first: an accuracy floor and a volume of reviews inside the shift. */
+export const GRADE_BANDS: readonly { grade: Exclude<ChallengeGrade, 'F'>; minAccuracyPct: number; minReviews: number }[] = [
+  { grade: 'S', minAccuracyPct: 95, minReviews: 12 },
+  { grade: 'A', minAccuracyPct: 90, minReviews: 9 },
+  { grade: 'B', minAccuracyPct: 80, minReviews: 6 },
+  { grade: 'C', minAccuracyPct: 65, minReviews: 3 },
+];
+
+export const tallyAccuracy = (t: Pick<ChallengeTally, 'reviews' | 'correct'>): number => (t.reviews > 0 ? (t.correct / t.reviews) * 100 : 0);
+
+/** The operational efficiency grade for a finished shift. */
+export function challengeGrade(t: Pick<ChallengeTally, 'reviews' | 'correct'>): ChallengeGrade {
+  const acc = tallyAccuracy(t);
+  return GRADE_BANDS.find((b) => acc >= b.minAccuracyPct && t.reviews >= b.minReviews)?.grade ?? 'F';
+}

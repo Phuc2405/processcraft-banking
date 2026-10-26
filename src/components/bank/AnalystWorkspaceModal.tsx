@@ -2,7 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { formatMoney } from '../../sim/kpis';
 import { localizeScenarioText } from '../../sim/scenarios';
 import {
+  CHALLENGE,
+  challengeBonus,
+  challengeGrade,
+  challengePoints,
   RANDOM_TASK,
+  tallyAccuracy,
+  type ChallengeGrade,
+  type ChallengeTally,
   ROLE_ICON,
   ROLE_STATION,
   roleForStation,
@@ -347,6 +354,9 @@ interface Consequence {
   /** The drill of the decided case, so the overlay quotes that task's card. */
   drill?: StaffDrillNo;
   errors: number;
+  /** Challenge Mode only: the XP this decision scored and the speed bonus inside it. */
+  points?: number;
+  bonus?: number;
 }
 
 /** What the overlay explains: the benefit when right, the risk the learner just took when wrong. */
@@ -369,14 +379,179 @@ export function ConsequenceOverlay({ consequence, mode, m }: { consequence: Cons
       <p className="text-[12.5px] leading-snug text-slate-100">{m(consequenceKey(consequence, mode))}</p>
       {!ok && result.expected && <p className="text-[11.5px] text-rose-200">{m('incorrect', { expected: m(result.expected === 'REJECT' ? 'expectedREJECT' : 'expectedAPPROVE') })}</p>}
       <div className={`text-[20px] font-black tabular-nums ${ok ? 'text-amber-300' : 'text-rose-300'}`} data-testid="workspace-consequence-score">
-        {ok ? m('overlayXp', { xp: STAFF_XP_PER_CORRECT }) : m('overlayError', { n: consequence.errors })}
+        {consequence.points !== undefined
+          ? m('overlayPoints', { pts: consequence.points > 0 ? `+${consequence.points}` : `−${Math.abs(consequence.points)}` })
+          : ok
+            ? m('overlayXp', { xp: STAFF_XP_PER_CORRECT })
+            : m('overlayError', { n: consequence.errors })}
       </div>
+      {consequence.points !== undefined && !!consequence.bonus && <div className="text-[11px] font-semibold text-amber-200">{m('overlayBonus', { bonus: consequence.bonus })}</div>}
       <div className="font-mono text-[10.5px] text-slate-400">{m('statusCode', { code: result.statusCode })}</div>
     </div>
   );
 }
 
-function DecisionPanel({ shift, current, onDecide, consequence, mode, m }: { shift: ShiftProgress; current: StaffCase | null; onDecide: (d: StaffDecision) => void; consequence: Consequence | null; mode: WorkspaceMode; m: M }) {
+// ─────────────────────────────────────────────────────────────────────────────
+// Time-Attack Challenge Mode
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** "02:47" for a number of seconds left. */
+export function clockText(sec: number): string {
+  const s = Math.max(0, Math.ceil(sec));
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+}
+
+const pctText = (t: ChallengeTally): string => (t.reviews > 0 ? `${Math.round(tallyAccuracy(t) * 10) / 10}%` : '—');
+const RULE_VALUES = { base: CHALLENGE.base, bonus: CHALLENGE.bonusMax, window: CHALLENGE.bonusWindowSec, penalty: CHALLENGE.penalty, min: CHALLENGE.durationSec / 60 };
+
+export interface ChallengeState {
+  run: { endsAt: number; tally: ChallengeTally } | null;
+  finished: ChallengeTally | null;
+}
+
+export interface ChallengeControls {
+  start: () => void;
+  stop: () => void;
+  record: (correct: boolean, latencySec: number) => void;
+  /** Called on every clock tick while a run is live; ends it at 00:00. */
+  tick: () => void;
+  dismiss: () => void;
+}
+
+/** Seconds left on a running challenge, ticking 4 times a second. */
+function useCountdown(run: ChallengeState['run'], tick: () => void): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!run) return;
+    setNow(Date.now());
+    const t = window.setInterval(() => {
+      setNow(Date.now());
+      tick();
+    }, 250);
+    return () => window.clearInterval(t);
+  }, [run, tick]);
+  return run ? Math.max(0, (run.endsAt - now) / 1000) : CHALLENGE.durationSec;
+}
+
+function ChallengeToggle({ running, remainingSec, onStart, onStop, m }: { running: boolean; remainingSec: number; onStart: () => void; onStop: () => void; m: M }) {
+  const urgent = running && remainingSec <= 30;
+  return (
+    <button
+      type="button"
+      aria-pressed={running}
+      onClick={running ? onStop : onStart}
+      title={m('challengeHint', RULE_VALUES)}
+      data-testid="workspace-challenge"
+      data-running={running || undefined}
+      className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-semibold tabular-nums transition ${running ? (urgent ? 'border-rose-400/70 bg-rose-500/20 text-rose-100' : 'border-amber-400/70 bg-amber-400/15 text-amber-100') : 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'}`}
+    >
+      {running ? (
+        <>
+          <span aria-label={m('challengeTimerLabel')} data-testid="workspace-challenge-clock">
+            ⏱️ {clockText(remainingSec)}
+          </span>
+          <span className="text-[11px] opacity-80">{m('challengeStop')}</span>
+        </>
+      ) : (
+        m('challengeToggle')
+      )}
+    </button>
+  );
+}
+
+function ChallengeStrip({ tally, remainingSec, m }: { tally: ChallengeTally; remainingSec: number; m: M }) {
+  const urgent = remainingSec <= 30;
+  return (
+    <div className={`rounded-xl border p-2.5 ${urgent ? 'border-rose-400/60 bg-rose-500/10' : 'border-amber-400/50 bg-amber-400/[0.08]'}`} data-testid="workspace-challenge-strip">
+      <div className="flex items-center justify-between">
+        <Kicker>{m('challengeTitle')}</Kicker>
+        <span className={`text-[18px] font-black tabular-nums ${urgent ? 'animate-pulse text-rose-200' : 'text-amber-100'}`} role="timer" aria-label={m('challengeTimerLabel')}>
+          {clockText(remainingSec)}
+        </span>
+      </div>
+      <div className="mt-1 flex items-baseline justify-between gap-2">
+        <span className={`text-[16px] font-bold tabular-nums ${tally.xp < 0 ? 'text-rose-200' : 'text-amber-200'}`} data-testid="workspace-challenge-score">
+          {m('challengeScore', { xp: tally.xp })}
+        </span>
+        <span className="text-[11px] tabular-nums text-slate-300">{m('challengeLive', { n: tally.reviews, acc: pctText(tally) })}</span>
+      </div>
+      <div className="mt-1 text-[10.5px] text-slate-400">{m('challengeRules', RULE_VALUES)}</div>
+    </div>
+  );
+}
+
+const GRADE_TONE: Readonly<Record<ChallengeGrade, string>> = {
+  S: 'border-amber-300 bg-amber-300/15 text-amber-200',
+  A: 'border-emerald-400 bg-emerald-400/15 text-emerald-200',
+  B: 'border-sky-400 bg-sky-400/15 text-sky-200',
+  C: 'border-orange-400 bg-orange-400/15 text-orange-200',
+  F: 'border-rose-500 bg-rose-500/15 text-rose-200',
+};
+
+/** The end-of-shift recap a challenge opens at 00:00. */
+export function ChallengeScorecard({ tally, m, onAgain, onClose }: { tally: ChallengeTally; m: M; onAgain: () => void; onClose: () => void }) {
+  const grade = challengeGrade(tally);
+  const stat = (label: string, value: string, testId: string) => (
+    <div className="rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2">
+      <div className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">{label}</div>
+      <div className="mt-0.5 text-[20px] font-black tabular-nums text-slate-50" data-testid={testId}>
+        {value}
+      </div>
+    </div>
+  );
+  return (
+    <div className="absolute inset-0 z-30 grid place-items-center bg-slate-950/80 p-4 backdrop-blur-sm" data-testid="workspace-scorecard-backdrop">
+      <div role="dialog" aria-modal="true" aria-labelledby="workspace-scorecard-title" data-testid="workspace-scorecard" data-grade={grade} className="w-full max-w-lg rounded-2xl border border-slate-600 bg-slate-900 p-5 shadow-2xl">
+        <h3 id="workspace-scorecard-title" className="text-[17px] font-extrabold text-slate-50">
+          {m('scorecardTitle')}
+        </h3>
+        <p className="mt-0.5 text-[12px] text-slate-400">{m('scorecardSubtitle', { min: CHALLENGE.durationSec / 60 })}</p>
+        <div className="mt-4 flex items-center gap-4">
+          <div className={`grid h-20 w-20 shrink-0 place-items-center rounded-2xl border-2 text-[44px] font-black ${GRADE_TONE[grade]}`} data-testid="workspace-scorecard-grade" aria-label={`${m('scGrade')}: ${grade}`}>
+            {grade}
+          </div>
+          <div>
+            <div className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">{m('scGrade')}</div>
+            <p className="mt-0.5 text-[13px] leading-snug text-slate-100">{m(k(`grade_${grade}`))}</p>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          {stat(m('scReviewed'), String(tally.reviews), 'workspace-scorecard-reviewed')}
+          {stat(m('scAccuracy'), pctText(tally), 'workspace-scorecard-accuracy')}
+          {stat(m('scNetXp'), String(tally.xp), 'workspace-scorecard-xp')}
+        </div>
+        <p className="mt-3 text-[11.5px] tabular-nums text-slate-300">{m('scBreakdown', { correct: tally.correct, wrong: tally.reviews - tally.correct, bonus: tally.bonusXp, penalty: tally.penaltyXp })}</p>
+        <p className="mt-1 text-[10.5px] text-slate-500">{m('scGradeBands')}</p>
+        <div className="mt-4 flex justify-end gap-2">
+          <button type="button" onClick={onClose} data-testid="workspace-scorecard-close" className="rounded-lg border border-slate-600 px-3 py-1.5 text-[12px] font-medium text-slate-200 transition hover:bg-slate-800">
+            {m('scClose')}
+          </button>
+          <button type="button" onClick={onAgain} autoFocus data-testid="workspace-scorecard-again" className="rounded-lg border border-amber-400/60 bg-amber-400 px-3 py-1.5 text-[12px] font-bold text-slate-950 transition hover:bg-amber-300">
+            {m('scPlayAgain')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DecisionPanel({
+  shift,
+  current,
+  onDecide,
+  consequence,
+  mode,
+  m,
+  challenge,
+}: {
+  shift: ShiftProgress;
+  current: StaffCase | null;
+  onDecide: (d: StaffDecision) => void;
+  consequence: Consequence | null;
+  mode: WorkspaceMode;
+  m: M;
+  challenge: { tally: ChallengeTally; remainingSec: number } | null;
+}) {
   const accuracy = shift.reviews > 0 ? (shift.correct / shift.reviews) * 100 : 0;
   const met = shift.reviews >= SHIFT_TARGET.reviews && accuracy > SHIFT_TARGET.accuracyPct;
   const progress = Math.min(1, shift.reviews / SHIFT_TARGET.reviews);
@@ -385,7 +560,7 @@ function DecisionPanel({ shift, current, onDecide, consequence, mode, m }: { shi
     <section className="relative flex min-h-0 flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/50 p-3.5" data-testid="workspace-decision">
       <div className="flex items-center justify-between">
         <Kicker>{m('actionsTitle')}</Kicker>
-        <div className="flex gap-1.5 text-[11px] font-semibold tabular-nums">
+        <div className={`flex gap-1.5 text-[11px] font-semibold tabular-nums ${challenge ? 'hidden' : ''}`}>
           <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-amber-200" data-testid="workspace-xp">
             {m('xpTotal', { xp: shift.xp })}
           </span>
@@ -394,6 +569,7 @@ function DecisionPanel({ shift, current, onDecide, consequence, mode, m }: { shi
           </span>
         </div>
       </div>
+      {challenge && <ChallengeStrip tally={challenge.tally} remainingSec={challenge.remainingSec} m={m} />}
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
         <button type="button" disabled={locked} onClick={() => onDecide('APPROVE')} data-testid="workspace-approve" className="rounded-xl border border-emerald-400/50 bg-emerald-500/15 px-3 py-2.5 text-[13px] font-bold text-emerald-100 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-40">
           {m('approve')}
@@ -499,15 +675,22 @@ export interface AnalystWorkspaceViewProps {
   onTaskChange: (task: StaffTaskNo) => void;
   /** Called only after the learner confirmed the switch dialog. */
   onSwitchRole: (role: StaffRoleId) => void;
+  /** The Time-Attack challenge, held by the caller so it outlives remounts. */
+  challenge?: ChallengeState;
+  challengeControls?: ChallengeControls;
 }
 
+const NO_CHALLENGE: ChallengeState = { run: null, finished: null };
+const NO_CONTROLS: ChallengeControls = { start: () => undefined, stop: () => undefined, record: () => undefined, tick: () => undefined, dismiss: () => undefined };
+
 /** The workspace itself, driven by props (the store-connected modal below feeds it). */
-export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, canAdvance, onClose, onAdvance, onDecide, onTaskChange, onSwitchRole }: AnalystWorkspaceViewProps) {
+export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, canAdvance, onClose, onAdvance, onDecide, onTaskChange, onSwitchRole, challenge = NO_CHALLENGE, challengeControls: cc = NO_CONTROLS }: AnalystWorkspaceViewProps) {
   const terms = useTerms();
   const m = useMessages(analystWorkspaceMessages);
   const [mode, setMode] = useState<WorkspaceMode>(initialMode);
   const [consequence, setConsequence] = useState<Consequence | null>(null);
   const [pendingRole, setPendingRole] = useState<StaffRoleId | null>(null);
+  const remainingSec = useCountdown(challenge.run, cc.tick);
   const role = roleForStation(desk);
   const current = cases[0] ?? null;
   const elapsed = useCaseTimer(consequence ? null : (current?.id ?? null));
@@ -522,11 +705,16 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
 
   const decide = useCallback(
     (d: StaffDecision) => {
-      if (!current || !role || consequence || pendingRole) return;
-      const { result, errors } = onDecide(current.id, d, elapsedRef.current);
-      if (result.ok) setConsequence({ result, role, drill: current.drill, errors });
+      if (!current || !role || consequence || pendingRole || challenge.finished) return;
+      const latency = elapsedRef.current;
+      const { result, errors } = onDecide(current.id, d, latency);
+      if (!result.ok) return;
+      if (challenge.run) {
+        cc.record(result.correct, latency);
+        setConsequence({ result, role, drill: current.drill, errors, points: challengePoints(result.correct, latency), bonus: result.correct ? challengeBonus(latency) : 0 });
+      } else setConsequence({ result, role, drill: current.drill, errors });
     },
-    [current, role, consequence, pendingRole, onDecide],
+    [current, role, consequence, pendingRole, onDecide, challenge, cc],
   );
 
   useEffect(() => {
@@ -534,15 +722,16 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return;
       if (e.key === 'Escape') {
-        if (pendingRole) setPendingRole(null);
+        if (challenge.finished) cc.dismiss();
+        else if (pendingRole) setPendingRole(null);
         else onClose();
-      } else if (pendingRole) return;
+      } else if (pendingRole || challenge.finished) return;
       else if (e.key === 'a' || e.key === 'A') decide('APPROVE');
       else if (e.key === 'r' || e.key === 'R') decide('REJECT');
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, decide, pendingRole]);
+  }, [onClose, decide, pendingRole, challenge, cc]);
 
   const pickRole = (next: StaffRoleId): void => setPendingRole(next === role ? null : next);
   const confirmSwitch = (): void => {
@@ -558,7 +747,7 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/75 p-3 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()} data-testid="analyst-workspace-backdrop">
-      <div role="dialog" aria-modal="true" aria-labelledby="analyst-workspace-title" data-testid="analyst-workspace" data-station={desk} data-role={role} data-mode={mode} className="relative flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl" style={{ boxShadow: `0 0 0 1px ${accent}33, 0 24px 60px rgba(0,0,0,0.55)` }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="analyst-workspace-title" data-testid="analyst-workspace" data-station={desk} data-role={role} data-mode={mode} data-challenge={challenge.run ? 'running' : undefined} className="relative flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl" style={{ boxShadow: `0 0 0 1px ${accent}33, 0 24px 60px rgba(0,0,0,0.55)` }}>
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-4 py-2.5 xl:flex-nowrap">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 xl:flex-nowrap">
             <div className="min-w-0 xl:max-w-[18rem]">
@@ -577,6 +766,7 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <LanguageToggle variant="globe" testId="workspace-language" />
             <ModeToggle mode={mode} onChange={setMode} m={m} />
+            <ChallengeToggle running={challenge.run !== null} remainingSec={remainingSec} onStart={cc.start} onStop={cc.stop} m={m} />
             <button type="button" onClick={onClose} data-testid="workspace-close" className="rounded-lg border border-slate-700 px-3 py-1.5 text-[12px] font-medium text-slate-200 transition hover:bg-slate-800">
               {m('close')}
             </button>
@@ -585,8 +775,9 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
         <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(250px,300px)_1fr_minmax(230px,270px)] lg:overflow-hidden">
           <MissionPanel role={role} task={task} mode={mode} m={m} deskName={terms.stationTitle(desk)} />
           <ScenarioCard current={current} queued={Math.max(0, cases.length - 1)} elapsed={elapsed} mode={mode} m={m} onAdvance={onAdvance} canAdvance={canAdvance} showDrill={task === RANDOM_TASK} />
-          <DecisionPanel shift={shift} current={current} onDecide={decide} consequence={consequence} mode={mode} m={m} />
+          <DecisionPanel shift={shift} current={current} onDecide={decide} consequence={consequence} mode={mode} m={m} challenge={challenge.run ? { tally: challenge.run.tally, remainingSec } : null} />
         </div>
+        {challenge.finished && <ChallengeScorecard tally={challenge.finished} m={m} onAgain={cc.start} onClose={cc.dismiss} />}
         {pendingRole && <SwitchDeskDialog target={pendingRole} m={m} onCancel={() => setPendingRole(null)} onConfirm={confirmSwitch} />}
       </div>
     </div>
@@ -608,6 +799,18 @@ export function AnalystWorkspaceModal() {
   const dayOver = useBankStore((s) => s.view.dayOver);
   const termMode = useBankStore((s) => s.termMode);
   const cases = useMemo(() => (role ? taskDeck(role, task, seq) : []), [role, task, seq]);
+  const run = useBankStore((s) => s.staffChallenge);
+  const finished = useBankStore((s) => s.staffChallengeResult);
+  const challenge = useMemo<ChallengeState>(() => ({ run, finished }), [run, finished]);
+  const startChallenge = useBankStore((s) => s.startChallenge);
+  const stopChallenge = useBankStore((s) => s.stopChallenge);
+  const recordChallenge = useBankStore((s) => s.recordChallenge);
+  const tickChallenge = useBankStore((s) => s.tickChallenge);
+  const dismissChallenge = useBankStore((s) => s.dismissChallengeResult);
+  const challengeControls = useMemo<ChallengeControls>(
+    () => ({ start: () => startChallenge(), stop: stopChallenge, record: (c, l) => recordChallenge(c, l), tick: () => tickChallenge(), dismiss: dismissChallenge }),
+    [startChallenge, stopChallenge, recordChallenge, tickChallenge, dismissChallenge],
+  );
 
   const onDecide = useCallback<AnalystWorkspaceViewProps['onDecide']>(
     (caseId, decision, latencySec) => {
@@ -634,6 +837,8 @@ export function AnalystWorkspaceModal() {
       onDecide={onDecide}
       onTaskChange={setTask}
       onSwitchRole={onSwitchRole}
+      challenge={challenge}
+      challengeControls={challengeControls}
     />
   );
 }

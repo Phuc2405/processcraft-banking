@@ -450,6 +450,20 @@ body,
   animation: bk-congested-kf 1.4s ease-in-out infinite;
 }
 
+/* Phase 8 desk heatmap: a roleplay desk in critical congestion pulses a red glow. */
+@keyframes bk-heat-red-kf {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px rgb(244 63 94 / 0.55), 0 0 6px 0 rgb(244 63 94 / 0.25);
+  }
+  50% {
+    box-shadow: 0 0 0 2px rgb(244 63 94 / 0.8), 0 0 18px 4px rgb(244 63 94 / 0.45);
+  }
+}
+.bk-heat-red {
+  animation: bk-heat-red-kf 1.2s ease-in-out infinite;
+}
+
 @keyframes bk-arrival-kf {
   0% {
     opacity: 0;
@@ -598,6 +612,10 @@ body,
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .bk-heat-red {
+    animation: none;
+    box-shadow: 0 0 0 2px rgb(244 63 94 / 0.8), 0 0 12px 2px rgb(244 63 94 / 0.4);
+  }
   .bk-congested,
   .bk-ring,
   .bk-flow,
