@@ -31,12 +31,21 @@ import {
   maskedFields,
   rollIncident,
   startIncident,
+  BADGE_RULES,
+  BADGES,
+  CAREER_RANKS,
+  careerStanding,
+  EMPTY_CAREER,
+  recordCareerDecision,
+  type CareerDecision,
+  type CareerProgress,
   type StaffDecisionResult,
 } from '../../../sim/staffRoleplay';
+import { CAREER_KEY, decodeCareer, memoryStorage } from '../../../store/bankPersistence';
 import { createBankStore, EMPTY_SHIFT } from '../../../store/bankStore';
 import { bundleProblems, hasVietnamese } from '../../../utils/i18nHelper';
 import { analystWorkspaceMessages, PERSONAS, type AnalystWorkspaceKey } from '../analystWorkspace.messages';
-import { AnalystWorkspaceView, ChallengeScorecard, MASK, clockText, ConsequenceOverlay, consequenceKey, SOP_STEPS, personaFor, riskKey, sopKeys, SwitchDeskDialog, type AnalystWorkspaceViewProps, type WorkspaceMode } from '../AnalystWorkspaceModal';
+import { AnalystWorkspaceView, BadgeDrawer, BadgeUnlockModal, CareerCard, ChallengeScorecard, MASK, clockText, ConsequenceOverlay, consequenceKey, SOP_STEPS, personaFor, riskKey, sopKeys, SwitchDeskDialog, type AnalystWorkspaceViewProps, type WorkspaceMode } from '../AnalystWorkspaceModal';
 
 const msgs = analystWorkspaceMessages.messages;
 const has = (key: string): boolean => key in msgs;
@@ -491,5 +500,132 @@ describe('Incident Mode', () => {
     expect(view('POWER_GRID_FAILOVER')).toContain('data-testid="workspace-power-flicker"');
     expect(view('NETWORK_LATENCY')).toContain('SLA 21s');
     expect(view('AML_SANCTION_FLASH_UPDATE')).toContain('data-testid="workspace-incident-case"');
+  });
+});
+
+describe('career progression and badges', () => {
+  const mEn = (key: AnalystWorkspaceKey, values?: Record<string, string | number>): string => {
+    let text: string = msgs[key].en;
+    for (const [name, v] of Object.entries(values ?? {})) text = text.split(`{${name}}`).join(String(v));
+    return text;
+  };
+  const decide = (over: Partial<CareerDecision> = {}): CareerDecision => ({ role: 'fds', drill: 1, expected: 'APPROVE', decision: 'APPROVE', correct: true, latencySec: 10, expert: false, xp: 100, ...over });
+  const run = (c: CareerProgress, ds: CareerDecision[]): { career: CareerProgress; unlocked: string[] } =>
+    ds.reduce<{ career: CareerProgress; unlocked: string[] }>(
+      (acc, d) => {
+        const r = recordCareerDecision(acc.career, d);
+        return { career: r.career, unlocked: [...acc.unlocked, ...r.unlocked] };
+      },
+      { career: c, unlocked: [] },
+    );
+  const times = <T,>(n: number, f: (i: number) => T): T[] => Array.from({ length: n }, (_, i) => f(i));
+
+  it('maps lifetime XP onto levels and the four ranks at the spec boundaries', () => {
+    expect(careerStanding(0)).toMatchObject({ rank: 'intern', level: 1, nextRankXp: 1_501 });
+    expect(careerStanding(1_500)).toMatchObject({ rank: 'intern', level: 5 });
+    expect(careerStanding(1_501)).toMatchObject({ rank: 'junior', level: 6 });
+    expect(careerStanding(5_000)).toMatchObject({ rank: 'junior', level: 15 });
+    expect(careerStanding(5_001)).toMatchObject({ rank: 'senior', level: 16 });
+    expect(careerStanding(15_000)).toMatchObject({ rank: 'senior', level: 30 });
+    expect(careerStanding(15_001)).toMatchObject({ rank: 'cro', level: 31, nextRankXp: null, rankProgress: 1 });
+    expect(careerStanding(25_001).level).toBe(41);
+    let last = 0;
+    for (let xp = 0; xp <= 20_000; xp += 50) {
+      const lv = careerStanding(xp).level;
+      expect(lv).toBeGreaterThanOrEqual(last);
+      last = lv;
+    }
+  });
+
+  it('checks badges only at the end of a 10-review shift', () => {
+    const fast = run(EMPTY_CAREER, times(9, () => decide({ latencySec: 2 })));
+    expect(fast.unlocked).toEqual([]);
+    const done = recordCareerDecision(fast.career, decide({ latencySec: 2 }));
+    expect(done.unlocked).toEqual(['slaMaster']);
+    expect(done.career).toMatchObject({ xp: 1_000, badges: ['slaMaster'], shift: { reviews: 0 } });
+    expect(run(EMPTY_CAREER, times(10, () => decide({ latencySec: BADGE_RULES.slaAvgSec }))).unlocked).toEqual([]);
+  });
+
+  it('awards eKYC Hawk-Eye for 10 correct eKYC reviews in a row, and resets on a miss', () => {
+    expect(run(EMPTY_CAREER, times(10, () => decide({ role: 'ekyc' }))).unlocked).toContain('ekycHawkEye');
+    const broken = run(EMPTY_CAREER, times(10, (i) => decide({ role: 'ekyc', correct: i !== 4, decision: i === 4 ? 'REJECT' : 'APPROVE' })));
+    expect(broken.unlocked).not.toContain('ekycHawkEye');
+    expect(broken.career.ekycStreak).toBe(5);
+  });
+
+  it('awards AML Iron Shield for 5 structuring or OFAC blocks in a row within one shift', () => {
+    const block = (drill: 1 | 2 | 3): CareerDecision => decide({ role: 'aml', drill, expected: 'REJECT', decision: 'REJECT' });
+    const ok = run(EMPTY_CAREER, [...times(5, (i) => block(i % 2 === 0 ? 1 : 2)), ...times(5, () => decide({ role: 'aml' }))]);
+    expect(ok.unlocked).toContain('amlIronShield');
+    const funnel = run(EMPTY_CAREER, [...times(5, () => block(3)), ...times(5, () => decide({ role: 'aml' }))]);
+    expect(funnel.unlocked).not.toContain('amlIronShield');
+    const missed = run(EMPTY_CAREER, [...times(4, () => block(2)), decide({ role: 'aml', drill: 2, expected: 'REJECT', correct: false }), ...times(4, () => block(2)), decide({ role: 'aml' })]);
+    expect(missed.unlocked).not.toContain('amlIronShield');
+  });
+
+  it('awards Perfect Auditor after 3 perfect Expert shifts in a row', () => {
+    const shift = (expert: boolean, perfect = true): CareerDecision[] => times(10, (i) => decide({ expert, correct: perfect || i > 0 }));
+    expect(run(EMPTY_CAREER, [...shift(true), ...shift(true), ...shift(true)]).unlocked).toContain('perfectAuditor');
+    expect(run(EMPTY_CAREER, [...shift(true), ...shift(false), ...shift(true), ...shift(true)]).unlocked).not.toContain('perfectAuditor');
+    expect(run(EMPTY_CAREER, [...shift(true), ...shift(true, false), ...shift(true)]).unlocked).not.toContain('perfectAuditor');
+    const twice = run(EMPTY_CAREER, times(6, () => shift(true)).flat());
+    expect(twice.career.badges.filter((b) => b === 'perfectAuditor')).toHaveLength(1);
+  });
+
+  it('books career XP from the store, queues unlocks and persists them in storage', () => {
+    const storage = memoryStorage();
+    const store = createBankStore({ storage, seed: 2026 });
+    store.getState().openStaffDesk(ROLE_STATION.ekyc);
+    for (let i = 0; i < 10; i++) {
+      const head = buildTaskCase('ekyc', 1, i);
+      store.getState().staffTrain(head.id, head.expected, 1, 30, true);
+    }
+    const { career, badgeUnlocks } = store.getState();
+    expect(career.xp).toBe(store.getState().staffShift.ekyc?.xp);
+    expect(badgeUnlocks).toEqual(expect.arrayContaining(['ekycHawkEye', 'slaMaster']));
+    expect(decodeCareer(storage.getItem(CAREER_KEY)).badges).toEqual(career.badges);
+    store.getState().dismissBadgeUnlock();
+    expect(store.getState().badgeUnlocks).toHaveLength(badgeUnlocks.length - 1);
+    expect(createBankStore({ storage, seed: 2026 }).getState().career.badges).toEqual(career.badges);
+    store.getState().closeStaffDesk();
+  });
+
+  it('distrusts what storage hands back', () => {
+    expect(decodeCareer('not json')).toEqual(EMPTY_CAREER);
+    expect(decodeCareer(JSON.stringify({ xp: -5, badges: ['slaMaster', 'hacked'], ekycStreak: 'x' }))).toMatchObject({ xp: 0, badges: ['slaMaster'], ekycStreak: 0 });
+  });
+
+  it('has rank titles, badge names, requirements, progress and toasts in both languages', () => {
+    for (const r of CAREER_RANKS) expect(hasVietnamese(msgs[`rank_${r.id}` as AnalystWorkspaceKey].vi), r.id).toBe(true);
+    for (const b of BADGES)
+      for (const part of ['name', 'req', 'progress', 'toast']) {
+        const key = `badge_${b}_${part}`;
+        expect(has(key), key).toBe(true);
+      }
+  });
+
+  it('draws the career card, the badges button, the collection and the unlock celebration', () => {
+    const career: CareerProgress = { ...EMPTY_CAREER, xp: 6_200, badges: ['slaMaster'] };
+    const out = renderToStaticMarkup(
+      createElement(AnalystWorkspaceView, { desk: ROLE_STATION.aml, cases: taskDeck('aml', 1, 0), shift: EMPTY_SHIFT, initialMode: 'standard', task: 1, canAdvance: true, career, badgeUnlocks: ['slaMaster'], ...handlers }),
+    );
+    expect(out).toContain('data-rank="senior"');
+    expect(out).toContain(esc(msgs.rank_senior.en));
+    expect(out).toContain('data-testid="workspace-badges"');
+    expect(out).toContain(esc(msgs.badgesButton.en));
+    expect(out).toContain('data-testid="workspace-unlock"');
+    expect(out).toContain('pc-badge-glow');
+
+    const card = renderToStaticMarkup(createElement(CareerCard, { career: { ...EMPTY_CAREER, xp: 20_000 }, m: mEn }));
+    expect(card).toContain(esc(msgs.rank_cro.en));
+    expect(card).toContain('Top rank reached');
+
+    const drawer = renderToStaticMarkup(createElement(BadgeDrawer, { career, m: mEn, onClose: () => undefined }));
+    expect(drawer.match(/data-badge=/g)).toHaveLength(4);
+    expect(drawer.match(/data-unlocked="true"/g)).toHaveLength(1);
+    for (const b of BADGES) expect(drawer).toContain(esc(msgs[`badge_${b}_name` as AnalystWorkspaceKey].en));
+
+    const toast = renderToStaticMarkup(createElement(BadgeUnlockModal, { badge: 'amlIronShield', m: mEn, onClose: () => undefined }));
+    expect(toast).toContain(esc(mEn('badge_amlIronShield_toast', { target: BADGE_RULES.amlBlocks })));
   });
 });

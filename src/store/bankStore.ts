@@ -22,12 +22,12 @@ import type { TermMode } from '../sim/terms';
 import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
 import type { BankView, Customer, PacketTrace } from '../sim/types';
-import { addToTally, advanceIncident, buildTaskCase, CHALLENGE, comboXp, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, rollIncident, roleForStation, SHIFT_TARGET, startIncident, type ActiveIncident, type ChallengeTally, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo } from '../sim/staffRoleplay';
+import { addToTally, advanceIncident, buildTaskCase, CHALLENGE, comboXp, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, recordCareerDecision, rollIncident, roleForStation, SHIFT_TARGET, startIncident, type ActiveIncident, type BadgeId, type CareerProgress, type ChallengeTally, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo } from '../sim/staffRoleplay';
 import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
 import { compareDays, type Comparison } from '../sim/whatIf';
-import { browserStorage, clampInspectorWidth, clearBank, loadBank, loadPrefs, loadUiPrefs, saveBank, savePrefs, saveUiPrefs, type BankPrefs, type BankSaveResult, type KeyValueStorage, type LabelMode, type UiPrefs, type ViewMode } from './bankPersistence';
+import { browserStorage, clampInspectorWidth, clearBank, loadBank, loadCareer, loadPrefs, saveCareer, loadUiPrefs, saveBank, savePrefs, saveUiPrefs, type BankPrefs, type BankSaveResult, type KeyValueStorage, type LabelMode, type UiPrefs, type ViewMode } from './bankPersistence';
 
 export type { ProcessId };
 /** The six chapters of the Academy, in the order of the Course Catalog. */
@@ -191,8 +191,14 @@ export interface BankState {
   setStaffTask(task: StaffTaskNo): void;
   /** Moves to another roleplay desk after the learner confirmed: ends the shift and starts Task 1. */
   switchStaffDesk(id: StationId): void;
-  /** Decides the head case of the current task and books it on the shift. */
-  staffTrain(caseId: string, decision: StaffDecision, latencySec: number, slaSec: number): StaffDecisionResult;
+  /** Decides the head case of the current task and books it on the shift and the career. `expert` is the workspace's complexity mode. */
+  staffTrain(caseId: string, decision: StaffDecision, latencySec: number, slaSec: number, expert?: boolean): StaffDecisionResult;
+  /** Lifetime XP, badges and badge streaks, kept in storage. */
+  career: CareerProgress;
+  /** Badges unlocked at the last shift end, waiting for their celebration. */
+  badgeUnlocks: BadgeId[];
+  /** Closes the celebration for the first waiting badge. */
+  dismissBadgeUnlock(): void;
   /** The running Time-Attack challenge (kept in the store so a language switch, which remounts the app, cannot reset it). */
   staffChallenge: { endsAt: number; tally: ChallengeTally } | null;
   /** The tally of the challenge that just ended, shown on the scorecard until dismissed. */
@@ -498,6 +504,9 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       staffChallengeResult: null,
       staffIncidentMode: true,
       staffIncident: null,
+      career: loadCareer(storage),
+      badgeUnlocks: [],
+      dismissBadgeUnlock: () => set({ badgeUnlocks: get().badgeUnlocks.slice(1) }),
 
       setIncidentMode: (on) => set({ staffIncidentMode: on, staffIncident: on ? rollFor(get().staffDesk, true) : null }),
 
@@ -530,11 +539,11 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       switchStaffDesk: (id) => {
         const s = get();
         if (!roleForStation(id) || !s.staffDesk || s.staffDesk === id) return;
-        set({ staffShift: {}, staffTask: 1, staffTaskSeq: 0, staffChallenge: null, staffChallengeResult: null, staffIncident: rollFor(id) });
+        set({ staffShift: {}, staffTask: 1, staffTaskSeq: 0, staffChallenge: null, staffChallengeResult: null, staffIncident: rollFor(id), career: { ...s.career, shift: EMPTY_SHIFT_LOG } });
         refresh({ staffDesk: id });
       },
 
-      staffTrain: (caseId, decision, latencySec, slaSec) => {
+      staffTrain: (caseId, decision, latencySec, slaSec, expert = false) => {
         const s = get();
         const role = s.staffDesk ? roleForStation(s.staffDesk) : null;
         const incident = s.staffIncident;
@@ -555,7 +564,9 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         // Every SHIFT_TARGET.reviews decisions close a shift: the incident ends and the next shift rolls again.
         const shiftOver = next.reviews % SHIFT_TARGET.reviews === 0;
         const staffIncident = shiftOver ? rollFor(s.staffDesk) : incident && advanceIncident(incident, result.correct);
-        set({ staffShift: { ...s.staffShift, [role]: next }, staffTaskSeq: s.staffTaskSeq + 1, staffIncident });
+        const { career, unlocked } = recordCareerDecision(s.career, { role, drill: head.drill, expected: result.expected, decision, correct: result.correct, latencySec, expert, xp: next.xp - prev.xp });
+        saveCareer(storage, career);
+        set({ staffShift: { ...s.staffShift, [role]: next }, staffTaskSeq: s.staffTaskSeq + 1, staffIncident, career, ...(unlocked.length ? { badgeUnlocks: [...s.badgeUnlocks, ...unlocked] } : {}) });
         return result;
       },
 
