@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { formatMoney } from '../../sim/kpis';
 import { localizeScenarioText } from '../../sim/scenarios';
 import {
@@ -62,7 +63,7 @@ import {
   type StaffTaskNo,
 } from '../../sim/staffRoleplay';
 import { DEPARTMENTS, STATIONS, type StationId } from '../../sim/topology';
-import { bankStore, EMPTY_SHIFT, useBankStore, type ShiftProgress } from '../../store/bankStore';
+import { bankStore, EMPTY_SHIFT, useBankStore, type AuditEntry, type ShiftProgress } from '../../store/bankStore';
 import { uiStore, useUiStore } from '../../store/uiStore';
 import { play, reviewSound } from '../../utils/audioFX';
 import { useLocale, useMessages, type Locale, type Translate } from '../../utils/i18nHelper';
@@ -914,6 +915,253 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: Retai
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Audit trail export: CSV and the printable (PDF) audit report
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The journal's Debit/Credit account codes, e.g. "Dr 2011 / Cr 1520 / Cr 4540"; `memo` when nothing posted. */
+export function ledgerEntryCode(lines: readonly LedgerLine[], memo: string): string {
+  return lines.length ? lines.map((l) => `${l.dr ? 'Dr' : 'Cr'} ${GL_CODE[l.gl]}`).join(' / ') : memo;
+}
+
+const AUDIT_ACTION_KEY: Readonly<Record<AuditEntry['action'], AnalystWorkspaceKey>> = { APPROVE: 'dseAction_approve', REJECT: 'dseAction_reject', FREEZE: 'dseAction_freeze' };
+export const auditActionLabel = (a: AuditEntry['action'], m: M): string => m(AUDIT_ACTION_KEY[a]);
+export const complianceLabel = (c: AuditEntry['compliance'], m: M): string => m(k(`auditCompliance_${c}`));
+
+const pad2 = (n: number): string => String(n).padStart(2, '0');
+/** "27/10/2026 14:05:09", the day-first form both languages use on the report. */
+export function auditTime(iso: string): string {
+  const d = new Date(iso);
+  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+
+const csvCell = (v: string | number): string => {
+  const s = String(v);
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+const decimal = (cents: number): string => (cents / 100).toFixed(2);
+
+export const AUDIT_CSV_COLUMNS: readonly AnalystWorkspaceKey[] = [
+  'auditColTime',
+  'auditColDesk',
+  'auditColCase',
+  'auditColAction',
+  'auditColSla',
+  'auditColSlaLimit',
+  'auditColLedger',
+  'auditColAmount',
+  'auditColStatus',
+  'auditColCompliance',
+];
+
+/** The audit trail as CSV (RFC 4180, CRLF rows), headers and labels in the current language, timestamps in ISO 8601. */
+export function auditCsv(log: readonly AuditEntry[], m: M): string {
+  const rows = log.map((e) => [
+    e.at,
+    e.station,
+    e.caseId,
+    auditActionLabel(e.action, m),
+    e.latencySec.toFixed(1),
+    e.slaSec,
+    ledgerEntryCode(e.lines, m('auditMemo')),
+    decimal(e.amountCents),
+    e.statusCode,
+    complianceLabel(e.compliance, m),
+  ]);
+  return [AUDIT_CSV_COLUMNS.map((key) => m(key)), ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');
+}
+
+/** Hands the browser a file to save; the BOM lets spreadsheet apps read the Vietnamese labels as UTF-8. */
+function downloadFile(name: string, text: string, mime: string): void {
+  const url = URL.createObjectURL(new Blob(['﻿', text], { type: mime }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+const stamp = (d: Date): string => `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
+export const auditReportNo = (log: readonly AuditEntry[], issued: Date): string => `AT-${stamp(issued)}-${String(log.length).padStart(4, '0')}`;
+
+export interface AuditSummary {
+  total: number;
+  actions: Readonly<Record<AuditEntry['action'], number>>;
+  compliance: Readonly<Record<AuditEntry['compliance'], number>>;
+  /** Share of decisions that were compliant, 0-100. */
+  ratePct: number;
+  avgSlaSec: number;
+}
+
+export function auditSummary(log: readonly AuditEntry[]): AuditSummary {
+  const count = <T extends string>(keys: readonly T[], of: (e: AuditEntry) => T): Record<T, number> => Object.fromEntries(keys.map((key) => [key, log.filter((e) => of(e) === key).length])) as Record<T, number>;
+  const compliance = count(['COMPLIANT', 'SLA_BREACH', 'SOP_BREACH'] as const, (e) => e.compliance);
+  return {
+    total: log.length,
+    actions: count(['APPROVE', 'REJECT', 'FREEZE'] as const, (e) => e.action),
+    compliance,
+    ratePct: log.length ? Math.round((1000 * compliance.COMPLIANT) / log.length) / 10 : 0,
+    avgSlaSec: log.length ? Math.round((10 * log.reduce((s, e) => s + e.latencySec, 0)) / log.length) / 10 : 0,
+  };
+}
+
+const PRINT_CSS = `.pc-audit-print{display:none}
+@media print{
+  @page{size:A4 landscape;margin:14mm}
+  body>*:not(.pc-audit-print){display:none!important}
+  .pc-audit-print{display:block!important;background:#fff;color:#000}
+}`;
+
+/** The official audit report: national motto header, numbered sections, summary, the detailed log and sign-off blocks. */
+export function AuditReport({ log, m, issued }: { log: readonly AuditEntry[]; m: M; issued: Date }) {
+  const sum = auditSummary(log);
+  const desks = [...new Set(log.map((e) => e.role))].map((r) => m(k(`role_${r}_title`))).join(', ') || '—';
+  const issues = sum.compliance.SLA_BREACH + sum.compliance.SOP_BREACH;
+  const cell = 'border border-black px-1.5 py-0.5 align-top';
+  const row = (label: string, value: string | number) => (
+    <tr>
+      <td className={cell}>{label}</td>
+      <td className={`${cell} text-right tabular-nums`}>{value}</td>
+    </tr>
+  );
+  return (
+    <article className="bg-white font-serif text-[12px] leading-snug text-black" data-testid="audit-report" data-entries={log.length}>
+      <header className="grid grid-cols-2 gap-4 text-center">
+        <div>
+          <div className="font-bold uppercase">{m('rptBank')}</div>
+          <div className="font-bold">{m('rptUnit')}</div>
+          <div className="mx-auto mt-0.5 w-24 border-t border-black" />
+          <div className="mt-1">{m('rptNo', { no: auditReportNo(log, issued) })}</div>
+        </div>
+        <div>
+          <div className="font-bold uppercase">{m('rptNation')}</div>
+          <div className="font-bold">{m('rptMotto')}</div>
+          <div className="mx-auto mt-0.5 w-40 border-t border-black" />
+          <div className="mt-1 italic">{m('rptDate', { d: pad2(issued.getDate()), mo: pad2(issued.getMonth() + 1), y: issued.getFullYear() })}</div>
+        </div>
+      </header>
+      <h1 className="mt-5 text-center text-[16px] font-bold uppercase">{m('rptTitle')}</h1>
+      <p className="text-center italic">{m('rptSubtitle')}</p>
+      <p className="mt-1 text-center text-[10.5px] italic">{m('rptBasis')}</p>
+
+      <h2 className="mt-4 font-bold uppercase">{m('rptSec1')}</h2>
+      <ul className="ml-4 list-disc">
+        <li>{m('rptPeriod', { from: log.length ? auditTime(log[0]!.at) : '—', to: log.length ? auditTime(log[log.length - 1]!.at) : '—' })}</li>
+        <li>{m('rptDesks', { desks })}</li>
+        <li>{m('rptEntries', { n: sum.total })}</li>
+      </ul>
+
+      <h2 className="mt-3 font-bold uppercase">{m('rptSec2')}</h2>
+      <table className="mt-1 w-full max-w-md border-collapse" data-testid="audit-summary">
+        <tbody>
+          {row(auditActionLabel('APPROVE', m), sum.actions.APPROVE)}
+          {row(auditActionLabel('REJECT', m), sum.actions.REJECT)}
+          {row(auditActionLabel('FREEZE', m), sum.actions.FREEZE)}
+          {row(complianceLabel('COMPLIANT', m), sum.compliance.COMPLIANT)}
+          {row(complianceLabel('SLA_BREACH', m), sum.compliance.SLA_BREACH)}
+          {row(complianceLabel('SOP_BREACH', m), sum.compliance.SOP_BREACH)}
+          {row(m('rptRate'), `${sum.ratePct}%`)}
+          {row(m('rptAvgSla'), `${sum.avgSlaSec}s`)}
+        </tbody>
+      </table>
+
+      <h2 className="mt-3 font-bold uppercase">{m('rptSec3')}</h2>
+      {log.length === 0 ? (
+        <p className="italic">{m('auditEmpty')}</p>
+      ) : (
+        <table className="mt-1 w-full border-collapse text-[10.5px]" data-testid="audit-table">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className={cell}>{m('rptColNo')}</th>
+              {AUDIT_CSV_COLUMNS.map((key) => (
+                <th key={key} className={cell}>
+                  {m(key)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {log.map((e) => (
+              <tr key={e.seq} data-seq={e.seq} data-compliance={e.compliance}>
+                <td className={`${cell} text-right`}>{e.seq}</td>
+                <td className={`${cell} whitespace-nowrap`}>{auditTime(e.at)}</td>
+                <td className={cell}>{e.station}</td>
+                <td className={`${cell} font-mono`}>{e.caseId}</td>
+                <td className={cell}>{auditActionLabel(e.action, m)}</td>
+                <td className={`${cell} text-right tabular-nums`}>{e.latencySec.toFixed(1)}</td>
+                <td className={`${cell} text-right tabular-nums`}>{e.slaSec}</td>
+                <td className={`${cell} font-mono`}>{ledgerEntryCode(e.lines, m('auditMemo'))}</td>
+                <td className={`${cell} text-right tabular-nums`}>{money(e.amountCents)}</td>
+                <td className={`${cell} font-mono`}>{e.statusCode}</td>
+                <td className={`${cell} ${e.compliance === 'COMPLIANT' ? '' : 'font-bold'}`}>{complianceLabel(e.compliance, m)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <h2 className="mt-3 font-bold uppercase">{m('rptSec4')}</h2>
+      <p>{issues ? m('rptConclusionIssues', { n: issues }) : m('rptConclusionOk')}</p>
+      <div className="mt-6 grid grid-cols-3 gap-4 text-center" style={{ breakInside: 'avoid' }}>
+        {(['rptPrepared', 'rptReviewed', 'rptHead'] as const).map((key) => (
+          <div key={key}>
+            <div className="font-bold">{m(key)}</div>
+            <div className="italic">{m('rptSign')}</div>
+            <div className="h-16" />
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+/** Export actions and a preview of the printed report. The print copy is portalled to <body> so only it reaches the page. */
+export function AuditExportDialog({ log, m, onClose, issued = new Date() }: { log: readonly AuditEntry[]; m: M; onClose: () => void; issued?: Date }) {
+  const csv = (): void => downloadFile(`audit-trail-${stamp(issued)}-${pad2(issued.getHours())}${pad2(issued.getMinutes())}.csv`, auditCsv(log, m), 'text/csv;charset=utf-8');
+  const report = <AuditReport log={log} m={m} issued={issued} />;
+  return (
+    <div className="absolute inset-0 z-40 grid place-items-center bg-slate-950/80 p-4 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()} data-testid="workspace-audit-backdrop">
+      <style>{PRINT_CSS}</style>
+      {typeof document !== 'undefined' && createPortal(<div className="pc-audit-print">{report}</div>, document.body)}
+      <div role="dialog" aria-modal="true" aria-labelledby="workspace-audit-title" data-testid="workspace-audit" className="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-600 bg-slate-900 shadow-2xl">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800 px-5 py-3">
+          <div>
+            <h3 id="workspace-audit-title" className="text-[17px] font-extrabold text-slate-50">
+              {m('auditTitle')}
+            </h3>
+            <p className="mt-0.5 text-[12px] text-slate-400">{m('auditSubtitle', { n: log.length })}</p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button type="button" onClick={csv} disabled={!log.length} data-testid="workspace-audit-csv" className="rounded-lg border border-emerald-400/60 bg-emerald-500/15 px-3 py-1.5 text-[12px] font-bold text-emerald-100 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-40">
+              {m('auditCsv')}
+            </button>
+            <button type="button" onClick={() => window.print()} disabled={!log.length} data-testid="workspace-audit-print" className="rounded-lg border border-sky-400/60 bg-sky-500/15 px-3 py-1.5 text-[12px] font-bold text-sky-100 transition hover:bg-sky-500/25 disabled:cursor-not-allowed disabled:opacity-40">
+              {m('auditPrint')}
+            </button>
+            <button type="button" onClick={onClose} autoFocus data-testid="workspace-audit-close" className="rounded-lg border border-slate-600 px-3 py-1.5 text-[12px] font-medium text-slate-200 transition hover:bg-slate-800">
+              {m('auditClose')}
+            </button>
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto bg-slate-700/40 p-4">
+          <div className="mx-auto max-w-[1100px] rounded bg-white p-8 shadow-lg">{report}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AuditButton({ count, onOpen, m }: { count: number; onOpen: () => void; m: M }) {
+  return (
+    <button type="button" onClick={onOpen} title={m('auditButtonHint')} data-testid="workspace-audit-open" className="flex items-center gap-1.5 rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-[12px] font-semibold text-slate-100 transition hover:bg-slate-800">
+      {m('auditExport')}
+      <span className="rounded-full bg-slate-700 px-1.5 text-[10.5px] font-bold tabular-nums text-slate-200">{count}</span>
+    </button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Time-Attack Challenge Mode
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1011,7 +1259,7 @@ const GRADE_TONE: Readonly<Record<ChallengeGrade, string>> = {
 };
 
 /** The end-of-shift recap a challenge opens at 00:00. */
-export function ChallengeScorecard({ tally, m, onAgain, onClose }: { tally: ChallengeTally; m: M; onAgain: () => void; onClose: () => void }) {
+export function ChallengeScorecard({ tally, m, onAgain, onClose, onExport }: { tally: ChallengeTally; m: M; onAgain: () => void; onClose: () => void; onExport?: () => void }) {
   const grade = challengeGrade(tally);
   const stat = (label: string, value: string, testId: string) => (
     <div className="rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2">
@@ -1045,6 +1293,11 @@ export function ChallengeScorecard({ tally, m, onAgain, onClose }: { tally: Chal
         <p className="mt-3 text-[11.5px] tabular-nums text-slate-300">{m('scBreakdown', { correct: tally.correct, wrong: tally.reviews - tally.correct, bonus: tally.bonusXp, penalty: tally.penaltyXp })}</p>
         <p className="mt-1 text-[10.5px] text-slate-500">{m('scGradeBands')}</p>
         <div className="mt-4 flex justify-end gap-2">
+          {onExport && (
+            <button type="button" onClick={onExport} data-testid="workspace-scorecard-export" className="mr-auto rounded-lg border border-slate-600 px-3 py-1.5 text-[12px] font-medium text-slate-200 transition hover:bg-slate-800">
+              {m('auditExport')}
+            </button>
+          )}
           <button type="button" onClick={onClose} data-testid="workspace-scorecard-close" className="rounded-lg border border-slate-600 px-3 py-1.5 text-[12px] font-medium text-slate-200 transition hover:bg-slate-800">
             {m('scClose')}
           </button>
@@ -1464,11 +1717,14 @@ export interface AnalystWorkspaceViewProps {
   /** The retail core ledger and its reset. */
   ledger?: RetailLedger;
   onResetLedger?: () => void;
+  /** The session's audit trail, for the export. */
+  auditLog?: readonly AuditEntry[];
 }
 
 const NO_CHALLENGE: ChallengeState = { run: null, finished: null };
 const NO_UNLOCKS: readonly BadgeId[] = [];
 const OPENING_LEDGER = openingLedger();
+const NO_AUDIT: readonly AuditEntry[] = [];
 const NO_CONTROLS: ChallengeControls = { start: () => undefined, stop: () => undefined, record: () => undefined, tick: () => undefined, dismiss: () => undefined };
 
 /** The workspace itself, driven by props (the store-connected modal below feeds it). */
@@ -1494,9 +1750,11 @@ export function AnalystWorkspaceView({
   onDismissBadgeUnlock = () => undefined,
   ledger = OPENING_LEDGER,
   onResetLedger = () => undefined,
+  auditLog = NO_AUDIT,
 }: AnalystWorkspaceViewProps) {
   const [badgesOpen, setBadgesOpen] = useState(false);
   const [ledgerOpen, setLedgerOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
   /** The case whose advice the learner revealed in Expert mode. */
   const [revealedFor, setRevealedFor] = useState<string | null>(null);
   const unlock = badgeUnlocks[0] ?? null;
@@ -1523,7 +1781,7 @@ export function AnalystWorkspaceView({
 
   const decide = useCallback(
     (d: StaffDecision) => {
-      if (!current || !role || consequence || pendingRole || challenge.finished || unlock || badgesOpen || ledgerOpen) return;
+      if (!current || !role || consequence || pendingRole || challenge.finished || unlock || badgesOpen || ledgerOpen || auditOpen) return;
       const latency = elapsedRef.current;
       const assisted = mode === 'expert' && revealedFor === current.id;
       const { result, errors, xp, combo } = onDecide(current.id, d, latency, mode === 'expert', assisted);
@@ -1536,7 +1794,7 @@ export function AnalystWorkspaceView({
         setConsequence({ result, role, drill: current.drill, retail: current.retail?.id, errors, xp, combo: streak, assisted, points: challengePoints(result.correct, latency, rules), bonus: result.correct ? challengeBonus(latency, rules) : 0 });
       } else setConsequence({ result, role, drill: current.drill, retail: current.retail?.id, errors, xp, combo: streak, assisted });
     },
-    [current, role, consequence, pendingRole, onDecide, challenge, cc, shift.comboCount, incidentId, mode, unlock, badgesOpen, ledgerOpen, revealedFor],
+    [current, role, consequence, pendingRole, onDecide, challenge, cc, shift.comboCount, incidentId, mode, unlock, badgesOpen, ledgerOpen, auditOpen, revealedFor],
   );
 
   useEffect(() => {
@@ -1545,18 +1803,19 @@ export function AnalystWorkspaceView({
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return;
       if (e.key === 'Escape') {
         if (unlock) onDismissBadgeUnlock();
+        else if (auditOpen) setAuditOpen(false);
         else if (ledgerOpen) setLedgerOpen(false);
         else if (badgesOpen) setBadgesOpen(false);
         else if (challenge.finished) cc.dismiss();
         else if (pendingRole) setPendingRole(null);
         else onClose();
-      } else if (pendingRole || challenge.finished || unlock || badgesOpen || ledgerOpen) return;
+      } else if (pendingRole || challenge.finished || unlock || badgesOpen || ledgerOpen || auditOpen) return;
       else if (e.key === 'a' || e.key === 'A') decide('APPROVE');
       else if (e.key === 'r' || e.key === 'R') decide('REJECT');
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, decide, pendingRole, challenge, cc, unlock, badgesOpen, ledgerOpen, onDismissBadgeUnlock]);
+  }, [onClose, decide, pendingRole, challenge, cc, unlock, badgesOpen, ledgerOpen, auditOpen, onDismissBadgeUnlock]);
 
   useEffect(() => {
     if (unlock && uiStore.getState().soundOn) play('badgeUnlock');
@@ -1612,6 +1871,7 @@ export function AnalystWorkspaceView({
             <IncidentToggle on={incidentMode} onToggle={onToggleIncidentMode} m={m} />
             <BadgesButton unlocked={career.badges.length} onOpen={() => setBadgesOpen(true)} m={m} />
             <CoreLedgerCard kpis={retailKpis(ledger)} onOpen={() => setLedgerOpen(true)} m={m} />
+            <AuditButton count={auditLog.length} onOpen={() => setAuditOpen(true)} m={m} />
             <SoundToggle m={m} />
             <LanguageToggle variant="globe" testId="workspace-language" />
             <ModeToggle mode={mode} onChange={setMode} m={m} />
@@ -1652,7 +1912,8 @@ export function AnalystWorkspaceView({
         </div>
         {incidentId === 'POWER_GRID_FAILOVER' && <PowerFlicker />}
         {consequence && !consequence.result.correct && <SopViolationPulse m={m} />}
-        {challenge.finished && <ChallengeScorecard tally={challenge.finished} m={m} onAgain={cc.start} onClose={cc.dismiss} />}
+        {challenge.finished && <ChallengeScorecard tally={challenge.finished} m={m} onAgain={cc.start} onClose={cc.dismiss} onExport={() => setAuditOpen(true)} />}
+        {auditOpen && <AuditExportDialog log={auditLog} m={m} onClose={() => setAuditOpen(false)} />}
         {badgesOpen && <BadgeDrawer career={career} m={m} onClose={() => setBadgesOpen(false)} />}
         {ledgerOpen && <CoreLedgerSheet ledger={ledger} m={m} onClose={() => setLedgerOpen(false)} onReset={onResetLedger} />}
         {unlock && <BadgeUnlockModal key={unlock} badge={unlock} m={m} onClose={onDismissBadgeUnlock} />}
@@ -1676,6 +1937,7 @@ export function AnalystWorkspaceModal() {
   const dismissBadgeUnlock = useBankStore((s) => s.dismissBadgeUnlock);
   const ledger = useBankStore((s) => s.retailLedger);
   const resetLedger = useBankStore((s) => s.resetRetailLedger);
+  const auditLog = useBankStore((s) => s.auditLog);
   const setTask = useBankStore((s) => s.setStaffTask);
   const switchDesk = useBankStore((s) => s.switchStaffDesk);
   const step = useBankStore((s) => s.step);
@@ -1735,6 +1997,7 @@ export function AnalystWorkspaceModal() {
       onDismissBadgeUnlock={dismissBadgeUnlock}
       ledger={ledger}
       onResetLedger={resetLedger}
+      auditLog={auditLog}
     />
   );
 }
