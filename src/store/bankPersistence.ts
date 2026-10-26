@@ -16,7 +16,30 @@ import { isTermMode, type TermMode } from '../sim/terms';
 import { DAY_EVENTS } from '../sim/traffic';
 import type { CarryRecord, CarryState, DayEvent, DayReport, NightShiftReport, SuspenseItem } from '../sim/types';
 import { STATION_IDS } from '../sim/topology';
-import { BADGES, EMPTY_CAREER, EMPTY_SHIFT_LOG, GL_IDS, journalBalanced, openingLedger, RETAIL_JOURNAL_CAP, RETAIL_SCENARIOS, type BadgeId, type CareerProgress, type GlAccount, type JournalEntry, type LedgerLine, type RetailLedger, type RetailScenarioId } from '../sim/staffRoleplay';
+import {
+  BADGES,
+  EMPTY_CAREER,
+  EMPTY_SHIFT_LOG,
+  GL_IDS,
+  journalBalanced,
+  openingLedger,
+  RETAIL_DESK,
+  RETAIL_JOURNAL_CAP,
+  RETAIL_SCENARIOS,
+  RETAIL_SCENES,
+  STAFF_ROLES,
+  STAFF_SCENES,
+  TASK_SCENES,
+  type BadgeId,
+  type CareerProgress,
+  type GlAccount,
+  type JournalEntry,
+  type LedgerLine,
+  type RetailLedger,
+  type RetailScenarioId,
+  type StaffCase,
+  type StaffRoleId,
+} from '../sim/staffRoleplay';
 import { browserStorage, memoryStorage, STORAGE_VERSION, type KeyValueStorage } from './persistence';
 
 export { browserStorage, memoryStorage };
@@ -378,18 +401,33 @@ function decodeLine(v: unknown): LedgerLine | null {
   return { gl: o.gl as GlAccount, dr, cr };
 }
 
+const SCENES: ReadonlySet<string> = new Set<string>([...STAFF_SCENES, ...TASK_SCENES, ...RETAIL_SCENES]);
+
+/** The role and scene of a journal; a Phase 10 entry only named its retail scenario, so its desk is looked up. */
+function sourceOf(o: Record<string, unknown>): { role: StaffRoleId; scene: StaffCase['scene'] } | null {
+  if (STAFF_ROLES.includes(o.role as StaffRoleId) && SCENES.has(o.scene as string)) return { role: o.role as StaffRoleId, scene: o.scene as StaffCase['scene'] };
+  const legacy = o.scenario as RetailScenarioId;
+  if (!RETAIL_SCENARIOS.includes(legacy)) return null;
+  const role = STAFF_ROLES.find((r) => RETAIL_DESK[r].includes(legacy));
+  return role ? { role, scene: `retail_${legacy}` } : null;
+}
+
 function decodeJournal(v: unknown): JournalEntry | null {
   if (!v || typeof v !== 'object') return null;
   const o = v as Record<string, unknown>;
-  if (typeof o.caseId !== 'string' || typeof o.statusCode !== 'string' || !RETAIL_SCENARIOS.includes(o.scenario as RetailScenarioId)) return null;
+  const source = sourceOf(o);
+  if (typeof o.caseId !== 'string' || typeof o.statusCode !== 'string' || !source) return null;
   if (o.decision !== 'APPROVE' && o.decision !== 'REJECT') return null;
   if (!Array.isArray(o.lines)) return null;
   const lines = o.lines.map(decodeLine);
   if (lines.some((l) => l === null) || !journalBalanced(lines as LedgerLine[])) return null;
-  return { caseId: o.caseId, scenario: o.scenario as RetailScenarioId, decision: o.decision, statusCode: o.statusCode, lines: lines as LedgerLine[] };
+  return { caseId: o.caseId, ...source, decision: o.decision, statusCode: o.statusCode, lines: lines as LedgerLine[] };
 }
 
-/** Reads the ledger back. Books that do not sum to zero cannot be trusted, so they restart from the opening balances. */
+/**
+ * Reads the ledger back. Books that do not sum to zero cannot be trusted, so they restart from the opening balances; that
+ * includes books saved before an account was retired from the chart (Phase 11 moved the waterfall onto revenue accounts).
+ */
 export function decodeRetailLedger(raw: string | null): RetailLedger {
   if (!raw) return openingLedger();
   try {
@@ -401,7 +439,7 @@ export function decodeRetailLedger(raw: string | null): RetailLedger {
       .slice(0, RETAIL_JOURNAL_CAP)
       .map(decodeJournal)
       .filter((j): j is JournalEntry => j !== null);
-    return { balances, journal, posted: count(o.posted) };
+    return { balances, journal, posted: count(o.posted), settledVolume: count(o.settledVolume) };
   } catch {
     return openingLedger();
   }

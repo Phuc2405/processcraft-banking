@@ -33,7 +33,9 @@ import {
   naturalBalance,
   openingLedger,
   retailKpis,
+  type GlAccount,
   type GlSide,
+  type JournalEntry,
   type LedgerLine,
   type RetailKpis,
   type RetailLedger,
@@ -526,7 +528,9 @@ export function JournalLines({ lines, m, compact = false }: { lines: readonly Le
     <ul className={`mt-0.5 space-y-0.5 font-mono tabular-nums ${compact ? 'text-[10px]' : 'text-[11px]'}`}>
       {lines.map((l, i) => (
         <li key={`${l.gl}-${i}`} className={`flex items-baseline gap-1.5 ${l.cr ? 'pl-3' : ''}`} data-gl={l.gl} data-side={l.dr ? 'dr' : 'cr'}>
-          <span className={`shrink-0 font-bold ${l.dr ? 'text-sky-300' : 'text-amber-300'}`}>{m(l.dr ? 'ledgerDr' : 'ledgerCr')}</span>
+          <span className={`shrink-0 font-bold ${l.dr ? 'text-sky-300' : 'text-amber-300'}`} title={m(l.dr ? 'labelDebit' : 'labelCredit')}>
+            {m(l.dr ? 'ledgerDr' : 'ledgerCr')}
+          </span>
           <span className="shrink-0 text-slate-500">{GL_CODE[l.gl]}</span>
           <span className="min-w-0 flex-1 truncate font-sans text-slate-200">{m(k(`gl_${l.gl}`))}</span>
           <span className="shrink-0 text-slate-50">{money(l.dr || l.cr)}</span>
@@ -552,6 +556,63 @@ function KpiTiles({ kpis, m, compact = false }: { kpis: RetailKpis; m: M; compac
     </div>
   );
 }
+
+/** The header card's four live figures, compact in the header and full-size on the balance sheet. */
+function LedgerMetrics({ kpis, m, compact = false }: { kpis: RetailKpis; m: M; compact?: boolean }) {
+  const metric = (label: AnalystWorkspaceKey, cents: number, testId: string, tone: string) => (
+    <div className={compact ? 'min-w-0' : 'rounded-lg border border-slate-700 bg-slate-950/60 px-2 py-1'} data-testid={testId}>
+      <div className={`truncate font-semibold uppercase tracking-wider text-slate-400 ${compact ? 'text-[8.5px]' : 'text-[9.5px]'}`}>{m(label)}</div>
+      <div className={`font-bold tabular-nums ${compact ? 'text-[11.5px]' : 'text-[15px]'} ${tone}`}>{compact ? formatMoney(cents, true) : money(cents)}</div>
+    </div>
+  );
+  return (
+    <div className={`grid gap-x-3 gap-y-1 ${compact ? 'grid-cols-4' : 'grid-cols-2 gap-1.5'}`}>
+      {metric('ledgerCardVolume', kpis.settledVolume, 'ledger-card-volume', 'text-slate-50')}
+      {metric('labelNetRevenue', kpis.netRevenue, 'ledger-card-revenue', kpis.netRevenue < 0 ? 'text-rose-200' : 'text-emerald-200')}
+      {metric('ledgerCardSuspense', kpis.suspense, 'ledger-card-suspense', kpis.suspense > 0 ? 'text-amber-200' : 'text-slate-50')}
+      {metric('ledgerCardFrozen', kpis.frozenCollateral, 'ledger-card-frozen', 'text-sky-200')}
+    </div>
+  );
+}
+
+/** The "Core Ledger Balance Sheet" card in the workspace header: live figures, and the full sheet on click. */
+export function CoreLedgerCard({ kpis, onOpen, m }: { kpis: RetailKpis; onOpen: () => void; m: M }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      title={m('ledgerCardHint')}
+      data-testid="workspace-ledger-open"
+      data-warn={kpis.atmLow || undefined}
+      className={`min-w-[17rem] rounded-xl border px-2.5 py-1 text-left transition ${kpis.atmLow ? 'border-amber-400/60 bg-amber-400/10' : 'border-emerald-400/40 bg-gradient-to-r from-emerald-500/10 to-slate-900 hover:border-emerald-300/70'}`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-200">{m('ledgerCardTitle')}</span>
+        <span className="text-[10px] text-slate-400" aria-hidden="true">
+          📒 →
+        </span>
+      </div>
+      <LedgerMetrics kpis={kpis} m={m} compact />
+    </button>
+  );
+}
+
+/** What a journal is about: its retail scenario, its matrix task, or the desk for a live-queue review. */
+export function journalTitleKey(j: Pick<JournalEntry, 'role' | 'scene'>): AnalystWorkspaceKey {
+  if (j.scene.startsWith('retail_')) return k(`${j.scene}_title`);
+  if (j.scene.startsWith('task_')) return k(`${j.scene}_title`);
+  return k(`role_${j.role}_title`);
+}
+
+/** Generic labels for the accounts that hold funds or face a correspondent. */
+const GL_TAG: Partial<Record<GlAccount, AnalystWorkspaceKey>> = {
+  ATM_SUSPENSE: 'labelSuspense',
+  CLEARING_SUSPENSE: 'labelSuspense',
+  NOSTRO: 'labelNostro',
+  TD_PLEDGED: 'labelCollateral',
+  FROZEN_ASSETS: 'labelFrozen',
+  DISPUTE_ACCOUNT: 'labelDispute',
+};
 
 /** The retail queue's live view of the books, under the decision buttons. */
 function LedgerStrip({ ledger, m, onOpen }: { ledger: RetailLedger; m: M; onOpen: () => void }) {
@@ -606,6 +667,7 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: Retai
         </div>
         <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-5 md:grid-cols-[1fr_minmax(260px,320px)]">
           <div className="space-y-3">
+            <LedgerMetrics kpis={kpis} m={m} />
             <KpiTiles kpis={kpis} m={m} />
             {kpis.atmLow && (
               <p className="rounded-lg border border-amber-400/50 bg-amber-400/10 px-2.5 py-1.5 text-[12px] font-semibold text-amber-100" data-testid="ledger-atm-low">
@@ -627,6 +689,7 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: Retai
                       <li key={a.id} className="flex items-baseline gap-1.5" data-gl={a.id}>
                         <span className="shrink-0 font-mono text-[10.5px] text-slate-500">{a.code}</span>
                         <span className="min-w-0 flex-1 truncate text-slate-300">{m(k(`gl_${a.id}`))}</span>
+                        {GL_TAG[a.id] && <span className="shrink-0 rounded bg-slate-800 px-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400">{m(GL_TAG[a.id]!)}</span>}
                         <span className="shrink-0 font-semibold text-slate-50">{money(naturalBalance(a.id, ledger.balances[a.id]))}</span>
                       </li>
                     ))}
@@ -634,7 +697,7 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: Retai
                 </section>
               ))}
               <section className="rounded-xl border border-slate-800 bg-slate-950/50 p-2.5">
-                <Kicker>{m('ledgerNet')}</Kicker>
+                <Kicker>{m('labelNetRevenue')}</Kicker>
                 <div className={`mt-1 text-[18px] font-black tabular-nums ${sum.net < 0 ? 'text-rose-200' : 'text-emerald-200'}`} data-testid="ledger-net">
                   {money(sum.net)}
                 </div>
@@ -650,7 +713,7 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: Retai
                 {ledger.journal.map((j, i) => (
                   <li key={`${j.caseId}-${i}`} className="rounded-lg border border-slate-800 bg-slate-950/60 px-2.5 py-1.5" data-case={j.caseId}>
                     <div className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-[11.5px] font-semibold text-slate-100">{m(k(`retail_${j.scenario}_title`))}</span>
+                      <span className="truncate text-[11.5px] font-semibold text-slate-100">{m(journalTitleKey(j))}</span>
                       <span className={`shrink-0 text-[10px] font-bold ${j.decision === 'APPROVE' ? 'text-emerald-300' : 'text-rose-300'}`}>{m(j.decision === 'APPROVE' ? 'approve' : 'reject')}</span>
                     </div>
                     <div className="font-mono text-[10px] text-slate-500">
@@ -665,14 +728,6 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: Retai
         </div>
       </div>
     </div>
-  );
-}
-
-function LedgerButton({ kpis, onOpen, m }: { kpis: RetailKpis; onOpen: () => void; m: M }) {
-  return (
-    <button type="button" onClick={onOpen} title={m('ledgerSubtitle')} data-testid="workspace-ledger-open" data-warn={kpis.atmLow || undefined} className={`rounded-lg border px-2.5 py-1.5 text-[12px] font-semibold transition ${kpis.atmLow ? 'border-amber-400/60 bg-amber-400/15 text-amber-100' : 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20'}`}>
-      {m('ledgerButton')}
-    </button>
   );
 }
 
@@ -1371,7 +1426,7 @@ export function AnalystWorkspaceView({
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <IncidentToggle on={incidentMode} onToggle={onToggleIncidentMode} m={m} />
             <BadgesButton unlocked={career.badges.length} onOpen={() => setBadgesOpen(true)} m={m} />
-            <LedgerButton kpis={retailKpis(ledger)} onOpen={() => setLedgerOpen(true)} m={m} />
+            <CoreLedgerCard kpis={retailKpis(ledger)} onOpen={() => setLedgerOpen(true)} m={m} />
             <SoundToggle m={m} />
             <LanguageToggle variant="globe" testId="workspace-language" />
             <ModeToggle mode={mode} onChange={setMode} m={m} />

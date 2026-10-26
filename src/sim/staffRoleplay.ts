@@ -143,7 +143,7 @@ export interface StaffDecisionResult {
   correct: boolean;
   /** The status code the decision applies: an approval code, or the decline reason. */
   statusCode: string;
-  /** Retail cases: the double-entry journal this decision posts to the core ledger. */
+  /** The double-entry journal this decision posts to the core ledger (every graded training case). */
   journal?: JournalEntry;
 }
 
@@ -704,13 +704,15 @@ export function taskDeck(role: StaffRoleId, task: StaffTaskNo, seq: number, size
 export function gradeTaskCase(c: StaffCase, decision: StaffDecision): StaffDecisionResult {
   if (c.retail) return gradeRetailCase(c, c.retail, decision);
   const drill = c.drill ?? 1;
+  const statusCode = decision === 'APPROVE' ? APPROVE_CODE[c.role] : TASK_REJECT_CODE[c.role][drill];
   return {
     ok: true,
     packetId: c.id,
     decision,
     expected: c.expected,
     correct: decision === c.expected,
-    statusCode: decision === 'APPROVE' ? APPROVE_CODE[c.role] : TASK_REJECT_CODE[c.role][drill],
+    statusCode,
+    journal: caseJournal(c, decision, statusCode),
   };
 }
 
@@ -1014,12 +1016,13 @@ export function recordCareerDecision(c: CareerProgress, d: CareerDecision): { ca
 /** The core ledger's chart of accounts. Balances are kept debit-positive: assets and expenses carry a positive balance, the rest a negative one. */
 export const GL_ACCOUNTS = [
   { id: 'ATM_CASH', code: '1011', side: 'asset' },
+  { id: 'TILL_CASH', code: '1012', side: 'asset' },
   { id: 'OVERDRAFT_RECV', code: '1310', side: 'asset' },
   { id: 'LOAN_PRINCIPAL', code: '1320', side: 'asset' },
-  { id: 'INTEREST_RECV', code: '1330', side: 'asset' },
-  { id: 'PENALTY_RECV', code: '1340', side: 'asset' },
   { id: 'INTERBANK_SETTLEMENT', code: '1510', side: 'asset' },
+  { id: 'NOSTRO', code: '1520', side: 'asset' },
   { id: 'ATM_SUSPENSE', code: '1910', side: 'asset' },
+  { id: 'DISPUTE_ACCOUNT', code: '1920', side: 'asset' },
   { id: 'CASA', code: '2011', side: 'liability' },
   { id: 'TERM_DEPOSIT', code: '2021', side: 'liability' },
   { id: 'TD_PLEDGED', code: '2022', side: 'liability' },
@@ -1027,9 +1030,13 @@ export const GL_ACCOUNTS = [
   { id: 'LOYALTY_LIABILITY', code: '2450', side: 'liability' },
   { id: 'BILLER_PAYABLE', code: '2460', side: 'liability' },
   { id: 'CLEARING_SUSPENSE', code: '2912', side: 'liability' },
+  { id: 'FROZEN_ASSETS', code: '2930', side: 'liability' },
   { id: 'EQUITY', code: '3010', side: 'equity' },
+  { id: 'INTEREST_INCOME', code: '4110', side: 'income' },
   { id: 'FEE_INCOME', code: '4510', side: 'income' },
   { id: 'PENALTY_INCOME', code: '4520', side: 'income' },
+  { id: 'LATE_PENALTY_INCOME', code: '4530', side: 'income' },
+  { id: 'WIRE_FEE_INCOME', code: '4540', side: 'income' },
   { id: 'INTEREST_EXPENSE', code: '5110', side: 'expense' },
   { id: 'REWARDS_EXPENSE', code: '5410', side: 'expense' },
   { id: 'SWITCH_FEE_EXPENSE', code: '5420', side: 'expense' },
@@ -1050,7 +1057,9 @@ export interface LedgerLine {
 
 export interface JournalEntry {
   caseId: string;
-  scenario: RetailScenarioId;
+  role: StaffRoleId;
+  /** The case's scene: a retail scenario, a drill of the 28-task matrix or a live-queue review. */
+  scene: StaffCase['scene'];
   decision: StaffDecision;
   statusCode: string;
   /** Debits equal credits; empty for a memo-only decision. */
@@ -1064,17 +1073,19 @@ export interface RetailLedger {
   journal: JournalEntry[];
   /** Journals posted since the opening balances. */
   posted: number;
+  /** Face value of every posted transaction that settled (not parked in suspense, frozen, pledged or disputed). */
+  settledVolume: number;
 }
 
 export const RETAIL_JOURNAL_CAP = 25;
 
 const OPENING_POSITIONS: Partial<Record<GlAccount, number>> = {
   ATM_CASH: 1_800_000,
+  TILL_CASH: 2_500_000,
   OVERDRAFT_RECV: 4_000_000,
   LOAN_PRINCIPAL: 60_000_000,
-  INTEREST_RECV: 1_500_000,
-  PENALTY_RECV: 300_000,
   INTERBANK_SETTLEMENT: 40_000_000,
+  NOSTRO: NOSTRO_OPENING_CENTS,
   CASA: -70_000_000,
   TERM_DEPOSIT: -25_000_000,
   TD_PLEDGED: -6_000_000,
@@ -1089,20 +1100,35 @@ export const OPENING_BALANCES: Readonly<Record<GlAccount, number>> = (() => {
   return b;
 })();
 
-export const openingLedger = (): RetailLedger => ({ balances: { ...OPENING_BALANCES }, journal: [], posted: 0 });
+export const openingLedger = (): RetailLedger => ({ balances: { ...OPENING_BALANCES }, journal: [], posted: 0, settledVolume: 0 });
 
 /** True when a journal's debits equal its credits. */
 export const journalBalanced = (lines: readonly LedgerLine[]): boolean => lines.reduce((s, l) => s + l.dr - l.cr, 0) === 0;
 
-/** Posts a journal: every line moves its account, and the journal heads the list. */
+/** A balance the way a statement prints it: debit-natural for assets and expenses, credit-natural for the rest. */
+export const naturalBalance = (gl: GlAccount, debitPositive: number): number => (GL_SIDE[gl] === 'asset' || GL_SIDE[gl] === 'expense' ? debitPositive : 0 - debitPositive);
+
+/** Accounts that hold funds pending a decision: suspense, frozen, pledged and disputed money has not settled. */
+export const HOLDING_ACCOUNTS: readonly GlAccount[] = ['ATM_SUSPENSE', 'CLEARING_SUSPENSE', 'DISPUTE_ACCOUNT', 'FROZEN_ASSETS', 'TD_PLEDGED'];
+const CUSTOMER_ACCOUNTS: readonly GlAccount[] = ['CASA', 'OVERDRAFT_RECV'];
+
+/**
+ * What a journal adds to the settled volume: nothing when it routes funds into a holding account; otherwise the customer's
+ * side of the movement (deposits and overdraft), or the whole journal when no customer account is touched.
+ */
+export function settledCents(lines: readonly LedgerLine[]): number {
+  if (lines.some((l) => HOLDING_ACCOUNTS.includes(l.gl) && naturalBalance(l.gl, l.dr - l.cr) > 0)) return 0;
+  const customer = lines.filter((l) => CUSTOMER_ACCOUNTS.includes(l.gl));
+  const sum = (ls: readonly LedgerLine[], side: 'dr' | 'cr'): number => ls.reduce((s, l) => s + l[side], 0);
+  return customer.length ? Math.max(sum(customer, 'dr'), sum(customer, 'cr')) : sum(lines, 'dr');
+}
+
+/** Posts a journal: every line moves its account, the journal heads the list and its settled amount joins the volume. */
 export function postJournal(l: RetailLedger, entry: JournalEntry): RetailLedger {
   const balances = { ...l.balances };
   for (const line of entry.lines) balances[line.gl] += line.dr - line.cr;
-  return { balances, journal: [entry, ...l.journal].slice(0, RETAIL_JOURNAL_CAP), posted: l.posted + 1 };
+  return { balances, journal: [entry, ...l.journal].slice(0, RETAIL_JOURNAL_CAP), posted: l.posted + 1, settledVolume: l.settledVolume + settledCents(entry.lines) };
 }
-
-/** A balance the way a statement prints it: debit-natural for assets and expenses, credit-natural for the rest. */
-export const naturalBalance = (gl: GlAccount, debitPositive: number): number => (GL_SIDE[gl] === 'asset' || GL_SIDE[gl] === 'expense' ? debitPositive : -debitPositive);
 
 export interface LedgerSummary {
   assets: number;
@@ -1123,14 +1149,20 @@ export function ledgerSummary(l: RetailLedger): LedgerSummary {
   return { assets, liabilities, equity, income, expense, net, balanced: assets === liabilities + equity + net };
 }
 
-/** The four figures the workspace keeps in view. */
+/** The figures the workspace keeps in view: the retail four, and the header card's four. */
 export interface RetailKpis {
   feeIncome: number;
   atmCash: number;
+  /** ATM jams plus interbank reconciliation breaks. */
   suspense: number;
   overdraft: number;
   /** The ATM fleet's cassette cash is under ATM_FLEET_LOW_CENTS. */
   atmLow: boolean;
+  settledVolume: number;
+  /** Fee, penalty and interest revenue less interest, rewards and switch expenses. */
+  netRevenue: number;
+  /** Emergency-frozen funds plus pledged collateral savings. */
+  frozenCollateral: number;
 }
 
 /** Below this, the ATM fleet's cassette cash needs a replenishment run. */
@@ -1144,8 +1176,54 @@ export function retailKpis(l: RetailLedger): RetailKpis {
     suspense: nat('ATM_SUSPENSE') + nat('CLEARING_SUSPENSE'),
     overdraft: nat('OVERDRAFT_RECV'),
     atmLow: nat('ATM_CASH') < ATM_FLEET_LOW_CENTS,
+    settledVolume: l.settledVolume,
+    netRevenue: ledgerSummary(l).net,
+    frozenCollateral: nat('FROZEN_ASSETS') + nat('TD_PLEDGED'),
   };
 }
+
+/** Wire fee the cross-border desk charges on an outward remittance. */
+export const WIRE_FEE_CENTS = 2_500;
+
+/** AML holds that freeze the funds (sanctions matches and funnel accounts) rather than just returning the payment. */
+const amlFreezes = (c: StaffCase): boolean => c.drill === 1 || c.drill === 3 || c.scene === 'aml_OFAC';
+
+/**
+ * The journal a 28-task-matrix or live-queue decision posts. Letting a transaction through moves it (till cash, nostro,
+ * card or interbank settlement, a loan disbursement, a provisional dispute credit); an AML freeze moves the funds into the
+ * emergency frozen-asset account; any other rejection, and eKYC, moves no money.
+ */
+export function caseJournalLines(c: StaffCase, decision: StaffDecision): LedgerLine[] {
+  const a = c.amountCents;
+  if (a <= 0) return [];
+  if (decision === 'REJECT') return c.role === 'aml' && amlFreezes(c) ? journal([['CASA', a]], [['FROZEN_ASSETS', a]]) : [];
+  switch (c.role) {
+    case 'cashier': {
+      const cashIn = c.fields.some((f) => f.key === 'direction' && f.value.t === 'msg' && f.value.key === 'cashIn');
+      return cashIn ? journal([['TILL_CASH', a]], [['CASA', a]]) : journal([['CASA', a]], [['TILL_CASH', a]]);
+    }
+    case 'swift':
+      return journal(
+        [['CASA', a + WIRE_FEE_CENTS]],
+        [
+          ['NOSTRO', a],
+          ['WIRE_FEE_INCOME', WIRE_FEE_CENTS],
+        ],
+      );
+    case 'dispute':
+      return journal([['DISPUTE_ACCOUNT', a]], [['CASA', a]]);
+    case 'aml':
+    case 'fds':
+      return journal([['CASA', a]], [['INTERBANK_SETTLEMENT', a]]);
+    case 'bnpl':
+      return journal([['LOAN_PRINCIPAL', a]], [['INTERBANK_SETTLEMENT', a]]);
+    case 'ekyc':
+      return [];
+  }
+}
+
+/** The journal entry of a decided case outside the retail queue. */
+export const caseJournal = (c: StaffCase, decision: StaffDecision, statusCode: string): JournalEntry => ({ caseId: c.id, role: c.role, scene: c.scene, decision, statusCode, lines: caseJournalLines(c, decision) });
 
 /** The retail scenarios, and the desk that works each one. */
 export const RETAIL_SCENARIOS = [
@@ -1410,8 +1488,8 @@ function retailDrill(scenario: RetailScenarioId, id: string, hit: boolean): Reta
         journal(
           [['CASA', pay]],
           [
-            ['PENALTY_RECV', a.penalty],
-            ['INTEREST_RECV', a.interest],
+            ['LATE_PENALTY_INCOME', a.penalty],
+            ['INTEREST_INCOME', a.interest],
             ['LOAN_PRINCIPAL', a.principal],
           ],
         );
@@ -1593,6 +1671,6 @@ function gradeRetailCase(c: StaffCase, r: RetailCaseData, decision: StaffDecisio
     expected: c.expected,
     correct: decision === c.expected,
     statusCode,
-    journal: { caseId: c.id, scenario: r.id, decision, statusCode, lines: decision === 'APPROVE' ? r.approve : r.reject },
+    journal: { caseId: c.id, role: c.role, scene: c.scene, decision, statusCode, lines: decision === 'APPROVE' ? r.approve : r.reject },
   };
 }

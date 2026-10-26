@@ -22,7 +22,7 @@ import type { TermMode } from '../sim/terms';
 import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
 import type { BankView, Customer, PacketTrace } from '../sim/types';
-import { addToTally, advanceIncident, buildTaskCase, CHALLENGE, comboXp, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, openingLedger, postJournal, recordCareerDecision, rollIncident, roleForStation, SHIFT_TARGET, startIncident, type ActiveIncident, type BadgeId, type CareerProgress, type ChallengeTally, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo } from '../sim/staffRoleplay';
+import { addToTally, advanceIncident, buildTaskCase, caseJournal, CHALLENGE, comboXp, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, openingLedger, postJournal, recordCareerDecision, rollIncident, roleForStation, SHIFT_TARGET, startIncident, type ActiveIncident, type BadgeId, type CareerProgress, type ChallengeTally, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo } from '../sim/staffRoleplay';
 import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
@@ -199,7 +199,7 @@ export interface BankState {
   badgeUnlocks: BadgeId[];
   /** Closes the celebration for the first waiting badge. */
   dismissBadgeUnlock(): void;
-  /** The retail core ledger every retail-operations decision posts its journal to, kept in storage. */
+  /** The double-entry core ledger every desk decision (training, retail or live queue) posts its journal to, kept in storage. */
   retailLedger: RetailLedger;
   /** Restarts the core ledger from its opening balances. */
   resetRetailLedger(): void;
@@ -594,8 +594,11 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         const desk = s.staffDesk;
         const role = desk ? roleForStation(desk) : null;
         if (!desk || !role) return { ok: false, packetId, decision, expected: null, correct: false, statusCode: 'NO_DESK' };
-        const result = s.sim.staffDecide(desk, packetId, decision, latencySec);
-        if (!result.ok) return result;
+        const reviewed = s.pendingQueueMap[desk]?.find((c) => c.id === packetId);
+        const decided = s.sim.staffDecide(desk, packetId, decision, latencySec);
+        if (!decided.ok) return decided;
+        // A live review posts the same journal its training twin would: the queue case carries the role, amount and fields.
+        const result: StaffDecisionResult = reviewed ? { ...decided, journal: caseJournal(reviewed, decision, decided.statusCode) } : decided;
         const prev = s.staffShift[role] ?? EMPTY_SHIFT;
         const next: ShiftProgress = {
           reviews: prev.reviews + 1,
@@ -606,7 +609,9 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           ...bookCombo(prev, result.correct),
           last: result,
         };
-        refresh({ staffShift: { ...s.staffShift, [role]: next } });
+        const retailLedger = result.journal ? postJournal(s.retailLedger, result.journal) : s.retailLedger;
+        if (result.journal) saveRetailLedger(storage, retailLedger);
+        refresh({ staffShift: { ...s.staffShift, [role]: next }, retailLedger });
         return result;
       },
       chaos: initialChaos,
