@@ -22,7 +22,7 @@ import type { TermMode } from '../sim/terms';
 import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
 import type { BankView, Customer, PacketTrace } from '../sim/types';
-import { addToTally, buildTaskCase, CHALLENGE, EMPTY_TALLY, gradeTaskCase, roleForStation, STAFF_XP_PER_CORRECT, type ChallengeTally, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo } from '../sim/staffRoleplay';
+import { addToTally, buildTaskCase, CHALLENGE, comboXp, EMPTY_TALLY, gradeTaskCase, roleForStation, type ChallengeTally, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo } from '../sim/staffRoleplay';
 import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
@@ -97,12 +97,20 @@ export interface ShiftProgress {
   slaBreaches: number;
   /** Decisions against the SOP. */
   errors: number;
-  /** +STAFF_XP_PER_CORRECT for every decision that matches the SOP. */
+  /** +STAFF_XP_PER_CORRECT × the combo multiplier for every decision that matches the SOP. */
   xp: number;
+  /** Consecutive correct decisions; 0 after any SOP error. */
+  comboCount: number;
   last: StaffDecisionResult | null;
 }
 
-export const EMPTY_SHIFT: ShiftProgress = { reviews: 0, correct: 0, latencySumSec: 0, slaBreaches: 0, errors: 0, xp: 0, last: null };
+/** Advances the streak and books XP at the new streak's multiplier; an error resets the streak. */
+export function bookCombo(prev: ShiftProgress, correct: boolean): Pick<ShiftProgress, 'xp' | 'comboCount'> {
+  const comboCount = correct ? (prev.comboCount ?? 0) + 1 : 0;
+  return { comboCount, xp: prev.xp + (correct ? comboXp(comboCount) : 0) };
+}
+
+export const EMPTY_SHIFT: ShiftProgress = { reviews: 0, correct: 0, latencySumSec: 0, slaBreaches: 0, errors: 0, xp: 0, comboCount: 0, last: null };
 
 export interface BankState {
   sim: BankSimulation;
@@ -521,7 +529,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           latencySumSec: prev.latencySumSec + Math.max(0, latencySec),
           slaBreaches: prev.slaBreaches + (latencySec > slaSec ? 1 : 0),
           errors: prev.errors + (result.correct ? 0 : 1),
-          xp: prev.xp + (result.correct ? STAFF_XP_PER_CORRECT : 0),
+          ...bookCombo(prev, result.correct),
           last: result,
         };
         set({ staffShift: { ...s.staffShift, [role]: next }, staffTaskSeq: s.staffTaskSeq + 1 });
@@ -549,7 +557,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           latencySumSec: prev.latencySumSec + Math.max(0, latencySec),
           slaBreaches: prev.slaBreaches + (latencySec > slaSec ? 1 : 0),
           errors: prev.errors + (result.correct ? 0 : 1),
-          xp: prev.xp + (result.correct ? STAFF_XP_PER_CORRECT : 0),
+          ...bookCombo(prev, result.correct),
           last: result,
         };
         refresh({ staffShift: { ...s.staffShift, [role]: next } });

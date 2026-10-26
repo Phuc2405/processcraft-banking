@@ -4,6 +4,9 @@
  *   posSuccessDing   two bright sine notes, like a card terminal's approval chime
  *   errorBuzz        a short, low, pulsing square buzz for a decline or a fault
  *   botnetSiren      a two-second rising and falling siren for a botnet velocity alert
+ *   comboSuccess     a high double beep for a correct review decision
+ *   comboUp          an ascending major arpeggio when a combo reaches x1.5 or x2.0
+ *   sopError         a low filtered buzz for a review decision against the SOP
  *
  * Browsers only let a page make sound after the person has interacted with it, so the AudioContext is created lazily on the
  * first sound and resumed if it was suspended. Everything is a silent no-op where Web Audio does not exist (tests, old
@@ -11,6 +14,7 @@
  */
 
 import type { StoreApi } from 'zustand/vanilla';
+import { comboTierUp } from '../sim/staffRoleplay';
 import type { BankState } from '../store/bankStore';
 import type { UiState } from '../store/uiStore';
 
@@ -19,10 +23,10 @@ type AudioCtor = typeof AudioContext;
 let ctx: AudioContext | null = null;
 let enabled = true;
 /** The time each sound last started, so a burst of events never stacks the same sound on itself. */
-const lastPlayed: Record<SoundName, number> = { posSuccessDing: 0, errorBuzz: 0, botnetSiren: 0 };
-const MIN_GAP_MS: Record<SoundName, number> = { posSuccessDing: 120, errorBuzz: 350, botnetSiren: 2_500 };
+const lastPlayed: Record<SoundName, number> = { posSuccessDing: 0, errorBuzz: 0, botnetSiren: 0, comboSuccess: 0, comboUp: 0, sopError: 0 };
+const MIN_GAP_MS: Record<SoundName, number> = { posSuccessDing: 120, errorBuzz: 350, botnetSiren: 2_500, comboSuccess: 120, comboUp: 300, sopError: 350 };
 
-export type SoundName = 'posSuccessDing' | 'errorBuzz' | 'botnetSiren';
+export type SoundName = 'posSuccessDing' | 'errorBuzz' | 'botnetSiren' | 'comboSuccess' | 'comboUp' | 'sopError';
 
 function audioCtor(): AudioCtor | null {
   if (typeof window === 'undefined') return null;
@@ -118,7 +122,47 @@ export function botnetSiren(): void {
   osc.stop(t0 + 2.05);
 }
 
-const SOUNDS: Record<SoundName, () => void> = { posSuccessDing, errorBuzz, botnetSiren };
+/** A correct review: two quick high beeps (B6, B6). */
+export function comboSuccess(): void {
+  const c = context();
+  if (!c) return;
+  tone(c, { type: 'sine', freq: 1975.5, at: 0, dur: 0.08, gain: 0.14 });
+  tone(c, { type: 'sine', freq: 1975.5, at: 0.11, dur: 0.12, gain: 0.14 });
+}
+
+/** A combo tier reached: C5–E5–G5–C6 rising, the last note held. */
+export function comboUp(): void {
+  const c = context();
+  if (!c) return;
+  [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => tone(c, { type: 'triangle', freq, at: i * 0.07, dur: i === 3 ? 0.45 : 0.2, gain: 0.12 }));
+  tone(c, { type: 'sine', freq: 2093, at: 0.21, dur: 0.3, gain: 0.03 });
+}
+
+/** An SOP violation: a low sawtooth buzz through a lowpass, falling slightly. */
+export function sopError(): void {
+  const c = context();
+  if (!c) return;
+  const t0 = c.currentTime;
+  const osc = c.createOscillator();
+  const filter = c.createBiquadFilter();
+  const amp = c.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(90, t0);
+  osc.frequency.linearRampToValueAtTime(65, t0 + 0.45);
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(600, t0);
+  amp.gain.setValueAtTime(0.0001, t0);
+  amp.gain.exponentialRampToValueAtTime(0.1, t0 + 0.02);
+  amp.gain.setValueAtTime(0.1, t0 + 0.35);
+  amp.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.45);
+  osc.connect(filter);
+  filter.connect(amp);
+  amp.connect(c.destination);
+  osc.start(t0);
+  osc.stop(t0 + 0.5);
+}
+
+const SOUNDS: Record<SoundName, () => void> = { posSuccessDing, errorBuzz, botnetSiren, comboSuccess, comboUp, sopError };
 
 /** Plays a sound by name, unless sound is off or the same sound played a moment ago. */
 export function play(name: SoundName, nowMs: number = Date.now()): boolean {
@@ -130,6 +174,16 @@ export function play(name: SoundName, nowMs: number = Date.now()): boolean {
     // A sound that cannot be made is never worth an error.
   }
   return true;
+}
+
+export const playSuccessSFX = (): boolean => play('comboSuccess');
+export const playComboSFX = (): boolean => play('comboUp');
+export const playErrorSFX = (): boolean => play('sopError');
+
+/** The sound for one review decision given the streak after it. Pure, for tests. */
+export function reviewSound(correct: boolean, comboAfter: number): SoundName {
+  if (!correct) return 'sopError';
+  return comboTierUp(comboAfter) ? 'comboUp' : 'comboSuccess';
 }
 
 /** What a change in the bank sounds like, or null for silence. Pure, so it can be tested without Web Audio. */
