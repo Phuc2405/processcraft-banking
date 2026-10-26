@@ -6,6 +6,8 @@ import {
   challengeBonus,
   challengeGrade,
   challengePoints,
+  comboMultiplier,
+  comboTier,
   RANDOM_TASK,
   tallyAccuracy,
   type ChallengeGrade,
@@ -30,6 +32,8 @@ import {
 } from '../../sim/staffRoleplay';
 import { DEPARTMENTS, STATIONS, type StationId } from '../../sim/topology';
 import { bankStore, EMPTY_SHIFT, useBankStore, type ShiftProgress } from '../../store/bankStore';
+import { uiStore, useUiStore } from '../../store/uiStore';
+import { play, reviewSound } from '../../utils/audioFX';
 import { useLocale, useMessages, type Locale, type Translate } from '../../utils/i18nHelper';
 import { analystWorkspaceMessages, PERSONAS, type AnalystWorkspaceKey } from './analystWorkspace.messages';
 import { InfoTip } from './InfoTip';
@@ -357,6 +361,9 @@ interface Consequence {
   /** Challenge Mode only: the XP this decision scored and the speed bonus inside it. */
   points?: number;
   bonus?: number;
+  /** Shift XP this decision booked (combo multiplier included) and the streak after it. */
+  xp?: number;
+  combo?: number;
 }
 
 /** What the overlay explains: the benefit when right, the risk the learner just took when wrong. */
@@ -382,9 +389,21 @@ export function ConsequenceOverlay({ consequence, mode, m }: { consequence: Cons
         {consequence.points !== undefined
           ? m('overlayPoints', { pts: consequence.points > 0 ? `+${consequence.points}` : `−${Math.abs(consequence.points)}` })
           : ok
-            ? m('overlayXp', { xp: STAFF_XP_PER_CORRECT })
+            ? m('overlayXp', { xp: consequence.xp ?? STAFF_XP_PER_CORRECT })
             : m('overlayError', { n: consequence.errors })}
       </div>
+      {consequence.combo !== undefined &&
+        (ok ? (
+          comboMultiplier(consequence.combo) > 1 && (
+            <div className="text-[11.5px] font-bold text-orange-200" data-testid="workspace-consequence-combo">
+              {m('overlayCombo', { mult: `x${comboMultiplier(consequence.combo).toFixed(1)}` })}
+            </div>
+          )
+        ) : (
+          <div className="text-[11.5px] font-semibold text-rose-200" data-testid="workspace-combo-broken">
+            {m('comboBroken')}
+          </div>
+        ))}
       {consequence.points !== undefined && !!consequence.bonus && <div className="text-[11px] font-semibold text-amber-200">{m('overlayBonus', { bonus: consequence.bonus })}</div>}
       <div className="font-mono text-[10.5px] text-slate-400">{m('statusCode', { code: result.statusCode })}</div>
     </div>
@@ -535,6 +554,57 @@ export function ChallengeScorecard({ tally, m, onAgain, onClose }: { tally: Chal
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Combo multiplier, SOP-violation pulse, sound toggle
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function ComboBadge({ combo, m }: { combo: number; m: M }) {
+  const tier = comboTier(combo);
+  if (tier === 'none') {
+    return combo > 0 ? (
+      <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-slate-300" title={m('comboHint')} data-testid="workspace-combo" data-tier={tier} data-combo={combo}>
+        {m('comboStreak', { n: combo })}
+      </span>
+    ) : null;
+  }
+  const zone = tier === 'zone';
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      title={m('comboHint')}
+      data-testid="workspace-combo"
+      data-tier={tier}
+      data-combo={combo}
+      className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-[12px] font-extrabold tracking-wide ${zone ? 'animate-pulse border-amber-300 bg-amber-400/20 text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.55)]' : 'border-orange-400/60 bg-orange-500/15 text-orange-200'}`}
+    >
+      <span>{m(zone ? 'comboZone' : 'comboHot')}</span>
+      <span className="text-[10.5px] font-semibold tabular-nums opacity-80">{m('comboStreak', { n: combo })}</span>
+    </div>
+  );
+}
+
+export function SopViolationPulse({ m }: { m: M }) {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-[25] grid place-items-start justify-center rounded-2xl ring-4 ring-inset ring-rose-500/80" data-testid="workspace-sop-violation">
+      <div className="absolute inset-0 animate-pulse rounded-2xl bg-rose-600/20" aria-hidden="true" />
+      <div role="alert" className="relative mt-16 rounded-xl border-2 border-rose-400 bg-rose-950/95 px-5 py-2 text-[15px] font-black tracking-wider text-rose-100 shadow-[0_0_30px_rgba(244,63,94,0.6)]">
+        {m('sopViolation')}
+      </div>
+    </div>
+  );
+}
+
+function SoundToggle({ m }: { m: M }) {
+  const on = useUiStore((s) => s.soundOn);
+  const label = m(on ? 'soundOn' : 'soundOff');
+  return (
+    <button type="button" aria-pressed={on} aria-label={label} title={label} onClick={() => uiStore.getState().setSoundOn(!on)} data-testid="workspace-sound" data-on={on || undefined} className="rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-[13px] transition hover:bg-slate-800">
+      <span aria-hidden="true">{on ? '🔊' : '🔇'}</span>
+    </button>
+  );
+}
+
 function DecisionPanel({
   shift,
   current,
@@ -570,6 +640,7 @@ function DecisionPanel({
         </div>
       </div>
       {challenge && <ChallengeStrip tally={challenge.tally} remainingSec={challenge.remainingSec} m={m} />}
+      <ComboBadge combo={shift.comboCount ?? 0} m={m} />
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
         <button type="button" disabled={locked} onClick={() => onDecide('APPROVE')} data-testid="workspace-approve" className="rounded-xl border border-emerald-400/50 bg-emerald-500/15 px-3 py-2.5 text-[13px] font-bold text-emerald-100 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-40">
           {m('approve')}
@@ -669,8 +740,8 @@ export interface AnalystWorkspaceViewProps {
   canAdvance: boolean;
   onClose: () => void;
   onAdvance: () => void;
-  /** Decides the head case; returns the result and the role's error count after it. */
-  onDecide: (caseId: string, decision: StaffDecision, latencySec: number) => { result: StaffDecisionResult; errors: number };
+  /** Decides the head case; returns the result, the role's error count, and the XP booked and streak after it. */
+  onDecide: (caseId: string, decision: StaffDecision, latencySec: number) => { result: StaffDecisionResult; errors: number; xp?: number; combo?: number };
   /** Instant: another task at the same desk. */
   onTaskChange: (task: StaffTaskNo) => void;
   /** Called only after the learner confirmed the switch dialog. */
@@ -707,14 +778,16 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
     (d: StaffDecision) => {
       if (!current || !role || consequence || pendingRole || challenge.finished) return;
       const latency = elapsedRef.current;
-      const { result, errors } = onDecide(current.id, d, latency);
+      const { result, errors, xp, combo } = onDecide(current.id, d, latency);
       if (!result.ok) return;
+      const streak = combo ?? (result.correct ? (shift.comboCount ?? 0) + 1 : 0);
+      if (uiStore.getState().soundOn) play(reviewSound(result.correct, streak));
       if (challenge.run) {
         cc.record(result.correct, latency);
-        setConsequence({ result, role, drill: current.drill, errors, points: challengePoints(result.correct, latency), bonus: result.correct ? challengeBonus(latency) : 0 });
-      } else setConsequence({ result, role, drill: current.drill, errors });
+        setConsequence({ result, role, drill: current.drill, errors, xp, combo: streak, points: challengePoints(result.correct, latency), bonus: result.correct ? challengeBonus(latency) : 0 });
+      } else setConsequence({ result, role, drill: current.drill, errors, xp, combo: streak });
     },
-    [current, role, consequence, pendingRole, onDecide, challenge, cc],
+    [current, role, consequence, pendingRole, onDecide, challenge, cc, shift.comboCount],
   );
 
   useEffect(() => {
@@ -743,11 +816,13 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
   };
 
   const accent = useMemo(() => DEPARTMENTS[STATIONS[desk].department].accent, [desk]);
+  const tier = comboTier(shift.comboCount ?? 0);
   if (!role) return null;
+  const glow = tier === 'zone' ? '0 0 0 2px rgba(251,191,36,0.85), 0 0 36px rgba(251,191,36,0.45), 0 24px 60px rgba(0,0,0,0.55)' : `0 0 0 1px ${accent}33, 0 24px 60px rgba(0,0,0,0.55)`;
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/75 p-3 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()} data-testid="analyst-workspace-backdrop">
-      <div role="dialog" aria-modal="true" aria-labelledby="analyst-workspace-title" data-testid="analyst-workspace" data-station={desk} data-role={role} data-mode={mode} data-challenge={challenge.run ? 'running' : undefined} className="relative flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl" style={{ boxShadow: `0 0 0 1px ${accent}33, 0 24px 60px rgba(0,0,0,0.55)` }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="analyst-workspace-title" data-testid="analyst-workspace" data-station={desk} data-role={role} data-mode={mode} data-challenge={challenge.run ? 'running' : undefined} data-combo-tier={tier} className={`relative flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border bg-slate-950 shadow-2xl transition-shadow duration-500 ${tier === 'zone' ? 'border-amber-300/80' : 'border-slate-700'}`} style={{ boxShadow: glow }}>
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-4 py-2.5 xl:flex-nowrap">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 xl:flex-nowrap">
             <div className="min-w-0 xl:max-w-[18rem]">
@@ -764,6 +839,7 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <SoundToggle m={m} />
             <LanguageToggle variant="globe" testId="workspace-language" />
             <ModeToggle mode={mode} onChange={setMode} m={m} />
             <ChallengeToggle running={challenge.run !== null} remainingSec={remainingSec} onStart={cc.start} onStop={cc.stop} m={m} />
@@ -777,6 +853,7 @@ export function AnalystWorkspaceView({ desk, cases, shift, initialMode, task, ca
           <ScenarioCard current={current} queued={Math.max(0, cases.length - 1)} elapsed={elapsed} mode={mode} m={m} onAdvance={onAdvance} canAdvance={canAdvance} showDrill={task === RANDOM_TASK} />
           <DecisionPanel shift={shift} current={current} onDecide={decide} consequence={consequence} mode={mode} m={m} challenge={challenge.run ? { tally: challenge.run.tally, remainingSec } : null} />
         </div>
+        {consequence && !consequence.result.correct && <SopViolationPulse m={m} />}
         {challenge.finished && <ChallengeScorecard tally={challenge.finished} m={m} onAgain={cc.start} onClose={cc.dismiss} />}
         {pendingRole && <SwitchDeskDialog target={pendingRole} m={m} onCancel={() => setPendingRole(null)} onConfirm={confirmSwitch} />}
       </div>
@@ -814,9 +891,10 @@ export function AnalystWorkspaceModal() {
 
   const onDecide = useCallback<AnalystWorkspaceViewProps['onDecide']>(
     (caseId, decision, latencySec) => {
+      const before = role ? (bankStore.getState().staffShift[role] ?? EMPTY_SHIFT) : EMPTY_SHIFT;
       const result = train(caseId, decision, latencySec, STAFF_SLA_SECONDS);
-      const errors = role ? (bankStore.getState().staffShift[role] ?? EMPTY_SHIFT).errors : 0;
-      return { result, errors };
+      const after = role ? (bankStore.getState().staffShift[role] ?? EMPTY_SHIFT) : EMPTY_SHIFT;
+      return { result, errors: after.errors, xp: after.xp - before.xp, combo: after.comboCount };
     },
     [train, role],
   );

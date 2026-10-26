@@ -37,6 +37,22 @@ export const roleForStation = (id: StationId): StaffRoleId | null => STATION_ROL
 export const STAFF_SLA_SECONDS = 30;
 /** XP for a decision that matches the SOP. */
 export const STAFF_XP_PER_CORRECT = 100;
+
+/** In-shift combo: consecutive correct decisions needed for each multiplier tier. */
+export const COMBO_TIERS = { hot: 3, zone: 5 } as const;
+export type ComboTier = 'none' | 'hot' | 'zone';
+
+/** The tier a streak of `combo` consecutive correct decisions sits in. */
+export const comboTier = (combo: number): ComboTier => (combo >= COMBO_TIERS.zone ? 'zone' : combo >= COMBO_TIERS.hot ? 'hot' : 'none');
+
+/** XP multiplier for a streak: 1.0x (0–2), 1.5x (3–4), 2.0x (5+). */
+export const comboMultiplier = (combo: number): number => ({ none: 1, hot: 1.5, zone: 2 })[comboTier(combo)];
+
+/** XP for one correct decision that brings the streak to `combo`. */
+export const comboXp = (combo: number): number => Math.round(STAFF_XP_PER_CORRECT * comboMultiplier(combo));
+
+/** True when this streak just entered a higher tier (3 or 5). */
+export const comboTierUp = (combo: number): boolean => combo === COMBO_TIERS.hot || combo === COMBO_TIERS.zone;
 /** The shift objective: this many reviews, at or above this accuracy. */
 export const SHIFT_TARGET = { reviews: 10, accuracyPct: 90 } as const;
 /** Opening balance of the AUD nostro the SWIFT desk pays out of. */
