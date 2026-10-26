@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { formatMoney } from '../../sim/kpis';
 import { localizeScenarioText } from '../../sim/scenarios';
 import {
@@ -29,11 +30,14 @@ import {
   GL_ACCOUNTS,
   GL_CODE,
   ATM_FLEET_LOW_CENTS,
+  caseJournalLines,
   ledgerSummary,
   naturalBalance,
   openingLedger,
   retailKpis,
+  type GlAccount,
   type GlSide,
+  type JournalEntry,
   type LedgerLine,
   type RetailKpis,
   type RetailLedger,
@@ -59,7 +63,7 @@ import {
   type StaffTaskNo,
 } from '../../sim/staffRoleplay';
 import { DEPARTMENTS, STATIONS, type StationId } from '../../sim/topology';
-import { bankStore, EMPTY_SHIFT, useBankStore, type ShiftProgress } from '../../store/bankStore';
+import { bankStore, EMPTY_SHIFT, useBankStore, type AuditEntry, type ShiftProgress } from '../../store/bankStore';
 import { uiStore, useUiStore } from '../../store/uiStore';
 import { play, reviewSound } from '../../utils/audioFX';
 import { useLocale, useMessages, type Locale, type Translate } from '../../utils/i18nHelper';
@@ -256,6 +260,171 @@ function MissionPanel({ role, task, mode, m, deskName, sla = STAFF_SLA_SECONDS }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Decision Support Engine / Risk Advisory
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AdviceAction = 'approve' | 'reject' | 'freeze' | 'escalate';
+export const ADVICE_ACTIONS: readonly AdviceAction[] = ['approve', 'reject', 'freeze', 'escalate'];
+
+export interface AdviceDriver {
+  /** `driver_<name>` in analystWorkspace.messages.ts. */
+  key: AnalystWorkspaceKey;
+  tone: 'breach' | 'alert' | 'info';
+  /** The payload field a generic driver names. */
+  field?: string;
+  /** The ledger account a posting driver names. */
+  gl?: GlAccount;
+  n?: number;
+}
+
+export interface Advice {
+  action: AdviceAction;
+  /** 0-100: how much of the case's evidence the engine could verify and that points the same way. */
+  confidence: number;
+  /** The 2-3 strongest signals, breaches first. */
+  drivers: AdviceDriver[];
+}
+
+/** Below this confidence the engine will not recommend an approval: it escalates for a manual check. */
+export const ESCALATE_BELOW_PCT = 70;
+const ADVICE_DRIVERS = { min: 2, max: 3 } as const;
+
+const linesFor = (c: StaffCase, d: StaffDecision): readonly LedgerLine[] => (c.retail ? (d === 'APPROVE' ? c.retail.approve : c.retail.reject) : caseJournalLines(c, d));
+
+/**
+ * The engine's read of a case, from what the card itself shows: a visible SOP breach is decisive (reject, or freeze when the
+ * rejection moves the funds to frozen assets); otherwise confidence is the share of fields verified clean, an operational alert
+ * counting half and a field hidden by an incident not at all, and below ESCALATE_BELOW_PCT the engine escalates.
+ */
+export function adviseCase(c: StaffCase, masked: ReadonlySet<string> = NONE_MASKED): Advice {
+  const visible = c.fields.filter((f) => !masked.has(f.key));
+  const hidden = c.fields.length - visible.length;
+  const breaches = visible.filter((f) => f.flag);
+  const alerts = visible.filter((f) => f.alert && !f.flag);
+  if (breaches.length) {
+    const action: AdviceAction = linesFor(c, 'REJECT').some((l) => l.gl === 'FROZEN_ASSETS') ? 'freeze' : 'reject';
+    return { action, confidence: Math.max(ESCALATE_BELOW_PCT, 100 - 10 * hidden), drivers: adviceDrivers(c, breaches, alerts, hidden, action) };
+  }
+  const confidence = Math.round((100 * (visible.length - 0.5 * alerts.length)) / Math.max(1, c.fields.length));
+  const action: AdviceAction = confidence < ESCALATE_BELOW_PCT ? 'escalate' : 'approve';
+  return { action, confidence, drivers: adviceDrivers(c, breaches, alerts, hidden, action) };
+}
+
+function adviceDrivers(c: StaffCase, breaches: readonly StaffField[], alerts: readonly StaffField[], hidden: number, action: AdviceAction): AdviceDriver[] {
+  const out: AdviceDriver[] = [];
+  const add = (d: AdviceDriver): void => {
+    if (!out.some((x) => x.key === d.key && x.field === d.field)) out.push(d);
+  };
+  const flagged = (key: string): boolean => breaches.some((f) => f.key === key);
+  const s = c.scene;
+  // Named drivers first: the scenario-level signals an analyst would call out.
+  if (s === 'retail_ATM_LOW_CASH' && (alerts.length || flagged('cassetteCash'))) add({ key: 'driver_atmCassetteLow', tone: flagged('cassetteCash') ? 'breach' : 'alert' });
+  if (s === 'retail_AUTO_PAY' && breaches.length) add({ key: 'driver_nsfPenalty', tone: 'breach' });
+  if (s === 'retail_DEBT_WATERFALL') add(breaches.length ? { key: 'driver_waterfallBroken', tone: 'breach' } : { key: 'driver_waterfall', tone: 'info' });
+  if (s === 'retail_CLEARING_BREAK' && !breaches.length) add({ key: 'driver_clearingBreak', tone: 'alert' });
+  if ((s === 'task_aml_2' || s === 'aml_STRUCTURING') && breaches.length) add({ key: 'driver_ctrEvasion', tone: 'breach' });
+  if (action === 'freeze') add({ key: 'driver_freeze', tone: 'breach' });
+  if (hidden) add({ key: 'driver_hidden', tone: 'alert', n: hidden });
+  for (const f of breaches) add({ key: 'driver_breach', tone: 'breach', field: f.key });
+  for (const f of alerts) add({ key: 'driver_alert', tone: 'alert', field: f.key });
+  if (s === 'retail_ATM_JAM' && !breaches.length) add({ key: 'driver_atmSuspense', tone: 'info' });
+  if (s === 'retail_TD_EARLY_BREAK') add({ key: 'driver_demandRate', tone: 'info' });
+  if (s === 'retail_TD_PLEDGE' || s === 'retail_TD_LIQUIDATION') add({ key: 'driver_collateral', tone: 'info' });
+  if (c.role === 'swift' && !c.retail && !breaches.length) add({ key: 'driver_nostro', tone: 'info' });
+  if (!breaches.length && !hidden && !alerts.length) add({ key: 'driver_clean', tone: 'info' });
+  // Fill up with the ledger impact of the recommended action.
+  if (out.length < ADVICE_DRIVERS.min) {
+    const lines = linesFor(c, action === 'approve' || action === 'escalate' ? 'APPROVE' : 'REJECT');
+    const counter = lines.find((l) => l.gl !== 'CASA' && l.gl !== 'OVERDRAFT_RECV') ?? lines[0];
+    add(counter ? { key: 'driver_posting', tone: 'info', gl: counter.gl } : { key: 'driver_memo', tone: 'info' });
+  }
+  return out.slice(0, ADVICE_DRIVERS.max);
+}
+
+const ACTION_TONE: Readonly<Record<AdviceAction, string>> = {
+  approve: 'border-emerald-400/70 bg-emerald-500/20 text-emerald-100',
+  reject: 'border-rose-400/70 bg-rose-500/20 text-rose-100',
+  freeze: 'border-sky-300/70 bg-sky-500/20 text-sky-100',
+  escalate: 'border-amber-400/70 bg-amber-400/20 text-amber-100',
+};
+const ACTION_ICON: Readonly<Record<AdviceAction, string>> = { approve: '✅', reject: '⛔', freeze: '🔒', escalate: '↗️' };
+const DRIVER_TONE = { breach: ['⚠', 'text-rose-200'], alert: ['🔔', 'text-amber-200'], info: ['ℹ', 'text-sky-200'] } as const;
+
+export function confidenceBand(pct: number): 'High' | 'Medium' | 'Low' {
+  return pct >= 90 ? 'High' : pct >= ESCALATE_BELOW_PCT ? 'Medium' : 'Low';
+}
+
+/** The advisory card. In Expert mode it stays folded until the learner asks, and asking forfeits the case's combo bonus. */
+export function AdvisoryCard({ current, masked = NONE_MASKED, mode, revealed, onReveal, m }: { current: StaffCase; masked?: ReadonlySet<string>; mode: WorkspaceMode; revealed: boolean; onReveal: () => void; m: M }) {
+  const head = (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-[11px] font-bold text-violet-200">{m('dseTitle')}</span>
+      <span className="text-[9.5px] font-semibold uppercase tracking-wider text-slate-500">{m('dseAdvisoryNote')}</span>
+    </div>
+  );
+  if (!revealed) {
+    return (
+      <div className="rounded-lg border border-violet-400/30 bg-violet-500/[0.06] px-3 py-2" data-testid="workspace-dse" data-revealed="false">
+        {head}
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <button type="button" onClick={onReveal} data-testid="workspace-dse-reveal" className="rounded-lg border border-violet-400/50 bg-violet-500/15 px-2.5 py-1 text-[11.5px] font-semibold text-violet-100 transition hover:bg-violet-500/25">
+            {m('dseReveal')}
+          </button>
+          <span className="text-[10.5px] text-slate-400">{m('dseRevealNote')}</span>
+        </div>
+      </div>
+    );
+  }
+  const advice = adviseCase(current, masked);
+  const band = confidenceBand(advice.confidence);
+  const bar = band === 'High' ? 'bg-emerald-400' : band === 'Medium' ? 'bg-sky-400' : 'bg-amber-400';
+  return (
+    <div className="rounded-lg border border-violet-400/30 bg-violet-500/[0.06] px-3 py-2" data-testid="workspace-dse" data-revealed="true" data-action={advice.action} data-confidence={advice.confidence} data-mode={mode}>
+      {head}
+      <div className="mt-1.5 flex items-center gap-2">
+        <span className="flex shrink-0 items-center text-[10.5px] text-slate-400">
+          {m('dseConfidence')}
+          <InfoTip label={m('dseConfidence')} text={m('dseConfidenceTip', { min: ESCALATE_BELOW_PCT })} testId="workspace-tip-dse" />
+        </span>
+        <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-800" role="meter" aria-label={m('dseConfidence')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={advice.confidence}>
+          <div className={`h-full rounded-full ${bar}`} style={{ width: `${advice.confidence}%` }} />
+        </div>
+        <span className="shrink-0 text-[13px] font-black tabular-nums text-slate-50" data-testid="workspace-dse-confidence">
+          {advice.confidence}%
+        </span>
+        <span className="shrink-0 text-[10px] font-semibold text-slate-400">{m(k(`dseBand${band}`))}</span>
+      </div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <span className="text-[10.5px] text-slate-400">{m('dseRecommendation')}:</span>
+        {ADVICE_ACTIONS.map((a) => (
+          <span
+            key={a}
+            title={m(k(`dseActionTip_${a}`))}
+            data-action={a}
+            data-recommended={a === advice.action || undefined}
+            className={`rounded-md border px-2 py-0.5 text-[11px] font-bold ${a === advice.action ? ACTION_TONE[a] : 'border-slate-700 text-slate-500'}`}
+          >
+            {a === advice.action && <span aria-hidden="true">{ACTION_ICON[a]} </span>}
+            {m(k(`dseAction_${a}`))}
+          </span>
+        ))}
+      </div>
+      <div className="mt-1.5">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{m('dseDrivers')}</div>
+        <ul className="mt-0.5 space-y-0.5" data-testid="workspace-dse-drivers">
+          {advice.drivers.map((d, i) => (
+            <li key={`${d.key}-${d.field ?? d.gl ?? i}`} className={`flex items-baseline gap-1.5 text-[11.5px] leading-snug ${DRIVER_TONE[d.tone][1]}`} data-driver={d.key} data-tone={d.tone}>
+              <span aria-hidden="true">{DRIVER_TONE[d.tone][0]}</span>
+              <span className="text-slate-200">{m(d.key, { field: d.field ? m(k(`field_${d.field}`)) : '', account: d.gl ? `${GL_CODE[d.gl]} ${m(k(`gl_${d.gl}`))}` : '', n: d.n ?? 0 })}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Panel B: the 4-part scenario card
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -315,6 +484,8 @@ function ScenarioCard({
   showDrill,
   sla = STAFF_SLA_SECONDS,
   masked = NONE_MASKED,
+  adviceRevealed = false,
+  onRevealAdvice = () => undefined,
 }: {
   current: StaffCase | null;
   queued: number;
@@ -326,6 +497,9 @@ function ScenarioCard({
   showDrill: boolean;
   sla?: number;
   masked?: ReadonlySet<string>;
+  /** Expert mode: the learner revealed the advisory card for this case. Standard mode always shows it. */
+  adviceRevealed?: boolean;
+  onRevealAdvice?: () => void;
 }) {
   const locale = useLocale();
   if (!current) {
@@ -413,6 +587,9 @@ function ScenarioCard({
         </div>
       </div>
 
+      {/* Decision Support Engine / Risk Advisory */}
+      <AdvisoryCard current={current} masked={masked} mode={mode} revealed={mode === 'standard' || adviceRevealed} onReveal={onRevealAdvice} m={m} />
+
       {/* 4. Risk & benefit analysis */}
       <div data-testid="workspace-risk">
         <div className="text-[11px] font-bold text-slate-200">{m('riskTitle')}</div>
@@ -458,6 +635,8 @@ interface Consequence {
   /** Shift XP this decision booked (combo multiplier included) and the streak after it. */
   xp?: number;
   combo?: number;
+  /** Expert mode: the advice was revealed, so the combo bonus was forfeited. */
+  assisted?: boolean;
 }
 
 /** What the overlay explains: the benefit when right, the risk the learner just took when wrong. */
@@ -486,8 +665,14 @@ export function ConsequenceOverlay({ consequence, mode, m }: { consequence: Cons
             ? m('overlayXp', { xp: consequence.xp ?? STAFF_XP_PER_CORRECT })
             : m('overlayError', { n: consequence.errors })}
       </div>
+      {ok && consequence.assisted && consequence.points === undefined && (
+        <div className="text-[11.5px] font-semibold text-violet-200" data-testid="workspace-consequence-assisted">
+          {m('dseAssisted')}
+        </div>
+      )}
       {consequence.combo !== undefined &&
         (ok ? (
+          !consequence.assisted &&
           comboMultiplier(consequence.combo) > 1 && (
             <div className="text-[11.5px] font-bold text-orange-200" data-testid="workspace-consequence-combo">
               {m('overlayCombo', { mult: `x${comboMultiplier(consequence.combo).toFixed(1)}` })}
@@ -526,7 +711,9 @@ export function JournalLines({ lines, m, compact = false }: { lines: readonly Le
     <ul className={`mt-0.5 space-y-0.5 font-mono tabular-nums ${compact ? 'text-[10px]' : 'text-[11px]'}`}>
       {lines.map((l, i) => (
         <li key={`${l.gl}-${i}`} className={`flex items-baseline gap-1.5 ${l.cr ? 'pl-3' : ''}`} data-gl={l.gl} data-side={l.dr ? 'dr' : 'cr'}>
-          <span className={`shrink-0 font-bold ${l.dr ? 'text-sky-300' : 'text-amber-300'}`}>{m(l.dr ? 'ledgerDr' : 'ledgerCr')}</span>
+          <span className={`shrink-0 font-bold ${l.dr ? 'text-sky-300' : 'text-amber-300'}`} title={m(l.dr ? 'labelDebit' : 'labelCredit')}>
+            {m(l.dr ? 'ledgerDr' : 'ledgerCr')}
+          </span>
           <span className="shrink-0 text-slate-500">{GL_CODE[l.gl]}</span>
           <span className="min-w-0 flex-1 truncate font-sans text-slate-200">{m(k(`gl_${l.gl}`))}</span>
           <span className="shrink-0 text-slate-50">{money(l.dr || l.cr)}</span>
@@ -552,6 +739,63 @@ function KpiTiles({ kpis, m, compact = false }: { kpis: RetailKpis; m: M; compac
     </div>
   );
 }
+
+/** The header card's four live figures, compact in the header and full-size on the balance sheet. */
+function LedgerMetrics({ kpis, m, compact = false }: { kpis: RetailKpis; m: M; compact?: boolean }) {
+  const metric = (label: AnalystWorkspaceKey, cents: number, testId: string, tone: string) => (
+    <div className={compact ? 'min-w-0' : 'rounded-lg border border-slate-700 bg-slate-950/60 px-2 py-1'} data-testid={testId}>
+      <div className={`truncate font-semibold uppercase tracking-wider text-slate-400 ${compact ? 'text-[8.5px]' : 'text-[9.5px]'}`}>{m(label)}</div>
+      <div className={`font-bold tabular-nums ${compact ? 'text-[11.5px]' : 'text-[15px]'} ${tone}`}>{compact ? formatMoney(cents, true) : money(cents)}</div>
+    </div>
+  );
+  return (
+    <div className={`grid gap-x-3 gap-y-1 ${compact ? 'grid-cols-4' : 'grid-cols-2 gap-1.5'}`}>
+      {metric('ledgerCardVolume', kpis.settledVolume, 'ledger-card-volume', 'text-slate-50')}
+      {metric('labelNetRevenue', kpis.netRevenue, 'ledger-card-revenue', kpis.netRevenue < 0 ? 'text-rose-200' : 'text-emerald-200')}
+      {metric('ledgerCardSuspense', kpis.suspense, 'ledger-card-suspense', kpis.suspense > 0 ? 'text-amber-200' : 'text-slate-50')}
+      {metric('ledgerCardFrozen', kpis.frozenCollateral, 'ledger-card-frozen', 'text-sky-200')}
+    </div>
+  );
+}
+
+/** The "Core Ledger Balance Sheet" card in the workspace header: live figures, and the full sheet on click. */
+export function CoreLedgerCard({ kpis, onOpen, m }: { kpis: RetailKpis; onOpen: () => void; m: M }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      title={m('ledgerCardHint')}
+      data-testid="workspace-ledger-open"
+      data-warn={kpis.atmLow || undefined}
+      className={`min-w-[17rem] rounded-xl border px-2.5 py-1 text-left transition ${kpis.atmLow ? 'border-amber-400/60 bg-amber-400/10' : 'border-emerald-400/40 bg-gradient-to-r from-emerald-500/10 to-slate-900 hover:border-emerald-300/70'}`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-200">{m('ledgerCardTitle')}</span>
+        <span className="text-[10px] text-slate-400" aria-hidden="true">
+          📒 →
+        </span>
+      </div>
+      <LedgerMetrics kpis={kpis} m={m} compact />
+    </button>
+  );
+}
+
+/** What a journal is about: its retail scenario, its matrix task, or the desk for a live-queue review. */
+export function journalTitleKey(j: Pick<JournalEntry, 'role' | 'scene'>): AnalystWorkspaceKey {
+  if (j.scene.startsWith('retail_')) return k(`${j.scene}_title`);
+  if (j.scene.startsWith('task_')) return k(`${j.scene}_title`);
+  return k(`role_${j.role}_title`);
+}
+
+/** Generic labels for the accounts that hold funds or face a correspondent. */
+const GL_TAG: Partial<Record<GlAccount, AnalystWorkspaceKey>> = {
+  ATM_SUSPENSE: 'labelSuspense',
+  CLEARING_SUSPENSE: 'labelSuspense',
+  NOSTRO: 'labelNostro',
+  TD_PLEDGED: 'labelCollateral',
+  FROZEN_ASSETS: 'labelFrozen',
+  DISPUTE_ACCOUNT: 'labelDispute',
+};
 
 /** The retail queue's live view of the books, under the decision buttons. */
 function LedgerStrip({ ledger, m, onOpen }: { ledger: RetailLedger; m: M; onOpen: () => void }) {
@@ -606,6 +850,7 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: Retai
         </div>
         <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-5 md:grid-cols-[1fr_minmax(260px,320px)]">
           <div className="space-y-3">
+            <LedgerMetrics kpis={kpis} m={m} />
             <KpiTiles kpis={kpis} m={m} />
             {kpis.atmLow && (
               <p className="rounded-lg border border-amber-400/50 bg-amber-400/10 px-2.5 py-1.5 text-[12px] font-semibold text-amber-100" data-testid="ledger-atm-low">
@@ -627,6 +872,7 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: Retai
                       <li key={a.id} className="flex items-baseline gap-1.5" data-gl={a.id}>
                         <span className="shrink-0 font-mono text-[10.5px] text-slate-500">{a.code}</span>
                         <span className="min-w-0 flex-1 truncate text-slate-300">{m(k(`gl_${a.id}`))}</span>
+                        {GL_TAG[a.id] && <span className="shrink-0 rounded bg-slate-800 px-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400">{m(GL_TAG[a.id]!)}</span>}
                         <span className="shrink-0 font-semibold text-slate-50">{money(naturalBalance(a.id, ledger.balances[a.id]))}</span>
                       </li>
                     ))}
@@ -634,7 +880,7 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: Retai
                 </section>
               ))}
               <section className="rounded-xl border border-slate-800 bg-slate-950/50 p-2.5">
-                <Kicker>{m('ledgerNet')}</Kicker>
+                <Kicker>{m('labelNetRevenue')}</Kicker>
                 <div className={`mt-1 text-[18px] font-black tabular-nums ${sum.net < 0 ? 'text-rose-200' : 'text-emerald-200'}`} data-testid="ledger-net">
                   {money(sum.net)}
                 </div>
@@ -650,7 +896,7 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: Retai
                 {ledger.journal.map((j, i) => (
                   <li key={`${j.caseId}-${i}`} className="rounded-lg border border-slate-800 bg-slate-950/60 px-2.5 py-1.5" data-case={j.caseId}>
                     <div className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-[11.5px] font-semibold text-slate-100">{m(k(`retail_${j.scenario}_title`))}</span>
+                      <span className="truncate text-[11.5px] font-semibold text-slate-100">{m(journalTitleKey(j))}</span>
                       <span className={`shrink-0 text-[10px] font-bold ${j.decision === 'APPROVE' ? 'text-emerald-300' : 'text-rose-300'}`}>{m(j.decision === 'APPROVE' ? 'approve' : 'reject')}</span>
                     </div>
                     <div className="font-mono text-[10px] text-slate-500">
@@ -668,10 +914,249 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: Retai
   );
 }
 
-function LedgerButton({ kpis, onOpen, m }: { kpis: RetailKpis; onOpen: () => void; m: M }) {
+// ─────────────────────────────────────────────────────────────────────────────
+// Audit trail export: CSV and the printable (PDF) audit report
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The journal's Debit/Credit account codes, e.g. "Dr 2011 / Cr 1520 / Cr 4540"; `memo` when nothing posted. */
+export function ledgerEntryCode(lines: readonly LedgerLine[], memo: string): string {
+  return lines.length ? lines.map((l) => `${l.dr ? 'Dr' : 'Cr'} ${GL_CODE[l.gl]}`).join(' / ') : memo;
+}
+
+const AUDIT_ACTION_KEY: Readonly<Record<AuditEntry['action'], AnalystWorkspaceKey>> = { APPROVE: 'dseAction_approve', REJECT: 'dseAction_reject', FREEZE: 'dseAction_freeze' };
+export const auditActionLabel = (a: AuditEntry['action'], m: M): string => m(AUDIT_ACTION_KEY[a]);
+export const complianceLabel = (c: AuditEntry['compliance'], m: M): string => m(k(`auditCompliance_${c}`));
+
+const pad2 = (n: number): string => String(n).padStart(2, '0');
+/** "27/10/2026 14:05:09", the day-first form both languages use on the report. */
+export function auditTime(iso: string): string {
+  const d = new Date(iso);
+  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+
+const csvCell = (v: string | number): string => {
+  const s = String(v);
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+const decimal = (cents: number): string => (cents / 100).toFixed(2);
+
+export const AUDIT_CSV_COLUMNS: readonly AnalystWorkspaceKey[] = [
+  'auditColTime',
+  'auditColDesk',
+  'auditColCase',
+  'auditColAction',
+  'auditColSla',
+  'auditColSlaLimit',
+  'auditColLedger',
+  'auditColAmount',
+  'auditColStatus',
+  'auditColCompliance',
+];
+
+/** The audit trail as CSV (RFC 4180, CRLF rows), headers and labels in the current language, timestamps in ISO 8601. */
+export function auditCsv(log: readonly AuditEntry[], m: M): string {
+  const rows = log.map((e) => [
+    e.at,
+    e.station,
+    e.caseId,
+    auditActionLabel(e.action, m),
+    e.latencySec.toFixed(1),
+    e.slaSec,
+    ledgerEntryCode(e.lines, m('auditMemo')),
+    decimal(e.amountCents),
+    e.statusCode,
+    complianceLabel(e.compliance, m),
+  ]);
+  return [AUDIT_CSV_COLUMNS.map((key) => m(key)), ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');
+}
+
+/** Hands the browser a file to save; the BOM lets spreadsheet apps read the Vietnamese labels as UTF-8. */
+function downloadFile(name: string, text: string, mime: string): void {
+  const url = URL.createObjectURL(new Blob(['﻿', text], { type: mime }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+const stamp = (d: Date): string => `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
+export const auditReportNo = (log: readonly AuditEntry[], issued: Date): string => `AT-${stamp(issued)}-${String(log.length).padStart(4, '0')}`;
+
+export interface AuditSummary {
+  total: number;
+  actions: Readonly<Record<AuditEntry['action'], number>>;
+  compliance: Readonly<Record<AuditEntry['compliance'], number>>;
+  /** Share of decisions that were compliant, 0-100. */
+  ratePct: number;
+  avgSlaSec: number;
+}
+
+export function auditSummary(log: readonly AuditEntry[]): AuditSummary {
+  const count = <T extends string>(keys: readonly T[], of: (e: AuditEntry) => T): Record<T, number> => Object.fromEntries(keys.map((key) => [key, log.filter((e) => of(e) === key).length])) as Record<T, number>;
+  const compliance = count(['COMPLIANT', 'SLA_BREACH', 'SOP_BREACH'] as const, (e) => e.compliance);
+  return {
+    total: log.length,
+    actions: count(['APPROVE', 'REJECT', 'FREEZE'] as const, (e) => e.action),
+    compliance,
+    ratePct: log.length ? Math.round((1000 * compliance.COMPLIANT) / log.length) / 10 : 0,
+    avgSlaSec: log.length ? Math.round((10 * log.reduce((s, e) => s + e.latencySec, 0)) / log.length) / 10 : 0,
+  };
+}
+
+const PRINT_CSS = `.pc-audit-print{display:none}
+@media print{
+  @page{size:A4 landscape;margin:14mm}
+  body>*:not(.pc-audit-print){display:none!important}
+  .pc-audit-print{display:block!important;background:#fff;color:#000}
+}`;
+
+/** The official audit report: national motto header, numbered sections, summary, the detailed log and sign-off blocks. */
+export function AuditReport({ log, m, issued }: { log: readonly AuditEntry[]; m: M; issued: Date }) {
+  const sum = auditSummary(log);
+  const desks = [...new Set(log.map((e) => e.role))].map((r) => m(k(`role_${r}_title`))).join(', ') || '—';
+  const issues = sum.compliance.SLA_BREACH + sum.compliance.SOP_BREACH;
+  const cell = 'border border-black px-1.5 py-0.5 align-top';
+  const row = (label: string, value: string | number) => (
+    <tr>
+      <td className={cell}>{label}</td>
+      <td className={`${cell} text-right tabular-nums`}>{value}</td>
+    </tr>
+  );
   return (
-    <button type="button" onClick={onOpen} title={m('ledgerSubtitle')} data-testid="workspace-ledger-open" data-warn={kpis.atmLow || undefined} className={`rounded-lg border px-2.5 py-1.5 text-[12px] font-semibold transition ${kpis.atmLow ? 'border-amber-400/60 bg-amber-400/15 text-amber-100' : 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20'}`}>
-      {m('ledgerButton')}
+    <article className="bg-white font-serif text-[12px] leading-snug text-black" data-testid="audit-report" data-entries={log.length}>
+      <header className="grid grid-cols-2 gap-4 text-center">
+        <div>
+          <div className="font-bold uppercase">{m('rptBank')}</div>
+          <div className="font-bold">{m('rptUnit')}</div>
+          <div className="mx-auto mt-0.5 w-24 border-t border-black" />
+          <div className="mt-1">{m('rptNo', { no: auditReportNo(log, issued) })}</div>
+        </div>
+        <div>
+          <div className="font-bold uppercase">{m('rptNation')}</div>
+          <div className="font-bold">{m('rptMotto')}</div>
+          <div className="mx-auto mt-0.5 w-40 border-t border-black" />
+          <div className="mt-1 italic">{m('rptDate', { d: pad2(issued.getDate()), mo: pad2(issued.getMonth() + 1), y: issued.getFullYear() })}</div>
+        </div>
+      </header>
+      <h1 className="mt-5 text-center text-[16px] font-bold uppercase">{m('rptTitle')}</h1>
+      <p className="text-center italic">{m('rptSubtitle')}</p>
+      <p className="mt-1 text-center text-[10.5px] italic">{m('rptBasis')}</p>
+
+      <h2 className="mt-4 font-bold uppercase">{m('rptSec1')}</h2>
+      <ul className="ml-4 list-disc">
+        <li>{m('rptPeriod', { from: log.length ? auditTime(log[0]!.at) : '—', to: log.length ? auditTime(log[log.length - 1]!.at) : '—' })}</li>
+        <li>{m('rptDesks', { desks })}</li>
+        <li>{m('rptEntries', { n: sum.total })}</li>
+      </ul>
+
+      <h2 className="mt-3 font-bold uppercase">{m('rptSec2')}</h2>
+      <table className="mt-1 w-full max-w-md border-collapse" data-testid="audit-summary">
+        <tbody>
+          {row(auditActionLabel('APPROVE', m), sum.actions.APPROVE)}
+          {row(auditActionLabel('REJECT', m), sum.actions.REJECT)}
+          {row(auditActionLabel('FREEZE', m), sum.actions.FREEZE)}
+          {row(complianceLabel('COMPLIANT', m), sum.compliance.COMPLIANT)}
+          {row(complianceLabel('SLA_BREACH', m), sum.compliance.SLA_BREACH)}
+          {row(complianceLabel('SOP_BREACH', m), sum.compliance.SOP_BREACH)}
+          {row(m('rptRate'), `${sum.ratePct}%`)}
+          {row(m('rptAvgSla'), `${sum.avgSlaSec}s`)}
+        </tbody>
+      </table>
+
+      <h2 className="mt-3 font-bold uppercase">{m('rptSec3')}</h2>
+      {log.length === 0 ? (
+        <p className="italic">{m('auditEmpty')}</p>
+      ) : (
+        <table className="mt-1 w-full border-collapse text-[10.5px]" data-testid="audit-table">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className={cell}>{m('rptColNo')}</th>
+              {AUDIT_CSV_COLUMNS.map((key) => (
+                <th key={key} className={cell}>
+                  {m(key)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {log.map((e) => (
+              <tr key={e.seq} data-seq={e.seq} data-compliance={e.compliance}>
+                <td className={`${cell} text-right`}>{e.seq}</td>
+                <td className={`${cell} whitespace-nowrap`}>{auditTime(e.at)}</td>
+                <td className={cell}>{e.station}</td>
+                <td className={`${cell} font-mono`}>{e.caseId}</td>
+                <td className={cell}>{auditActionLabel(e.action, m)}</td>
+                <td className={`${cell} text-right tabular-nums`}>{e.latencySec.toFixed(1)}</td>
+                <td className={`${cell} text-right tabular-nums`}>{e.slaSec}</td>
+                <td className={`${cell} font-mono`}>{ledgerEntryCode(e.lines, m('auditMemo'))}</td>
+                <td className={`${cell} text-right tabular-nums`}>{money(e.amountCents)}</td>
+                <td className={`${cell} font-mono`}>{e.statusCode}</td>
+                <td className={`${cell} ${e.compliance === 'COMPLIANT' ? '' : 'font-bold'}`}>{complianceLabel(e.compliance, m)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <h2 className="mt-3 font-bold uppercase">{m('rptSec4')}</h2>
+      <p>{issues ? m('rptConclusionIssues', { n: issues }) : m('rptConclusionOk')}</p>
+      <div className="mt-6 grid grid-cols-3 gap-4 text-center" style={{ breakInside: 'avoid' }}>
+        {(['rptPrepared', 'rptReviewed', 'rptHead'] as const).map((key) => (
+          <div key={key}>
+            <div className="font-bold">{m(key)}</div>
+            <div className="italic">{m('rptSign')}</div>
+            <div className="h-16" />
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+/** Export actions and a preview of the printed report. The print copy is portalled to <body> so only it reaches the page. */
+export function AuditExportDialog({ log, m, onClose, issued = new Date() }: { log: readonly AuditEntry[]; m: M; onClose: () => void; issued?: Date }) {
+  const csv = (): void => downloadFile(`audit-trail-${stamp(issued)}-${pad2(issued.getHours())}${pad2(issued.getMinutes())}.csv`, auditCsv(log, m), 'text/csv;charset=utf-8');
+  const report = <AuditReport log={log} m={m} issued={issued} />;
+  return (
+    <div className="absolute inset-0 z-40 grid place-items-center bg-slate-950/80 p-4 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()} data-testid="workspace-audit-backdrop">
+      <style>{PRINT_CSS}</style>
+      {typeof document !== 'undefined' && createPortal(<div className="pc-audit-print">{report}</div>, document.body)}
+      <div role="dialog" aria-modal="true" aria-labelledby="workspace-audit-title" data-testid="workspace-audit" className="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-600 bg-slate-900 shadow-2xl">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800 px-5 py-3">
+          <div>
+            <h3 id="workspace-audit-title" className="text-[17px] font-extrabold text-slate-50">
+              {m('auditTitle')}
+            </h3>
+            <p className="mt-0.5 text-[12px] text-slate-400">{m('auditSubtitle', { n: log.length })}</p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button type="button" onClick={csv} disabled={!log.length} data-testid="workspace-audit-csv" className="rounded-lg border border-emerald-400/60 bg-emerald-500/15 px-3 py-1.5 text-[12px] font-bold text-emerald-100 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-40">
+              {m('auditCsv')}
+            </button>
+            <button type="button" onClick={() => window.print()} disabled={!log.length} data-testid="workspace-audit-print" className="rounded-lg border border-sky-400/60 bg-sky-500/15 px-3 py-1.5 text-[12px] font-bold text-sky-100 transition hover:bg-sky-500/25 disabled:cursor-not-allowed disabled:opacity-40">
+              {m('auditPrint')}
+            </button>
+            <button type="button" onClick={onClose} autoFocus data-testid="workspace-audit-close" className="rounded-lg border border-slate-600 px-3 py-1.5 text-[12px] font-medium text-slate-200 transition hover:bg-slate-800">
+              {m('auditClose')}
+            </button>
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto bg-slate-700/40 p-4">
+          <div className="mx-auto max-w-[1100px] rounded bg-white p-8 shadow-lg">{report}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AuditButton({ count, onOpen, m }: { count: number; onOpen: () => void; m: M }) {
+  return (
+    <button type="button" onClick={onOpen} title={m('auditButtonHint')} data-testid="workspace-audit-open" className="flex items-center gap-1.5 rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-[12px] font-semibold text-slate-100 transition hover:bg-slate-800">
+      {m('auditExport')}
+      <span className="rounded-full bg-slate-700 px-1.5 text-[10.5px] font-bold tabular-nums text-slate-200">{count}</span>
     </button>
   );
 }
@@ -774,7 +1259,7 @@ const GRADE_TONE: Readonly<Record<ChallengeGrade, string>> = {
 };
 
 /** The end-of-shift recap a challenge opens at 00:00. */
-export function ChallengeScorecard({ tally, m, onAgain, onClose }: { tally: ChallengeTally; m: M; onAgain: () => void; onClose: () => void }) {
+export function ChallengeScorecard({ tally, m, onAgain, onClose, onExport }: { tally: ChallengeTally; m: M; onAgain: () => void; onClose: () => void; onExport?: () => void }) {
   const grade = challengeGrade(tally);
   const stat = (label: string, value: string, testId: string) => (
     <div className="rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2">
@@ -808,6 +1293,11 @@ export function ChallengeScorecard({ tally, m, onAgain, onClose }: { tally: Chal
         <p className="mt-3 text-[11.5px] tabular-nums text-slate-300">{m('scBreakdown', { correct: tally.correct, wrong: tally.reviews - tally.correct, bonus: tally.bonusXp, penalty: tally.penaltyXp })}</p>
         <p className="mt-1 text-[10.5px] text-slate-500">{m('scGradeBands')}</p>
         <div className="mt-4 flex justify-end gap-2">
+          {onExport && (
+            <button type="button" onClick={onExport} data-testid="workspace-scorecard-export" className="mr-auto rounded-lg border border-slate-600 px-3 py-1.5 text-[12px] font-medium text-slate-200 transition hover:bg-slate-800">
+              {m('auditExport')}
+            </button>
+          )}
           <button type="button" onClick={onClose} data-testid="workspace-scorecard-close" className="rounded-lg border border-slate-600 px-3 py-1.5 text-[12px] font-medium text-slate-200 transition hover:bg-slate-800">
             {m('scClose')}
           </button>
@@ -1207,8 +1697,8 @@ export interface AnalystWorkspaceViewProps {
   canAdvance: boolean;
   onClose: () => void;
   onAdvance: () => void;
-  /** Decides the head case; returns the result, the role's error count, and the XP booked and streak after it. */
-  onDecide: (caseId: string, decision: StaffDecision, latencySec: number, expert: boolean) => { result: StaffDecisionResult; errors: number; xp?: number; combo?: number };
+  /** Decides the head case; returns the result, the role's error count, and the XP booked and streak after it. `assisted`: Expert advice was revealed. */
+  onDecide: (caseId: string, decision: StaffDecision, latencySec: number, expert: boolean, assisted?: boolean) => { result: StaffDecisionResult; errors: number; xp?: number; combo?: number };
   /** Instant: another task at the same desk. */
   onTaskChange: (task: StaffTaskNo) => void;
   /** Called only after the learner confirmed the switch dialog. */
@@ -1227,11 +1717,14 @@ export interface AnalystWorkspaceViewProps {
   /** The retail core ledger and its reset. */
   ledger?: RetailLedger;
   onResetLedger?: () => void;
+  /** The session's audit trail, for the export. */
+  auditLog?: readonly AuditEntry[];
 }
 
 const NO_CHALLENGE: ChallengeState = { run: null, finished: null };
 const NO_UNLOCKS: readonly BadgeId[] = [];
 const OPENING_LEDGER = openingLedger();
+const NO_AUDIT: readonly AuditEntry[] = [];
 const NO_CONTROLS: ChallengeControls = { start: () => undefined, stop: () => undefined, record: () => undefined, tick: () => undefined, dismiss: () => undefined };
 
 /** The workspace itself, driven by props (the store-connected modal below feeds it). */
@@ -1257,9 +1750,13 @@ export function AnalystWorkspaceView({
   onDismissBadgeUnlock = () => undefined,
   ledger = OPENING_LEDGER,
   onResetLedger = () => undefined,
+  auditLog = NO_AUDIT,
 }: AnalystWorkspaceViewProps) {
   const [badgesOpen, setBadgesOpen] = useState(false);
   const [ledgerOpen, setLedgerOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
+  /** The case whose advice the learner revealed in Expert mode. */
+  const [revealedFor, setRevealedFor] = useState<string | null>(null);
   const unlock = badgeUnlocks[0] ?? null;
   const terms = useTerms();
   const m = useMessages(analystWorkspaceMessages);
@@ -1284,19 +1781,20 @@ export function AnalystWorkspaceView({
 
   const decide = useCallback(
     (d: StaffDecision) => {
-      if (!current || !role || consequence || pendingRole || challenge.finished || unlock || badgesOpen || ledgerOpen) return;
+      if (!current || !role || consequence || pendingRole || challenge.finished || unlock || badgesOpen || ledgerOpen || auditOpen) return;
       const latency = elapsedRef.current;
-      const { result, errors, xp, combo } = onDecide(current.id, d, latency, mode === 'expert');
+      const assisted = mode === 'expert' && revealedFor === current.id;
+      const { result, errors, xp, combo } = onDecide(current.id, d, latency, mode === 'expert', assisted);
       if (!result.ok) return;
       const streak = combo ?? (result.correct ? (shift.comboCount ?? 0) + 1 : 0);
       if (uiStore.getState().soundOn) play(reviewSound(result.correct, streak));
       if (challenge.run) {
         const rules = incidentRules(incidentId);
         cc.record(result.correct, latency);
-        setConsequence({ result, role, drill: current.drill, retail: current.retail?.id, errors, xp, combo: streak, points: challengePoints(result.correct, latency, rules), bonus: result.correct ? challengeBonus(latency, rules) : 0 });
-      } else setConsequence({ result, role, drill: current.drill, retail: current.retail?.id, errors, xp, combo: streak });
+        setConsequence({ result, role, drill: current.drill, retail: current.retail?.id, errors, xp, combo: streak, assisted, points: challengePoints(result.correct, latency, rules), bonus: result.correct ? challengeBonus(latency, rules) : 0 });
+      } else setConsequence({ result, role, drill: current.drill, retail: current.retail?.id, errors, xp, combo: streak, assisted });
     },
-    [current, role, consequence, pendingRole, onDecide, challenge, cc, shift.comboCount, incidentId, mode, unlock, badgesOpen, ledgerOpen],
+    [current, role, consequence, pendingRole, onDecide, challenge, cc, shift.comboCount, incidentId, mode, unlock, badgesOpen, ledgerOpen, auditOpen, revealedFor],
   );
 
   useEffect(() => {
@@ -1305,18 +1803,19 @@ export function AnalystWorkspaceView({
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return;
       if (e.key === 'Escape') {
         if (unlock) onDismissBadgeUnlock();
+        else if (auditOpen) setAuditOpen(false);
         else if (ledgerOpen) setLedgerOpen(false);
         else if (badgesOpen) setBadgesOpen(false);
         else if (challenge.finished) cc.dismiss();
         else if (pendingRole) setPendingRole(null);
         else onClose();
-      } else if (pendingRole || challenge.finished || unlock || badgesOpen || ledgerOpen) return;
+      } else if (pendingRole || challenge.finished || unlock || badgesOpen || ledgerOpen || auditOpen) return;
       else if (e.key === 'a' || e.key === 'A') decide('APPROVE');
       else if (e.key === 'r' || e.key === 'R') decide('REJECT');
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, decide, pendingRole, challenge, cc, unlock, badgesOpen, ledgerOpen, onDismissBadgeUnlock]);
+  }, [onClose, decide, pendingRole, challenge, cc, unlock, badgesOpen, ledgerOpen, auditOpen, onDismissBadgeUnlock]);
 
   useEffect(() => {
     if (unlock && uiStore.getState().soundOn) play('badgeUnlock');
@@ -1371,7 +1870,8 @@ export function AnalystWorkspaceView({
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <IncidentToggle on={incidentMode} onToggle={onToggleIncidentMode} m={m} />
             <BadgesButton unlocked={career.badges.length} onOpen={() => setBadgesOpen(true)} m={m} />
-            <LedgerButton kpis={retailKpis(ledger)} onOpen={() => setLedgerOpen(true)} m={m} />
+            <CoreLedgerCard kpis={retailKpis(ledger)} onOpen={() => setLedgerOpen(true)} m={m} />
+            <AuditButton count={auditLog.length} onOpen={() => setAuditOpen(true)} m={m} />
             <SoundToggle m={m} />
             <LanguageToggle variant="globe" testId="workspace-language" />
             <ModeToggle mode={mode} onChange={setMode} m={m} />
@@ -1384,7 +1884,20 @@ export function AnalystWorkspaceView({
         {incident && <IncidentBanner incident={incident} reviews={shift.reviews} sla={sla} m={m} />}
         <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(250px,300px)_1fr_minmax(230px,270px)] lg:overflow-hidden">
           <MissionPanel role={role} task={task} mode={mode} m={m} deskName={terms.stationTitle(desk)} sla={sla} />
-          <ScenarioCard current={current} queued={Math.max(0, cases.length - 1)} elapsed={elapsed} mode={mode} m={m} onAdvance={onAdvance} canAdvance={canAdvance} showDrill={task === RANDOM_TASK} sla={sla} masked={masked} />
+          <ScenarioCard
+            current={current}
+            queued={Math.max(0, cases.length - 1)}
+            elapsed={elapsed}
+            mode={mode}
+            m={m}
+            onAdvance={onAdvance}
+            canAdvance={canAdvance}
+            showDrill={task === RANDOM_TASK}
+            sla={sla}
+            masked={masked}
+            adviceRevealed={current !== null && revealedFor === current.id}
+            onRevealAdvice={() => current && setRevealedFor(current.id)}
+          />
           <DecisionPanel
             shift={shift}
             current={current}
@@ -1399,7 +1912,8 @@ export function AnalystWorkspaceView({
         </div>
         {incidentId === 'POWER_GRID_FAILOVER' && <PowerFlicker />}
         {consequence && !consequence.result.correct && <SopViolationPulse m={m} />}
-        {challenge.finished && <ChallengeScorecard tally={challenge.finished} m={m} onAgain={cc.start} onClose={cc.dismiss} />}
+        {challenge.finished && <ChallengeScorecard tally={challenge.finished} m={m} onAgain={cc.start} onClose={cc.dismiss} onExport={() => setAuditOpen(true)} />}
+        {auditOpen && <AuditExportDialog log={auditLog} m={m} onClose={() => setAuditOpen(false)} />}
         {badgesOpen && <BadgeDrawer career={career} m={m} onClose={() => setBadgesOpen(false)} />}
         {ledgerOpen && <CoreLedgerSheet ledger={ledger} m={m} onClose={() => setLedgerOpen(false)} onReset={onResetLedger} />}
         {unlock && <BadgeUnlockModal key={unlock} badge={unlock} m={m} onClose={onDismissBadgeUnlock} />}
@@ -1423,6 +1937,7 @@ export function AnalystWorkspaceModal() {
   const dismissBadgeUnlock = useBankStore((s) => s.dismissBadgeUnlock);
   const ledger = useBankStore((s) => s.retailLedger);
   const resetLedger = useBankStore((s) => s.resetRetailLedger);
+  const auditLog = useBankStore((s) => s.auditLog);
   const setTask = useBankStore((s) => s.setStaffTask);
   const switchDesk = useBankStore((s) => s.switchStaffDesk);
   const step = useBankStore((s) => s.step);
@@ -1447,9 +1962,9 @@ export function AnalystWorkspaceModal() {
   );
 
   const onDecide = useCallback<AnalystWorkspaceViewProps['onDecide']>(
-    (caseId, decision, latencySec, expert) => {
+    (caseId, decision, latencySec, expert, assisted) => {
       const before = role ? (bankStore.getState().staffShift[role] ?? EMPTY_SHIFT) : EMPTY_SHIFT;
-      const result = train(caseId, decision, latencySec, incidentSlaSeconds(bankStore.getState().staffIncident?.id), expert);
+      const result = train(caseId, decision, latencySec, incidentSlaSeconds(bankStore.getState().staffIncident?.id), expert, assisted);
       const after = role ? (bankStore.getState().staffShift[role] ?? EMPTY_SHIFT) : EMPTY_SHIFT;
       return { result, errors: after.errors, xp: after.xp - before.xp, combo: after.comboCount };
     },
@@ -1482,6 +1997,7 @@ export function AnalystWorkspaceModal() {
       onDismissBadgeUnlock={dismissBadgeUnlock}
       ledger={ledger}
       onResetLedger={resetLedger}
+      auditLog={auditLog}
     />
   );
 }

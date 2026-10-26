@@ -22,7 +22,7 @@ import type { TermMode } from '../sim/terms';
 import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
 import type { BankView, Customer, PacketTrace } from '../sim/types';
-import { addToTally, advanceIncident, buildTaskCase, CHALLENGE, comboXp, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, openingLedger, postJournal, recordCareerDecision, rollIncident, roleForStation, SHIFT_TARGET, startIncident, type ActiveIncident, type BadgeId, type CareerProgress, type ChallengeTally, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo } from '../sim/staffRoleplay';
+import { addToTally, advanceIncident, buildTaskCase, caseJournal, CHALLENGE, comboXp, STAFF_XP_PER_CORRECT, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, openingLedger, postJournal, recordCareerDecision, rollIncident, roleForStation, SHIFT_TARGET, startIncident, type ActiveIncident, type BadgeId, type CareerProgress, type ChallengeTally, type LedgerLine, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo } from '../sim/staffRoleplay';
 import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
@@ -105,12 +105,49 @@ export interface ShiftProgress {
 }
 
 /** Advances the streak and books XP at the new streak's multiplier; an error resets the streak. */
-export function bookCombo(prev: ShiftProgress, correct: boolean): Pick<ShiftProgress, 'xp' | 'comboCount'> {
+/** Books one decision on the streak. An `assisted` decision (Expert advice revealed) keeps the streak but earns the 1.0x base XP. */
+export function bookCombo(prev: ShiftProgress, correct: boolean, assisted = false): Pick<ShiftProgress, 'xp' | 'comboCount'> {
   const comboCount = correct ? (prev.comboCount ?? 0) + 1 : 0;
-  return { comboCount, xp: prev.xp + (correct ? comboXp(comboCount) : 0) };
+  return { comboCount, xp: prev.xp + (correct ? (assisted ? STAFF_XP_PER_CORRECT : comboXp(comboCount)) : 0) };
 }
 
 export const EMPTY_SHIFT: ShiftProgress = { reviews: 0, correct: 0, latencySumSec: 0, slaBreaches: 0, errors: 0, xp: 0, comboCount: 0, last: null };
+
+/** What the analyst did: an approval, a plain rejection, or a rejection whose journal froze the funds. */
+export type AuditAction = 'APPROVE' | 'REJECT' | 'FREEZE';
+/** A decision against the SOP is an SOP breach; a right decision taken after the SLA is an SLA breach. */
+export type ComplianceStatus = 'COMPLIANT' | 'SLA_BREACH' | 'SOP_BREACH';
+
+/** One row of the audit trail: every desk decision, training, retail or live queue. */
+export interface AuditEntry {
+  /** 1-based, in decision order. */
+  seq: number;
+  /** ISO 8601 timestamp of the decision. */
+  at: string;
+  station: StationId;
+  role: StaffRoleId;
+  caseId: string;
+  action: AuditAction;
+  expected: StaffDecision | null;
+  amountCents: number;
+  latencySec: number;
+  slaSec: number;
+  statusCode: string;
+  /** The journal the decision posted (empty for a memo-only decision). */
+  lines: LedgerLine[];
+  compliance: ComplianceStatus;
+  expert: boolean;
+  /** Expert mode, Decision Support advice revealed. */
+  assisted: boolean;
+}
+
+/** The audit trail keeps the latest decisions of the session. */
+export const AUDIT_LOG_CAP = 1_000;
+
+export const auditActionOf = (r: Pick<StaffDecisionResult, 'decision' | 'journal'>): AuditAction =>
+  r.decision === 'APPROVE' ? 'APPROVE' : r.journal?.lines.some((l) => l.gl === 'FROZEN_ASSETS' && l.cr > 0) ? 'FREEZE' : 'REJECT';
+
+export const complianceOf = (correct: boolean, latencySec: number, slaSec: number): ComplianceStatus => (!correct ? 'SOP_BREACH' : latencySec > slaSec ? 'SLA_BREACH' : 'COMPLIANT');
 
 export interface BankState {
   sim: BankSimulation;
@@ -191,18 +228,23 @@ export interface BankState {
   setStaffTask(task: StaffTaskNo): void;
   /** Moves to another roleplay desk after the learner confirmed: ends the shift and starts Task 1. */
   switchStaffDesk(id: StationId): void;
-  /** Decides the head case of the current task and books it on the shift and the career. `expert` is the workspace's complexity mode. */
-  staffTrain(caseId: string, decision: StaffDecision, latencySec: number, slaSec: number, expert?: boolean): StaffDecisionResult;
+  /**
+   * Decides the head case of the current task and books it on the shift and the career. `expert` is the workspace's complexity
+   * mode; `assisted` means the learner revealed the Decision Support Engine's advice in Expert mode, which forfeits the combo bonus.
+   */
+  staffTrain(caseId: string, decision: StaffDecision, latencySec: number, slaSec: number, expert?: boolean, assisted?: boolean): StaffDecisionResult;
   /** Lifetime XP, badges and badge streaks, kept in storage. */
   career: CareerProgress;
   /** Badges unlocked at the last shift end, waiting for their celebration. */
   badgeUnlocks: BadgeId[];
   /** Closes the celebration for the first waiting badge. */
   dismissBadgeUnlock(): void;
-  /** The retail core ledger every retail-operations decision posts its journal to, kept in storage. */
+  /** The double-entry core ledger every desk decision (training, retail or live queue) posts its journal to, kept in storage. */
   retailLedger: RetailLedger;
   /** Restarts the core ledger from its opening balances. */
   resetRetailLedger(): void;
+  /** Every desk decision of the session, oldest first, for the audit export (at most AUDIT_LOG_CAP). */
+  auditLog: AuditEntry[];
   /** The running Time-Attack challenge (kept in the store so a language switch, which remounts the app, cannot reset it). */
   staffChallenge: { endsAt: number; tally: ChallengeTally } | null;
   /** The tally of the challenge that just ended, shown on the scorecard until dismissed. */
@@ -420,6 +462,22 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
     };
     /** Whether the clock was running when the roleplay desk opened. */
     let staffResume = false;
+
+    /** Appends a decision to the audit trail. */
+    const audit = (log: readonly AuditEntry[], d: Pick<AuditEntry, 'station' | 'role' | 'caseId' | 'amountCents' | 'latencySec' | 'slaSec' | 'expert' | 'assisted'>, r: StaffDecisionResult): AuditEntry[] => {
+      const entry: AuditEntry = {
+        ...d,
+        seq: (log[log.length - 1]?.seq ?? 0) + 1,
+        at: now().toISOString(),
+        latencySec: Math.max(0, d.latencySec),
+        action: auditActionOf(r),
+        expected: r.expected,
+        statusCode: r.statusCode,
+        lines: r.journal?.lines ?? [],
+        compliance: complianceOf(r.correct, d.latencySec, d.slaSec),
+      };
+      return [...log, entry].slice(-AUDIT_LOG_CAP);
+    };
     const incidentRandom = options.incidentRandom ?? Math.random;
     /** A fresh roll for a shift at `station`, or none when Incident Mode is off. */
     const rollFor = (station: StationId | null, on = get().staffIncidentMode): ActiveIncident | null => {
@@ -512,6 +570,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       badgeUnlocks: [],
       dismissBadgeUnlock: () => set({ badgeUnlocks: get().badgeUnlocks.slice(1) }),
       retailLedger: loadRetailLedger(storage),
+      auditLog: [],
       resetRetailLedger: () => {
         const retailLedger = openingLedger();
         saveRetailLedger(storage, retailLedger);
@@ -553,7 +612,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         refresh({ staffDesk: id });
       },
 
-      staffTrain: (caseId, decision, latencySec, slaSec, expert = false) => {
+      staffTrain: (caseId, decision, latencySec, slaSec, expert = false, assisted = false) => {
         const s = get();
         const role = s.staffDesk ? roleForStation(s.staffDesk) : null;
         const incident = s.staffIncident;
@@ -567,7 +626,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           latencySumSec: prev.latencySumSec + Math.max(0, latencySec),
           slaBreaches: prev.slaBreaches + (latencySec > slaSec ? 1 : 0),
           errors: prev.errors + (result.correct ? 0 : 1),
-          ...bookCombo(prev, result.correct),
+          ...bookCombo(prev, result.correct, assisted),
           last: result,
         };
         if (!result.correct) next.xp -= incidentErrorXp(incident?.id);
@@ -578,7 +637,8 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         saveCareer(storage, career);
         const retailLedger = result.journal ? postJournal(s.retailLedger, result.journal) : s.retailLedger;
         if (result.journal) saveRetailLedger(storage, retailLedger);
-        set({ staffShift: { ...s.staffShift, [role]: next }, staffTaskSeq: s.staffTaskSeq + 1, staffIncident, career, retailLedger, ...(unlocked.length ? { badgeUnlocks: [...s.badgeUnlocks, ...unlocked] } : {}) });
+        const auditLog = audit(s.auditLog, { station: head.station, role, caseId, amountCents: head.amountCents, latencySec, slaSec, expert, assisted }, result);
+        set({ staffShift: { ...s.staffShift, [role]: next }, staffTaskSeq: s.staffTaskSeq + 1, staffIncident, career, retailLedger, auditLog, ...(unlocked.length ? { badgeUnlocks: [...s.badgeUnlocks, ...unlocked] } : {}) });
         return result;
       },
 
@@ -594,8 +654,11 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         const desk = s.staffDesk;
         const role = desk ? roleForStation(desk) : null;
         if (!desk || !role) return { ok: false, packetId, decision, expected: null, correct: false, statusCode: 'NO_DESK' };
-        const result = s.sim.staffDecide(desk, packetId, decision, latencySec);
-        if (!result.ok) return result;
+        const reviewed = s.pendingQueueMap[desk]?.find((c) => c.id === packetId);
+        const decided = s.sim.staffDecide(desk, packetId, decision, latencySec);
+        if (!decided.ok) return decided;
+        // A live review posts the same journal its training twin would: the queue case carries the role, amount and fields.
+        const result: StaffDecisionResult = reviewed ? { ...decided, journal: caseJournal(reviewed, decision, decided.statusCode) } : decided;
         const prev = s.staffShift[role] ?? EMPTY_SHIFT;
         const next: ShiftProgress = {
           reviews: prev.reviews + 1,
@@ -606,7 +669,10 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           ...bookCombo(prev, result.correct),
           last: result,
         };
-        refresh({ staffShift: { ...s.staffShift, [role]: next } });
+        const retailLedger = result.journal ? postJournal(s.retailLedger, result.journal) : s.retailLedger;
+        if (result.journal) saveRetailLedger(storage, retailLedger);
+        const auditLog = audit(s.auditLog, { station: desk, role, caseId: packetId, amountCents: reviewed?.amountCents ?? 0, latencySec, slaSec, expert: false, assisted: false }, result);
+        refresh({ staffShift: { ...s.staffShift, [role]: next }, retailLedger, auditLog });
         return result;
       },
       chaos: initialChaos,

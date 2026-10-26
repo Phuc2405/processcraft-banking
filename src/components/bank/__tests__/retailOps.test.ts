@@ -104,7 +104,7 @@ describe('Phase 10 retail operations: scenario catalogue', () => {
           const r = gradeTaskCase(c, d);
           expect(r.correct).toBe(d === c.expected);
           expect(r.statusCode).toBe(c.retail!.codes[d === 'APPROVE' ? 0 : 1]);
-          expect(r.journal).toMatchObject({ caseId: c.id, scenario: c.retail!.id, decision: d, statusCode: r.statusCode });
+          expect(r.journal).toMatchObject({ caseId: c.id, role, scene: c.scene, decision: d, statusCode: r.statusCode });
           expect(journalBalanced(r.journal!.lines), `${c.id} ${d}`).toBe(true);
           for (const l of r.journal!.lines) {
             expect(Number.isSafeInteger(l.dr) && Number.isSafeInteger(l.cr)).toBe(true);
@@ -113,9 +113,6 @@ describe('Phase 10 retail operations: scenario catalogue', () => {
         }
   });
 
-  it('leaves the 28-task matrix without journals', () => {
-    for (const role of STAFF_ROLES) expect(gradeTaskCase(buildTaskCase(role, 2, 0), 'APPROVE').journal).toBeUndefined();
-  });
 });
 
 describe('Phase 10 retail operations: the SOP numbers', () => {
@@ -189,7 +186,7 @@ describe('Phase 10 retail operations: the SOP numbers', () => {
     const right = waterfall(bad.amountCents, moneyOf(bad, 'latePenaltyDue'), moneyOf(bad, 'overdueInterestDue'), moneyOf(bad, 'principalDue'));
     expect(moneyOf(bad, 'allocPrincipal')).toBeGreaterThan(right.principal);
     // Rejecting reposts the correct waterfall.
-    expect(lineOf(bad, 'REJECT', 'PENALTY_RECV')?.cr).toBe(right.penalty);
+    expect(lineOf(bad, 'REJECT', 'LATE_PENALTY_INCOME')?.cr).toBe(right.penalty);
     expect(lineOf(bad, 'REJECT', 'LOAN_PRINCIPAL')?.cr ?? 0).toBe(right.principal);
     const ok = caseOf('bnpl', 'DEBT_WATERFALL', 'APPROVE');
     expect(moneyOf(ok, 'allocPenalty')).toBe(Math.min(ok.amountCents, moneyOf(ok, 'latePenaltyDue')));
@@ -276,7 +273,8 @@ describe('Phase 10 retail operations: the core ledger', () => {
 
     store.getState().setStaffTask(1);
     store.getState().staffTrain(buildTaskCase('dispute', 1, store.getState().staffTaskSeq).id, 'APPROVE', 3, 30);
-    expect(store.getState().retailLedger).toBe(ledger);
+    expect(store.getState().retailLedger.posted).toBe(7);
+    expect(store.getState().retailLedger.journal[0]!.scene).toBe('task_dispute_1');
 
     store.getState().resetRetailLedger();
     expect(store.getState().retailLedger).toEqual(openingLedger());
