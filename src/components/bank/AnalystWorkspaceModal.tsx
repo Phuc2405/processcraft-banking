@@ -29,6 +29,7 @@ import {
   GL_ACCOUNTS,
   GL_CODE,
   ATM_FLEET_LOW_CENTS,
+  caseJournalLines,
   ledgerSummary,
   naturalBalance,
   openingLedger,
@@ -258,6 +259,171 @@ function MissionPanel({ role, task, mode, m, deskName, sla = STAFF_SLA_SECONDS }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Decision Support Engine / Risk Advisory
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AdviceAction = 'approve' | 'reject' | 'freeze' | 'escalate';
+export const ADVICE_ACTIONS: readonly AdviceAction[] = ['approve', 'reject', 'freeze', 'escalate'];
+
+export interface AdviceDriver {
+  /** `driver_<name>` in analystWorkspace.messages.ts. */
+  key: AnalystWorkspaceKey;
+  tone: 'breach' | 'alert' | 'info';
+  /** The payload field a generic driver names. */
+  field?: string;
+  /** The ledger account a posting driver names. */
+  gl?: GlAccount;
+  n?: number;
+}
+
+export interface Advice {
+  action: AdviceAction;
+  /** 0-100: how much of the case's evidence the engine could verify and that points the same way. */
+  confidence: number;
+  /** The 2-3 strongest signals, breaches first. */
+  drivers: AdviceDriver[];
+}
+
+/** Below this confidence the engine will not recommend an approval: it escalates for a manual check. */
+export const ESCALATE_BELOW_PCT = 70;
+const ADVICE_DRIVERS = { min: 2, max: 3 } as const;
+
+const linesFor = (c: StaffCase, d: StaffDecision): readonly LedgerLine[] => (c.retail ? (d === 'APPROVE' ? c.retail.approve : c.retail.reject) : caseJournalLines(c, d));
+
+/**
+ * The engine's read of a case, from what the card itself shows: a visible SOP breach is decisive (reject, or freeze when the
+ * rejection moves the funds to frozen assets); otherwise confidence is the share of fields verified clean, an operational alert
+ * counting half and a field hidden by an incident not at all, and below ESCALATE_BELOW_PCT the engine escalates.
+ */
+export function adviseCase(c: StaffCase, masked: ReadonlySet<string> = NONE_MASKED): Advice {
+  const visible = c.fields.filter((f) => !masked.has(f.key));
+  const hidden = c.fields.length - visible.length;
+  const breaches = visible.filter((f) => f.flag);
+  const alerts = visible.filter((f) => f.alert && !f.flag);
+  if (breaches.length) {
+    const action: AdviceAction = linesFor(c, 'REJECT').some((l) => l.gl === 'FROZEN_ASSETS') ? 'freeze' : 'reject';
+    return { action, confidence: Math.max(ESCALATE_BELOW_PCT, 100 - 10 * hidden), drivers: adviceDrivers(c, breaches, alerts, hidden, action) };
+  }
+  const confidence = Math.round((100 * (visible.length - 0.5 * alerts.length)) / Math.max(1, c.fields.length));
+  const action: AdviceAction = confidence < ESCALATE_BELOW_PCT ? 'escalate' : 'approve';
+  return { action, confidence, drivers: adviceDrivers(c, breaches, alerts, hidden, action) };
+}
+
+function adviceDrivers(c: StaffCase, breaches: readonly StaffField[], alerts: readonly StaffField[], hidden: number, action: AdviceAction): AdviceDriver[] {
+  const out: AdviceDriver[] = [];
+  const add = (d: AdviceDriver): void => {
+    if (!out.some((x) => x.key === d.key && x.field === d.field)) out.push(d);
+  };
+  const flagged = (key: string): boolean => breaches.some((f) => f.key === key);
+  const s = c.scene;
+  // Named drivers first: the scenario-level signals an analyst would call out.
+  if (s === 'retail_ATM_LOW_CASH' && (alerts.length || flagged('cassetteCash'))) add({ key: 'driver_atmCassetteLow', tone: flagged('cassetteCash') ? 'breach' : 'alert' });
+  if (s === 'retail_AUTO_PAY' && breaches.length) add({ key: 'driver_nsfPenalty', tone: 'breach' });
+  if (s === 'retail_DEBT_WATERFALL') add(breaches.length ? { key: 'driver_waterfallBroken', tone: 'breach' } : { key: 'driver_waterfall', tone: 'info' });
+  if (s === 'retail_CLEARING_BREAK' && !breaches.length) add({ key: 'driver_clearingBreak', tone: 'alert' });
+  if ((s === 'task_aml_2' || s === 'aml_STRUCTURING') && breaches.length) add({ key: 'driver_ctrEvasion', tone: 'breach' });
+  if (action === 'freeze') add({ key: 'driver_freeze', tone: 'breach' });
+  if (hidden) add({ key: 'driver_hidden', tone: 'alert', n: hidden });
+  for (const f of breaches) add({ key: 'driver_breach', tone: 'breach', field: f.key });
+  for (const f of alerts) add({ key: 'driver_alert', tone: 'alert', field: f.key });
+  if (s === 'retail_ATM_JAM' && !breaches.length) add({ key: 'driver_atmSuspense', tone: 'info' });
+  if (s === 'retail_TD_EARLY_BREAK') add({ key: 'driver_demandRate', tone: 'info' });
+  if (s === 'retail_TD_PLEDGE' || s === 'retail_TD_LIQUIDATION') add({ key: 'driver_collateral', tone: 'info' });
+  if (c.role === 'swift' && !c.retail && !breaches.length) add({ key: 'driver_nostro', tone: 'info' });
+  if (!breaches.length && !hidden && !alerts.length) add({ key: 'driver_clean', tone: 'info' });
+  // Fill up with the ledger impact of the recommended action.
+  if (out.length < ADVICE_DRIVERS.min) {
+    const lines = linesFor(c, action === 'approve' || action === 'escalate' ? 'APPROVE' : 'REJECT');
+    const counter = lines.find((l) => l.gl !== 'CASA' && l.gl !== 'OVERDRAFT_RECV') ?? lines[0];
+    add(counter ? { key: 'driver_posting', tone: 'info', gl: counter.gl } : { key: 'driver_memo', tone: 'info' });
+  }
+  return out.slice(0, ADVICE_DRIVERS.max);
+}
+
+const ACTION_TONE: Readonly<Record<AdviceAction, string>> = {
+  approve: 'border-emerald-400/70 bg-emerald-500/20 text-emerald-100',
+  reject: 'border-rose-400/70 bg-rose-500/20 text-rose-100',
+  freeze: 'border-sky-300/70 bg-sky-500/20 text-sky-100',
+  escalate: 'border-amber-400/70 bg-amber-400/20 text-amber-100',
+};
+const ACTION_ICON: Readonly<Record<AdviceAction, string>> = { approve: '✅', reject: '⛔', freeze: '🔒', escalate: '↗️' };
+const DRIVER_TONE = { breach: ['⚠', 'text-rose-200'], alert: ['🔔', 'text-amber-200'], info: ['ℹ', 'text-sky-200'] } as const;
+
+export function confidenceBand(pct: number): 'High' | 'Medium' | 'Low' {
+  return pct >= 90 ? 'High' : pct >= ESCALATE_BELOW_PCT ? 'Medium' : 'Low';
+}
+
+/** The advisory card. In Expert mode it stays folded until the learner asks, and asking forfeits the case's combo bonus. */
+export function AdvisoryCard({ current, masked = NONE_MASKED, mode, revealed, onReveal, m }: { current: StaffCase; masked?: ReadonlySet<string>; mode: WorkspaceMode; revealed: boolean; onReveal: () => void; m: M }) {
+  const head = (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-[11px] font-bold text-violet-200">{m('dseTitle')}</span>
+      <span className="text-[9.5px] font-semibold uppercase tracking-wider text-slate-500">{m('dseAdvisoryNote')}</span>
+    </div>
+  );
+  if (!revealed) {
+    return (
+      <div className="rounded-lg border border-violet-400/30 bg-violet-500/[0.06] px-3 py-2" data-testid="workspace-dse" data-revealed="false">
+        {head}
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <button type="button" onClick={onReveal} data-testid="workspace-dse-reveal" className="rounded-lg border border-violet-400/50 bg-violet-500/15 px-2.5 py-1 text-[11.5px] font-semibold text-violet-100 transition hover:bg-violet-500/25">
+            {m('dseReveal')}
+          </button>
+          <span className="text-[10.5px] text-slate-400">{m('dseRevealNote')}</span>
+        </div>
+      </div>
+    );
+  }
+  const advice = adviseCase(current, masked);
+  const band = confidenceBand(advice.confidence);
+  const bar = band === 'High' ? 'bg-emerald-400' : band === 'Medium' ? 'bg-sky-400' : 'bg-amber-400';
+  return (
+    <div className="rounded-lg border border-violet-400/30 bg-violet-500/[0.06] px-3 py-2" data-testid="workspace-dse" data-revealed="true" data-action={advice.action} data-confidence={advice.confidence} data-mode={mode}>
+      {head}
+      <div className="mt-1.5 flex items-center gap-2">
+        <span className="flex shrink-0 items-center text-[10.5px] text-slate-400">
+          {m('dseConfidence')}
+          <InfoTip label={m('dseConfidence')} text={m('dseConfidenceTip', { min: ESCALATE_BELOW_PCT })} testId="workspace-tip-dse" />
+        </span>
+        <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-800" role="meter" aria-label={m('dseConfidence')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={advice.confidence}>
+          <div className={`h-full rounded-full ${bar}`} style={{ width: `${advice.confidence}%` }} />
+        </div>
+        <span className="shrink-0 text-[13px] font-black tabular-nums text-slate-50" data-testid="workspace-dse-confidence">
+          {advice.confidence}%
+        </span>
+        <span className="shrink-0 text-[10px] font-semibold text-slate-400">{m(k(`dseBand${band}`))}</span>
+      </div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <span className="text-[10.5px] text-slate-400">{m('dseRecommendation')}:</span>
+        {ADVICE_ACTIONS.map((a) => (
+          <span
+            key={a}
+            title={m(k(`dseActionTip_${a}`))}
+            data-action={a}
+            data-recommended={a === advice.action || undefined}
+            className={`rounded-md border px-2 py-0.5 text-[11px] font-bold ${a === advice.action ? ACTION_TONE[a] : 'border-slate-700 text-slate-500'}`}
+          >
+            {a === advice.action && <span aria-hidden="true">{ACTION_ICON[a]} </span>}
+            {m(k(`dseAction_${a}`))}
+          </span>
+        ))}
+      </div>
+      <div className="mt-1.5">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{m('dseDrivers')}</div>
+        <ul className="mt-0.5 space-y-0.5" data-testid="workspace-dse-drivers">
+          {advice.drivers.map((d, i) => (
+            <li key={`${d.key}-${d.field ?? d.gl ?? i}`} className={`flex items-baseline gap-1.5 text-[11.5px] leading-snug ${DRIVER_TONE[d.tone][1]}`} data-driver={d.key} data-tone={d.tone}>
+              <span aria-hidden="true">{DRIVER_TONE[d.tone][0]}</span>
+              <span className="text-slate-200">{m(d.key, { field: d.field ? m(k(`field_${d.field}`)) : '', account: d.gl ? `${GL_CODE[d.gl]} ${m(k(`gl_${d.gl}`))}` : '', n: d.n ?? 0 })}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Panel B: the 4-part scenario card
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -317,6 +483,8 @@ function ScenarioCard({
   showDrill,
   sla = STAFF_SLA_SECONDS,
   masked = NONE_MASKED,
+  adviceRevealed = false,
+  onRevealAdvice = () => undefined,
 }: {
   current: StaffCase | null;
   queued: number;
@@ -328,6 +496,9 @@ function ScenarioCard({
   showDrill: boolean;
   sla?: number;
   masked?: ReadonlySet<string>;
+  /** Expert mode: the learner revealed the advisory card for this case. Standard mode always shows it. */
+  adviceRevealed?: boolean;
+  onRevealAdvice?: () => void;
 }) {
   const locale = useLocale();
   if (!current) {
@@ -415,6 +586,9 @@ function ScenarioCard({
         </div>
       </div>
 
+      {/* Decision Support Engine / Risk Advisory */}
+      <AdvisoryCard current={current} masked={masked} mode={mode} revealed={mode === 'standard' || adviceRevealed} onReveal={onRevealAdvice} m={m} />
+
       {/* 4. Risk & benefit analysis */}
       <div data-testid="workspace-risk">
         <div className="text-[11px] font-bold text-slate-200">{m('riskTitle')}</div>
@@ -460,6 +634,8 @@ interface Consequence {
   /** Shift XP this decision booked (combo multiplier included) and the streak after it. */
   xp?: number;
   combo?: number;
+  /** Expert mode: the advice was revealed, so the combo bonus was forfeited. */
+  assisted?: boolean;
 }
 
 /** What the overlay explains: the benefit when right, the risk the learner just took when wrong. */
@@ -488,8 +664,14 @@ export function ConsequenceOverlay({ consequence, mode, m }: { consequence: Cons
             ? m('overlayXp', { xp: consequence.xp ?? STAFF_XP_PER_CORRECT })
             : m('overlayError', { n: consequence.errors })}
       </div>
+      {ok && consequence.assisted && consequence.points === undefined && (
+        <div className="text-[11.5px] font-semibold text-violet-200" data-testid="workspace-consequence-assisted">
+          {m('dseAssisted')}
+        </div>
+      )}
       {consequence.combo !== undefined &&
         (ok ? (
+          !consequence.assisted &&
           comboMultiplier(consequence.combo) > 1 && (
             <div className="text-[11.5px] font-bold text-orange-200" data-testid="workspace-consequence-combo">
               {m('overlayCombo', { mult: `x${comboMultiplier(consequence.combo).toFixed(1)}` })}
@@ -1262,8 +1444,8 @@ export interface AnalystWorkspaceViewProps {
   canAdvance: boolean;
   onClose: () => void;
   onAdvance: () => void;
-  /** Decides the head case; returns the result, the role's error count, and the XP booked and streak after it. */
-  onDecide: (caseId: string, decision: StaffDecision, latencySec: number, expert: boolean) => { result: StaffDecisionResult; errors: number; xp?: number; combo?: number };
+  /** Decides the head case; returns the result, the role's error count, and the XP booked and streak after it. `assisted`: Expert advice was revealed. */
+  onDecide: (caseId: string, decision: StaffDecision, latencySec: number, expert: boolean, assisted?: boolean) => { result: StaffDecisionResult; errors: number; xp?: number; combo?: number };
   /** Instant: another task at the same desk. */
   onTaskChange: (task: StaffTaskNo) => void;
   /** Called only after the learner confirmed the switch dialog. */
@@ -1315,6 +1497,8 @@ export function AnalystWorkspaceView({
 }: AnalystWorkspaceViewProps) {
   const [badgesOpen, setBadgesOpen] = useState(false);
   const [ledgerOpen, setLedgerOpen] = useState(false);
+  /** The case whose advice the learner revealed in Expert mode. */
+  const [revealedFor, setRevealedFor] = useState<string | null>(null);
   const unlock = badgeUnlocks[0] ?? null;
   const terms = useTerms();
   const m = useMessages(analystWorkspaceMessages);
@@ -1341,17 +1525,18 @@ export function AnalystWorkspaceView({
     (d: StaffDecision) => {
       if (!current || !role || consequence || pendingRole || challenge.finished || unlock || badgesOpen || ledgerOpen) return;
       const latency = elapsedRef.current;
-      const { result, errors, xp, combo } = onDecide(current.id, d, latency, mode === 'expert');
+      const assisted = mode === 'expert' && revealedFor === current.id;
+      const { result, errors, xp, combo } = onDecide(current.id, d, latency, mode === 'expert', assisted);
       if (!result.ok) return;
       const streak = combo ?? (result.correct ? (shift.comboCount ?? 0) + 1 : 0);
       if (uiStore.getState().soundOn) play(reviewSound(result.correct, streak));
       if (challenge.run) {
         const rules = incidentRules(incidentId);
         cc.record(result.correct, latency);
-        setConsequence({ result, role, drill: current.drill, retail: current.retail?.id, errors, xp, combo: streak, points: challengePoints(result.correct, latency, rules), bonus: result.correct ? challengeBonus(latency, rules) : 0 });
-      } else setConsequence({ result, role, drill: current.drill, retail: current.retail?.id, errors, xp, combo: streak });
+        setConsequence({ result, role, drill: current.drill, retail: current.retail?.id, errors, xp, combo: streak, assisted, points: challengePoints(result.correct, latency, rules), bonus: result.correct ? challengeBonus(latency, rules) : 0 });
+      } else setConsequence({ result, role, drill: current.drill, retail: current.retail?.id, errors, xp, combo: streak, assisted });
     },
-    [current, role, consequence, pendingRole, onDecide, challenge, cc, shift.comboCount, incidentId, mode, unlock, badgesOpen, ledgerOpen],
+    [current, role, consequence, pendingRole, onDecide, challenge, cc, shift.comboCount, incidentId, mode, unlock, badgesOpen, ledgerOpen, revealedFor],
   );
 
   useEffect(() => {
@@ -1439,7 +1624,20 @@ export function AnalystWorkspaceView({
         {incident && <IncidentBanner incident={incident} reviews={shift.reviews} sla={sla} m={m} />}
         <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(250px,300px)_1fr_minmax(230px,270px)] lg:overflow-hidden">
           <MissionPanel role={role} task={task} mode={mode} m={m} deskName={terms.stationTitle(desk)} sla={sla} />
-          <ScenarioCard current={current} queued={Math.max(0, cases.length - 1)} elapsed={elapsed} mode={mode} m={m} onAdvance={onAdvance} canAdvance={canAdvance} showDrill={task === RANDOM_TASK} sla={sla} masked={masked} />
+          <ScenarioCard
+            current={current}
+            queued={Math.max(0, cases.length - 1)}
+            elapsed={elapsed}
+            mode={mode}
+            m={m}
+            onAdvance={onAdvance}
+            canAdvance={canAdvance}
+            showDrill={task === RANDOM_TASK}
+            sla={sla}
+            masked={masked}
+            adviceRevealed={current !== null && revealedFor === current.id}
+            onRevealAdvice={() => current && setRevealedFor(current.id)}
+          />
           <DecisionPanel
             shift={shift}
             current={current}
@@ -1502,9 +1700,9 @@ export function AnalystWorkspaceModal() {
   );
 
   const onDecide = useCallback<AnalystWorkspaceViewProps['onDecide']>(
-    (caseId, decision, latencySec, expert) => {
+    (caseId, decision, latencySec, expert, assisted) => {
       const before = role ? (bankStore.getState().staffShift[role] ?? EMPTY_SHIFT) : EMPTY_SHIFT;
-      const result = train(caseId, decision, latencySec, incidentSlaSeconds(bankStore.getState().staffIncident?.id), expert);
+      const result = train(caseId, decision, latencySec, incidentSlaSeconds(bankStore.getState().staffIncident?.id), expert, assisted);
       const after = role ? (bankStore.getState().staffShift[role] ?? EMPTY_SHIFT) : EMPTY_SHIFT;
       return { result, errors: after.errors, xp: after.xp - before.xp, combo: after.comboCount };
     },

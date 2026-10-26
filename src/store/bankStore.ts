@@ -22,7 +22,7 @@ import type { TermMode } from '../sim/terms';
 import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
 import type { BankView, Customer, PacketTrace } from '../sim/types';
-import { addToTally, advanceIncident, buildTaskCase, caseJournal, CHALLENGE, comboXp, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, openingLedger, postJournal, recordCareerDecision, rollIncident, roleForStation, SHIFT_TARGET, startIncident, type ActiveIncident, type BadgeId, type CareerProgress, type ChallengeTally, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo } from '../sim/staffRoleplay';
+import { addToTally, advanceIncident, buildTaskCase, caseJournal, CHALLENGE, comboXp, STAFF_XP_PER_CORRECT, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, openingLedger, postJournal, recordCareerDecision, rollIncident, roleForStation, SHIFT_TARGET, startIncident, type ActiveIncident, type BadgeId, type CareerProgress, type ChallengeTally, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo } from '../sim/staffRoleplay';
 import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
@@ -105,9 +105,10 @@ export interface ShiftProgress {
 }
 
 /** Advances the streak and books XP at the new streak's multiplier; an error resets the streak. */
-export function bookCombo(prev: ShiftProgress, correct: boolean): Pick<ShiftProgress, 'xp' | 'comboCount'> {
+/** Books one decision on the streak. An `assisted` decision (Expert advice revealed) keeps the streak but earns the 1.0x base XP. */
+export function bookCombo(prev: ShiftProgress, correct: boolean, assisted = false): Pick<ShiftProgress, 'xp' | 'comboCount'> {
   const comboCount = correct ? (prev.comboCount ?? 0) + 1 : 0;
-  return { comboCount, xp: prev.xp + (correct ? comboXp(comboCount) : 0) };
+  return { comboCount, xp: prev.xp + (correct ? (assisted ? STAFF_XP_PER_CORRECT : comboXp(comboCount)) : 0) };
 }
 
 export const EMPTY_SHIFT: ShiftProgress = { reviews: 0, correct: 0, latencySumSec: 0, slaBreaches: 0, errors: 0, xp: 0, comboCount: 0, last: null };
@@ -191,8 +192,11 @@ export interface BankState {
   setStaffTask(task: StaffTaskNo): void;
   /** Moves to another roleplay desk after the learner confirmed: ends the shift and starts Task 1. */
   switchStaffDesk(id: StationId): void;
-  /** Decides the head case of the current task and books it on the shift and the career. `expert` is the workspace's complexity mode. */
-  staffTrain(caseId: string, decision: StaffDecision, latencySec: number, slaSec: number, expert?: boolean): StaffDecisionResult;
+  /**
+   * Decides the head case of the current task and books it on the shift and the career. `expert` is the workspace's complexity
+   * mode; `assisted` means the learner revealed the Decision Support Engine's advice in Expert mode, which forfeits the combo bonus.
+   */
+  staffTrain(caseId: string, decision: StaffDecision, latencySec: number, slaSec: number, expert?: boolean, assisted?: boolean): StaffDecisionResult;
   /** Lifetime XP, badges and badge streaks, kept in storage. */
   career: CareerProgress;
   /** Badges unlocked at the last shift end, waiting for their celebration. */
@@ -553,7 +557,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         refresh({ staffDesk: id });
       },
 
-      staffTrain: (caseId, decision, latencySec, slaSec, expert = false) => {
+      staffTrain: (caseId, decision, latencySec, slaSec, expert = false, assisted = false) => {
         const s = get();
         const role = s.staffDesk ? roleForStation(s.staffDesk) : null;
         const incident = s.staffIncident;
@@ -567,7 +571,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           latencySumSec: prev.latencySumSec + Math.max(0, latencySec),
           slaBreaches: prev.slaBreaches + (latencySec > slaSec ? 1 : 0),
           errors: prev.errors + (result.correct ? 0 : 1),
-          ...bookCombo(prev, result.correct),
+          ...bookCombo(prev, result.correct, assisted),
           last: result,
         };
         if (!result.correct) next.xp -= incidentErrorXp(incident?.id);

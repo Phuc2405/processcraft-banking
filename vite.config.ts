@@ -28,5 +28,7 @@ export default defineConfig({
     // The store, engine and conversion tests need no browser.
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    // The month-long simulation tests take well under a second alone, but several seconds when every file runs in parallel.
+    testTimeout: 20_000,
   },
 });

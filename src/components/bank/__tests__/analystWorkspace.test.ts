@@ -574,7 +574,7 @@ describe('career progression and badges', () => {
 
   it('books career XP from the store, queues unlocks and persists them in storage', () => {
     const storage = memoryStorage();
-    const store = createBankStore({ storage, seed: 2026 });
+    const store = createBankStore({ storage, seed: 2026, incidentRandom: () => 1 });
     store.getState().openStaffDesk(ROLE_STATION.ekyc);
     for (let i = 0; i < 10; i++) {
       const head = buildTaskCase('ekyc', 1, i);
