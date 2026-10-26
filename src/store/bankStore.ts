@@ -22,12 +22,12 @@ import type { TermMode } from '../sim/terms';
 import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
 import type { BankView, Customer, PacketTrace } from '../sim/types';
-import { addToTally, advanceIncident, buildTaskCase, CHALLENGE, comboXp, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, recordCareerDecision, rollIncident, roleForStation, SHIFT_TARGET, startIncident, type ActiveIncident, type BadgeId, type CareerProgress, type ChallengeTally, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo } from '../sim/staffRoleplay';
+import { addToTally, advanceIncident, buildTaskCase, CHALLENGE, comboXp, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, openingLedger, postJournal, recordCareerDecision, rollIncident, roleForStation, SHIFT_TARGET, startIncident, type ActiveIncident, type BadgeId, type CareerProgress, type ChallengeTally, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo } from '../sim/staffRoleplay';
 import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
 import { compareDays, type Comparison } from '../sim/whatIf';
-import { browserStorage, clampInspectorWidth, clearBank, loadBank, loadCareer, loadPrefs, saveCareer, loadUiPrefs, saveBank, savePrefs, saveUiPrefs, type BankPrefs, type BankSaveResult, type KeyValueStorage, type LabelMode, type UiPrefs, type ViewMode } from './bankPersistence';
+import { browserStorage, clampInspectorWidth, clearBank, loadBank, loadCareer, loadPrefs, loadRetailLedger, saveCareer, saveRetailLedger, loadUiPrefs, saveBank, savePrefs, saveUiPrefs, type BankPrefs, type BankSaveResult, type KeyValueStorage, type LabelMode, type UiPrefs, type ViewMode } from './bankPersistence';
 
 export type { ProcessId };
 /** The six chapters of the Academy, in the order of the Course Catalog. */
@@ -199,6 +199,10 @@ export interface BankState {
   badgeUnlocks: BadgeId[];
   /** Closes the celebration for the first waiting badge. */
   dismissBadgeUnlock(): void;
+  /** The retail core ledger every retail-operations decision posts its journal to, kept in storage. */
+  retailLedger: RetailLedger;
+  /** Restarts the core ledger from its opening balances. */
+  resetRetailLedger(): void;
   /** The running Time-Attack challenge (kept in the store so a language switch, which remounts the app, cannot reset it). */
   staffChallenge: { endsAt: number; tally: ChallengeTally } | null;
   /** The tally of the challenge that just ended, shown on the scorecard until dismissed. */
@@ -507,6 +511,12 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       career: loadCareer(storage),
       badgeUnlocks: [],
       dismissBadgeUnlock: () => set({ badgeUnlocks: get().badgeUnlocks.slice(1) }),
+      retailLedger: loadRetailLedger(storage),
+      resetRetailLedger: () => {
+        const retailLedger = openingLedger();
+        saveRetailLedger(storage, retailLedger);
+        set({ retailLedger });
+      },
 
       setIncidentMode: (on) => set({ staffIncidentMode: on, staffIncident: on ? rollFor(get().staffDesk, true) : null }),
 
@@ -566,7 +576,9 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         const staffIncident = shiftOver ? rollFor(s.staffDesk) : incident && advanceIncident(incident, result.correct);
         const { career, unlocked } = recordCareerDecision(s.career, { role, drill: head.drill, expected: result.expected, decision, correct: result.correct, latencySec, expert, xp: next.xp - prev.xp });
         saveCareer(storage, career);
-        set({ staffShift: { ...s.staffShift, [role]: next }, staffTaskSeq: s.staffTaskSeq + 1, staffIncident, career, ...(unlocked.length ? { badgeUnlocks: [...s.badgeUnlocks, ...unlocked] } : {}) });
+        const retailLedger = result.journal ? postJournal(s.retailLedger, result.journal) : s.retailLedger;
+        if (result.journal) saveRetailLedger(storage, retailLedger);
+        set({ staffShift: { ...s.staffShift, [role]: next }, staffTaskSeq: s.staffTaskSeq + 1, staffIncident, career, retailLedger, ...(unlocked.length ? { badgeUnlocks: [...s.badgeUnlocks, ...unlocked] } : {}) });
         return result;
       },
 
