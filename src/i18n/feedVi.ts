@@ -161,6 +161,8 @@ const RULES: readonly Rule[] = [
   // People and queues
   [/^(.+) \(fatigue (\d+)%\) fumbled a record and has to redo it\.$/, (m) => `${m[1]} (mệt mỏi ${m[2]}%) xử lý hỏng một bản ghi và phải làm lại.`],
   [/^(.+) \(fatigue (\d+)%\) fumbled (.+) and has to redo it\.$/, (m) => `${m[1]} (mệt mỏi ${m[2]}%) xử lý hỏng ${m[3]} và phải làm lại.`],
+  [/^Server Overload \/ Saturated Capacity: (\d+) requests queued, the oldest for (\d+) min\. Requests are about to time out\.$/, (m) => `Quá tải máy chủ: ${m[1]} yêu cầu đang xếp hàng, lâu nhất ${m[2]} phút. Yêu cầu sắp hết thời gian chờ.`],
+  [/^Server Overload \/ Saturated Capacity: (\d+) requests queued, the oldest for (\d+) min\. The thread pool cannot keep up\.$/, (m) => `Quá tải máy chủ: ${m[1]} yêu cầu đang xếp hàng, lâu nhất ${m[2]} phút. Nhóm luồng xử lý không theo kịp.`],
   [/^(\d+) waiting, the oldest for (\d+) min\. Customers are about to give up\.$/, (m) => `${m[1]} người đang chờ, lâu nhất ${m[2]} phút. Khách sắp bỏ đi.`],
   [/^(\d+) waiting, the oldest for (\d+) min\. A queue is building\.$/, (m) => `${m[1]} người đang chờ, lâu nhất ${m[2]} phút. Hàng chờ đang dài ra.`],
   [/^(\d+) records left and (\d+) minutes to go\. At this pace about (-?\d+) will not be reconciled by midnight\.$/, (m) => `Còn ${m[1]} bản ghi và ${m[2]} phút. Với tốc độ này khoảng ${m[3]} bản ghi sẽ không được đối soát trước nửa đêm.`],

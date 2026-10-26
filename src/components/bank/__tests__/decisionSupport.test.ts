@@ -15,7 +15,7 @@ import {
 } from '../../../sim/staffRoleplay';
 import { bookCombo, createBankStore, EMPTY_SHIFT } from '../../../store/bankStore';
 import { analystWorkspaceMessages } from '../analystWorkspace.messages';
-import { ADVICE_ACTIONS, adviseCase, AnalystWorkspaceView, confidenceBand, ConsequenceOverlay, ESCALATE_BELOW_PCT, type AnalystWorkspaceViewProps, type WorkspaceMode } from '../AnalystWorkspaceModal';
+import { ADVICE_ACTIONS, adviseCase, AdvisoryCard, AnalystWorkspaceView, confidenceBand, ConsequenceOverlay, ESCALATE_BELOW_PCT, type AnalystWorkspaceViewProps, type WorkspaceMode } from '../AnalystWorkspaceModal';
 
 const msgs = analystWorkspaceMessages.messages;
 const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/'/g, '&#x27;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -99,7 +99,7 @@ describe('Decision Support Engine: key risk drivers', () => {
   });
 });
 
-describe('Decision Support Engine: the card and Expert-mode reveal', () => {
+describe('Decision Support Engine: the card, its toggle and Expert-mode reveal', () => {
   const handlers: Pick<AnalystWorkspaceViewProps, 'onClose' | 'onAdvance' | 'onDecide' | 'onTaskChange' | 'onSwitchRole'> = {
     onClose: () => undefined,
     onAdvance: () => undefined,
@@ -110,10 +110,20 @@ describe('Decision Support Engine: the card and Expert-mode reveal', () => {
   const view = (cases: StaffCase[], initialMode: WorkspaceMode): string =>
     renderToStaticMarkup(createElement(AnalystWorkspaceView, { desk: ROLE_STATION[cases[0]!.role], cases, shift: EMPTY_SHIFT, initialMode, task: 1, canAdvance: true, ...handlers }));
 
-  it('shows the full advisory in Standard mode, with all four actions and the recommended one marked', () => {
-    const cases = taskDeck('aml', 1, 0, 40).filter((c) => c.expected === 'REJECT').slice(0, 4);
-    const out = view(cases, 'standard');
+  it('starts collapsed in Standard mode too, behind the Show Advisory toggle', () => {
+    const out = view(taskDeck('aml', 1, 0, 4), 'standard');
+    expect(out).toContain('data-testid="workspace-dse" data-revealed="false"');
+    expect(out).toContain('data-testid="workspace-dse-reveal"');
+    expect(out).toContain(esc(msgs.dseShow.en));
+    expect(out).toContain(esc(msgs.dseCollapsedNote.en));
+    expect(out).not.toContain('data-testid="workspace-dse-confidence"');
+  });
+
+  it('shows the full advisory once opened, with all four actions, the recommended one marked and a Hide toggle', () => {
+    const c = taskDeck('aml', 1, 0, 40).find((x) => x.expected === 'REJECT')!;
+    const out = renderToStaticMarkup(createElement(AdvisoryCard, { current: c, mode: 'standard', revealed: true, onReveal: () => undefined, m }));
     expect(out).toContain('data-testid="workspace-dse" data-revealed="true" data-action="freeze"');
+    expect(out).toContain('data-testid="workspace-dse-hide"');
     for (const a of ADVICE_ACTIONS) expect(out).toContain(esc(msgs[`dseAction_${a}`].en));
     expect(out).toMatch(/data-action="freeze" data-recommended="true"/);
     expect(out).toContain(esc(msgs.dseTitle.en));
@@ -130,7 +140,13 @@ describe('Decision Support Engine: the card and Expert-mode reveal', () => {
 
   it('speaks Vietnamese: Duyệt / Từ chối / Phong tỏa / Chuyển luồng', () => {
     setActiveLocale('vi');
-    const out = view(taskDeck('swift', 2, 0, 4), 'standard');
+    const vi = ((key: keyof typeof msgs, values?: Record<string, string | number>): string => {
+      let text: string = msgs[key].vi;
+      for (const [name, v] of Object.entries(values ?? {})) text = text.split(`{${name}}`).join(String(v));
+      return text;
+    }) as typeof m;
+    expect(view(taskDeck('swift', 2, 0, 4), 'standard')).toContain(esc(msgs.dseShow.vi));
+    const out = renderToStaticMarkup(createElement(AdvisoryCard, { current: taskDeck('swift', 2, 0, 4)[0]!, mode: 'standard', revealed: true, onReveal: () => undefined, m: vi }));
     for (const a of ADVICE_ACTIONS) expect(out).toContain(esc(msgs[`dseAction_${a}`].vi));
     expect(['Duyệt', 'Từ chối', 'Phong tỏa', 'Chuyển luồng']).toEqual(ADVICE_ACTIONS.map((a) => msgs[`dseAction_${a}`].vi));
     expect(out).toContain(esc(msgs.dseTitle.vi));

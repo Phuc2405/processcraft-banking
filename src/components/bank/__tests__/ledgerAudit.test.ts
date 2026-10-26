@@ -30,7 +30,7 @@ import {
 import { decodeRetailLedger, memoryStorage, RETAIL_LEDGER_KEY } from '../../../store/bankPersistence';
 import { createBankStore, EMPTY_SHIFT } from '../../../store/bankStore';
 import { analystWorkspaceMessages } from '../analystWorkspace.messages';
-import { AnalystWorkspaceView, CoreLedgerCard, CoreLedgerSheet, journalTitleKey, type AnalystWorkspaceViewProps } from '../AnalystWorkspaceModal';
+import { AnalystWorkspaceView, CoreLedgerCard, CoreLedgerSheet, JournalDetail, journalTitleKey, personaFor, type AnalystWorkspaceViewProps } from '../AnalystWorkspaceModal';
 
 const msgs = analystWorkspaceMessages.messages;
 const m = ((key: keyof typeof msgs, values?: Record<string, string | number>): string => {
@@ -208,6 +208,30 @@ describe('Phase 11 core ledger: the header card and bilingual labels', () => {
     const header = view.slice(view.indexOf('<header'), view.indexOf('</header>'));
     expect(header).toContain('data-testid="workspace-ledger-open"');
     expect(header).toContain(msgs.ledgerCardTitle.en);
+  });
+
+  it('details every journal: customer, case ID, channel/desk code, timestamp and each Debit/Credit line by GL code', () => {
+    const wire = firstOf('swift', 2, () => true);
+    const journal = { ...gradeTaskCase(wire, 'APPROVE').journal!, station: ROLE_STATION.swift, at: '2026-10-27T12:00:00.000Z' };
+    const out = renderToStaticMarkup(createElement('ol', null, createElement(JournalDetail, { j: journal, m })));
+    expect(out).toContain(esc(personaFor(wire.id).name));
+    expect(out).toContain(wire.id);
+    expect(out).toContain(`data-station="${ROLE_STATION.swift}"`);
+    expect(out).toMatch(/27\/10\/2026 \d\d:00:00/);
+    for (const l of journal.lines) expect(out).toContain(`data-gl="${l.gl}"`);
+    expect(out).toContain(esc(msgs.ledgerTotal.en));
+  });
+
+  it('stamps posted journals with the desk and the time, and keeps the stamp across a reload', () => {
+    const storage = memoryStorage();
+    const store = createBankStore({ storage, seed: 2026, incidentRandom: () => 1, now: () => new Date('2026-10-27T12:00:00.000Z') });
+    store.getState().openStaffDesk(ROLE_STATION.swift);
+    store.getState().setStaffTask(2);
+    const head = buildTaskCase('swift', 2, store.getState().staffTaskSeq);
+    store.getState().staffTrain(head.id, head.expected, 2, 30);
+    const posted = store.getState().retailLedger.journal[0]!;
+    expect(posted).toMatchObject({ caseId: head.id, station: head.station, at: '2026-10-27T12:00:00.000Z' });
+    expect(decodeRetailLedger(storage.getItem(RETAIL_LEDGER_KEY)).journal[0]).toMatchObject({ station: head.station, at: posted.at });
   });
 
   it('tags suspense, nostro, collateral and frozen accounts on the balance sheet and titles matrix journals', () => {

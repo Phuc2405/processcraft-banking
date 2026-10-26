@@ -22,7 +22,7 @@ import type { TermMode } from '../sim/terms';
 import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
 import type { BankView, Customer, PacketTrace } from '../sim/types';
-import { addToTally, advanceIncident, buildTaskCase, caseJournal, CHALLENGE, comboXp, STAFF_XP_PER_CORRECT, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, openingLedger, postJournal, recordCareerDecision, rollIncident, roleForStation, SHIFT_TARGET, startIncident, type ActiveIncident, type BadgeId, type CareerProgress, type ChallengeTally, type LedgerLine, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo } from '../sim/staffRoleplay';
+import { addToTally, advanceIncident, buildTaskCase, caseJournal, CHALLENGE, comboXp, STAFF_XP_PER_CORRECT, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, openingLedger, postJournal, recordCareerDecision, rollIncident, roleForStation, SHIFT_TARGET, startIncident, type ActiveIncident, type BadgeId, type CareerProgress, type ChallengeTally, type JournalEntry, type LedgerLine, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo } from '../sim/staffRoleplay';
 import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
@@ -463,6 +463,8 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
     /** Whether the clock was running when the roleplay desk opened. */
     let staffResume = false;
 
+    /** Stamps a journal with the desk that posted it and the time, for the ledger's detail view. */
+    const stampJournal = (j: JournalEntry, station: StationId): JournalEntry => ({ ...j, station, at: now().toISOString() });
     /** Appends a decision to the audit trail. */
     const audit = (log: readonly AuditEntry[], d: Pick<AuditEntry, 'station' | 'role' | 'caseId' | 'amountCents' | 'latencySec' | 'slaSec' | 'expert' | 'assisted'>, r: StaffDecisionResult): AuditEntry[] => {
       const entry: AuditEntry = {
@@ -635,7 +637,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         const staffIncident = shiftOver ? rollFor(s.staffDesk) : incident && advanceIncident(incident, result.correct);
         const { career, unlocked } = recordCareerDecision(s.career, { role, drill: head.drill, expected: result.expected, decision, correct: result.correct, latencySec, expert, xp: next.xp - prev.xp });
         saveCareer(storage, career);
-        const retailLedger = result.journal ? postJournal(s.retailLedger, result.journal) : s.retailLedger;
+        const retailLedger = result.journal ? postJournal(s.retailLedger, stampJournal(result.journal, head.station)) : s.retailLedger;
         if (result.journal) saveRetailLedger(storage, retailLedger);
         const auditLog = audit(s.auditLog, { station: head.station, role, caseId, amountCents: head.amountCents, latencySec, slaSec, expert, assisted }, result);
         set({ staffShift: { ...s.staffShift, [role]: next }, staffTaskSeq: s.staffTaskSeq + 1, staffIncident, career, retailLedger, auditLog, ...(unlocked.length ? { badgeUnlocks: [...s.badgeUnlocks, ...unlocked] } : {}) });
@@ -669,7 +671,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           ...bookCombo(prev, result.correct),
           last: result,
         };
-        const retailLedger = result.journal ? postJournal(s.retailLedger, result.journal) : s.retailLedger;
+        const retailLedger = result.journal ? postJournal(s.retailLedger, stampJournal(result.journal, desk)) : s.retailLedger;
         if (result.journal) saveRetailLedger(storage, retailLedger);
         const auditLog = audit(s.auditLog, { station: desk, role, caseId: packetId, amountCents: reviewed?.amountCents ?? 0, latencySec, slaSec, expert: false, assisted: false }, result);
         refresh({ staffShift: { ...s.staffShift, [role]: next }, retailLedger, auditLog });

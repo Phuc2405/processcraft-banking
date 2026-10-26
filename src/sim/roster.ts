@@ -157,6 +157,15 @@ export function fatigueChange(minutes: number, busyShare: number): number {
   return minutes * (0.03 + 0.145 * u - 0.06 * (1 - u));
 }
 
+/**
+ * Stamina recovery: while a desk's load (the share of the beat its people were busy) stays below `belowLoad`, everyone on
+ * shift there gets their breath back on top of the idle recovery in fatigueChange, so a quiet spell after a rush refills the bar.
+ */
+export const STAMINA_RECOVERY = { belowLoad: 0.3, perMinute: 0.12 } as const;
+
+/** Fatigue points recovered over `minutes` at a desk running at `deskLoad` (0-1). */
+export const staminaRecovery = (minutes: number, deskLoad: number): number => (deskLoad < STAMINA_RECOVERY.belowLoad ? minutes * STAMINA_RECOVERY.perMinute : 0);
+
 /** After a night's sleep, a person keeps this share of their tiredness. */
 export const OVERNIGHT_KEEP = 0.35;
 

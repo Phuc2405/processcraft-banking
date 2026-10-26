@@ -1064,6 +1064,9 @@ export interface JournalEntry {
   statusCode: string;
   /** Debits equal credits; empty for a memo-only decision. */
   lines: LedgerLine[];
+  /** The channel/desk that posted it and when (ISO 8601); stamped by the store, absent on journals saved before Phase 11. */
+  station?: StationId;
+  at?: string;
 }
 
 export interface RetailLedger {

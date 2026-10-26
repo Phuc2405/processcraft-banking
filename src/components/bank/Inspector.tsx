@@ -6,7 +6,7 @@ import { formatClock } from '../../sim/clock';
 import { modelForStation } from '../../data/mentalModels';
 import { COVER_COST_CENTS, formatMoney } from '../../sim/kpis';
 import { LESSONS, type ProcessId } from '../../sim/learning';
-import { MAX_COVER_PER_STATION, mistakeChance } from '../../sim/roster';
+import { MAX_COVER_PER_STATION, mistakeChance, STAMINA_RECOVERY } from '../../sim/roster';
 import { DEPARTMENTS, STATIONS, type DepartmentId, type StationId } from '../../sim/topology';
 import type { FeedEntry, StationView, WorkerView } from '../../sim/types';
 import { clampInspectorWidth, INSPECTOR_WIDTH } from '../../store/bankPersistence';
@@ -400,6 +400,11 @@ function StationPanel({ id }: { id: StationId }) {
               <div className="h-1.5 overflow-hidden rounded-full bg-slate-800">
                 <div className={`h-full rounded-full transition-[width] duration-500 ${stats.utilisation > 0.9 ? 'bg-amber-400' : 'bg-sky-400'}`} style={{ width: `${Math.round(stats.utilisation * 100)}%` }} />
               </div>
+              {copy.automated && (stats.utilisation >= 0.85 || sv.status === 'CONGESTED' || sv.status === 'ALERT') && (
+                <div className="mt-1.5 rounded-md border border-rose-400/50 bg-rose-500/15 px-2 py-1 text-[11px] leading-snug text-rose-100" data-testid="station-overload">
+                  <span className="font-bold">⚠ {copy.n('overloadBadge')}</span> · {copy.n('overloadHint', { pct: Math.round(stats.utilisation * 100) })}
+                </div>
+              )}
             </div>
             <div className="text-right">
               <Sparkline values={sv.history} width={110} height={26} label={tr({ en: `${terms.stationTitle(id)} queue length over the last ${sv.history.length} beats`, vi: `Độ dài hàng chờ ${terms.stationTitle(id)} trong ${sv.history.length} nhịp gần đây` })} />
@@ -476,6 +481,7 @@ function WorkerPanel({ station, workerId }: { station: StationId; workerId: stri
   const select = useBankStore((s) => s.select);
   const worker = useBankStore((s) => s.view.stations[station].workers.find((w) => w.id === workerId));
   const queueLength = useBankStore((s) => s.view.stations[station].queueLength);
+  const deskLoad = useBankStore((s) => s.view.stations[station].stats.utilisation);
   const stream = useBankStore((s) => s.view.stations[station].stream);
   const everyone = useBankStore(useShallow((s) => s.view.stations[station].workers));
   const def = STATIONS[station];
@@ -568,6 +574,11 @@ function WorkerPanel({ station, workerId }: { station: StationId; workerId: stri
                   ? t('Slowing down a little. Mistakes only start above 60.')
                   : t('Fresh. Working at full pace.')}
             </p>
+            {!machine && deskLoad < STAMINA_RECOVERY.belowLoad && worker.fatigue > 0 && (
+              <p className="mt-1.5 text-[11.5px] font-semibold leading-snug text-emerald-300" data-testid="worker-recovering">
+                {copy.n('staminaRecovering', { load: Math.round(deskLoad * 100), min: STAMINA_RECOVERY.belowLoad * 100 })}
+              </p>
+            )}
           </div>
         </section>
 

@@ -65,9 +65,11 @@ import {
   productivityFor,
   rosterFor,
   seatAt,
+  staminaRecovery,
   workerSeed,
   type WorkerSeed,
 } from './roster';
+import { isAutomatedNode } from './nodeKind';
 import { edgeId, EXTERNAL_IDS, SERVICE_ORDER, STATION_IDS, STATIONS, type ExternalId, type PlaceId, type StationId } from './topology';
 import { eventForDay, generateDay, keyedUnit, makeCustomer, makeSettlement, workingBeatIndex, type DayTraffic } from './traffic';
 import { QR_SCANNED_LABEL_EN } from '../i18n/stationBrand.messages';
@@ -1687,16 +1689,15 @@ export class BankSimulation {
       const night = isNightStation(st.id);
       const present = night ? phase === 'EOD' : phase === 'PRE_OPEN' || phase === 'WORKING';
       let busy = 0;
+      for (const w of st.workers) busy += w.busyShare;
+      // A quiet desk (load under STAMINA_RECOVERY.belowLoad) lets the people on shift recover their stamina.
+      const recovery = staminaRecovery(bm, st.workers.length > 0 ? busy / st.workers.length : 0);
       for (const w of st.workers) {
-        if (STATIONS[st.id].automated) {
-          busy += w.busyShare;
-          continue;
-        }
+        if (STATIONS[st.id].automated) continue;
         // By night the drop follows the load (see nightFatigueFactor): the busier the person, the faster they tire.
         const factor = night ? nightFatigueFactor(w.busyShare) : 1;
-        if (present) w.fatigue = clamp(w.fatigue + fatigueChange(bm, w.busyShare) * factor, 0, 100);
+        if (present) w.fatigue = clamp(w.fatigue + fatigueChange(bm, w.busyShare) * factor - recovery, 0, 100);
         else if (w.busyMin > 0) w.fatigue = clamp(w.fatigue + 0.13 * w.busyMin * factor, 0, 100);
-        busy += w.busyShare;
       }
       st.utilisation = st.workers.length > 0 ? busy / st.workers.length : 0;
       st.peakQueue = Math.max(st.peakQueue, st.queue.length);
@@ -1854,7 +1855,11 @@ export class BankSimulation {
         const oldest = head.waitedMin + Math.max(0, now - head.queuedAtMinute);
         const cap = this.capacity(st);
         if (oldest >= 15 || (oldest >= 8 && q >= cap * 2)) {
-          add(id, oldest >= 15 ? 'crit' : 'warn', `queue:${id}`, `${q} waiting, the oldest for ${Math.round(oldest)} min${oldest >= 15 ? '. Customers are about to give up.' : '. A queue is building.'}`);
+          // An automated node's queue is a server bottleneck, not a line of people: it is labelled as such.
+          const text = isAutomatedNode(id)
+            ? `Server Overload / Saturated Capacity: ${q} requests queued, the oldest for ${Math.round(oldest)} min${oldest >= 15 ? '. Requests are about to time out.' : '. The thread pool cannot keep up.'}`
+            : `${q} waiting, the oldest for ${Math.round(oldest)} min${oldest >= 15 ? '. Customers are about to give up.' : '. A queue is building.'}`;
+          add(id, oldest >= 15 ? 'crit' : 'warn', `queue:${id}`, text);
         }
       }
 

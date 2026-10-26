@@ -203,7 +203,7 @@ function ModeToggle({ mode, onChange, m }: { mode: WorkspaceMode; onChange: (mod
 function MissionPanel({ role, task, mode, m, deskName, sla = STAFF_SLA_SECONDS }: { role: StaffRoleId; task: StaffTaskNo; mode: WorkspaceMode; m: M; deskName: string; sla?: number }) {
   const expert = mode === 'expert';
   return (
-    <section className="flex min-h-0 flex-col gap-3 overflow-y-auto rounded-xl border border-slate-800 bg-slate-900/50 p-3.5" data-testid="workspace-mission">
+    <section className="flex min-h-0 min-w-[240px] flex-col gap-3 overflow-y-auto whitespace-normal break-normal rounded-xl border border-slate-800 bg-slate-900/50 p-3.5 [overflow-wrap:break-word]" data-testid="workspace-mission">
       <div>
         <Kicker>{m('missionBrief')}</Kicker>
         <h3 className="mt-1 flex items-center gap-2 text-[15px] font-bold text-slate-50" data-testid="workspace-role">
@@ -354,12 +354,38 @@ export function confidenceBand(pct: number): 'High' | 'Medium' | 'Low' {
   return pct >= 90 ? 'High' : pct >= ESCALATE_BELOW_PCT ? 'Medium' : 'Low';
 }
 
-/** The advisory card. In Expert mode it stays folded until the learner asks, and asking forfeits the case's combo bonus. */
-export function AdvisoryCard({ current, masked = NONE_MASKED, mode, revealed, onReveal, m }: { current: StaffCase; masked?: ReadonlySet<string>; mode: WorkspaceMode; revealed: boolean; onReveal: () => void; m: M }) {
+/**
+ * The advisory card. It starts collapsed in both modes, so the learner weighs the case first; the 👁️ toggle shows and hides
+ * it. In Expert mode showing it forfeits the case's combo bonus.
+ */
+export function AdvisoryCard({
+  current,
+  masked = NONE_MASKED,
+  mode,
+  revealed,
+  onReveal,
+  onHide = () => undefined,
+  m,
+}: {
+  current: StaffCase;
+  masked?: ReadonlySet<string>;
+  mode: WorkspaceMode;
+  revealed: boolean;
+  onReveal: () => void;
+  onHide?: () => void;
+  m: M;
+}) {
   const head = (
-    <div className="flex items-center justify-between gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-2">
       <span className="text-[11px] font-bold text-violet-200">{m('dseTitle')}</span>
-      <span className="text-[9.5px] font-semibold uppercase tracking-wider text-slate-500">{m('dseAdvisoryNote')}</span>
+      <span className="flex items-center gap-2">
+        <span className="text-[9.5px] font-semibold uppercase tracking-wider text-slate-500">{m('dseAdvisoryNote')}</span>
+        {revealed && (
+          <button type="button" onClick={onHide} aria-expanded="true" data-testid="workspace-dse-hide" className="rounded-md border border-slate-600 px-2 py-0.5 text-[10.5px] font-semibold text-slate-300 transition hover:bg-slate-800">
+            {m('dseHide')}
+          </button>
+        )}
+      </span>
     </div>
   );
   if (!revealed) {
@@ -367,10 +393,10 @@ export function AdvisoryCard({ current, masked = NONE_MASKED, mode, revealed, on
       <div className="rounded-lg border border-violet-400/30 bg-violet-500/[0.06] px-3 py-2" data-testid="workspace-dse" data-revealed="false">
         {head}
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
-          <button type="button" onClick={onReveal} data-testid="workspace-dse-reveal" className="rounded-lg border border-violet-400/50 bg-violet-500/15 px-2.5 py-1 text-[11.5px] font-semibold text-violet-100 transition hover:bg-violet-500/25">
-            {m('dseReveal')}
+          <button type="button" onClick={onReveal} aria-expanded="false" data-testid="workspace-dse-reveal" className="rounded-lg border border-violet-400/50 bg-violet-500/15 px-2.5 py-1 text-[11.5px] font-semibold text-violet-100 transition hover:bg-violet-500/25">
+            {m('dseShow')}
           </button>
-          <span className="text-[10.5px] text-slate-400">{m('dseRevealNote')}</span>
+          <span className="text-[10.5px] text-slate-400">{m(mode === 'expert' ? 'dseRevealNote' : 'dseCollapsedNote')}</span>
         </div>
       </div>
     );
@@ -486,6 +512,7 @@ function ScenarioCard({
   masked = NONE_MASKED,
   adviceRevealed = false,
   onRevealAdvice = () => undefined,
+  onHideAdvice = () => undefined,
 }: {
   current: StaffCase | null;
   queued: number;
@@ -497,9 +524,10 @@ function ScenarioCard({
   showDrill: boolean;
   sla?: number;
   masked?: ReadonlySet<string>;
-  /** Expert mode: the learner revealed the advisory card for this case. Standard mode always shows it. */
+  /** The advisory card is open for this case (it starts collapsed). */
   adviceRevealed?: boolean;
   onRevealAdvice?: () => void;
+  onHideAdvice?: () => void;
 }) {
   const locale = useLocale();
   if (!current) {
@@ -588,7 +616,7 @@ function ScenarioCard({
       </div>
 
       {/* Decision Support Engine / Risk Advisory */}
-      <AdvisoryCard current={current} masked={masked} mode={mode} revealed={mode === 'standard' || adviceRevealed} onReveal={onRevealAdvice} m={m} />
+      <AdvisoryCard current={current} masked={masked} mode={mode} revealed={adviceRevealed} onReveal={onRevealAdvice} onHide={onHideAdvice} m={m} />
 
       {/* 4. Risk & benefit analysis */}
       <div data-testid="workspace-risk">
@@ -767,7 +795,7 @@ export function CoreLedgerCard({ kpis, onOpen, m }: { kpis: RetailKpis; onOpen: 
       title={m('ledgerCardHint')}
       data-testid="workspace-ledger-open"
       data-warn={kpis.atmLow || undefined}
-      className={`min-w-[17rem] rounded-xl border px-2.5 py-1 text-left transition ${kpis.atmLow ? 'border-amber-400/60 bg-amber-400/10' : 'border-emerald-400/40 bg-gradient-to-r from-emerald-500/10 to-slate-900 hover:border-emerald-300/70'}`}
+      className={`min-w-[17rem] shrink-0 rounded-xl border px-2.5 py-1 text-left transition ${kpis.atmLow ? 'border-amber-400/60 bg-amber-400/10' : 'border-emerald-400/40 bg-gradient-to-r from-emerald-500/10 to-slate-900 hover:border-emerald-300/70'}`}
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-200">{m('ledgerCardTitle')}</span>
@@ -814,6 +842,77 @@ function LedgerStrip({ ledger, m, onOpen }: { ledger: RetailLedger; m: M; onOpen
   );
 }
 
+/** One posted journal in full: who, which case, which channel/desk, when, and every Debit/Credit line by GL account. */
+export function JournalDetail({ j, m }: { j: JournalEntry; m: M }) {
+  const customer = personaFor(j.caseId).name;
+  const desk = j.station ?? ROLE_STATION[j.role];
+  const dr = j.lines.reduce((s, l) => s + l.dr, 0);
+  const cr = j.lines.reduce((s, l) => s + l.cr, 0);
+  const field = (label: string, value: ReactNode, mono = false) => (
+    <div className="flex min-w-0 items-baseline gap-1.5">
+      <dt className="shrink-0 text-slate-500">{label}:</dt>
+      <dd className={`min-w-0 truncate text-slate-200 ${mono ? 'font-mono' : ''}`}>{value}</dd>
+    </div>
+  );
+  return (
+    <li className="rounded-lg border border-slate-800 bg-slate-950/60 px-2.5 py-2" data-case={j.caseId} data-station={desk}>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="truncate text-[11.5px] font-semibold text-slate-100">{m(journalTitleKey(j))}</span>
+        <span className={`shrink-0 text-[10px] font-bold ${j.decision === 'APPROVE' ? 'text-emerald-300' : 'text-rose-300'}`}>{m(j.decision === 'APPROVE' ? 'approve' : 'reject')}</span>
+      </div>
+      <dl className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10.5px]" data-testid="ledger-journal-meta">
+        {field(m('ledgerColCustomer'), customer)}
+        {field(m('auditColCase'), j.caseId, true)}
+        {field(m('auditColDesk'), desk, true)}
+        {field(m('auditColTime'), j.at ? auditTime(j.at) : '—', true)}
+        {field(m('auditColStatus'), j.statusCode, true)}
+      </dl>
+      {j.lines.length === 0 ? (
+        <p className="mt-1 text-[10.5px] italic text-slate-400">{m('ledgerMemo')}</p>
+      ) : (
+        <table className="mt-1.5 w-full table-fixed border-collapse font-mono text-[10.5px] tabular-nums" aria-label={m('ledgerJournalDetail')} data-testid="ledger-journal-lines">
+          <colgroup>
+            <col className="w-8" />
+            <col />
+            <col className="w-[5.5rem]" />
+            <col className="w-[5.5rem]" />
+          </colgroup>
+          <thead>
+            <tr className="border-b border-slate-700 text-[9.5px] uppercase tracking-wider text-slate-500">
+              <th className="py-0.5 pr-1 text-left font-semibold" />
+              <th className="py-0.5 pr-1 text-left font-semibold">{m('ledgerColGl')}</th>
+              <th className="py-0.5 pl-1 text-right font-semibold">{m('labelDebit')}</th>
+              <th className="py-0.5 pl-1 text-right font-semibold">{m('labelCredit')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {j.lines.map((l, i) => (
+              <tr key={`${l.gl}-${i}`} className="border-b border-slate-800/70" data-gl={l.gl} data-side={l.dr ? 'dr' : 'cr'}>
+                <td className={`py-0.5 pr-1 font-bold ${l.dr ? 'text-sky-300' : 'text-amber-300'}`} title={m(l.dr ? 'labelDebit' : 'labelCredit')}>
+                  {m(l.dr ? 'ledgerDr' : 'ledgerCr')}
+                </td>
+                <td className={`truncate py-0.5 pr-1 ${l.cr ? 'pl-2' : ''}`}>
+                  <span className="text-slate-400">{GL_CODE[l.gl]}</span> <span className="font-sans text-slate-200">{m(k(`gl_${l.gl}`))}</span>
+                </td>
+                <td className="py-0.5 pl-1 text-right text-slate-50">{l.dr ? money(l.dr) : ''}</td>
+                <td className="py-0.5 pl-1 text-right text-slate-50">{l.cr ? money(l.cr) : ''}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="font-bold text-slate-100">
+              <td />
+              <td className="py-0.5 pr-1 font-sans text-[10px] uppercase tracking-wider text-slate-400">{m('ledgerTotal')}</td>
+              <td className="py-0.5 pl-1 text-right">{money(dr)}</td>
+              <td className="py-0.5 pl-1 text-right">{money(cr)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      )}
+    </li>
+  );
+}
+
 const SHEET_SIDES: readonly { side: GlSide; title: AnalystWorkspaceKey }[] = [
   { side: 'asset', title: 'ledgerAssets' },
   { side: 'liability', title: 'ledgerLiabilities' },
@@ -848,7 +947,7 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: Retai
             </button>
           </div>
         </div>
-        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-5 md:grid-cols-[1fr_minmax(260px,320px)]">
+        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-5 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]">
           <div className="space-y-3">
             <LedgerMetrics kpis={kpis} m={m} />
             <KpiTiles kpis={kpis} m={m} />
@@ -894,16 +993,7 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: Retai
             ) : (
               <ol className="mt-1 space-y-2" data-testid="ledger-journal">
                 {ledger.journal.map((j, i) => (
-                  <li key={`${j.caseId}-${i}`} className="rounded-lg border border-slate-800 bg-slate-950/60 px-2.5 py-1.5" data-case={j.caseId}>
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-[11.5px] font-semibold text-slate-100">{m(journalTitleKey(j))}</span>
-                      <span className={`shrink-0 text-[10px] font-bold ${j.decision === 'APPROVE' ? 'text-emerald-300' : 'text-rose-300'}`}>{m(j.decision === 'APPROVE' ? 'approve' : 'reject')}</span>
-                    </div>
-                    <div className="font-mono text-[10px] text-slate-500">
-                      {j.caseId} · {j.statusCode}
-                    </div>
-                    <JournalLines lines={j.lines} m={m} compact />
-                  </li>
+                  <JournalDetail key={`${j.caseId}-${i}`} j={j} m={m} />
                 ))}
               </ol>
             )}
@@ -953,8 +1043,16 @@ export const AUDIT_CSV_COLUMNS: readonly AnalystWorkspaceKey[] = [
   'auditColCompliance',
 ];
 
+/**
+ * Vietnamese text in Unicode Form C: each accented letter as one precomposed code point. Decomposed text (a base letter plus
+ * combining marks) prints with gaps in many PDF fonts ("Khô ́ i"), so everything the report and the CSV render goes through this.
+ */
+export const nfc = (text: string): string => text.normalize('NFC');
+const nfcMessages = (m: M): M => ((key, values) => nfc(m(key, values))) as M;
+
 /** The audit trail as CSV (RFC 4180, CRLF rows), headers and labels in the current language, timestamps in ISO 8601. */
-export function auditCsv(log: readonly AuditEntry[], m: M): string {
+export function auditCsv(log: readonly AuditEntry[], tm: M): string {
+  const m = nfcMessages(tm);
   const rows = log.map((e) => [
     e.at,
     e.station,
@@ -1006,27 +1104,56 @@ export function auditSummary(log: readonly AuditEntry[]): AuditSummary {
   };
 }
 
+/** The report's one-line simulation disclaimer: English in both languages by design, so it reads the same to any reviewer. */
+export const AUDIT_DISCLAIMER = 'DISCLAIMER: This is a simulated training artifact generated for educational purposes and does not constitute an official banking or regulatory audit document.';
+
+/** System sans-serif fonts carry every precomposed Vietnamese letter; no letter-spacing or synthesized styles to split the marks. */
+const REPORT_FONT = 'Arial, Helvetica, sans-serif';
+
 const PRINT_CSS = `.pc-audit-print{display:none}
+.pc-audit-report,.pc-audit-report *{font-family:${REPORT_FONT}!important;letter-spacing:normal!important;font-synthesis:none}
 @media print{
   @page{size:A4 landscape;margin:14mm}
   body>*:not(.pc-audit-print){display:none!important}
   .pc-audit-print{display:block!important;background:#fff;color:#000}
 }`;
 
+/** Section III's columns: widths that keep codes and amounts on one line, and which columns are numeric (right-aligned). */
+const AUDIT_TABLE_COLS: readonly { key: AnalystWorkspaceKey; width: string; numeric?: boolean }[] = [
+  { key: 'rptColNo', width: '3.5%', numeric: true },
+  { key: 'auditColTime', width: '11%' },
+  { key: 'auditColDesk', width: '9%' },
+  { key: 'auditColCase', width: '10%' },
+  { key: 'auditColAction', width: '7%' },
+  { key: 'auditColSla', width: '7%', numeric: true },
+  { key: 'auditColSlaLimit', width: '7%', numeric: true },
+  { key: 'auditColLedger', width: '16.5%' },
+  { key: 'auditColAmount', width: '9%', numeric: true },
+  { key: 'auditColStatus', width: '10%' },
+  { key: 'auditColCompliance', width: '10%' },
+];
+
 /** The official audit report: national motto header, numbered sections, summary, the detailed log and sign-off blocks. */
-export function AuditReport({ log, m, issued }: { log: readonly AuditEntry[]; m: M; issued: Date }) {
+export function AuditReport({ log, m: tm, issued }: { log: readonly AuditEntry[]; m: M; issued: Date }) {
+  const m = nfcMessages(tm);
   const sum = auditSummary(log);
   const desks = [...new Set(log.map((e) => e.role))].map((r) => m(k(`role_${r}_title`))).join(', ') || '—';
   const issues = sum.compliance.SLA_BREACH + sum.compliance.SOP_BREACH;
-  const cell = 'border border-black px-1.5 py-0.5 align-top';
+  const cell = 'border border-black px-2 py-1 align-top';
+  const num = `${cell} whitespace-nowrap text-right tabular-nums`;
   const row = (label: string, value: string | number) => (
     <tr>
       <td className={cell}>{label}</td>
-      <td className={`${cell} text-right tabular-nums`}>{value}</td>
+      <td className={num}>{value}</td>
     </tr>
   );
   return (
-    <article className="bg-white font-serif text-[12px] leading-snug text-black" data-testid="audit-report" data-entries={log.length}>
+    <article
+      className="pc-audit-report bg-white text-[12px] leading-snug text-black"
+      style={{ fontFamily: REPORT_FONT, letterSpacing: 'normal', fontSynthesis: 'none' }}
+      data-testid="audit-report"
+      data-entries={log.length}
+    >
       <header className="grid grid-cols-2 gap-4 text-center">
         <div>
           <div className="font-bold uppercase">{m('rptBank')}</div>
@@ -1044,6 +1171,9 @@ export function AuditReport({ log, m, issued }: { log: readonly AuditEntry[]; m:
       <h1 className="mt-5 text-center text-[16px] font-bold uppercase">{m('rptTitle')}</h1>
       <p className="text-center italic">{m('rptSubtitle')}</p>
       <p className="mt-1 text-center text-[10.5px] italic">{m('rptBasis')}</p>
+      <p className="mx-auto mt-1.5 w-fit border border-black px-2 py-0.5 text-center text-[10.5px] font-bold" role="note" data-testid="audit-disclaimer">
+        {AUDIT_DISCLAIMER}
+      </p>
 
       <h2 className="mt-4 font-bold uppercase">{m('rptSec1')}</h2>
       <ul className="ml-4 list-disc">
@@ -1070,30 +1200,43 @@ export function AuditReport({ log, m, issued }: { log: readonly AuditEntry[]; m:
       {log.length === 0 ? (
         <p className="italic">{m('auditEmpty')}</p>
       ) : (
-        <table className="mt-1 w-full border-collapse text-[10.5px]" data-testid="audit-table">
+        <table className="mt-1 w-full table-fixed border-collapse text-[10.5px]" data-testid="audit-table">
+          <colgroup>
+            {AUDIT_TABLE_COLS.map((c) => (
+              <col key={c.key} style={{ width: c.width }} />
+            ))}
+          </colgroup>
           <thead>
             <tr className="bg-gray-100">
-              <th className={cell}>{m('rptColNo')}</th>
-              {AUDIT_CSV_COLUMNS.map((key) => (
-                <th key={key} className={cell}>
-                  {m(key)}
+              {AUDIT_TABLE_COLS.map((c) => (
+                <th key={c.key} className={`${cell} break-normal font-bold ${c.numeric ? 'text-right' : 'text-left'}`}>
+                  {m(c.key)}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {log.map((e) => (
-              <tr key={e.seq} data-seq={e.seq} data-compliance={e.compliance}>
-                <td className={`${cell} text-right`}>{e.seq}</td>
+              <tr key={e.seq} data-seq={e.seq} data-compliance={e.compliance} style={{ breakInside: 'avoid' }}>
+                <td className={num}>{e.seq}</td>
                 <td className={`${cell} whitespace-nowrap`}>{auditTime(e.at)}</td>
-                <td className={cell}>{e.station}</td>
-                <td className={`${cell} font-mono`}>{e.caseId}</td>
+                <td className={`${cell} break-all`}>{e.station}</td>
+                <td className={`${cell} break-all`}>{e.caseId}</td>
                 <td className={cell}>{auditActionLabel(e.action, m)}</td>
-                <td className={`${cell} text-right tabular-nums`}>{e.latencySec.toFixed(1)}</td>
-                <td className={`${cell} text-right tabular-nums`}>{e.slaSec}</td>
-                <td className={`${cell} font-mono`}>{ledgerEntryCode(e.lines, m('auditMemo'))}</td>
-                <td className={`${cell} text-right tabular-nums`}>{money(e.amountCents)}</td>
-                <td className={`${cell} font-mono`}>{e.statusCode}</td>
+                <td className={num}>{e.latencySec.toFixed(1)}</td>
+                <td className={num}>{e.slaSec}</td>
+                <td className={cell} title={ledgerEntryCode(e.lines, m('auditMemo'))}>
+                  {/* One Dr/Cr leg per line, never split inside a leg. */}
+                  {e.lines.length
+                    ? e.lines.map((l, i) => (
+                        <span key={`${l.gl}-${i}`} className="block whitespace-nowrap">
+                          {`${l.dr ? 'Dr' : 'Cr'} ${GL_CODE[l.gl]}`}
+                        </span>
+                      ))
+                    : m('auditMemo')}
+                </td>
+                <td className={num}>{money(e.amountCents)}</td>
+                <td className={`${cell} break-all`}>{e.statusCode}</td>
                 <td className={`${cell} ${e.compliance === 'COMPLIANT' ? '' : 'font-bold'}`}>{complianceLabel(e.compliance, m)}</td>
               </tr>
             ))}
@@ -1439,7 +1582,7 @@ export function CareerCard({ career, m }: { career: CareerProgress; m: M }) {
   const st = careerStanding(career.xp);
   const next = CAREER_RANKS[CAREER_RANKS.findIndex((r) => r.id === st.rank) + 1];
   return (
-    <div className="flex min-w-[13rem] items-center gap-2.5 rounded-xl border border-amber-400/30 bg-gradient-to-r from-amber-400/10 to-slate-900 px-2.5 py-1.5" title={m('careerHint')} data-testid="workspace-career" data-rank={st.rank} data-level={st.level}>
+    <div className="flex min-w-[13rem] shrink-0 items-center gap-2.5 rounded-xl border border-amber-400/30 bg-gradient-to-r from-amber-400/10 to-slate-900 px-2.5 py-1.5" title={m('careerHint')} data-testid="workspace-career" data-rank={st.rank} data-level={st.level}>
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-900 text-[20px] ring-1 ring-amber-400/50" aria-hidden="true">
         {st.icon}
       </span>
@@ -1634,7 +1777,7 @@ function DecisionPanel({
 // Header pickers and the desk-switch guard
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PICKER = 'max-w-[14rem] truncate rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-[12px] font-semibold text-slate-100 transition hover:border-slate-500 focus:border-sky-400 focus:outline-none';
+const PICKER = 'min-w-[11rem] max-w-[16rem] shrink-0 truncate rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-[12px] font-semibold text-slate-100 transition hover:border-slate-500 focus:border-sky-400 focus:outline-none';
 
 function RolePicker({ role, onPick, m }: { role: StaffRoleId; onPick: (role: StaffRoleId) => void; m: M }) {
   return (
@@ -1757,6 +1900,8 @@ export function AnalystWorkspaceView({
   const [auditOpen, setAuditOpen] = useState(false);
   /** The case whose advice the learner revealed in Expert mode. */
   const [revealedFor, setRevealedFor] = useState<string | null>(null);
+  /** The Decision Support card starts collapsed; Standard mode keeps the learner's choice, Expert mode asks again per case. */
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const unlock = badgeUnlocks[0] ?? null;
   const terms = useTerms();
   const m = useMessages(analystWorkspaceMessages);
@@ -1851,38 +1996,41 @@ export function AnalystWorkspaceView({
         className={`relative flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border bg-slate-950 shadow-2xl transition-shadow duration-500 ${incidentId === 'AUDIT_DAY' ? 'border-rose-500/80' : tier === 'zone' ? 'border-amber-300/80' : 'border-slate-700'}`}
         style={{ boxShadow: glow }}
       >
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-4 py-2.5 xl:flex-nowrap">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 xl:flex-nowrap">
+        {/* Two wrapping rows that never overlap: identity and pickers first, then the toolbar; every item keeps its own width. */}
+        <header className="relative z-20 flex flex-col gap-2 border-b border-slate-800 bg-slate-950 px-4 py-2.5" data-testid="workspace-header">
+          <div className="flex flex-wrap items-center gap-3">
             <CareerCard career={career} m={m} />
-            <div className="min-w-0 xl:max-w-[18rem]">
-              <h2 id="analyst-workspace-title" className="text-[14px] font-bold text-slate-50">
+            <div className="min-w-[13rem] max-w-[22rem] flex-1 basis-[13rem]">
+              <h2 id="analyst-workspace-title" className="whitespace-normal break-normal text-[14px] font-bold leading-tight text-slate-50">
                 {m('title')}
               </h2>
-              <p className="text-[11px] text-slate-500">
+              <p className="whitespace-normal break-normal text-[11px] leading-snug text-slate-500">
                 {m('paused')} · {m('keysHint')}
               </p>
             </div>
-            <div className="flex min-w-0 flex-wrap items-center gap-2" data-testid="workspace-pickers">
+            <div className="relative z-10 flex flex-wrap items-center gap-3" data-testid="workspace-pickers">
               <RolePicker role={role} onPick={pickRole} m={m} />
               <TaskPicker role={role} task={task} onPick={onTaskChange} m={m} />
             </div>
+            <button type="button" onClick={onClose} data-testid="workspace-close" className="ml-auto shrink-0 rounded-lg border border-slate-700 px-3 py-1.5 text-[12px] font-medium text-slate-200 transition hover:bg-slate-800">
+              {m('close')}
+            </button>
           </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3" data-testid="workspace-toolbar">
             <IncidentToggle on={incidentMode} onToggle={onToggleIncidentMode} m={m} />
             <BadgesButton unlocked={career.badges.length} onOpen={() => setBadgesOpen(true)} m={m} />
             <CoreLedgerCard kpis={retailKpis(ledger)} onOpen={() => setLedgerOpen(true)} m={m} />
             <AuditButton count={auditLog.length} onOpen={() => setAuditOpen(true)} m={m} />
-            <SoundToggle m={m} />
-            <LanguageToggle variant="globe" testId="workspace-language" />
-            <ModeToggle mode={mode} onChange={setMode} m={m} />
-            <ChallengeToggle running={challenge.run !== null} remainingSec={remainingSec} onStart={cc.start} onStop={cc.stop} m={m} />
-            <button type="button" onClick={onClose} data-testid="workspace-close" className="rounded-lg border border-slate-700 px-3 py-1.5 text-[12px] font-medium text-slate-200 transition hover:bg-slate-800">
-              {m('close')}
-            </button>
+            <div className="flex items-center gap-3 sm:ml-auto">
+              <SoundToggle m={m} />
+              <LanguageToggle variant="globe" testId="workspace-language" />
+              <ModeToggle mode={mode} onChange={setMode} m={m} />
+              <ChallengeToggle running={challenge.run !== null} remainingSec={remainingSec} onStart={cc.start} onStop={cc.stop} m={m} />
+            </div>
           </div>
         </header>
         {incident && <IncidentBanner incident={incident} reviews={shift.reviews} sla={sla} m={m} />}
-        <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(250px,300px)_1fr_minmax(230px,270px)] lg:overflow-hidden">
+        <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(250px,300px)_minmax(0,1fr)_minmax(230px,270px)] lg:overflow-hidden">
           <MissionPanel role={role} task={task} mode={mode} m={m} deskName={terms.stationTitle(desk)} sla={sla} />
           <ScenarioCard
             current={current}
@@ -1895,8 +2043,13 @@ export function AnalystWorkspaceView({
             showDrill={task === RANDOM_TASK}
             sla={sla}
             masked={masked}
-            adviceRevealed={current !== null && revealedFor === current.id}
-            onRevealAdvice={() => current && setRevealedFor(current.id)}
+            adviceRevealed={current !== null && !isCollapsed && (mode === 'standard' || revealedFor === current.id)}
+            onRevealAdvice={() => {
+              if (!current) return;
+              setIsCollapsed(false);
+              if (mode === 'expert') setRevealedFor(current.id);
+            }}
+            onHideAdvice={() => setIsCollapsed(true)}
           />
           <DecisionPanel
             shift={shift}

@@ -3,7 +3,7 @@ import { BEATS_PER_DAY, DAY_END, DAY_START, EOD_START, WORK_END, WORK_START, bea
 import { COVER_COST_CENTS, FRICTION_COST_CENTS, INVESTIGATION_COST_CENTS, bnplDefaultRate, compareReports, emptyKpis, formatDelta, formatKpi, formatMoney, pnl } from '../kpis';
 import { Rng, hashSeed } from '../prng';
 import { DEFAULT_RULES, RULE_KEYS, RULE_META, changedRules, clampRules, rulesEqual } from '../rules';
-import { MAX_COVER_PER_STATION, fatigueChange, mistakeChance, productivityFor, rosterFor } from '../roster';
+import { MAX_COVER_PER_STATION, fatigueChange, mistakeChance, productivityFor, rosterFor, STAMINA_RECOVERY, staminaRecovery } from '../roster';
 import { SERVICE_ORDER, STATIONS, STATION_IDS, WIRES, hasWire, isStation } from '../topology';
 import { DAY_EVENTS, WORKING_BEATS, eventForDay, generateDay, intensityAt, makeSettlement } from '../traffic';
 import type { DayReport } from '../types';
@@ -138,6 +138,14 @@ describe('people', () => {
     expect(productivityFor(100)).toBeGreaterThan(0.4);
     expect(fatigueChange(60, 1)).toBeGreaterThan(fatigueChange(60, 0.5));
     expect(fatigueChange(60, 0)).toBeLessThan(0);
+  });
+
+  it('a quiet desk (load under 30%) gives its people their stamina back; a busy one does not', () => {
+    expect(STAMINA_RECOVERY.belowLoad).toBe(0.3);
+    expect(staminaRecovery(60, 0.1)).toBeGreaterThan(0);
+    expect(staminaRecovery(60, 0.29)).toBe(staminaRecovery(60, 0));
+    expect(staminaRecovery(60, 0.3)).toBe(0);
+    expect(staminaRecovery(60, 0.9)).toBe(0);
   });
 
   it('mistakes only start when someone is quite worn out', () => {

@@ -7,6 +7,7 @@ import { analystWorkspaceMessages } from '../analystWorkspace.messages';
 import {
   AnalystWorkspaceView,
   AUDIT_CSV_COLUMNS,
+  AUDIT_DISCLAIMER,
   auditCsv,
   AuditExportDialog,
   AuditReport,
@@ -14,6 +15,7 @@ import {
   auditSummary,
   ChallengeScorecard,
   ledgerEntryCode,
+  nfc,
   type AnalystWorkspaceViewProps,
 } from '../AnalystWorkspaceModal';
 
@@ -124,6 +126,33 @@ describe('the printable audit report', () => {
     expect(out).toContain('data-compliance="SOP_BREACH"');
     expect(out).toContain(esc(vi('rptConclusionIssues', { n: 1 })));
     expect(auditSummary(entries)).toMatchObject({ total: 3, compliance: { COMPLIANT: 2, SLA_BREACH: 0, SOP_BREACH: 1 }, ratePct: 66.7 });
+  });
+
+  it('carries the one-line English simulation disclaimer under the regulatory reference, in both languages', () => {
+    for (const m of [en, vi]) {
+      const out = renderToStaticMarkup(createElement(AuditReport, { log: worked('ekyc', 1, 1).getState().auditLog, m, issued: AT }));
+      expect(out).toContain(AUDIT_DISCLAIMER);
+      expect(out.indexOf('data-testid="audit-disclaimer"')).toBeGreaterThan(out.indexOf(esc(m('rptBasis'))));
+      expect(out.indexOf('data-testid="audit-disclaimer"')).toBeLessThan(out.indexOf(esc(m('rptSec1'))));
+    }
+  });
+
+  it('prints in a system sans-serif with Vietnamese in Unicode Form C, so accents never split off their letters', () => {
+    const decomposed = (key: Key, values?: Record<string, string | number>): string => vi(key, values).normalize('NFD');
+    const out = renderToStaticMarkup(createElement(AuditReport, { log: worked('ekyc', 1, 1).getState().auditLog, m: decomposed as typeof vi, issued: AT }));
+    expect(out).not.toMatch(/[\u0300-\u036f]/);
+    expect(out).toContain(esc(msgs.rptSec3.vi.normalize('NFC')));
+    expect(out).toMatch(/font-family:Arial, Helvetica, sans-serif/);
+    expect(out).not.toContain('font-serif');
+    expect(nfc('Khối'.normalize('NFD'))).toBe('Khối');
+    expect(auditCsv(worked('ekyc', 1, 1).getState().auditLog, decomposed as typeof vi)).not.toMatch(/[\u0300-\u036f]/);
+  });
+
+  it('right-aligns the numeric columns of the detailed log and keeps each Dr/Cr leg on one line', () => {
+    const out = renderToStaticMarkup(createElement(AuditReport, { log: worked('ekyc', 1, 1).getState().auditLog, m: en, issued: AT }));
+    const table = out.slice(out.indexOf('data-testid="audit-table"'));
+    expect(table.match(/<col /g)).toHaveLength(AUDIT_CSV_COLUMNS.length + 1);
+    for (const key of ['auditColSla', 'auditColSlaLimit', 'auditColAmount'] as const) expect(table).toMatch(new RegExp(`text-right">${esc(msgs[key].en).replace(/[()]/g, '\\$&')}<`));
   });
 
   it('says so when every decision complied, and when there is nothing to report', () => {

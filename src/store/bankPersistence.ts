@@ -15,7 +15,7 @@ import { clampRules, RULE_KEYS, type BankRules } from '../sim/rules';
 import { isTermMode, type TermMode } from '../sim/terms';
 import { DAY_EVENTS } from '../sim/traffic';
 import type { CarryRecord, CarryState, DayEvent, DayReport, NightShiftReport, SuspenseItem } from '../sim/types';
-import { STATION_IDS } from '../sim/topology';
+import { STATION_IDS, type StationId } from '../sim/topology';
 import {
   BADGES,
   EMPTY_CAREER,
@@ -421,7 +421,11 @@ function decodeJournal(v: unknown): JournalEntry | null {
   if (!Array.isArray(o.lines)) return null;
   const lines = o.lines.map(decodeLine);
   if (lines.some((l) => l === null) || !journalBalanced(lines as LedgerLine[])) return null;
-  return { caseId: o.caseId, ...source, decision: o.decision, statusCode: o.statusCode, lines: lines as LedgerLine[] };
+  const stamp = {
+    ...(typeof o.station === 'string' && (STATION_IDS as readonly string[]).includes(o.station) ? { station: o.station as StationId } : {}),
+    ...(typeof o.at === 'string' && !Number.isNaN(Date.parse(o.at)) ? { at: o.at } : {}),
+  };
+  return { caseId: o.caseId, ...source, decision: o.decision, statusCode: o.statusCode, lines: lines as LedgerLine[], ...stamp };
 }
 
 /**
