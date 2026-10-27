@@ -1415,20 +1415,22 @@ export interface AuditSummary {
   total: number;
   actions: Readonly<Record<AuditEntry['action'], number>>;
   compliance: Readonly<Record<AuditEntry['compliance'], number>>;
-  /** Share of decisions that were compliant, 0-100. */
+  /** Share of the graded decisions that were compliant, 0-100 (restored rows are not graded). */
   ratePct: number;
+  /** Average decision time over the graded decisions. */
   avgSlaSec: number;
 }
 
 export function auditSummary(log: readonly AuditEntry[]): AuditSummary {
   const count = <T extends string>(keys: readonly T[], of: (e: AuditEntry) => T): Record<T, number> => Object.fromEntries(keys.map((key) => [key, log.filter((e) => of(e) === key).length])) as Record<T, number>;
-  const compliance = count(['COMPLIANT', 'SLA_BREACH', 'SOP_BREACH'] as const, (e) => e.compliance);
+  const compliance = count(['COMPLIANT', 'SLA_BREACH', 'SOP_BREACH', 'UNVERIFIED'] as const, (e) => e.compliance);
+  const graded = log.filter((e) => e.compliance !== 'UNVERIFIED');
   return {
     total: log.length,
     actions: count(['APPROVE', 'REJECT', 'FREEZE'] as const, (e) => e.action),
     compliance,
-    ratePct: log.length ? Math.round((1000 * compliance.COMPLIANT) / log.length) / 10 : 0,
-    avgSlaSec: log.length ? Math.round((10 * log.reduce((s, e) => s + e.latencySec, 0)) / log.length) / 10 : 0,
+    ratePct: graded.length ? Math.round((1000 * compliance.COMPLIANT) / graded.length) / 10 : 0,
+    avgSlaSec: graded.length ? Math.round((10 * graded.reduce((s, e) => s + e.latencySec, 0)) / graded.length) / 10 : 0,
   };
 }
 
@@ -1532,6 +1534,7 @@ export function AuditReport({ log, m: tm, issued, view = 'advanced' }: { log: re
           {row(complianceLabel('COMPLIANT', m), sum.compliance.COMPLIANT)}
           {row(complianceLabel('SLA_BREACH', m), sum.compliance.SLA_BREACH)}
           {row(complianceLabel('SOP_BREACH', m), sum.compliance.SOP_BREACH)}
+          {sum.compliance.UNVERIFIED > 0 && row(complianceLabel('UNVERIFIED', m), sum.compliance.UNVERIFIED)}
           {row(m('rptRate'), `${sum.ratePct}%`)}
           {row(m('rptAvgSla'), `${sum.avgSlaSec}s`)}
         </tbody>
@@ -1574,11 +1577,12 @@ export function AuditReport({ log, m: tm, issued, view = 'advanced' }: { log: re
                 <td className={cell} title={`${m('auditColAction')}: ${auditActionLabel(e.action, m)}`}>
                   {auditActionLabel(e.action, m)}
                 </td>
-                <td className={num} title={`${m('auditColSla')}: ${e.latencySec.toFixed(1)}`}>
-                  {e.latencySec.toFixed(1)}
+                {/* A row restored from the ledger has no timing on record: a dash, never a made-up 0.0. */}
+                <td className={num} title={`${m('auditColSla')}: ${e.compliance === 'UNVERIFIED' ? '—' : e.latencySec.toFixed(1)}`}>
+                  {e.compliance === 'UNVERIFIED' ? '—' : e.latencySec.toFixed(1)}
                 </td>
-                <td className={num} title={`${m('auditColSlaLimit')}: ${e.slaSec}`}>
-                  {e.slaSec}
+                <td className={num} title={`${m('auditColSlaLimit')}: ${e.compliance === 'UNVERIFIED' ? '—' : e.slaSec}`}>
+                  {e.compliance === 'UNVERIFIED' ? '—' : e.slaSec}
                 </td>
                 <td className={cell} title={`${m('auditColLedger')}: ${ledgerEntryCode(e.lines, m('auditMemo'))}`}>
                   {/* One Dr/Cr leg per line, never split inside a leg. */}
@@ -1627,10 +1631,59 @@ export function AuditReport({ log, m: tm, issued, view = 'advanced' }: { log: re
 }
 
 /** Export actions and a preview of the printed report. The print copy is portalled to <body> so only it reaches the page. */
+export type AuditScope = 'shift' | 'all';
+
+/** The rows a report scope covers: the decisions of shift `shift`, or every recorded one. */
+export const auditScopeLog = (log: readonly AuditEntry[], scope: AuditScope, shift: number): readonly AuditEntry[] => (scope === 'all' ? log : log.filter((e) => e.shift === shift));
+
+function AuditScopeToggle({ scope, onChange, counts, m }: { scope: AuditScope; onChange: (scope: AuditScope) => void; counts: Readonly<Record<AuditScope, number>>; m: M }) {
+  const option = (value: AuditScope, label: string, hint: string) => (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={scope === value}
+      onClick={() => onChange(value)}
+      title={hint}
+      data-testid={`workspace-audit-scope-${value}`}
+      className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1 text-[11.5px] font-semibold transition ${scope === value ? 'bg-emerald-400 text-slate-950' : 'text-slate-300 hover:bg-slate-800'}`}
+    >
+      {label}
+      <span className={`rounded-full px-1.5 text-[10px] font-bold tabular-nums ${scope === value ? 'bg-slate-950/20' : 'bg-slate-700 text-slate-200'}`}>{counts[value]}</span>
+    </button>
+  );
+  return (
+    <div role="radiogroup" aria-label={m('auditScopeLabel')} className="flex shrink-0 rounded-lg border border-slate-700 bg-slate-900 p-0.5" data-testid="workspace-audit-scope" data-scope={scope}>
+      {option('shift', m('auditScopeShift'), m('auditScopeShiftHint'))}
+      {option('all', m('auditScopeAll'), m('auditScopeAllHint'))}
+    </div>
+  );
+}
+
 /** The report page's width in the preview, close to A4 landscape at 96 dpi. */
 const REPORT_PAGE_PX = 1100;
 
-export function AuditExportDialog({ log, m, onClose, issued = new Date(), initialView = 'basic' }: { log: readonly AuditEntry[]; m: M; onClose: () => void; issued?: Date; initialView?: ViewMode }) {
+export function AuditExportDialog({
+  log: fullLog,
+  m,
+  onClose,
+  issued = new Date(),
+  initialView = 'basic',
+  shift = null,
+  initialScope,
+}: {
+  log: readonly AuditEntry[];
+  m: M;
+  onClose: () => void;
+  issued?: Date;
+  initialView?: ViewMode;
+  /** The shift in progress; without one the report always covers the whole history. */
+  shift?: number | null;
+  initialScope?: AuditScope;
+}) {
+  const shiftCount = shift === null ? 0 : auditScopeLog(fullLog, 'shift', shift).length;
+  // Open on the current shift when it has decisions, otherwise on the whole history, so the report is never blank needlessly.
+  const [scope, setScope] = useState<AuditScope>(initialScope ?? (shift !== null && shiftCount > 0 ? 'shift' : 'all'));
+  const log = shift === null ? fullLog : auditScopeLog(fullLog, scope, shift);
   const [view, setView] = useState<ViewMode>(initialView);
   const [zoom, setZoom] = useState(1);
   const [pointer, setPointer] = useState<PointerMode>('select');
@@ -1663,12 +1716,20 @@ export function AuditExportDialog({ log, m, onClose, issued = new Date(), initia
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900/80 px-5 py-2" data-testid="workspace-audit-controls">
-          <ViewModeToggle view={view} onChange={setView} testId="workspace-audit-view" />
+          <div className="flex flex-wrap items-center gap-2">
+            {shift !== null && <AuditScopeToggle scope={scope} onChange={setScope} counts={{ shift: shiftCount, all: fullLog.length }} m={m} />}
+            <ViewModeToggle view={view} onChange={setView} testId="workspace-audit-view" />
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <PointerModeToggle mode={pointer} onChange={setPointer} testId="workspace-audit-pointer" />
             <ZoomBar zoom={zoom} onZoom={setZoom} testId="workspace-audit-zoom" />
           </div>
         </div>
+        {scope === 'shift' && log.length === 0 && fullLog.length > 0 && (
+          <p className="border-b border-amber-400/40 bg-amber-400/10 px-5 py-1.5 text-[12px] font-semibold text-amber-100" data-testid="workspace-audit-shift-empty">
+            {m('auditScopeShiftEmpty', { n: fullLog.length })}
+          </p>
+        )}
         {/* The preview scrolls on its own, capped below the viewport, so no section is cut off at any zoom or screen size. */}
         <div
           ref={preview}
@@ -2296,6 +2357,8 @@ export interface AnalystWorkspaceViewProps {
   onResetLedger?: () => void;
   /** The session's audit trail, for the export. */
   auditLog?: readonly AuditEntry[];
+  /** The shift new decisions are recorded under, for the audit report's Current Shift scope. */
+  auditShift?: number | null;
 }
 
 const NO_CHALLENGE: ChallengeState = { run: null, finished: null };
@@ -2328,6 +2391,7 @@ export function AnalystWorkspaceView({
   ledger = OPENING_LEDGER,
   onResetLedger = () => undefined,
   auditLog = NO_AUDIT,
+  auditShift = null,
 }: AnalystWorkspaceViewProps) {
   const [badgesOpen, setBadgesOpen] = useState(false);
   const [ledgerOpen, setLedgerOpen] = useState(false);
@@ -2509,7 +2573,7 @@ export function AnalystWorkspaceView({
         {incidentId === 'POWER_GRID_FAILOVER' && <PowerFlicker />}
         {consequence && !consequence.result.correct && <SopViolationPulse m={m} />}
         {challenge.finished && <ChallengeScorecard tally={challenge.finished} m={m} onAgain={cc.start} onClose={cc.dismiss} onExport={() => setAuditOpen(true)} />}
-        {auditOpen && <AuditExportDialog log={auditLog} m={m} onClose={() => setAuditOpen(false)} initialView={mode === 'expert' ? 'advanced' : 'basic'} />}
+        {auditOpen && <AuditExportDialog log={auditLog} m={m} onClose={() => setAuditOpen(false)} initialView={mode === 'expert' ? 'advanced' : 'basic'} shift={auditShift} />}
         {badgesOpen && <BadgeDrawer career={career} m={m} onClose={() => setBadgesOpen(false)} />}
         {ledgerOpen && <CoreLedgerSheet ledger={ledger} m={m} onClose={() => setLedgerOpen(false)} onReset={onResetLedger} initialView={mode === 'expert' ? 'advanced' : 'basic'} />}
         {unlock && <BadgeUnlockModal key={unlock} badge={unlock} m={m} onClose={onDismissBadgeUnlock} />}
@@ -2534,6 +2598,7 @@ export function AnalystWorkspaceModal() {
   const ledger = useBankStore((s) => s.retailLedger);
   const resetLedger = useBankStore((s) => s.resetRetailLedger);
   const auditLog = useBankStore((s) => s.auditLog);
+  const auditShift = useBankStore((s) => s.auditShift);
   const setTask = useBankStore((s) => s.setStaffTask);
   const switchDesk = useBankStore((s) => s.switchStaffDesk);
   const step = useBankStore((s) => s.step);
@@ -2594,6 +2659,7 @@ export function AnalystWorkspaceModal() {
       ledger={ledger}
       onResetLedger={resetLedger}
       auditLog={auditLog}
+      auditShift={auditShift}
     />
   );
 }

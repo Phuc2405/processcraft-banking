@@ -22,12 +22,12 @@ import type { TermMode } from '../sim/terms';
 import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
 import type { BankView, Customer, PacketTrace } from '../sim/types';
-import { addToTally, advanceIncident, buildTaskCase, caseJournal, CHALLENGE, crisisJournalLines, comboXp, STAFF_XP_PER_CORRECT, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, openingLedger, postJournal, recordCareerDecision, rollCrisis, roleForStation, SHIFT_TARGET, startIncident, type ActiveIncident, type IncidentId, type BadgeId, type CareerProgress, type ChallengeTally, type JournalEntry, type LedgerLine, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo, workingTask } from '../sim/staffRoleplay';
+import { addToTally, advanceIncident, buildTaskCase, caseJournal, CHALLENGE, crisisJournalLines, comboXp, STAFF_XP_PER_CORRECT, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, openingLedger, postJournal, recordCareerDecision, rollCrisis, roleForStation, ROLE_STATION, SHIFT_TARGET, startIncident, type ActiveIncident, type IncidentId, type BadgeId, type CareerProgress, type ChallengeTally, type LedgerLine, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo, workingTask } from '../sim/staffRoleplay';
 import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
 import { compareDays, type Comparison } from '../sim/whatIf';
-import { browserStorage, clampInspectorWidth, clearBank, loadBank, loadCareer, loadPrefs, loadRetailLedger, saveCareer, saveRetailLedger, loadUiPrefs, saveBank, savePrefs, saveUiPrefs, type BankPrefs, type BankSaveResult, type KeyValueStorage, type LabelMode, type UiPrefs, type ViewMode } from './bankPersistence';
+import { browserStorage, clampInspectorWidth, clearBank, loadAuditLog, loadBank, loadCareer, loadPrefs, loadRetailLedger, saveAuditLog, saveCareer, saveRetailLedger, loadUiPrefs, saveBank, savePrefs, saveUiPrefs, type BankPrefs, type BankSaveResult, type KeyValueStorage, type LabelMode, type UiPrefs, type ViewMode } from './bankPersistence';
 
 export type { ProcessId };
 /** The six chapters of the Academy, in the order of the Course Catalog. */
@@ -115,13 +115,19 @@ export const EMPTY_SHIFT: ShiftProgress = { reviews: 0, correct: 0, latencySumSe
 
 /** What the analyst did: an approval, a plain rejection, or a rejection whose journal froze the funds. */
 export type AuditAction = 'APPROVE' | 'REJECT' | 'FREEZE';
-/** A decision against the SOP is an SOP breach; a right decision taken after the SLA is an SLA breach. */
-export type ComplianceStatus = 'COMPLIANT' | 'SLA_BREACH' | 'SOP_BREACH';
+/**
+ * A decision against the SOP is an SOP breach; a right decision taken after the SLA is an SLA breach. UNVERIFIED marks a row
+ * rebuilt from a ledger journal saved before the trail itself was saved: what was decided is known, how fast and against which
+ * verdict is not, so it is never counted as compliant or as a breach.
+ */
+export type ComplianceStatus = 'COMPLIANT' | 'SLA_BREACH' | 'SOP_BREACH' | 'UNVERIFIED';
 
 /** One row of the audit trail: every desk decision, training, retail or live queue. */
 export interface AuditEntry {
   /** 1-based, in decision order. */
   seq: number;
+  /** The shift the decision was taken in: a new one starts with every page load and every desk switch. 0: restored from the ledger. */
+  shift: number;
   /** ISO 8601 timestamp of the decision. */
   at: string;
   station: StationId;
@@ -141,13 +147,47 @@ export interface AuditEntry {
   assisted: boolean;
 }
 
-/** The audit trail keeps the latest decisions of the session. */
+/** The audit trail keeps the latest decisions, across sessions (it is saved beside the ledger). */
 export const AUDIT_LOG_CAP = 1_000;
 
 export const auditActionOf = (r: Pick<StaffDecisionResult, 'decision' | 'journal'>): AuditAction =>
   r.decision === 'APPROVE' ? 'APPROVE' : r.journal?.lines.some((l) => l.gl === 'FROZEN_ASSETS' && l.cr > 0) ? 'FREEZE' : 'REJECT';
 
 export const complianceOf = (correct: boolean, latencySec: number, slaSec: number): ComplianceStatus => (!correct ? 'SOP_BREACH' : latencySec > slaSec ? 'SLA_BREACH' : 'COMPLIANT');
+
+/**
+ * The saved trail plus a row for every saved ledger journal it does not have (books kept from before the trail was saved).
+ * A recovered row carries what the journal knows (desk, case, decision, status, legs, time) and is marked UNVERIFIED, shift 0;
+ * it goes in time order before the trail's own rows, and every row is renumbered so seq stays 1, 2, 3…
+ */
+export function recoverAuditLog(log: readonly AuditEntry[], ledger: Pick<RetailLedger, 'journal'>): AuditEntry[] {
+  const known = new Set(log.map((e) => e.caseId));
+  const missing = [...ledger.journal]
+    .reverse()
+    .filter((j) => !known.has(j.caseId))
+    .map(
+      (j): AuditEntry => ({
+        seq: 0,
+        shift: 0,
+        at: j.at ?? new Date(0).toISOString(),
+        station: j.station ?? ROLE_STATION[j.role],
+        role: j.role,
+        caseId: j.caseId,
+        action: auditActionOf(j),
+        expected: null,
+        amountCents: j.lines.reduce((sum, l) => sum + l.dr, 0),
+        latencySec: 0,
+        slaSec: 0,
+        statusCode: j.statusCode,
+        lines: j.lines,
+        compliance: 'UNVERIFIED',
+        expert: false,
+        assisted: false,
+      }),
+    );
+  if (!missing.length) return [...log];
+  return [...missing, ...log].slice(-AUDIT_LOG_CAP).map((e, i) => ({ ...e, seq: i + 1 }));
+}
 
 export interface BankState {
   sim: BankSimulation;
@@ -243,8 +283,10 @@ export interface BankState {
   retailLedger: RetailLedger;
   /** Restarts the core ledger from its opening balances. */
   resetRetailLedger(): void;
-  /** Every desk decision of the session, oldest first, for the audit export (at most AUDIT_LOG_CAP). */
+  /** Every desk decision, oldest first, for the audit export (at most AUDIT_LOG_CAP). Saved, so it survives a reload like the ledger. */
   auditLog: AuditEntry[];
+  /** The shift new decisions are recorded under (AuditEntry.shift). */
+  auditShift: number;
   /** The running Time-Attack challenge (kept in the store so a language switch, which remounts the app, cannot reset it). */
   staffChallenge: { endsAt: number; tally: ChallengeTally } | null;
   /** The tally of the challenge that just ended, shown on the scorecard until dismissed. */
@@ -463,14 +505,13 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
     /** Whether the clock was running when the roleplay desk opened. */
     let staffResume = false;
 
-    /** Stamps a journal with the desk that posted it and the time, for the ledger's detail view. */
-    const stampJournal = (j: JournalEntry, station: StationId): JournalEntry => ({ ...j, station, at: now().toISOString() });
     /** Appends a decision to the audit trail. */
-    const audit = (log: readonly AuditEntry[], d: Pick<AuditEntry, 'station' | 'role' | 'caseId' | 'amountCents' | 'latencySec' | 'slaSec' | 'expert' | 'assisted'>, r: StaffDecisionResult): AuditEntry[] => {
+    const audit = (log: readonly AuditEntry[], d: Pick<AuditEntry, 'station' | 'role' | 'caseId' | 'amountCents' | 'latencySec' | 'slaSec' | 'expert' | 'assisted'>, r: StaffDecisionResult, at: string): AuditEntry[] => {
       const entry: AuditEntry = {
         ...d,
         seq: (log[log.length - 1]?.seq ?? 0) + 1,
-        at: now().toISOString(),
+        shift: get().auditShift,
+        at,
         latencySec: Math.max(0, d.latencySec),
         action: auditActionOf(r),
         expected: r.expected,
@@ -480,12 +521,35 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       };
       return [...log, entry].slice(-AUDIT_LOG_CAP);
     };
+    /**
+     * The one way a decision reaches the books: its journal (if it moves money) is posted and its audit row is appended in the
+     * same step, with the same timestamp, and both are saved. No path can post to the ledger without writing the trail.
+     */
+    const book = (
+      s: Pick<BankState, 'retailLedger' | 'auditLog'>,
+      d: Pick<AuditEntry, 'station' | 'role' | 'caseId' | 'amountCents' | 'latencySec' | 'slaSec' | 'expert' | 'assisted'>,
+      r: StaffDecisionResult,
+    ): Pick<BankState, 'retailLedger' | 'auditLog'> => {
+      const at = now().toISOString();
+      const retailLedger = r.journal ? postJournal(s.retailLedger, { ...r.journal, station: d.station, at }) : s.retailLedger;
+      const auditLog = audit(s.auditLog, d, r, at);
+      if (r.journal) saveRetailLedger(storage, retailLedger);
+      saveAuditLog(storage, auditLog);
+      return { retailLedger, auditLog };
+    };
     const incidentRandom = options.incidentRandom ?? Math.random;
     /** The crisis a shift at `station` opens with while Incident Mode runs the emergency queue (never the one that just ended), or none. */
     const rollFor = (station: StationId | null, on = get().staffIncidentMode, previous: IncidentId | null = null): ActiveIncident | null => {
       const role = station ? roleForStation(station) : null;
       return on && role ? startIncident(rollCrisis(role, incidentRandom, previous)) : null;
     };
+
+    const openingRetailLedger = loadRetailLedger(storage);
+    const savedAuditLog = loadAuditLog(storage, AUDIT_LOG_CAP);
+    const openingAuditLog = recoverAuditLog(savedAuditLog, openingRetailLedger);
+    if (openingAuditLog.length !== savedAuditLog.length) saveAuditLog(storage, openingAuditLog);
+    // Every page load opens a new shift, after the highest one on record.
+    const openingShift = openingAuditLog.reduce((n, e) => Math.max(n, e.shift), 0) + 1;
 
     const closeDay = (): void => {
       set({ playing: false, solo: false });
@@ -571,8 +635,9 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       career: loadCareer(storage),
       badgeUnlocks: [],
       dismissBadgeUnlock: () => set({ badgeUnlocks: get().badgeUnlocks.slice(1) }),
-      retailLedger: loadRetailLedger(storage),
-      auditLog: [],
+      retailLedger: openingRetailLedger,
+      auditLog: openingAuditLog,
+      auditShift: openingShift,
       resetRetailLedger: () => {
         const retailLedger = openingLedger();
         saveRetailLedger(storage, retailLedger);
@@ -611,7 +676,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       switchStaffDesk: (id) => {
         const s = get();
         if (!roleForStation(id) || !s.staffDesk || s.staffDesk === id) return;
-        set({ staffShift: {}, staffTask: 1, staffTaskSeq: 0, staffChallenge: null, staffChallengeResult: null, staffIncident: rollFor(id), career: { ...s.career, shift: EMPTY_SHIFT_LOG } });
+        set({ staffShift: {}, staffTask: 1, staffTaskSeq: 0, staffChallenge: null, staffChallengeResult: null, staffIncident: rollFor(id), career: { ...s.career, shift: EMPTY_SHIFT_LOG }, auditShift: s.auditShift + 1 });
         refresh({ staffDesk: id });
       },
 
@@ -641,9 +706,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         const staffIncident = shiftOver ? rollFor(s.staffDesk, s.staffIncidentMode, incident?.id ?? null) : incident && advanceIncident(incident, result.correct);
         const { career, unlocked } = recordCareerDecision(s.career, { role, drill: head.drill, expected: result.expected, decision, correct: result.correct, latencySec, expert, xp: next.xp - prev.xp });
         saveCareer(storage, career);
-        const retailLedger = result.journal ? postJournal(s.retailLedger, stampJournal(result.journal, head.station)) : s.retailLedger;
-        if (result.journal) saveRetailLedger(storage, retailLedger);
-        const auditLog = audit(s.auditLog, { station: head.station, role, caseId, amountCents: head.amountCents, latencySec, slaSec, expert, assisted }, result);
+        const { retailLedger, auditLog } = book(s, { station: head.station, role, caseId, amountCents: head.amountCents, latencySec, slaSec, expert, assisted }, result);
         set({ staffShift: { ...s.staffShift, [role]: next }, staffTaskSeq: s.staffTaskSeq + 1, staffIncident, career, retailLedger, auditLog, ...(unlocked.length ? { badgeUnlocks: [...s.badgeUnlocks, ...unlocked] } : {}) });
         return result;
       },
@@ -675,9 +738,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           ...bookCombo(prev, result.correct),
           last: result,
         };
-        const retailLedger = result.journal ? postJournal(s.retailLedger, stampJournal(result.journal, desk)) : s.retailLedger;
-        if (result.journal) saveRetailLedger(storage, retailLedger);
-        const auditLog = audit(s.auditLog, { station: desk, role, caseId: packetId, amountCents: reviewed?.amountCents ?? 0, latencySec, slaSec, expert: false, assisted: false }, result);
+        const { retailLedger, auditLog } = book(s, { station: desk, role, caseId: packetId, amountCents: reviewed?.amountCents ?? 0, latencySec, slaSec, expert: false, assisted: false }, result);
         refresh({ staffShift: { ...s.staffShift, [role]: next }, retailLedger, auditLog });
         return result;
       },

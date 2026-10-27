@@ -41,6 +41,7 @@ import {
   type StaffRoleId,
 } from '../sim/staffRoleplay';
 import { browserStorage, memoryStorage, STORAGE_VERSION, type KeyValueStorage } from './persistence';
+import type { AuditEntry } from './bankStore';
 
 export { browserStorage, memoryStorage };
 export type { KeyValueStorage };
@@ -462,5 +463,79 @@ export function saveRetailLedger(storage: KeyValueStorage | null, ledger: Retail
     storage?.setItem(RETAIL_LEDGER_KEY, JSON.stringify(ledger));
   } catch {
     // The books reopen at their opening balances.
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Audit trail: every desk decision, kept beside the ledger it posted to
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const AUDIT_LOG_KEY = `processcraft:v${STORAGE_VERSION}:auditLog`;
+
+const AUDIT_ACTIONS: ReadonlySet<string> = new Set(['APPROVE', 'REJECT', 'FREEZE']);
+const COMPLIANCE: ReadonlySet<string> = new Set(['COMPLIANT', 'SLA_BREACH', 'SOP_BREACH', 'UNVERIFIED']);
+const seconds = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null);
+
+function decodeAuditEntry(v: unknown): AuditEntry | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  if (!STAFF_ROLES.includes(o.role as StaffRoleId) || !(STATION_IDS as readonly string[]).includes(o.station as string)) return null;
+  if (typeof o.caseId !== 'string' || typeof o.statusCode !== 'string' || typeof o.at !== 'string' || Number.isNaN(Date.parse(o.at))) return null;
+  if (!AUDIT_ACTIONS.has(o.action as string) || !COMPLIANCE.has(o.compliance as string)) return null;
+  const seq = count(o.seq);
+  const amountCents = cents(o.amountCents);
+  const latencySec = seconds(o.latencySec);
+  const slaSec = seconds(o.slaSec);
+  if (seq < 1 || amountCents === null || latencySec === null || slaSec === null || !Array.isArray(o.lines)) return null;
+  const lines = o.lines.map(decodeLine);
+  if (lines.some((l) => l === null) || !journalBalanced(lines as LedgerLine[])) return null;
+  return {
+    seq,
+    shift: count(o.shift),
+    at: o.at,
+    station: o.station as StationId,
+    role: o.role as StaffRoleId,
+    caseId: o.caseId,
+    action: o.action as AuditEntry['action'],
+    expected: o.expected === 'APPROVE' || o.expected === 'REJECT' ? o.expected : null,
+    amountCents,
+    latencySec,
+    slaSec,
+    statusCode: o.statusCode,
+    lines: lines as LedgerLine[],
+    compliance: o.compliance as AuditEntry['compliance'],
+    expert: o.expert === true,
+    assisted: o.assisted === true,
+  };
+}
+
+/** Reads the audit trail back, oldest first; a row that does not decode is dropped, never guessed. */
+export function decodeAuditLog(raw: string | null, cap: number): AuditEntry[] {
+  if (!raw) return [];
+  try {
+    const o = JSON.parse(raw) as unknown;
+    if (!Array.isArray(o)) return [];
+    return o
+      .map(decodeAuditEntry)
+      .filter((e): e is AuditEntry => e !== null)
+      .slice(-cap);
+  } catch {
+    return [];
+  }
+}
+
+export function loadAuditLog(storage: KeyValueStorage | null, cap: number): AuditEntry[] {
+  try {
+    return decodeAuditLog(storage ? storage.getItem(AUDIT_LOG_KEY) : null, cap);
+  } catch {
+    return [];
+  }
+}
+
+export function saveAuditLog(storage: KeyValueStorage | null, log: readonly AuditEntry[]): void {
+  try {
+    storage?.setItem(AUDIT_LOG_KEY, JSON.stringify(log));
+  } catch {
+    // The trail keeps this session's decisions in memory.
   }
 }
