@@ -9,10 +9,17 @@ import { DEPARTMENTS, EXTERNAL_IDS, STATIONS, STATION_IDS, type PlaceId } from '
 import type { TermMode } from '../sim/terms';
 import type { AccountId } from '../types/processLearning';
 import { useBankStore } from '../store/bankStore';
+import { CORE_LEDGER_ARTICLE, isIntermediate } from '../data/knowledgeBase';
+import { pick } from '../i18n/locale';
+import { GL_ACCOUNTS } from '../sim/staffRoleplay';
+import { message } from '../utils/i18nHelper';
+import { analystWorkspaceMessages, type AnalystWorkspaceKey } from '../components/bank/analystWorkspace.messages';
+import { glossaryTerms, glPlain } from '../components/bank/codeGlossary';
 
-export type SearchCategory = 'station' | 'lesson' | 'gl';
+export type SearchCategory = 'station' | 'lesson' | 'gl' | 'kb';
 
-export type SearchAction = { kind: 'place'; place: PlaceId } | { kind: 'lesson'; level: LevelId };
+/** `knowledge` opens the Knowledge Base at an anchor: a section id, `gl-<ID>` for a ledger account or `term-<KEY>` for an acronym. */
+export type SearchAction = { kind: 'place'; place: PlaceId } | { kind: 'lesson'; level: LevelId } | { kind: 'knowledge'; anchor: string };
 
 export interface SearchEntry {
   id: string;
@@ -27,7 +34,7 @@ export interface SearchEntry {
 
 export type SearchGroups = Record<SearchCategory, SearchEntry[]>;
 
-export const SEARCH_CATEGORIES: readonly SearchCategory[] = ['station', 'lesson', 'gl'];
+export const SEARCH_CATEGORIES: readonly SearchCategory[] = ['station', 'lesson', 'gl', 'kb'];
 export const SEARCH_LIMIT = 6;
 
 // The desk on the map where each GL account is posted.
@@ -133,6 +140,51 @@ export function buildSearchIndex(mode: TermMode, locale: Locale = activeLocale()
       action: { kind: 'place', place: GL_PLACE[id] },
     });
   }
+  out.push(...knowledgeEntries(locale));
+  return out;
+}
+
+const LOCALES_BOTH: readonly Locale[] = ['en', 'vi'];
+
+/**
+ * The Knowledge Base in the search: the core ledger article's sections, every account the workspace ledger posts to (by GL
+ * number and by name in both languages), and every acronym of the code glossary. Each one opens the article at its anchor.
+ */
+export function knowledgeEntries(locale: Locale): SearchEntry[] {
+  const out: SearchEntry[] = [];
+  const article = pick(CORE_LEDGER_ARTICLE.title, locale);
+  for (const sec of CORE_LEDGER_ARTICLE.sections) {
+    out.push({
+      id: `kb:section:${sec.id}`,
+      category: 'kb',
+      label: pick(sec.title, locale),
+      detail: article,
+      keys: fold([...LOCALES_BOTH.map((l) => pick(sec.title, l)), ...sec.keywords].join(' | ')),
+      action: { kind: 'knowledge', anchor: sec.id },
+    });
+  }
+  for (const acc of GL_ACCOUNTS) {
+    const names = LOCALES_BOTH.flatMap((l) => [message(analystWorkspaceMessages, `gl_${acc.id}` as AnalystWorkspaceKey, undefined, l), glPlain(acc.id, l)]);
+    out.push({
+      id: `kb:gl:${acc.id}`,
+      category: 'kb',
+      label: `${acc.code} ${message(analystWorkspaceMessages, `gl_${acc.id}` as AnalystWorkspaceKey, undefined, locale)}`,
+      detail: glPlain(acc.id, locale),
+      keys: fold([acc.code, acc.id.replace(/_/g, ' '), ...names, isIntermediate(acc.id) ? 'intermediate trung gian' : ''].join(' | ')),
+      action: { kind: 'knowledge', anchor: `gl-${acc.id}` },
+    });
+  }
+  const meanings = new Map(glossaryTerms('vi').map((t) => [t.key, t.meaning]));
+  for (const t of glossaryTerms(locale)) {
+    out.push({
+      id: `kb:term:${t.key}`,
+      category: 'kb',
+      label: t.label,
+      detail: t.meaning,
+      keys: fold([t.key, t.meaning, meanings.get(t.key) ?? ''].join(' | ')),
+      action: { kind: 'knowledge', anchor: `term-${t.key}` },
+    });
+  }
   return out;
 }
 
@@ -155,8 +207,8 @@ export interface SearchResult {
 }
 
 export function searchIndex(index: readonly SearchEntry[], query: string, limit: number = SEARCH_LIMIT): SearchResult {
-  const groups: SearchGroups = { station: [], lesson: [], gl: [] };
-  const best: Record<SearchCategory, number> = { station: 0, lesson: 0, gl: 0 };
+  const groups: SearchGroups = { station: [], lesson: [], gl: [], kb: [] };
+  const best: Record<SearchCategory, number> = { station: 0, lesson: 0, gl: 0, kb: 0 };
   const q = fold(query);
   if (!q) return { groups, order: [] };
   const numeric = /^\d+$/.test(q);
@@ -164,7 +216,7 @@ export function searchIndex(index: readonly SearchEntry[], query: string, limit:
     .map((e, i) => {
       const base = scoreEntry(e, q);
       // A bare number is a GL code first.
-      return { e, i, s: base > 0 && numeric && e.category === 'gl' ? base + 5 : base };
+      return { e, i, s: base > 0 && numeric && (e.category === 'gl' || e.category === 'kb') ? base + 5 : base };
     })
     .filter((r) => r.s > 0)
     .sort((a, b) => b.s - a.s || a.i - b.i);

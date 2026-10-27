@@ -87,3 +87,34 @@ export function useGlossary(): Glossary {
     [locale],
   );
 }
+
+/** How a term key is written on screen when it is not simply its upper-case key. */
+const TERM_SPELLING: Readonly<Record<string, string>> = {
+  PACS008: 'pacs.008',
+  PACS004: 'pacs.004',
+  ISO20022: 'ISO 20022',
+  EKYC: 'eKYC',
+  CHARGEBACK: 'Chargeback',
+  NOSTRO: 'Nostro',
+  SUSPENSE: 'Suspense',
+  DR: 'Dr',
+  CR: 'Cr',
+};
+
+export interface GlossaryTerm {
+  /** The key after `term_` ("PACS008"): the anchor id of the term in the Knowledge Base. */
+  key: string;
+  /** As written on screen ("pacs.008"). */
+  label: string;
+  meaning: string;
+}
+
+/** Every acronym and term the glossary explains, in bundle order. */
+export function glossaryTerms(locale: Locale): GlossaryTerm[] {
+  return (Object.keys(MSGS) as CodeGlossaryKey[])
+    .filter((k) => k.startsWith('term_'))
+    .map((k) => {
+      const key = k.slice('term_'.length);
+      return { key, label: TERM_SPELLING[key] ?? key, meaning: say(k, locale) };
+    });
+}

@@ -463,8 +463,10 @@ describe('Incident Mode', () => {
     const seq = [0, 0];
     const store = createBankStore({ storage: null, seed: 2026, incidentRandom: () => seq.shift() ?? 1 });
     store.getState().openStaffDesk(ROLE_STATION.aml);
+    store.getState().setIncidentMode(true);
     expect(store.getState().staffIncident).toMatchObject({ id: 'AUDIT_DAY', compliance: 100 });
-    const head = buildTaskCase('aml', 1, 0);
+    // A bank-wide crisis serves all three drills (the Random task) in the emergency queue.
+    const head = buildTaskCase('aml', RANDOM_TASK, 0, 'AUDIT_DAY');
     store.getState().staffTrain(head.id, head.expected === 'APPROVE' ? 'REJECT' : 'APPROVE', 2, 30);
     expect(store.getState().staffShift.aml?.xp).toBe(-300);
     expect(store.getState().staffIncident).toMatchObject({ compliance: 100 - INCIDENT.auditComplianceDrop, reviews: 1 });
@@ -474,10 +476,12 @@ describe('Incident Mode', () => {
     store.getState().closeStaffDesk();
   });
 
-  it('defaults Incident Mode on, re-rolls when a shift ends and clears on close', () => {
+  it('defaults Incident Mode off, always opens a crisis when switched on, and clears on close', () => {
     const store = createBankStore({ storage: null, seed: 2026, incidentRandom: () => 0 });
-    expect(store.getState().staffIncidentMode).toBe(true);
+    expect(store.getState().staffIncidentMode).toBe(false);
     store.getState().openStaffDesk(ROLE_STATION.swift);
+    expect(store.getState().staffIncident).toBeNull();
+    store.getState().setIncidentMode(true);
     expect(store.getState().staffIncident?.id).toBe('AUDIT_DAY');
     store.getState().closeStaffDesk();
     expect(store.getState().staffIncident).toBeNull();

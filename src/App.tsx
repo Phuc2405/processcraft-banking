@@ -32,6 +32,7 @@ type View = 'bank' | 'lab';
 const AmlPanel = lazy(() => import('./components/ops/AmlPanel').then((m) => ({ default: m.AmlPanel })));
 const PaymentBenchmarkModal = lazy(() => import('./components/ops/PaymentBenchmarkModal').then((m) => ({ default: m.PaymentBenchmarkModal })));
 const ChaosPanel = lazy(() => import('./components/ops/ChaosPanel').then((m) => ({ default: m.ChaosPanel })));
+const KnowledgeBaseModal = lazy(() => import('./components/knowledge/KnowledgeBaseModal').then((m) => ({ default: m.KnowledgeBaseModal })));
 
 function Overlays() {
   const overlay = useUiStore((s) => s.overlay);
@@ -41,6 +42,7 @@ function Overlays() {
       {overlay === 'aml' && <AmlPanel />}
       {overlay === 'benchmark' && <PaymentBenchmarkModal />}
       {overlay === 'chaos' && <ChaosPanel />}
+      {overlay === 'knowledge' && <KnowledgeBaseModal />}
     </Suspense>
   );
 }

@@ -22,7 +22,7 @@ import type { TermMode } from '../sim/terms';
 import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
 import type { BankView, Customer, PacketTrace } from '../sim/types';
-import { addToTally, advanceIncident, buildTaskCase, caseJournal, CHALLENGE, comboXp, STAFF_XP_PER_CORRECT, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, openingLedger, postJournal, recordCareerDecision, rollIncident, roleForStation, SHIFT_TARGET, startIncident, type ActiveIncident, type BadgeId, type CareerProgress, type ChallengeTally, type JournalEntry, type LedgerLine, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo } from '../sim/staffRoleplay';
+import { addToTally, advanceIncident, buildTaskCase, caseJournal, CHALLENGE, crisisJournalLines, comboXp, STAFF_XP_PER_CORRECT, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, openingLedger, postJournal, recordCareerDecision, rollCrisis, roleForStation, SHIFT_TARGET, startIncident, type ActiveIncident, type IncidentId, type BadgeId, type CareerProgress, type ChallengeTally, type JournalEntry, type LedgerLine, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo, workingTask } from '../sim/staffRoleplay';
 import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
@@ -481,10 +481,10 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       return [...log, entry].slice(-AUDIT_LOG_CAP);
     };
     const incidentRandom = options.incidentRandom ?? Math.random;
-    /** A fresh roll for a shift at `station`, or none when Incident Mode is off. */
-    const rollFor = (station: StationId | null, on = get().staffIncidentMode): ActiveIncident | null => {
+    /** The crisis a shift at `station` opens with while Incident Mode runs the emergency queue (never the one that just ended), or none. */
+    const rollFor = (station: StationId | null, on = get().staffIncidentMode, previous: IncidentId | null = null): ActiveIncident | null => {
       const role = station ? roleForStation(station) : null;
-      return on && role ? startIncident(rollIncident(role, incidentRandom)) : null;
+      return on && role ? startIncident(rollCrisis(role, incidentRandom, previous)) : null;
     };
 
     const closeDay = (): void => {
@@ -566,7 +566,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       staffTaskSeq: 0,
       staffChallenge: null,
       staffChallengeResult: null,
-      staffIncidentMode: true,
+      staffIncidentMode: false,
       staffIncident: null,
       career: loadCareer(storage),
       badgeUnlocks: [],
@@ -579,7 +579,8 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         set({ retailLedger });
       },
 
-      setIncidentMode: (on) => set({ staffIncidentMode: on, staffIncident: on ? rollFor(get().staffDesk, true) : null }),
+      // On: the desk leaves its routine task for the emergency queue. Off: back to the task it was on, from its first case.
+      setIncidentMode: (on) => set({ staffIncidentMode: on, staffIncident: on ? rollFor(get().staffDesk, true) : null, staffTaskSeq: 0 }),
 
       startChallenge: (at = Date.now()) => set({ staffChallenge: { endsAt: at + CHALLENGE.durationSec * 1000, tally: EMPTY_TALLY }, staffChallengeResult: null, staffIncident: rollFor(get().staffDesk) }),
       stopChallenge: () => set({ staffChallenge: null }),
@@ -618,9 +619,12 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         const s = get();
         const role = s.staffDesk ? roleForStation(s.staffDesk) : null;
         const incident = s.staffIncident;
-        const head = role ? buildTaskCase(role, s.staffTask, s.staffTaskSeq, incident?.id ?? null) : null;
+        const crisis = s.staffIncidentMode && incident ? incident.id : null;
+        const head = role ? buildTaskCase(role, workingTask(s.staffTask, s.staffIncidentMode, crisis), s.staffTaskSeq, incident?.id ?? null) : null;
         if (!role || !head || head.id !== caseId) return { ok: false, packetId: caseId, decision, expected: null, correct: false, statusCode: 'NO_CASE' };
-        const result = gradeTaskCase(head, decision);
+        const graded = gradeTaskCase(head, decision);
+        // In the emergency queue the money goes to the risk and holding accounts (1920 dispute, 2912 suspense, 2930 frozen).
+        const result = crisis && graded.journal && !head.retail ? { ...graded, journal: { ...graded.journal, lines: crisisJournalLines(head, decision, crisis) } } : graded;
         const prev = s.staffShift[role] ?? EMPTY_SHIFT;
         const next: ShiftProgress = {
           reviews: prev.reviews + 1,
@@ -634,7 +638,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         if (!result.correct) next.xp -= incidentErrorXp(incident?.id);
         // Every SHIFT_TARGET.reviews decisions close a shift: the incident ends and the next shift rolls again.
         const shiftOver = next.reviews % SHIFT_TARGET.reviews === 0;
-        const staffIncident = shiftOver ? rollFor(s.staffDesk) : incident && advanceIncident(incident, result.correct);
+        const staffIncident = shiftOver ? rollFor(s.staffDesk, s.staffIncidentMode, incident?.id ?? null) : incident && advanceIncident(incident, result.correct);
         const { career, unlocked } = recordCareerDecision(s.career, { role, drill: head.drill, expected: result.expected, decision, correct: result.correct, latencySec, expert, xp: next.xp - prev.xp });
         saveCareer(storage, career);
         const retailLedger = result.journal ? postJournal(s.retailLedger, stampJournal(result.journal, head.station)) : s.retailLedger;

@@ -24,6 +24,8 @@ import {
   isAutomatedDesk,
   maskedFields,
   type ActiveIncident,
+  type IncidentId,
+  workingTask,
   RANDOM_TASK,
   RETAIL_DESK,
   RETAIL_TASK,
@@ -366,7 +368,7 @@ function ZoomFrame({ zoom, width, children }: { zoom: number; width: number; chi
 // Panel A
 // ─────────────────────────────────────────────────────────────────────────────
 
-function MissionPanel({ role, task, mode, m, deskName, sla = STAFF_SLA_SECONDS }: { role: StaffRoleId; task: StaffTaskNo; mode: WorkspaceMode; m: M; deskName: string; sla?: number }) {
+function MissionPanel({ role, task, mode, m, deskName, sla = STAFF_SLA_SECONDS, crisis = null }: { role: StaffRoleId; task: StaffTaskNo; mode: WorkspaceMode; m: M; deskName: string; sla?: number; crisis?: IncidentId | null }) {
   const expert = mode === 'expert';
   const gl = useGlossary();
   return (
@@ -393,12 +395,20 @@ function MissionPanel({ role, task, mode, m, deskName, sla = STAFF_SLA_SECONDS }
           </div>
         )}
       </div>
-      <div className="rounded-lg border border-sky-400/30 bg-sky-400/[0.06] px-2.5 py-2" data-testid="workspace-task" data-task={task}>
-        <Kicker>{m('taskTitle')}</Kicker>
-        <div className="mt-0.5 text-[13px] font-semibold text-sky-100">{m('taskOption', { n: task, title: m(taskTitleKey(role, task)) })}</div>
-        {task === RANDOM_TASK && <p className="mt-1 text-[11px] leading-snug text-slate-400">{m('taskRandomNote')}</p>}
-        {task === RETAIL_TASK && <p className="mt-1 text-[11px] leading-snug text-slate-400">{m('taskRetailNote')}</p>}
-      </div>
+      {crisis ? (
+        <div className="rounded-lg border border-rose-400/50 bg-rose-500/10 px-2.5 py-2" data-testid="workspace-task" data-task={task} data-crisis={crisis}>
+          <Kicker>{m('crisisQueue')}</Kicker>
+          <div className="mt-0.5 text-[13px] font-semibold text-rose-100">{m('crisisTaskTitle', { title: m(k(`incident_${crisis}_title`)) })}</div>
+          <p className="mt-1 text-[11px] leading-snug text-slate-400">{m('crisisTaskNote', { n: SHIFT_TARGET.reviews })}</p>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-sky-400/30 bg-sky-400/[0.06] px-2.5 py-2" data-testid="workspace-task" data-task={task}>
+          <Kicker>{m('taskTitle')}</Kicker>
+          <div className="mt-0.5 text-[13px] font-semibold text-sky-100">{m('taskOption', { n: task, title: m(taskTitleKey(role, task)) })}</div>
+          {task === RANDOM_TASK && <p className="mt-1 text-[11px] leading-snug text-slate-400">{m('taskRandomNote')}</p>}
+          {task === RETAIL_TASK && <p className="mt-1 text-[11px] leading-snug text-slate-400">{m('taskRetailNote')}</p>}
+        </div>
+      )}
       <div>
         <div className="text-[11px] font-bold tracking-wide text-amber-200" data-testid="workspace-sop-title">
           {m('sopTitle')}
@@ -1139,6 +1149,47 @@ export function JournalDetail({ j, m, view = 'advanced' }: { j: JournalEntry; m:
   );
 }
 
+const LEGEND_BADGES: readonly { tag: AnalystWorkspaceKey; text: AnalystWorkspaceKey }[] = [
+  { tag: 'labelSuspense', text: 'legendSuspense' },
+  { tag: 'labelNostro', text: 'legendNostro' },
+  { tag: 'labelDispute', text: 'legendDispute' },
+  { tag: 'labelFrozen', text: 'legendFrozen' },
+  { tag: 'labelCollateral', text: 'legendCollateral' },
+];
+
+/** The ledger's quick reference: the accounting equation, what each account tag means, and a door to the full article. */
+export function LedgerLegend({ m, onReadMore }: { m: M; onReadMore: () => void }) {
+  return (
+    <section className="border-b border-sky-400/30 bg-sky-500/[0.07] px-5 py-3" aria-label={m('legendTitle')} data-testid="workspace-ledger-legend">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 basis-[16rem]">
+          <Kicker>{m('legendTitle')}</Kicker>
+          <div className="mt-1 w-fit rounded-lg border border-emerald-400/50 bg-emerald-500/10 px-3 py-1 text-[14px] font-black text-emerald-100" data-testid="ledger-legend-equation">
+            {m('legendEquation')}
+          </div>
+          <p className="mt-1.5 text-[11.5px] leading-snug text-slate-300">{m('legendEquationNote')}</p>
+        </div>
+        <div className="min-w-0 flex-[2] basis-[20rem]">
+          <Kicker>{m('legendBadges')}</Kicker>
+          <dl className="mt-1 space-y-1 text-[11.5px] leading-snug">
+            {LEGEND_BADGES.map((b) => (
+              <div key={b.tag} className="flex min-w-0 items-baseline gap-2" data-tag={b.tag}>
+                <dt className="w-[7.5rem] shrink-0 truncate rounded bg-slate-800 px-1 text-center text-[9.5px] font-semibold uppercase tracking-wide text-slate-300" title={m(b.tag)}>
+                  {m(b.tag)}
+                </dt>
+                <dd className="min-w-0 text-slate-300">{m(b.text)}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </div>
+      <button type="button" onClick={onReadMore} data-testid="ledger-legend-read-more" className="mt-2 rounded-lg border border-sky-400/60 bg-sky-500/15 px-3 py-1.5 text-[12px] font-bold text-sky-100 transition hover:bg-sky-500/25">
+        {m('legendReadMore')}
+      </button>
+    </section>
+  );
+}
+
 const SHEET_SIDES: readonly { side: GlSide; title: AnalystWorkspaceKey }[] = [
   { side: 'asset', title: 'ledgerAssets' },
   { side: 'liability', title: 'ledgerLiabilities' },
@@ -1148,8 +1199,23 @@ const SHEET_SIDES: readonly { side: GlSide; title: AnalystWorkspaceKey }[] = [
 ];
 
 /** The workspace's core ledger: the four KPIs, the balance sheet and P&L by account, the balance check and the latest journals. */
-export function CoreLedgerSheet({ ledger, m, onClose, onReset, initialView = 'basic' }: { ledger: RetailLedger; m: M; onClose: () => void; onReset: () => void; initialView?: ViewMode }) {
+export function CoreLedgerSheet({
+  ledger,
+  m,
+  onClose,
+  onReset,
+  initialView = 'basic',
+  legendOpen: legendInitially = false,
+}: {
+  ledger: RetailLedger;
+  m: M;
+  onClose: () => void;
+  onReset: () => void;
+  initialView?: ViewMode;
+  legendOpen?: boolean;
+}) {
   const [view, setView] = useState<ViewMode>(initialView);
+  const [legend, setLegend] = useState(legendInitially);
   const basic = view === 'basic';
   const gl = useGlossary();
   const sum = ledgerSummary(ledger);
@@ -1168,6 +1234,15 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset, initialView = 'ba
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setLegend(!legend)}
+              aria-expanded={legend}
+              data-testid="workspace-ledger-legend-toggle"
+              className={`whitespace-nowrap rounded-lg border px-3 py-1.5 text-[12px] font-semibold transition ${legend ? 'border-sky-300 bg-sky-400 text-slate-950' : 'border-sky-400/50 bg-sky-500/10 text-sky-100 hover:bg-sky-500/20'}`}
+            >
+              {m('legendButton')}
+            </button>
             <ViewModeToggle view={view} onChange={setView} testId="workspace-ledger-view" />
             <button type="button" onClick={onReset} data-testid="workspace-ledger-reset" className="rounded-lg border border-slate-600 px-3 py-1.5 text-[12px] font-medium text-slate-300 transition hover:bg-slate-800">
               {m('ledgerReset')}
@@ -1177,6 +1252,7 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset, initialView = 'ba
             </button>
           </div>
         </div>
+        {legend && <LedgerLegend m={m} onReadMore={() => uiStore.getState().openKnowledge('core-ledger')} />}
         <div className="bk-scroll grid min-h-0 flex-1 gap-4 overflow-y-auto p-5 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]">
           <div className="min-w-0 space-y-3">
             <LedgerMetrics kpis={kpis} m={m} />
@@ -2135,6 +2211,32 @@ export function DeskKindBadge({ role, m }: { role: StaffRoleId; m: M }) {
   );
 }
 
+/** Stands in for the task picker while the emergency queue runs: the routine tasks are locked. */
+export function CrisisQueuePill({ m }: { m: M }) {
+  return (
+    <span
+      role="status"
+      title={m('crisisQueueHint')}
+      data-testid="workspace-crisis-queue"
+      className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-rose-400/70 bg-rose-500/15 px-2.5 py-1.5 text-[12px] font-bold text-rose-100"
+    >
+      {m('crisisQueue')}
+      <span aria-hidden="true">🔒</span>
+    </span>
+  );
+}
+
+/** The pulsing alarm over the case card while a crisis runs. */
+export function CrisisAlert({ incident, m }: { incident: IncidentId; m: M }) {
+  return (
+    <div role="alert" data-testid="workspace-crisis-alert" data-incident={incident} className="relative overflow-hidden rounded-xl border-2 border-rose-500 bg-rose-950/80 px-3.5 py-2 shadow-[0_0_24px_rgba(244,63,94,0.45)]">
+      <div className="pointer-events-none absolute inset-0 animate-pulse bg-rose-600/25" aria-hidden="true" />
+      <div className="relative text-[13px] font-black tracking-wide text-rose-50">{m('crisisAlert', { title: m(k(`incident_${incident}_title`)) })}</div>
+      <p className="relative mt-0.5 text-[11px] leading-snug text-rose-200/90">{m('crisisAlertSub')}</p>
+    </div>
+  );
+}
+
 export function SwitchDeskDialog({ target, m, onCancel, onConfirm }: { target: StaffRoleId; m: M; onCancel: () => void; onConfirm: () => void }) {
   return (
     <div className="absolute inset-0 z-20 grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm" data-testid="workspace-switch-backdrop">
@@ -2244,6 +2346,9 @@ export function AnalystWorkspaceView({
   const role = roleForStation(desk);
   const current = cases[0] ?? null;
   const incidentId = incident?.id ?? null;
+  /** The emergency queue: Incident Mode replaces the routine task with the running crisis's cases. */
+  const crisis = incidentMode && incidentId ? incidentId : null;
+  const working = workingTask(task, incidentMode, incidentId);
   const sla = incidentSlaSeconds(incidentId);
   const masked = useMemo(() => (current ? maskedFields(current, incidentId) : NONE_MASKED), [current, incidentId]);
   const elapsed = useCaseTimer(consequence ? null : (current?.id ?? null)) * incidentClockRate(incidentId);
@@ -2278,6 +2383,8 @@ export function AnalystWorkspaceView({
     const onKey = (e: KeyboardEvent): void => {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return;
+      // The Knowledge Base opens above the workspace and owns the keyboard (Escape closes it, not the desk).
+      if (uiStore.getState().overlay === 'knowledge') return;
       if (e.key === 'Escape') {
         if (unlock) onDismissBadgeUnlock();
         else if (auditOpen) setAuditOpen(false);
@@ -2343,7 +2450,7 @@ export function AnalystWorkspaceView({
             </div>
             <div className="relative z-10 flex flex-wrap items-center gap-3" data-testid="workspace-pickers">
               <RolePicker role={role} onPick={pickRole} m={m} />
-              <TaskPicker role={role} task={task} onPick={onTaskChange} m={m} />
+              {crisis ? <CrisisQueuePill m={m} /> : <TaskPicker role={role} task={task} onPick={onTaskChange} m={m} />}
             </div>
             <button type="button" onClick={onClose} data-testid="workspace-close" className="ml-auto shrink-0 rounded-lg border border-slate-700 px-3 py-1.5 text-[12px] font-medium text-slate-200 transition hover:bg-slate-800">
               {m('close')}
@@ -2364,7 +2471,9 @@ export function AnalystWorkspaceView({
         </header>
         {incident && <IncidentBanner incident={incident} reviews={shift.reviews} sla={sla} m={m} />}
         <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(250px,300px)_minmax(0,1fr)_minmax(230px,270px)] lg:overflow-hidden">
-          <MissionPanel role={role} task={task} mode={mode} m={m} deskName={terms.stationTitle(desk)} sla={sla} />
+          <MissionPanel role={role} task={working} mode={mode} m={m} deskName={terms.stationTitle(desk)} sla={sla} crisis={crisis} />
+          <div className={crisis ? 'grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3' : 'contents'} data-testid="workspace-case-column">
+          {crisis && <CrisisAlert incident={crisis} m={m} />}
           <ScenarioCard
             current={current}
             queued={Math.max(0, cases.length - 1)}
@@ -2373,7 +2482,7 @@ export function AnalystWorkspaceView({
             m={m}
             onAdvance={onAdvance}
             canAdvance={canAdvance}
-            showDrill={task === RANDOM_TASK}
+            showDrill={working === RANDOM_TASK}
             sla={sla}
             masked={masked}
             adviceRevealed={current !== null && !isCollapsed && (mode === 'standard' || revealedFor === current.id)}
@@ -2384,6 +2493,7 @@ export function AnalystWorkspaceView({
             }}
             onHideAdvice={() => setIsCollapsed(true)}
           />
+          </div>
           <DecisionPanel
             shift={shift}
             current={current}
@@ -2392,7 +2502,7 @@ export function AnalystWorkspaceView({
             mode={mode}
             m={m}
             challenge={challenge.run ? { tally: challenge.run.tally, remainingSec } : null}
-            ledger={task === RETAIL_TASK ? ledger : null}
+            ledger={working === RETAIL_TASK ? ledger : null}
             onOpenLedger={() => setLedgerOpen(true)}
           />
         </div>
@@ -2433,7 +2543,7 @@ export function AnalystWorkspaceModal() {
   const incident = useBankStore((s) => s.staffIncident);
   const setIncidentMode = useBankStore((s) => s.setIncidentMode);
   const incidentId = incident?.id ?? null;
-  const cases = useMemo(() => (role ? taskDeck(role, task, seq, 4, incidentId) : []), [role, task, seq, incidentId]);
+  const cases = useMemo(() => (role ? taskDeck(role, workingTask(task, incidentMode, incidentId), seq, 4, incidentId) : []), [role, task, seq, incidentId, incidentMode]);
   const run = useBankStore((s) => s.staffChallenge);
   const finished = useBankStore((s) => s.staffChallengeResult);
   const challenge = useMemo<ChallengeState>(() => ({ run, finished }), [run, finished]);

@@ -12,12 +12,14 @@ import { browserStorage, type KeyValueStorage } from './persistence';
 export const ONBOARDED_KEY = 'processcraft_has_onboarded';
 export const SOUND_KEY = 'processcraft:v1:sound';
 
-export type Overlay = 'none' | 'aml' | 'benchmark' | 'chaos' | 'audit';
+export type Overlay = 'none' | 'aml' | 'benchmark' | 'chaos' | 'audit' | 'knowledge';
 
 export interface UiState {
   /** The "Choose Your Experience Mode" chooser. */
   welcomeOpen: boolean;
   overlay: Overlay;
+  /** The Knowledge Base section to scroll to when the article opens (a section, an account `gl-<ID>` or a term `term-<KEY>`). */
+  knowledgeAnchor: string | null;
   /** Sound effects are on. */
   soundOn: boolean;
   openWelcome(): void;
@@ -27,6 +29,8 @@ export interface UiState {
   close(): void;
   toggle(overlay: Exclude<Overlay, 'none'>): void;
   setSoundOn(on: boolean): void;
+  /** Opens the Knowledge Base, optionally at an anchor. */
+  openKnowledge(anchor?: string | null): void;
 }
 
 function readOnboarded(storage: KeyValueStorage | null): boolean {
@@ -60,6 +64,7 @@ export function createUiStore(options: { storage?: KeyValueStorage | null } = {}
   return createStore<UiState>()((set, get) => ({
     welcomeOpen: !readOnboarded(storage),
     overlay: 'none',
+    knowledgeAnchor: null,
     soundOn: readSound(storage),
     openWelcome: () => set({ welcomeOpen: true, overlay: 'none' }),
     closeWelcome: () => {
@@ -67,6 +72,7 @@ export function createUiStore(options: { storage?: KeyValueStorage | null } = {}
       if (get().welcomeOpen) set({ welcomeOpen: false });
     },
     open: (overlay) => set({ overlay }),
+    openKnowledge: (anchor = null) => set({ overlay: 'knowledge', knowledgeAnchor: anchor }),
     close: () => {
       if (get().overlay !== 'none') set({ overlay: 'none' });
     },

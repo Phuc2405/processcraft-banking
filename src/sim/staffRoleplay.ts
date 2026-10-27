@@ -1691,3 +1691,56 @@ function gradeRetailCase(c: StaffCase, r: RetailCaseData, decision: StaffDecisio
     journal: { caseId: c.id, role: c.role, scene: c.scene, decision, statusCode, lines: decision === 'APPROVE' ? r.approve : r.reject },
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Emergency Crisis Queue: Incident Mode as its own queue
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * With Incident Mode on, a desk stops working its routine task and works an emergency queue instead: a crisis is always
+ * running (rollCrisis), the queue is the drill that crisis floods (a desk incident) or a mix of all three drills (a bank-wide
+ * one), and every decision books its money to the bank's risk and holding accounts (crisisJournalLines).
+ */
+
+/** Every crisis a desk can face: the four bank-wide incidents and its own three. Over the seven desks that is all 25. */
+export const crisisPool = (role: StaffRoleId): readonly IncidentId[] => [...GLOBAL_INCIDENTS, ...DESK_INCIDENTS[role]];
+
+/** The crisis a shift in the emergency queue opens with: always one, picked at random from the desk's pool. */
+export function rollCrisis(role: StaffRoleId, rand: () => number = Math.random, previous: IncidentId | null = null): IncidentId {
+  const pool = crisisPool(role);
+  // A new shift never repeats the crisis that just ended, so the queue keeps moving through the pool.
+  const fresh = pool.length > 1 && previous ? pool.filter((id) => id !== previous) : pool;
+  return fresh[Math.min(fresh.length - 1, Math.floor(rand() * fresh.length))]!;
+}
+
+/** The cases the emergency queue serves under `incident`: the drill a desk incident floods, or all drills for a bank-wide one. */
+export const crisisTask = (incident: IncidentId): StaffTaskNo => (incident in INCIDENT_DRILL ? INCIDENT_DRILL[incident as DeskIncidentId] : RANDOM_TASK);
+
+/** The task a desk is actually working: its routine task, or the crisis queue's while Incident Mode runs one. */
+export const workingTask = (task: StaffTaskNo, incidentMode: boolean, incident: IncidentId | null | undefined): StaffTaskNo => (incidentMode && incident ? crisisTask(incident) : task);
+
+/** Bank-wide outages during which a payment cannot be confirmed with the other bank, so it waits in suspense. */
+const UNCONFIRMED: ReadonlySet<IncidentId> = new Set<IncidentId>(['NETWORK_LATENCY', 'POWER_GRID_FAILOVER', 'CORRUPTED_PAYLOAD']);
+/** Desks whose refusal during a crisis holds the customer's money instead of simply not moving it. */
+const HOLD_ON_REJECT: ReadonlySet<StaffRoleId> = new Set<StaffRoleId>(['aml', 'fds', 'swift']);
+
+/**
+ * A crisis decision's journal: the routine posting, re-routed to the risk and holding accounts.
+ *
+ *   Refused at AML, FDS or SWIFT             Dr 2011 CASA / Cr 2930 Frozen assets: the money is held for investigation.
+ *   Refused anywhere else                    The routine posting (usually none: nothing was paid out, and a teller's
+ *                                            suspect notes never reached the account).
+ *   Approved during an outage                The settlement or nostro leg goes to 2912 Interbank suspense until the other
+ *                                            bank confirms it.
+ *   Approved dispute                         Dr 1920 Dispute receivable / Cr 2011 CASA, as on any day.
+ *
+ * Every re-routed journal still balances: only the account of a leg changes, never its amount.
+ */
+export function crisisJournalLines(c: StaffCase, decision: StaffDecision, incident: IncidentId): LedgerLine[] {
+  const a = c.amountCents;
+  if (a <= 0) return [];
+  if (decision === 'REJECT') return HOLD_ON_REJECT.has(c.role) ? journal([['CASA', a]], [['FROZEN_ASSETS', a]]) : caseJournalLines(c, decision);
+  const lines = caseJournalLines(c, decision);
+  if (!UNCONFIRMED.has(incident)) return lines;
+  return lines.map((l) => (l.cr && (l.gl === 'INTERBANK_SETTLEMENT' || l.gl === 'NOSTRO') ? { ...l, gl: 'CLEARING_SUSPENSE' } : l));
+}

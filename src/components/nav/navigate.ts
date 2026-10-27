@@ -4,6 +4,7 @@ import type { PlaceId } from '../../sim/topology';
 import { academyStore } from '../../store/academyStore';
 import { bankStore } from '../../store/bankStore';
 import { navStore } from '../../store/navStore';
+import { uiStore } from '../../store/uiStore';
 
 /** Fly the 2D map to a place and glow it. */
 export function goToPlace(place: PlaceId): void {
@@ -23,5 +24,6 @@ export function goToLesson(level: LevelId): void {
 
 export function runSearchAction(action: SearchAction): void {
   if (action.kind === 'place') goToPlace(action.place);
-  else goToLesson(action.level);
+  else if (action.kind === 'lesson') goToLesson(action.level);
+  else uiStore.getState().openKnowledge(action.anchor);
 }

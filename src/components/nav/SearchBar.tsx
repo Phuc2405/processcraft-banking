@@ -7,6 +7,7 @@ const GROUP: Record<SearchCategory, { icon: string; en: string; vi: string }> = 
   station: { icon: '📍', en: 'Stations & Nodes', vi: 'Trạm & nút' },
   lesson: { icon: '📚', en: 'FinTech Terms & Lessons', vi: 'Thuật ngữ & bài học FinTech' },
   gl: { icon: '📊', en: 'GL Accounts', vi: 'Tài khoản sổ cái' },
+  kb: { icon: '📖', en: 'Knowledge Base', vi: 'Thư viện kiến thức' },
 };
 
 const isMac = (): boolean => typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
