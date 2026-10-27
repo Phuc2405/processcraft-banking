@@ -753,9 +753,13 @@ export function JournalLines({ lines, m, compact = false }: { lines: readonly Le
 
 function KpiTiles({ kpis, m, compact = false }: { kpis: RetailKpis; m: M; compact?: boolean }) {
   const tile = (key: AnalystWorkspaceKey, cents: number, testId: string, warn = false) => (
-    <div className={`rounded-lg border px-2 py-1 ${warn ? 'border-amber-400/60 bg-amber-400/10' : 'border-slate-700 bg-slate-950/60'}`} data-testid={testId} data-warn={warn || undefined}>
-      <div className="truncate text-[9.5px] font-semibold uppercase tracking-wider text-slate-400">{m(key)}</div>
-      <div className={`font-bold tabular-nums ${compact ? 'text-[12px]' : 'text-[15px]'} ${warn ? 'text-amber-100' : 'text-slate-50'}`}>{money(cents)}</div>
+    <div className={`min-w-0 rounded-lg border px-2 py-1 ${warn ? 'border-amber-400/60 bg-amber-400/10' : 'border-slate-700 bg-slate-950/60'}`} data-testid={testId} data-warn={warn || undefined}>
+      <div className="truncate text-[9.5px] font-semibold uppercase tracking-wider text-slate-400" title={m(key)}>
+        {m(key)}
+      </div>
+      <div className={`truncate font-bold tabular-nums ${compact ? 'text-[12px]' : 'text-[15px]'} ${warn ? 'text-amber-100' : 'text-slate-50'}`} title={`${m(key)}: ${money(cents)}`}>
+        {money(cents)}
+      </div>
     </div>
   );
   return (
@@ -771,9 +775,13 @@ function KpiTiles({ kpis, m, compact = false }: { kpis: RetailKpis; m: M; compac
 /** The header card's four live figures, compact in the header and full-size on the balance sheet. */
 function LedgerMetrics({ kpis, m, compact = false }: { kpis: RetailKpis; m: M; compact?: boolean }) {
   const metric = (label: AnalystWorkspaceKey, cents: number, testId: string, tone: string) => (
-    <div className={compact ? 'min-w-0' : 'rounded-lg border border-slate-700 bg-slate-950/60 px-2 py-1'} data-testid={testId}>
-      <div className={`truncate font-semibold uppercase tracking-wider text-slate-400 ${compact ? 'text-[8.5px]' : 'text-[9.5px]'}`}>{m(label)}</div>
-      <div className={`font-bold tabular-nums ${compact ? 'text-[11.5px]' : 'text-[15px]'} ${tone}`}>{compact ? formatMoney(cents, true) : money(cents)}</div>
+    <div className={compact ? 'min-w-0' : 'min-w-0 rounded-lg border border-slate-700 bg-slate-950/60 px-2 py-1'} data-testid={testId}>
+      <div className={`truncate font-semibold uppercase tracking-wider text-slate-400 ${compact ? 'text-[8.5px]' : 'text-[9.5px]'}`} title={m(label)}>
+        {m(label)}
+      </div>
+      <div className={`truncate font-bold tabular-nums ${compact ? 'text-[11.5px]' : 'text-[15px]'} ${tone}`} title={`${m(label)}: ${money(cents)}`}>
+        {compact ? formatMoney(cents, true) : money(cents)}
+      </div>
     </div>
   );
   return (
@@ -848,17 +856,23 @@ export function JournalDetail({ j, m }: { j: JournalEntry; m: M }) {
   const desk = j.station ?? ROLE_STATION[j.role];
   const dr = j.lines.reduce((s, l) => s + l.dr, 0);
   const cr = j.lines.reduce((s, l) => s + l.cr, 0);
-  const field = (label: string, value: ReactNode, mono = false) => (
+  const field = (label: string, value: string, mono = false) => (
     <div className="flex min-w-0 items-baseline gap-1.5">
       <dt className="shrink-0 text-slate-500">{label}:</dt>
-      <dd className={`min-w-0 truncate text-slate-200 ${mono ? 'font-mono' : ''}`}>{value}</dd>
+      <dd className={`min-w-0 truncate text-slate-200 ${mono ? 'font-mono' : ''}`} title={`${label}: ${value}`}>
+        {value}
+      </dd>
     </div>
   );
   return (
     <li className="rounded-lg border border-slate-800 bg-slate-950/60 px-2.5 py-2" data-case={j.caseId} data-station={desk}>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="truncate text-[11.5px] font-semibold text-slate-100">{m(journalTitleKey(j))}</span>
-        <span className={`shrink-0 text-[10px] font-bold ${j.decision === 'APPROVE' ? 'text-emerald-300' : 'text-rose-300'}`}>{m(j.decision === 'APPROVE' ? 'approve' : 'reject')}</span>
+        <span className="min-w-0 truncate text-[11.5px] font-semibold text-slate-100" title={m(journalTitleKey(j))}>
+          {m(journalTitleKey(j))}
+        </span>
+        <span className={`shrink-0 text-[10px] font-bold ${j.decision === 'APPROVE' ? 'text-emerald-300' : 'text-rose-300'}`} title={`${j.caseId}: ${m(j.decision === 'APPROVE' ? 'approve' : 'reject')} · ${j.statusCode}`}>
+          {m(j.decision === 'APPROVE' ? 'approve' : 'reject')}
+        </span>
       </div>
       <dl className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10.5px]" data-testid="ledger-journal-meta">
         {field(m('ledgerColCustomer'), customer)}
@@ -891,11 +905,15 @@ export function JournalDetail({ j, m }: { j: JournalEntry; m: M }) {
                 <td className={`py-0.5 pr-1 font-bold ${l.dr ? 'text-sky-300' : 'text-amber-300'}`} title={m(l.dr ? 'labelDebit' : 'labelCredit')}>
                   {m(l.dr ? 'ledgerDr' : 'ledgerCr')}
                 </td>
-                <td className={`truncate py-0.5 pr-1 ${l.cr ? 'pl-2' : ''}`}>
+                <td className={`truncate py-0.5 pr-1 ${l.cr ? 'pl-2' : ''}`} title={`${GL_CODE[l.gl]} ${m(k(`gl_${l.gl}`))}`}>
                   <span className="text-slate-400">{GL_CODE[l.gl]}</span> <span className="font-sans text-slate-200">{m(k(`gl_${l.gl}`))}</span>
                 </td>
-                <td className="py-0.5 pl-1 text-right text-slate-50">{l.dr ? money(l.dr) : ''}</td>
-                <td className="py-0.5 pl-1 text-right text-slate-50">{l.cr ? money(l.cr) : ''}</td>
+                <td className="truncate py-0.5 pl-1 text-right text-slate-50" title={l.dr ? `${m('labelDebit')} ${GL_CODE[l.gl]}: ${money(l.dr)}` : undefined}>
+                  {l.dr ? money(l.dr) : ''}
+                </td>
+                <td className="truncate py-0.5 pl-1 text-right text-slate-50" title={l.cr ? `${m('labelCredit')} ${GL_CODE[l.gl]}: ${money(l.cr)}` : undefined}>
+                  {l.cr ? money(l.cr) : ''}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -903,8 +921,12 @@ export function JournalDetail({ j, m }: { j: JournalEntry; m: M }) {
             <tr className="font-bold text-slate-100">
               <td />
               <td className="py-0.5 pr-1 font-sans text-[10px] uppercase tracking-wider text-slate-400">{m('ledgerTotal')}</td>
-              <td className="py-0.5 pl-1 text-right">{money(dr)}</td>
-              <td className="py-0.5 pl-1 text-right">{money(cr)}</td>
+              <td className="truncate py-0.5 pl-1 text-right" title={`${m('ledgerTotal')} ${m('labelDebit')}: ${money(dr)}`}>
+                {money(dr)}
+              </td>
+              <td className="truncate py-0.5 pl-1 text-right" title={`${m('ledgerTotal')} ${m('labelCredit')}: ${money(cr)}`}>
+                {money(cr)}
+              </td>
             </tr>
           </tfoot>
         </table>
@@ -928,7 +950,7 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: Retai
   const totals: Readonly<Record<GlSide, number>> = { asset: sum.assets, liability: sum.liabilities, equity: sum.equity, income: sum.income, expense: sum.expense };
   return (
     <div className="absolute inset-0 z-30 grid place-items-center bg-slate-950/80 p-4 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()} data-testid="workspace-ledger-backdrop">
-      <div role="dialog" aria-modal="true" aria-labelledby="workspace-ledger-title" data-testid="workspace-ledger" className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-emerald-400/40 bg-slate-900 shadow-2xl">
+      <div role="dialog" aria-modal="true" aria-labelledby="workspace-ledger-title" data-testid="workspace-ledger" className="flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-emerald-400/40 bg-slate-900 shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-slate-800 px-5 py-3">
           <div>
             <h3 id="workspace-ledger-title" className="text-[17px] font-extrabold text-emerald-100">
@@ -947,8 +969,8 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: Retai
             </button>
           </div>
         </div>
-        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-5 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]">
-          <div className="space-y-3">
+        <div className="bk-scroll grid min-h-0 flex-1 gap-4 overflow-y-auto p-5 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]">
+          <div className="min-w-0 space-y-3">
             <LedgerMetrics kpis={kpis} m={m} />
             <KpiTiles kpis={kpis} m={m} />
             {kpis.atmLow && (
@@ -956,31 +978,52 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: Retai
                 {m('kpiAtmLow', { min: money(ATM_FLEET_LOW_CENTS) })}
               </p>
             )}
-            <div className={`rounded-lg px-2.5 py-1.5 text-[12px] font-semibold tabular-nums ${sum.balanced ? 'bg-emerald-500/15 text-emerald-200' : 'bg-rose-500/20 text-rose-100'}`} data-testid="ledger-balanced" data-balanced={sum.balanced}>
-              {sum.balanced ? m('ledgerBalanced', { a: money(sum.assets), b: money(sum.liabilities + sum.equity + sum.net) }) : m('ledgerUnbalanced', { diff: money(sum.assets - sum.liabilities - sum.equity - sum.net) })}
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            {(() => {
+              const check = sum.balanced ? m('ledgerBalanced', { a: money(sum.assets), b: money(sum.liabilities + sum.equity + sum.net) }) : m('ledgerUnbalanced', { diff: money(sum.assets - sum.liabilities - sum.equity - sum.net) });
+              return (
+                <div className={`rounded-lg px-2.5 py-1.5 text-[12px] font-semibold tabular-nums ${sum.balanced ? 'bg-emerald-500/15 text-emerald-200' : 'bg-rose-500/20 text-rose-100'}`} title={check} data-testid="ledger-balanced" data-balanced={sum.balanced}>
+                  {check}
+                </div>
+              );
+            })()}
+            <div className="grid gap-3 sm:grid-cols-[repeat(2,minmax(0,1fr))]">
               {SHEET_SIDES.map(({ side, title }) => (
-                <section key={side} className="rounded-xl border border-slate-800 bg-slate-950/50 p-2.5" data-testid={`ledger-side-${side}`}>
-                  <div className="flex items-baseline justify-between">
-                    <Kicker>{m(title)}</Kicker>
-                    <span className="text-[12px] font-bold tabular-nums text-slate-100">{money(totals[side])}</span>
+                <section key={side} className="min-w-0 overflow-hidden rounded-xl border border-slate-800 bg-slate-950/50 p-2.5" data-testid={`ledger-side-${side}`}>
+                  <div className="flex min-w-0 items-baseline justify-between gap-2">
+                    <span className="min-w-0 truncate" title={m(title)}>
+                      <Kicker>{m(title)}</Kicker>
+                    </span>
+                    <span className="shrink-0 text-[12px] font-bold tabular-nums text-slate-100" title={`${m(title)}: ${money(totals[side])}`}>
+                      {money(totals[side])}
+                    </span>
                   </div>
                   <ul className="mt-1 space-y-0.5 text-[11.5px] tabular-nums">
-                    {GL_ACCOUNTS.filter((a) => a.side === side).map((a) => (
-                      <li key={a.id} className="flex items-baseline gap-1.5" data-gl={a.id}>
-                        <span className="shrink-0 font-mono text-[10.5px] text-slate-500">{a.code}</span>
-                        <span className="min-w-0 flex-1 truncate text-slate-300">{m(k(`gl_${a.id}`))}</span>
-                        {GL_TAG[a.id] && <span className="shrink-0 rounded bg-slate-800 px-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400">{m(GL_TAG[a.id]!)}</span>}
-                        <span className="shrink-0 font-semibold text-slate-50">{money(naturalBalance(a.id, ledger.balances[a.id]))}</span>
-                      </li>
-                    ))}
+                    {GL_ACCOUNTS.filter((a) => a.side === side).map((a) => {
+                      const name = `${a.code} ${m(k(`gl_${a.id}`))}`;
+                      const amount = money(naturalBalance(a.id, ledger.balances[a.id]));
+                      return (
+                        <li key={a.id} className="flex min-w-0 items-baseline gap-1.5 overflow-hidden" data-gl={a.id}>
+                          {/* The code and name share one ellipsised label; the full account name is on hover. */}
+                          <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap" title={name}>
+                            <span className="font-mono text-[10.5px] text-slate-500">{a.code}</span> <span className="text-slate-300">{m(k(`gl_${a.id}`))}</span>
+                          </span>
+                          {GL_TAG[a.id] && (
+                            <span className="max-w-[5.5rem] shrink-0 truncate rounded bg-slate-800 px-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400" title={m(GL_TAG[a.id]!)}>
+                              {m(GL_TAG[a.id]!)}
+                            </span>
+                          )}
+                          <span className="shrink-0 whitespace-nowrap text-right font-semibold text-slate-50" title={`${name}: ${amount}`}>
+                            {amount}
+                          </span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </section>
               ))}
-              <section className="rounded-xl border border-slate-800 bg-slate-950/50 p-2.5">
+              <section className="min-w-0 rounded-xl border border-slate-800 bg-slate-950/50 p-2.5">
                 <Kicker>{m('labelNetRevenue')}</Kicker>
-                <div className={`mt-1 text-[18px] font-black tabular-nums ${sum.net < 0 ? 'text-rose-200' : 'text-emerald-200'}`} data-testid="ledger-net">
+                <div className={`mt-1 truncate text-[18px] font-black tabular-nums ${sum.net < 0 ? 'text-rose-200' : 'text-emerald-200'}`} title={`${m('labelNetRevenue')}: ${money(sum.net)}`} data-testid="ledger-net">
                   {money(sum.net)}
                 </div>
               </section>
@@ -1143,8 +1186,12 @@ export function AuditReport({ log, m: tm, issued }: { log: readonly AuditEntry[]
   const num = `${cell} whitespace-nowrap text-right tabular-nums`;
   const row = (label: string, value: string | number) => (
     <tr>
-      <td className={cell}>{label}</td>
-      <td className={num}>{value}</td>
+      <td className={cell} title={label}>
+        {label}
+      </td>
+      <td className={num} title={`${label}: ${value}`}>
+        {value}
+      </td>
     </tr>
   );
   return (
@@ -1209,7 +1256,7 @@ export function AuditReport({ log, m: tm, issued }: { log: readonly AuditEntry[]
           <thead>
             <tr className="bg-gray-100">
               {AUDIT_TABLE_COLS.map((c) => (
-                <th key={c.key} className={`${cell} break-normal font-bold ${c.numeric ? 'text-right' : 'text-left'}`}>
+                <th key={c.key} className={`${cell} break-normal font-bold ${c.numeric ? 'text-right' : 'text-left'}`} title={m(c.key)}>
                   {m(c.key)}
                 </th>
               ))}
@@ -1218,14 +1265,28 @@ export function AuditReport({ log, m: tm, issued }: { log: readonly AuditEntry[]
           <tbody>
             {log.map((e) => (
               <tr key={e.seq} data-seq={e.seq} data-compliance={e.compliance} style={{ breakInside: 'avoid' }}>
-                <td className={num}>{e.seq}</td>
-                <td className={`${cell} whitespace-nowrap`}>{auditTime(e.at)}</td>
-                <td className={`${cell} break-all`}>{e.station}</td>
-                <td className={`${cell} break-all`}>{e.caseId}</td>
-                <td className={cell}>{auditActionLabel(e.action, m)}</td>
-                <td className={num}>{e.latencySec.toFixed(1)}</td>
-                <td className={num}>{e.slaSec}</td>
-                <td className={cell} title={ledgerEntryCode(e.lines, m('auditMemo'))}>
+                <td className={num} title={`${m('rptColNo')} ${e.seq}`}>
+                  {e.seq}
+                </td>
+                <td className={`${cell} whitespace-nowrap`} title={`${m('auditColTime')}: ${auditTime(e.at)}`}>
+                  {auditTime(e.at)}
+                </td>
+                <td className={`${cell} break-all`} title={`${m('auditColDesk')}: ${e.station}`}>
+                  {e.station}
+                </td>
+                <td className={`${cell} break-all`} title={`${m('auditColCase')}: ${e.caseId}`}>
+                  {e.caseId}
+                </td>
+                <td className={cell} title={`${m('auditColAction')}: ${auditActionLabel(e.action, m)}`}>
+                  {auditActionLabel(e.action, m)}
+                </td>
+                <td className={num} title={`${m('auditColSla')}: ${e.latencySec.toFixed(1)}`}>
+                  {e.latencySec.toFixed(1)}
+                </td>
+                <td className={num} title={`${m('auditColSlaLimit')}: ${e.slaSec}`}>
+                  {e.slaSec}
+                </td>
+                <td className={cell} title={`${m('auditColLedger')}: ${ledgerEntryCode(e.lines, m('auditMemo'))}`}>
                   {/* One Dr/Cr leg per line, never split inside a leg. */}
                   {e.lines.length
                     ? e.lines.map((l, i) => (
@@ -1235,9 +1296,15 @@ export function AuditReport({ log, m: tm, issued }: { log: readonly AuditEntry[]
                       ))
                     : m('auditMemo')}
                 </td>
-                <td className={num}>{money(e.amountCents)}</td>
-                <td className={`${cell} break-all`}>{e.statusCode}</td>
-                <td className={`${cell} ${e.compliance === 'COMPLIANT' ? '' : 'font-bold'}`}>{complianceLabel(e.compliance, m)}</td>
+                <td className={num} title={`${m('auditColAmount')}: ${money(e.amountCents)}`}>
+                  {money(e.amountCents)}
+                </td>
+                <td className={`${cell} break-all`} title={`${m('auditColStatus')}: ${e.statusCode}`}>
+                  {e.statusCode}
+                </td>
+                <td className={`${cell} ${e.compliance === 'COMPLIANT' ? '' : 'font-bold'}`} title={`${m('auditColCompliance')}: ${complianceLabel(e.compliance, m)}`}>
+                  {complianceLabel(e.compliance, m)}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -1264,10 +1331,10 @@ export function AuditExportDialog({ log, m, onClose, issued = new Date() }: { lo
   const csv = (): void => downloadFile(`audit-trail-${stamp(issued)}-${pad2(issued.getHours())}${pad2(issued.getMinutes())}.csv`, auditCsv(log, m), 'text/csv;charset=utf-8');
   const report = <AuditReport log={log} m={m} issued={issued} />;
   return (
-    <div className="absolute inset-0 z-40 grid place-items-center bg-slate-950/80 p-4 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()} data-testid="workspace-audit-backdrop">
+    <div className="absolute inset-0 z-40 grid place-items-center overflow-hidden bg-slate-950/80 p-4 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()} data-testid="workspace-audit-backdrop">
       <style>{PRINT_CSS}</style>
       {typeof document !== 'undefined' && createPortal(<div className="pc-audit-print">{report}</div>, document.body)}
-      <div role="dialog" aria-modal="true" aria-labelledby="workspace-audit-title" data-testid="workspace-audit" className="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-600 bg-slate-900 shadow-2xl">
+      <div role="dialog" aria-modal="true" aria-labelledby="workspace-audit-title" data-testid="workspace-audit" className="flex max-h-full w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-600 bg-slate-900 shadow-2xl">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800 px-5 py-3">
           <div>
             <h3 id="workspace-audit-title" className="text-[17px] font-extrabold text-slate-50">
@@ -1287,7 +1354,8 @@ export function AuditExportDialog({ log, m, onClose, issued = new Date() }: { lo
             </button>
           </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto bg-slate-700/40 p-4">
+        {/* The preview scrolls on its own, capped below the viewport, so the whole report can be read top to bottom. */}
+        <div className="bk-scroll min-h-0 max-h-[min(75vh,calc(100vh-180px))] flex-1 overflow-x-auto overflow-y-auto bg-slate-700/40 p-4" tabIndex={0} aria-label={m('auditTitle')} data-testid="workspace-audit-preview">
           <div className="mx-auto max-w-[1100px] rounded bg-white p-8 shadow-lg">{report}</div>
         </div>
       </div>
@@ -1299,7 +1367,9 @@ function AuditButton({ count, onOpen, m }: { count: number; onOpen: () => void; 
   return (
     <button type="button" onClick={onOpen} title={m('auditButtonHint')} data-testid="workspace-audit-open" className="flex items-center gap-1.5 rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-[12px] font-semibold text-slate-100 transition hover:bg-slate-800">
       {m('auditExport')}
-      <span className="rounded-full bg-slate-700 px-1.5 text-[10.5px] font-bold tabular-nums text-slate-200">{count}</span>
+      <span className="rounded-full bg-slate-700 px-1.5 text-[10.5px] font-bold tabular-nums text-slate-200" title={m('auditSubtitle', { n: count })}>
+        {count}
+      </span>
     </button>
   );
 }

@@ -11,6 +11,7 @@ import {
   ledgerSummary,
   NOSTRO_OPENING_CENTS,
   OPENING_BALANCES,
+  GL_ACCOUNTS,
   openingLedger,
   postJournal,
   RETAIL_DESK,
@@ -232,6 +233,17 @@ describe('Phase 11 core ledger: the header card and bilingual labels', () => {
     const posted = store.getState().retailLedger.journal[0]!;
     expect(posted).toMatchObject({ caseId: head.id, station: head.station, at: '2026-10-27T12:00:00.000Z' });
     expect(decodeRetailLedger(storage.getItem(RETAIL_LEDGER_KEY)).journal[0]).toMatchObject({ station: head.station, at: posted.at });
+  });
+
+  it('ellipsises long account names on the balance sheet, keeps amounts pinned right, and puts the full text on hover', () => {
+    const out = renderToStaticMarkup(createElement(CoreLedgerSheet, { ledger: openingLedger(), m, onClose: () => undefined, onReset: () => undefined }));
+    const nostro = out.slice(out.indexOf('data-gl="NOSTRO"'), out.indexOf('</li>', out.indexOf('data-gl="NOSTRO"')));
+    const name = `${GL_ACCOUNTS.find((a) => a.id === 'NOSTRO')!.code} ${msgs.gl_NOSTRO.en}`;
+    expect(nostro).toContain(`title="${esc(name)}"`);
+    expect(nostro).toMatch(/min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap/);
+    expect(nostro).toMatch(/shrink-0 whitespace-nowrap text-right[^"]*" title="[^"]*: \$/);
+    expect(nostro).toContain(`title="${msgs.labelNostro.en}"`);
+    expect(out).toContain('sm:grid-cols-[repeat(2,minmax(0,1fr))]');
   });
 
   it('tags suspense, nostro, collateral and frozen accounts on the balance sheet and titles matrix journals', () => {

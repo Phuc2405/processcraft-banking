@@ -152,7 +152,15 @@ describe('the printable audit report', () => {
     const out = renderToStaticMarkup(createElement(AuditReport, { log: worked('ekyc', 1, 1).getState().auditLog, m: en, issued: AT }));
     const table = out.slice(out.indexOf('data-testid="audit-table"'));
     expect(table.match(/<col /g)).toHaveLength(AUDIT_CSV_COLUMNS.length + 1);
-    for (const key of ['auditColSla', 'auditColSlaLimit', 'auditColAmount'] as const) expect(table).toMatch(new RegExp(`text-right">${esc(msgs[key].en).replace(/[()]/g, '\\$&')}<`));
+    for (const key of ['auditColSla', 'auditColSlaLimit', 'auditColAmount'] as const) expect(table).toMatch(new RegExp(`text-right" title="[^"]*">${esc(msgs[key].en).replace(/[()]/g, '\\$&')}<`));
+  });
+
+  it('titles every log cell with its column and full value, for hover on truncated text', () => {
+    const log = worked('ekyc', 1, 1).getState().auditLog;
+    const out = renderToStaticMarkup(createElement(AuditReport, { log, m: en, issued: AT }));
+    expect(out).toContain(`title="${esc(`${msgs.auditColCase.en}: ${log[0]!.caseId}`)}"`);
+    expect(out).toContain(`title="${esc(`${msgs.auditColStatus.en}: ${log[0]!.statusCode}`)}"`);
+    expect(out).toMatch(new RegExp(`title="${esc(msgs.auditColAmount.en)}: \\$`));
   });
 
   it('says so when every decision complied, and when there is nothing to report', () => {
@@ -196,6 +204,9 @@ describe('the export actions', () => {
     expect(out).toContain(esc(msgs.auditPrint.vi));
     expect(out).toContain('data-testid="audit-report"');
     expect(out).toContain('@media print');
+    // The preview scrolls in its own capped viewport, inside a dialog that never outgrows the workspace.
+    expect(out).toMatch(/class="bk-scroll [^"]*max-h-\[min\(75vh,calc\(100vh-180px\)\)\][^"]*overflow-y-auto[^"]*"[^>]*data-testid="workspace-audit-preview"/);
+    expect(out).toMatch(/class="flex max-h-full [^"]*" data-testid="workspace-audit"|data-testid="workspace-audit" class="flex max-h-full/);
     const none = renderToStaticMarkup(createElement(AuditExportDialog, { log: [], m: en, onClose: () => undefined, issued: AT }));
     expect(none).toMatch(/data-testid="workspace-audit-csv"[^>]*disabled=""|disabled=""[^>]*data-testid="workspace-audit-csv"/);
   });
