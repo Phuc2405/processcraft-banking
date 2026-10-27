@@ -9,6 +9,7 @@
  */
 
 import { AML_POLICY, CTR_THRESHOLD_CENTS, DISPUTE_SLA_DAYS, EKYC_POLICY, FDS_POLICY } from './amlEngine';
+import { isAutomatedNode } from './nodeKind';
 import type { StationId } from './topology';
 import type { Checkpoint, DeclineReason, ExtendedContext, Packet, Stop } from './types';
 
@@ -32,6 +33,19 @@ export const ROLE_ICON: Readonly<Record<StaffRoleId, string>> = { aml: '🛡️'
 const STATION_ROLE = Object.fromEntries(STAFF_ROLES.map((r) => [ROLE_STATION[r], r])) as Partial<Record<StationId, StaffRoleId>>;
 
 export const roleForStation = (id: StationId): StaffRoleId | null => STATION_ROLE[id] ?? null;
+
+/**
+ * Whether a roleplay desk is a server-run system (eKYC onboarding, the FDS device check, SWIFT STP) or a desk people staff
+ * (AML, disputes, BNPL, the teller counter). It follows the map's own classification in sim/nodeKind.ts.
+ */
+export const isAutomatedDesk = (role: StaffRoleId): boolean => isAutomatedNode(ROLE_STATION[role]);
+
+/** A held case the bank's checks flagged: a field breaches the SOP, or the right answer is to refuse it. */
+export const isExceptionCase = (c: Pick<StaffCase, 'expected' | 'fields'>): boolean => c.expected === 'REJECT' || c.fields.some((f) => f.flag);
+
+/** How a desk is entered: a person's shift on a human desk; on a system, monitoring, or reviewing the exceptions it flagged. */
+export type DeskEntry = 'roleplay' | 'monitor' | 'exceptions';
+export const deskEntry = (role: StaffRoleId, exceptions: number): DeskEntry => (!isAutomatedDesk(role) ? 'roleplay' : exceptions > 0 ? 'exceptions' : 'monitor');
 
 /** A review is due within this many real seconds of reaching the head of the queue. */
 export const STAFF_SLA_SECONDS = 30;

@@ -8,6 +8,13 @@ import { defineMessages } from '../../utils/i18nHelper';
 export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
   // ── Shell ──────────────────────────────────────────────────────────────────
   enterRoleplay: { en: '🎭 Enter Staff Roleplay', vi: '🎭 Vào vai nhân viên' },
+  enterMonitor: { en: '⚙️ System Monitor', vi: '⚙️ Giám sát hệ thống' },
+  enterExceptions: { en: '🔍 Review Exception Cases', vi: '🔍 Kiểm duyệt ngoại lệ' },
+  enterExceptionsHint: { en: '{n} flagged case(s) are held for a person to review.', vi: 'Có {n} hồ sơ bị gắn cờ đang chờ người kiểm duyệt.' },
+  enterMonitorHint: { en: 'An automated system: watch its queue and step in on the cases it holds.', vi: 'Hệ thống tự động: theo dõi hàng chờ và can thiệp vào các hồ sơ bị giữ lại.' },
+  enterRoleplayHint: { en: 'A staffed desk: work the shift as the analyst.', vi: 'Quầy có nhân viên: trực ca với vai trò chuyên viên.' },
+  deskKindAutomated: { en: '🖥️ Server cluster & automated processes', vi: '🖥️ Cụm Máy chủ & Tiến trình Tự động' },
+  deskKindHuman: { en: '🖥️ Staffed service desk', vi: '🖥️ Trực quầy nghiệp vụ' },
   title: { en: 'Staff Roleplay Workspace', vi: 'Không gian nhập vai nhân viên' },
   close: { en: 'Leave desk', vi: 'Rời quầy' },
   paused: { en: 'The bank clock is paused while you work the desk.', vi: 'Đồng hồ ngân hàng tạm dừng trong lúc bạn làm việc tại quầy.' },

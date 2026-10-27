@@ -21,6 +21,7 @@ import {
   incidentRole,
   incidentRules,
   incidentSlaSeconds,
+  isAutomatedDesk,
   maskedFields,
   type ActiveIncident,
   RANDOM_TASK,
@@ -2120,6 +2121,20 @@ function TaskPicker({ role, task, onPick, m }: { role: StaffRoleId; task: StaffT
   );
 }
 
+/** What kind of desk this is: a server-run system or a staffed counter. */
+export function DeskKindBadge({ role, m }: { role: StaffRoleId; m: M }) {
+  const automated = isAutomatedDesk(role);
+  return (
+    <span
+      className={`mt-0.5 inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[10.5px] font-semibold ${automated ? 'border-sky-400/40 bg-sky-400/10 text-sky-200' : 'border-amber-400/40 bg-amber-400/10 text-amber-200'}`}
+      data-testid="workspace-desk-kind"
+      data-automated={automated}
+    >
+      {m(automated ? 'deskKindAutomated' : 'deskKindHuman')}
+    </span>
+  );
+}
+
 export function SwitchDeskDialog({ target, m, onCancel, onConfirm }: { target: StaffRoleId; m: M; onCancel: () => void; onConfirm: () => void }) {
   return (
     <div className="absolute inset-0 z-20 grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm" data-testid="workspace-switch-backdrop">
@@ -2321,6 +2336,7 @@ export function AnalystWorkspaceView({
               <h2 id="analyst-workspace-title" className="whitespace-normal break-normal text-[14px] font-bold leading-tight text-slate-50">
                 {m('title')}
               </h2>
+              <DeskKindBadge role={role} m={m} />
               <p className="whitespace-normal break-normal text-[11px] leading-snug text-slate-500">
                 {m('paused')} · {m('keysHint')}
               </p>

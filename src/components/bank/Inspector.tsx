@@ -18,9 +18,9 @@ import { feedText } from '../../i18n/feedVi';
 import { localizeScenarioText } from '../../sim/scenarios';
 import { lessonText } from '../../sim/learningVi';
 import { TransactionPanel } from './TransactionPanel';
-import { roleForStation } from '../../sim/staffRoleplay';
-import { useMessages } from '../../utils/i18nHelper';
-import { analystWorkspaceMessages } from './analystWorkspace.messages';
+import { deskEntry, isAutomatedDesk, isExceptionCase, roleForStation, type DeskEntry } from '../../sim/staffRoleplay';
+import { useMessages, type Translate } from '../../utils/i18nHelper';
+import { analystWorkspaceMessages, type AnalystWorkspaceKey } from './analystWorkspace.messages';
 import { isAutomatedNode } from '../../sim/nodeKind';
 import { InfoTip } from './InfoTip';
 import { ServerRackGraphic } from './ServerRack';
@@ -298,6 +298,36 @@ function QueueList({ sv }: { sv: StationView }) {
   );
 }
 
+const ENTRY_TONE: Readonly<Record<DeskEntry, string>> = {
+  roleplay: 'border-amber-400/50 bg-amber-400/10 text-amber-100 hover:bg-amber-400/20',
+  monitor: 'border-sky-400/50 bg-sky-400/10 text-sky-100 hover:bg-sky-400/20',
+  exceptions: 'border-rose-400/60 bg-rose-500/15 text-rose-100 hover:bg-rose-500/25',
+};
+
+/** Opens the desk's workspace: a shift on a human desk, System Monitor (or the flagged exceptions) on an automated one. */
+export function DeskEntryButton({ entry, exceptions, disabled, onOpen, ws }: { entry: DeskEntry; exceptions: number; disabled: boolean; onOpen: () => void; ws: Translate<AnalystWorkspaceKey> }) {
+  const label = ws(entry === 'roleplay' ? 'enterRoleplay' : entry === 'monitor' ? 'enterMonitor' : 'enterExceptions');
+  const hint = entry === 'roleplay' ? ws('enterRoleplayHint') : entry === 'monitor' ? ws('enterMonitorHint') : ws('enterExceptionsHint', { n: exceptions });
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      disabled={disabled}
+      title={hint}
+      data-testid="enter-roleplay"
+      data-entry={entry}
+      className={`flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-[13px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${ENTRY_TONE[entry]}`}
+    >
+      {label}
+      {entry === 'exceptions' && (
+        <span className="rounded-full bg-rose-400 px-1.5 text-[10.5px] font-black tabular-nums text-rose-950" data-testid="enter-roleplay-exceptions">
+          {exceptions}
+        </span>
+      )}
+    </button>
+  );
+}
+
 function StationPanel({ id }: { id: StationId }) {
   const terms = useTerms();
   const sv = useBankStore((s) => s.view.stations[id]);
@@ -307,6 +337,10 @@ function StationPanel({ id }: { id: StationId }) {
   const openStaffDesk = useBankStore((s) => s.openStaffDesk);
   const dayOver = useBankStore((s) => s.view.dayOver);
   const ws = useMessages(analystWorkspaceMessages);
+  const role = roleForStation(id);
+  // A system desk counts the held cases its checks flagged; a human desk is always entered as a shift.
+  const exceptions = useBankStore((s) => (role && isAutomatedDesk(role) ? s.sim.staffCases(id).filter(isExceptionCase).length : 0));
+  const entry = role ? deskEntry(role, exceptions) : null;
   const def = STATIONS[id];
   const dept = DEPARTMENTS[def.department];
   const first = sv.workers[0];
@@ -348,17 +382,7 @@ function StationPanel({ id }: { id: StationId }) {
           </div>
         </div>
 
-        {roleForStation(id) && (
-          <button
-            type="button"
-            onClick={() => openStaffDesk(id)}
-            disabled={dayOver}
-            data-testid="enter-roleplay"
-            className="w-full rounded-xl border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-[13px] font-semibold text-amber-100 transition hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {ws('enterRoleplay')}
-          </button>
-        )}
+        {entry && <DeskEntryButton entry={entry} exceptions={exceptions} disabled={dayOver} onOpen={() => openStaffDesk(id)} ws={ws} />}
 
         {terms.beginner && modelForStation(id) && <MentalModelCard model={modelForStation(id)!} />}
 
