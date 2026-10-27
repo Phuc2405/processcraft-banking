@@ -205,7 +205,7 @@ describe('the export actions', () => {
     expect(out).toContain('data-testid="audit-report"');
     expect(out).toContain('@media print');
     // The preview scrolls in its own capped viewport, inside a dialog that never outgrows the workspace.
-    expect(out).toMatch(/class="bk-scroll [^"]*max-h-\[min\(75vh,calc\(100vh-180px\)\)\][^"]*overflow-y-auto[^"]*"[^>]*data-testid="workspace-audit-preview"/);
+    expect(out).toMatch(/class="bk-scroll [^"]*max-h-\[calc\(100vh-200px\)\][^"]*overflow-y-auto[^"]*"[^>]*data-testid="workspace-audit-preview"/);
     expect(out).toMatch(/class="flex max-h-full [^"]*" data-testid="workspace-audit"|data-testid="workspace-audit" class="flex max-h-full/);
     const none = renderToStaticMarkup(createElement(AuditExportDialog, { log: [], m: en, onClose: () => undefined, issued: AT }));
     expect(none).toMatch(/data-testid="workspace-audit-csv"[^>]*disabled=""|disabled=""[^>]*data-testid="workspace-audit-csv"/);

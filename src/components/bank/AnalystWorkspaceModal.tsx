@@ -71,6 +71,7 @@ import { analystWorkspaceMessages, PERSONAS, type AnalystWorkspaceKey } from './
 import { InfoTip } from './InfoTip';
 import { LanguageToggle } from '../shell/LanguageToggle';
 import { useTerms } from './useTerms';
+import { glossText, useGlossary, type Glossary, type ViewMode } from './codeGlossary';
 
 /**
  * Phase 8 Step 2: the Staff Roleplay Workspace, a scenario-driven review desk in two registers.
@@ -196,12 +197,100 @@ function ModeToggle({ mode, onChange, m }: { mode: WorkspaceMode; onChange: (mod
   );
 }
 
+/** The Basic / Advanced view of the ledger and the audit report: plain words, or the exact codes with their meaning on hover. */
+export function ViewModeToggle({ view, onChange, testId }: { view: ViewMode; onChange: (view: ViewMode) => void; testId: string }) {
+  const { g } = useGlossary();
+  const option = (value: ViewMode, label: string) => (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={view === value}
+      onClick={() => onChange(value)}
+      title={g(value === 'basic' ? 'viewBasicHint' : 'viewAdvancedHint')}
+      data-testid={`${testId}-${value}`}
+      className={`whitespace-nowrap rounded-md px-2.5 py-1 text-[11.5px] font-semibold transition ${view === value ? (value === 'advanced' ? 'bg-violet-500 text-white' : 'bg-sky-400 text-slate-950') : 'text-slate-300 hover:bg-slate-800'}`}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className="flex shrink-0 items-center gap-1.5" data-testid={testId} data-view={view}>
+      <span className="whitespace-nowrap text-[11px] font-semibold text-slate-400">{g('viewLabel')}:</span>
+      <div role="radiogroup" aria-label={g('viewLabel')} className="flex rounded-lg border border-slate-700 bg-slate-900 p-0.5">
+        {option('basic', g('viewBasic'))}
+        {option('advanced', g('viewAdvanced'))}
+      </div>
+    </div>
+  );
+}
+
+/** A raw code that never breaks mid-word and explains itself on hover (when the glossary knows it). */
+function Code({ code, gl, className = '' }: { code: string; gl: Glossary; className?: string }) {
+  const meaning = gl.explain(code);
+  return (
+    <span className={`whitespace-nowrap ${meaning ? 'cursor-help' : ''} ${className}`} title={meaning ? `${code}: ${meaning}` : undefined} data-code={code}>
+      {code}
+    </span>
+  );
+}
+
+/** The audit preview's zoom steps: 75% to 150%. */
+export const PREVIEW_ZOOMS = [0.75, 0.9, 1, 1.1, 1.25, 1.5] as const;
+export const nextZoom = (z: number, dir: 1 | -1): number => {
+  const i = PREVIEW_ZOOMS.findIndex((s) => Math.abs(s - z) < 1e-6);
+  return PREVIEW_ZOOMS[Math.min(PREVIEW_ZOOMS.length - 1, Math.max(0, (i < 0 ? 2 : i) + dir))]!;
+};
+
+function ZoomBar({ zoom, onZoom, testId }: { zoom: number; onZoom: (z: number) => void; testId: string }) {
+  const { g } = useGlossary();
+  const btn = 'whitespace-nowrap rounded-md border border-slate-600 bg-slate-900 px-2.5 py-1 text-[11.5px] font-semibold text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40';
+  return (
+    <div role="toolbar" aria-label={g('zoomLabel')} className="flex shrink-0 items-center gap-1.5" data-testid={testId} data-zoom={zoom}>
+      <button type="button" onClick={() => onZoom(nextZoom(zoom, -1))} disabled={zoom <= PREVIEW_ZOOMS[0]} data-testid={`${testId}-out`} className={btn}>
+        {g('zoomOut')}
+      </button>
+      <button type="button" onClick={() => onZoom(1)} title={g('zoomResetHint')} aria-live="polite" data-testid={`${testId}-reset`} className={`${btn} min-w-[4.5rem] tabular-nums`}>
+        🔍 {Math.round(zoom * 100)}%
+      </button>
+      <button type="button" onClick={() => onZoom(nextZoom(zoom, 1))} disabled={zoom >= PREVIEW_ZOOMS[PREVIEW_ZOOMS.length - 1]!} data-testid={`${testId}-in`} className={btn}>
+        {g('zoomIn')}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Scales a fixed-width page with `transform: scale()`. A transform does not change layout, so the outer box takes the scaled
+ * size (measured from the page) and the scrolling viewport around it scrolls exactly as far as the visible page reaches.
+ */
+function ZoomFrame({ zoom, width, children }: { zoom: number; width: number; children: ReactNode }) {
+  const page = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | null>(null);
+  useEffect(() => {
+    const el = page.current;
+    if (!el) return;
+    setHeight(el.offsetHeight);
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setHeight(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div className="mx-auto transition-[width,height] duration-150 ease-out" style={{ width: width * zoom, height: height === null ? undefined : height * zoom }} data-testid="zoom-frame">
+      <div ref={page} className="transition-transform duration-150 ease-out" style={{ width, transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Panel A
 // ─────────────────────────────────────────────────────────────────────────────
 
 function MissionPanel({ role, task, mode, m, deskName, sla = STAFF_SLA_SECONDS }: { role: StaffRoleId; task: StaffTaskNo; mode: WorkspaceMode; m: M; deskName: string; sla?: number }) {
   const expert = mode === 'expert';
+  const gl = useGlossary();
   return (
     <section className="flex min-h-0 min-w-[240px] flex-col gap-3 overflow-y-auto whitespace-normal break-normal rounded-xl border border-slate-800 bg-slate-900/50 p-3.5 [overflow-wrap:break-word]" data-testid="workspace-mission">
       <div>
@@ -211,7 +300,7 @@ function MissionPanel({ role, task, mode, m, deskName, sla = STAFF_SLA_SECONDS }
           {m(k(`role_${role}_title`))}
         </h3>
         <div className="text-[11px] text-sky-300/90">{deskName}</div>
-        <p className="mt-2 text-[12px] leading-snug text-slate-300" data-testid="workspace-brief">
+        <p className="mt-2 text-[12px] leading-snug text-slate-300" title={gl.gloss(m(k(expert ? `role_${role}_brief` : `role_${role}_briefStd`)))} data-testid="workspace-brief">
           {m(k(expert ? `role_${role}_brief` : `role_${role}_briefStd`))}
         </p>
         <div className={`mt-2 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${expert ? 'border-rose-400/40 bg-rose-400/10 text-rose-200' : 'border-amber-400/40 bg-amber-400/10 text-amber-200'}`} data-testid="workspace-sla">
@@ -220,7 +309,9 @@ function MissionPanel({ role, task, mode, m, deskName, sla = STAFF_SLA_SECONDS }
         {expert && (
           <div className="mt-2 rounded-lg border border-violet-400/30 bg-violet-500/10 px-2.5 py-1.5" data-testid="workspace-reg">
             <Kicker>{m('regTitle')}</Kicker>
-            <p className="mt-0.5 font-mono text-[10.5px] leading-snug text-violet-200">{m(k(`role_${role}_reg`))}</p>
+            <p className="mt-0.5 font-mono text-[10.5px] leading-snug text-violet-200" title={gl.gloss(m(k(`role_${role}_reg`)))}>
+              {m(k(`role_${role}_reg`))}
+            </p>
           </div>
         )}
       </div>
@@ -245,7 +336,7 @@ function MissionPanel({ role, task, mode, m, deskName, sla = STAFF_SLA_SECONDS }
               {g.retail && <div className="mb-1 text-[11px] font-semibold text-emerald-200">{m(k(`retail_${g.retail}_title`))}</div>}
               <ol className="space-y-1.5">
                 {g.keys.map((key, i) => (
-                  <li key={key} className={`rounded-lg border bg-slate-950/50 px-2.5 py-1.5 leading-snug text-slate-200 ${expert ? 'border-violet-400/20 text-[11.5px]' : 'border-sky-400/20 text-[12px]'}`}>
+                  <li key={key} title={gl.gloss(m(key))} className={`rounded-lg border bg-slate-950/50 px-2.5 py-1.5 leading-snug text-slate-200 ${expert ? 'border-violet-400/20 text-[11.5px]' : 'border-sky-400/20 text-[12px]'}`}>
                     <div className={`font-mono text-[10px] font-semibold uppercase ${expert ? 'text-violet-300' : 'text-sky-300'}`}>{m('sopStep', { n: i + 1 })}</div>
                     {m(key)}
                   </li>
@@ -402,6 +493,11 @@ export function AdvisoryCard({
     );
   }
   const advice = adviseCase(current, masked);
+  return <AdviceBody advice={advice} head={head} mode={mode} m={m} />;
+}
+
+function AdviceBody({ advice, head, mode, m }: { advice: Advice; head: ReactNode; mode: WorkspaceMode; m: M }) {
+  const gl = useGlossary();
   const band = confidenceBand(advice.confidence);
   const bar = band === 'High' ? 'bg-emerald-400' : band === 'Medium' ? 'bg-sky-400' : 'bg-amber-400';
   return (
@@ -441,7 +537,14 @@ export function AdvisoryCard({
           {advice.drivers.map((d, i) => (
             <li key={`${d.key}-${d.field ?? d.gl ?? i}`} className={`flex items-baseline gap-1.5 text-[11.5px] leading-snug ${DRIVER_TONE[d.tone][1]}`} data-driver={d.key} data-tone={d.tone}>
               <span aria-hidden="true">{DRIVER_TONE[d.tone][0]}</span>
-              <span className="text-slate-200">{m(d.key, { field: d.field ? m(k(`field_${d.field}`)) : '', account: d.gl ? `${GL_CODE[d.gl]} ${m(k(`gl_${d.gl}`))}` : '', n: d.n ?? 0 })}</span>
+              {(() => {
+                const text = m(d.key, { field: d.field ? m(k(`field_${d.field}`)) : '', account: d.gl ? `${GL_CODE[d.gl]} ${m(k(`gl_${d.gl}`))}` : '', n: d.n ?? 0 });
+                return (
+                  <span className="min-w-0 text-slate-200" title={gl.gloss(text)}>
+                    {text}
+                  </span>
+                );
+              })()}
             </li>
           ))}
         </ul>
@@ -471,6 +574,8 @@ function PayloadTag({ field, mode, m, locale, masked = false }: { field: StaffFi
     );
   }
   const alert = field.alert && !field.flag;
+  const value = fieldText(field, m, locale);
+  const meaning = field.value.t === 'code' ? glossText(value, locale) : undefined;
   return (
     <div
       className={`flex min-w-0 flex-col rounded-lg border px-2.5 py-1.5 ${field.flag ? 'border-rose-400/60 bg-rose-500/10' : alert ? 'border-amber-400/60 bg-amber-400/10' : 'border-sky-400/25 bg-sky-400/[0.06]'}`}
@@ -482,7 +587,7 @@ function PayloadTag({ field, mode, m, locale, masked = false }: { field: StaffFi
         {label}
         <InfoTip label={label} text={m(k(`tip_${field.key}_${mode === 'standard' ? 'std' : 'exp'}`))} testId={`workspace-tip-${field.key}`} />
       </span>
-      <span className={`mt-0.5 flex items-center gap-1 break-all text-[13px] font-semibold tabular-nums ${field.flag ? 'text-rose-200' : alert ? 'text-amber-100' : 'text-slate-50'}`}>
+      <span title={meaning} className={`mt-0.5 flex min-w-0 items-center gap-1 break-words text-[13px] font-semibold tabular-nums [overflow-wrap:anywhere] ${field.flag ? 'text-rose-200' : alert ? 'text-amber-100' : 'text-slate-50'}`}>
         {field.flag && (
           <span aria-label={m('breach')} title={m('breach')}>
             ⚠
@@ -493,7 +598,7 @@ function PayloadTag({ field, mode, m, locale, masked = false }: { field: StaffFi
             🔔
           </span>
         )}
-        {fieldText(field, m, locale)}
+        <span className="min-w-0">{value}</span>
       </span>
     </div>
   );
@@ -564,7 +669,7 @@ function ScenarioCard({
             {story}
           </p>
           <div className="mt-1 font-mono text-[10.5px] text-slate-500">
-            {current.id} · {current.scenario && `${localizeScenarioText(current.scenario, locale)} · `}
+            <span className="whitespace-nowrap">{current.id}</span> · {current.scenario && `${localizeScenarioText(current.scenario, locale)} · `}
             {m('waited', { min: current.waitedMin })}
             {queued > 0 && ` · ${m('queueAhead', { n: queued })}`}
           </div>
@@ -602,7 +707,9 @@ function ScenarioCard({
       {/* 2. Trigger context */}
       <div className="rounded-lg border border-amber-400/30 bg-amber-400/[0.07] px-3 py-2" data-testid="workspace-trigger">
         <div className="text-[11px] font-bold text-amber-200">{m('triggerTitle')}</div>
-        <p className="mt-0.5 text-[12px] leading-snug text-amber-50/90">{m(k(`scene_${current.scene}_trigger${s}`))}</p>
+        <p className="mt-0.5 text-[12px] leading-snug text-amber-50/90" title={glossText(m(k(`scene_${current.scene}_trigger${s}`)), locale)}>
+          {m(k(`scene_${current.scene}_trigger${s}`))}
+        </p>
       </div>
 
       {/* 3. Highlighted payload tags */}
@@ -638,8 +745,9 @@ const RISK_TONE = {
 } as const;
 
 function RiskBox({ tone, title, text, testId }: { tone: keyof typeof RISK_TONE; title: string; text: string; testId: string }) {
+  const gl = useGlossary();
   return (
-    <div className={`rounded-lg border px-2.5 py-2 ${RISK_TONE[tone]}`} data-testid={testId}>
+    <div className={`rounded-lg border px-2.5 py-2 ${RISK_TONE[tone]}`} title={gl.gloss(text)} data-testid={testId}>
       <div className="text-[10.5px] font-bold uppercase tracking-wide">{title}</div>
       <p className="mt-0.5 text-[11.5px] leading-snug text-slate-200">{text}</p>
     </div>
@@ -675,6 +783,7 @@ export function consequenceKey(c: Pick<Consequence, 'result' | 'role' | 'drill' 
 export function ConsequenceOverlay({ consequence, mode, m }: { consequence: Consequence; mode: WorkspaceMode; m: M }) {
   const { result } = consequence;
   const ok = result.correct;
+  const locale = useLocale();
   return (
     <div
       role="status"
@@ -717,7 +826,9 @@ export function ConsequenceOverlay({ consequence, mode, m }: { consequence: Cons
         </div>
       )}
       {consequence.points !== undefined && !!consequence.bonus && <div className="text-[11px] font-semibold text-amber-200">{m('overlayBonus', { bonus: consequence.bonus })}</div>}
-      <div className="font-mono text-[10.5px] text-slate-400">{m('statusCode', { code: result.statusCode })}</div>
+      <div className="font-mono text-[10.5px] text-slate-400" title={glossText(result.statusCode, locale)}>
+        {m('statusCode', { code: result.statusCode })}
+      </div>
       {result.journal && (
         <div className="w-full rounded-lg border border-slate-600/70 bg-slate-950/70 px-2 py-1.5 text-left" data-testid="workspace-consequence-journal">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{m('overlayJournal')}</div>
@@ -742,7 +853,9 @@ export function JournalLines({ lines, m, compact = false }: { lines: readonly Le
           <span className={`shrink-0 font-bold ${l.dr ? 'text-sky-300' : 'text-amber-300'}`} title={m(l.dr ? 'labelDebit' : 'labelCredit')}>
             {m(l.dr ? 'ledgerDr' : 'ledgerCr')}
           </span>
-          <span className="shrink-0 text-slate-500">{GL_CODE[l.gl]}</span>
+          <span className="shrink-0 whitespace-nowrap text-slate-500" title={`${GL_CODE[l.gl]}: ${m(k(`gl_${l.gl}`))}`}>
+            {GL_CODE[l.gl]}
+          </span>
           <span className="min-w-0 flex-1 truncate font-sans text-slate-200">{m(k(`gl_${l.gl}`))}</span>
           <span className="shrink-0 text-slate-50">{money(l.dr || l.cr)}</span>
         </li>
@@ -851,19 +964,26 @@ function LedgerStrip({ ledger, m, onOpen }: { ledger: RetailLedger; m: M; onOpen
 }
 
 /** One posted journal in full: who, which case, which channel/desk, when, and every Debit/Credit line by GL account. */
-export function JournalDetail({ j, m }: { j: JournalEntry; m: M }) {
+export function JournalDetail({ j, m, view = 'advanced' }: { j: JournalEntry; m: M; view?: ViewMode }) {
+  const gl = useGlossary();
+  const basic = view === 'basic';
   const customer = personaFor(j.caseId).name;
   const desk = j.station ?? ROLE_STATION[j.role];
   const dr = j.lines.reduce((s, l) => s + l.dr, 0);
   const cr = j.lines.reduce((s, l) => s + l.cr, 0);
-  const field = (label: string, value: string, mono = false) => (
-    <div className="flex min-w-0 items-baseline gap-1.5">
-      <dt className="shrink-0 text-slate-500">{label}:</dt>
-      <dd className={`min-w-0 truncate text-slate-200 ${mono ? 'font-mono' : ''}`} title={`${label}: ${value}`}>
-        {value}
-      </dd>
-    </div>
-  );
+  /** A coded field: plain words in Basic view, the raw code (meaning appended to the hover) in Advanced view. */
+  const field = (label: string, value: string, mono = false, coded = false) => {
+    const meaning = coded ? gl.explain(value) : undefined;
+    const shown = coded && basic ? (meaning ?? value) : value;
+    return (
+      <div className="flex min-w-0 items-baseline gap-1.5">
+        <dt className="shrink-0 whitespace-nowrap text-slate-500">{label}:</dt>
+        <dd className={`min-w-0 truncate whitespace-nowrap text-slate-200 ${mono && !(coded && basic) ? 'font-mono' : ''}`} title={`${label}: ${value}${meaning ? ` (${meaning})` : ''}`}>
+          {shown}
+        </dd>
+      </div>
+    );
+  };
   return (
     <li className="rounded-lg border border-slate-800 bg-slate-950/60 px-2.5 py-2" data-case={j.caseId} data-station={desk}>
       <div className="flex items-baseline justify-between gap-2">
@@ -877,9 +997,9 @@ export function JournalDetail({ j, m }: { j: JournalEntry; m: M }) {
       <dl className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10.5px]" data-testid="ledger-journal-meta">
         {field(m('ledgerColCustomer'), customer)}
         {field(m('auditColCase'), j.caseId, true)}
-        {field(m('auditColDesk'), desk, true)}
+        {field(m('auditColDesk'), desk, true, true)}
         {field(m('auditColTime'), j.at ? auditTime(j.at) : '—', true)}
-        {field(m('auditColStatus'), j.statusCode, true)}
+        {field(m('auditColStatus'), j.statusCode, true, true)}
       </dl>
       {j.lines.length === 0 ? (
         <p className="mt-1 text-[10.5px] italic text-slate-400">{m('ledgerMemo')}</p>
@@ -905,8 +1025,14 @@ export function JournalDetail({ j, m }: { j: JournalEntry; m: M }) {
                 <td className={`py-0.5 pr-1 font-bold ${l.dr ? 'text-sky-300' : 'text-amber-300'}`} title={m(l.dr ? 'labelDebit' : 'labelCredit')}>
                   {m(l.dr ? 'ledgerDr' : 'ledgerCr')}
                 </td>
-                <td className={`truncate py-0.5 pr-1 ${l.cr ? 'pl-2' : ''}`} title={`${GL_CODE[l.gl]} ${m(k(`gl_${l.gl}`))}`}>
-                  <span className="text-slate-400">{GL_CODE[l.gl]}</span> <span className="font-sans text-slate-200">{m(k(`gl_${l.gl}`))}</span>
+                <td className={`truncate whitespace-nowrap py-0.5 pr-1 ${l.cr ? 'pl-2' : ''}`} title={`${GL_CODE[l.gl]} ${m(k(`gl_${l.gl}`))} · ${gl.line(l)}`}>
+                  {basic ? (
+                    <span className="font-sans text-slate-200">{gl.line(l)}</span>
+                  ) : (
+                    <>
+                      <span className="text-slate-400">{GL_CODE[l.gl]}</span> <span className="font-sans text-slate-200">{m(k(`gl_${l.gl}`))}</span>
+                    </>
+                  )}
                 </td>
                 <td className="truncate py-0.5 pl-1 text-right text-slate-50" title={l.dr ? `${m('labelDebit')} ${GL_CODE[l.gl]}: ${money(l.dr)}` : undefined}>
                   {l.dr ? money(l.dr) : ''}
@@ -944,15 +1070,18 @@ const SHEET_SIDES: readonly { side: GlSide; title: AnalystWorkspaceKey }[] = [
 ];
 
 /** The workspace's core ledger: the four KPIs, the balance sheet and P&L by account, the balance check and the latest journals. */
-export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: RetailLedger; m: M; onClose: () => void; onReset: () => void }) {
+export function CoreLedgerSheet({ ledger, m, onClose, onReset, initialView = 'basic' }: { ledger: RetailLedger; m: M; onClose: () => void; onReset: () => void; initialView?: ViewMode }) {
+  const [view, setView] = useState<ViewMode>(initialView);
+  const basic = view === 'basic';
+  const gl = useGlossary();
   const sum = ledgerSummary(ledger);
   const kpis = retailKpis(ledger);
   const totals: Readonly<Record<GlSide, number>> = { asset: sum.assets, liability: sum.liabilities, equity: sum.equity, income: sum.income, expense: sum.expense };
   return (
     <div className="absolute inset-0 z-30 grid place-items-center bg-slate-950/80 p-4 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()} data-testid="workspace-ledger-backdrop">
       <div role="dialog" aria-modal="true" aria-labelledby="workspace-ledger-title" data-testid="workspace-ledger" className="flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-emerald-400/40 bg-slate-900 shadow-2xl">
-        <div className="flex items-start justify-between gap-3 border-b border-slate-800 px-5 py-3">
-          <div>
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800 px-5 py-3">
+          <div className="min-w-0">
             <h3 id="workspace-ledger-title" className="text-[17px] font-extrabold text-emerald-100">
               {m('ledgerTitle')}
             </h3>
@@ -960,7 +1089,8 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: Retai
               {m('ledgerSubtitle')} · {m('ledgerPosted', { n: ledger.posted })}
             </p>
           </div>
-          <div className="flex shrink-0 gap-2">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <ViewModeToggle view={view} onChange={setView} testId="workspace-ledger-view" />
             <button type="button" onClick={onReset} data-testid="workspace-ledger-reset" className="rounded-lg border border-slate-600 px-3 py-1.5 text-[12px] font-medium text-slate-300 transition hover:bg-slate-800">
               {m('ledgerReset')}
             </button>
@@ -1000,12 +1130,13 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: Retai
                   <ul className="mt-1 space-y-0.5 text-[11.5px] tabular-nums">
                     {GL_ACCOUNTS.filter((a) => a.side === side).map((a) => {
                       const name = `${a.code} ${m(k(`gl_${a.id}`))}`;
+                      const label = basic ? gl.glPlain(a.id) : m(k(`gl_${a.id}`));
                       const amount = money(naturalBalance(a.id, ledger.balances[a.id]));
                       return (
                         <li key={a.id} className="flex min-w-0 items-baseline gap-1.5 overflow-hidden" data-gl={a.id}>
                           {/* The code and name share one ellipsised label; the full account name is on hover. */}
                           <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap" title={name}>
-                            <span className="font-mono text-[10.5px] text-slate-500">{a.code}</span> <span className="text-slate-300">{m(k(`gl_${a.id}`))}</span>
+                            {!basic && <span className="font-mono text-[10.5px] text-slate-500">{a.code}</span>} <span className="text-slate-300">{label}</span>
                           </span>
                           {GL_TAG[a.id] && (
                             <span className="max-w-[5.5rem] shrink-0 truncate rounded bg-slate-800 px-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400" title={m(GL_TAG[a.id]!)}>
@@ -1034,9 +1165,9 @@ export function CoreLedgerSheet({ ledger, m, onClose, onReset }: { ledger: Retai
             {ledger.journal.length === 0 ? (
               <p className="mt-1 text-[12px] text-slate-400">{m('ledgerEmpty')}</p>
             ) : (
-              <ol className="mt-1 space-y-2" data-testid="ledger-journal">
+              <ol className="mt-1 space-y-2" data-testid="ledger-journal" data-view={view}>
                 {ledger.journal.map((j, i) => (
-                  <JournalDetail key={`${j.caseId}-${i}`} j={j} m={m} />
+                  <JournalDetail key={`${j.caseId}-${i}`} j={j} m={m} view={view} />
                 ))}
               </ol>
             )}
@@ -1161,7 +1292,10 @@ const PRINT_CSS = `.pc-audit-print{display:none}
   .pc-audit-print{display:block!important;background:#fff;color:#000}
 }`;
 
-/** Section III's columns: widths that keep codes and amounts on one line, and which columns are numeric (right-aligned). */
+/**
+ * Section III's columns: starting widths (the table lays out automatically, so a code column grows to fit its longest code
+ * rather than breaking it), and which columns are numeric (right-aligned).
+ */
 const AUDIT_TABLE_COLS: readonly { key: AnalystWorkspaceKey; width: string; numeric?: boolean }[] = [
   { key: 'rptColNo', width: '3.5%', numeric: true },
   { key: 'auditColTime', width: '11%' },
@@ -1177,13 +1311,18 @@ const AUDIT_TABLE_COLS: readonly { key: AnalystWorkspaceKey; width: string; nume
 ];
 
 /** The official audit report: national motto header, numbered sections, summary, the detailed log and sign-off blocks. */
-export function AuditReport({ log, m: tm, issued }: { log: readonly AuditEntry[]; m: M; issued: Date }) {
+export function AuditReport({ log, m: tm, issued, view = 'advanced' }: { log: readonly AuditEntry[]; m: M; issued: Date; view?: ViewMode }) {
   const m = nfcMessages(tm);
+  const gl = useGlossary();
+  const basic = view === 'basic';
+  const plain = (code: string): string => nfc(gl.plain(code));
   const sum = auditSummary(log);
   const desks = [...new Set(log.map((e) => e.role))].map((r) => m(k(`role_${r}_title`))).join(', ') || '—';
   const issues = sum.compliance.SLA_BREACH + sum.compliance.SOP_BREACH;
   const cell = 'border border-black px-2 py-1 align-top';
-  const num = `${cell} whitespace-nowrap text-right tabular-nums`;
+  const num = `${cell} whitespace-nowrap px-3 text-right tabular-nums`;
+  /** A code cell: one unbroken line in Advanced view (meaning on hover), plain words that may wrap in Basic view. */
+  const coded = (code: string) => (basic ? plain(code) : <Code code={code} gl={gl} />);
   const row = (label: string, value: string | number) => (
     <tr>
       <td className={cell} title={label}>
@@ -1200,6 +1339,7 @@ export function AuditReport({ log, m: tm, issued }: { log: readonly AuditEntry[]
       style={{ fontFamily: REPORT_FONT, letterSpacing: 'normal', fontSynthesis: 'none' }}
       data-testid="audit-report"
       data-entries={log.length}
+      data-view={view}
     >
       <header className="grid grid-cols-2 gap-4 text-center">
         <div>
@@ -1247,7 +1387,7 @@ export function AuditReport({ log, m: tm, issued }: { log: readonly AuditEntry[]
       {log.length === 0 ? (
         <p className="italic">{m('auditEmpty')}</p>
       ) : (
-        <table className="mt-1 w-full table-fixed border-collapse text-[10.5px]" data-testid="audit-table">
+        <table className="mt-1 w-full min-w-[960px] table-auto border-collapse text-[10.5px]" data-testid="audit-table">
           <colgroup>
             {AUDIT_TABLE_COLS.map((c) => (
               <col key={c.key} style={{ width: c.width }} />
@@ -1256,7 +1396,7 @@ export function AuditReport({ log, m: tm, issued }: { log: readonly AuditEntry[]
           <thead>
             <tr className="bg-gray-100">
               {AUDIT_TABLE_COLS.map((c) => (
-                <th key={c.key} className={`${cell} break-normal font-bold ${c.numeric ? 'text-right' : 'text-left'}`} title={m(c.key)}>
+                <th key={c.key} className={`${cell} break-normal font-bold ${c.numeric ? 'px-3 text-right' : 'text-left'}`} title={m(c.key)}>
                   {m(c.key)}
                 </th>
               ))}
@@ -1271,10 +1411,10 @@ export function AuditReport({ log, m: tm, issued }: { log: readonly AuditEntry[]
                 <td className={`${cell} whitespace-nowrap`} title={`${m('auditColTime')}: ${auditTime(e.at)}`}>
                   {auditTime(e.at)}
                 </td>
-                <td className={`${cell} break-all`} title={`${m('auditColDesk')}: ${e.station}`}>
-                  {e.station}
+                <td className={`${cell} ${basic ? '' : 'whitespace-nowrap'}`} title={`${m('auditColDesk')}: ${e.station}`}>
+                  {coded(e.station)}
                 </td>
-                <td className={`${cell} break-all`} title={`${m('auditColCase')}: ${e.caseId}`}>
+                <td className={`${cell} whitespace-nowrap`} title={`${m('auditColCase')}: ${e.caseId}`}>
                   {e.caseId}
                 </td>
                 <td className={cell} title={`${m('auditColAction')}: ${auditActionLabel(e.action, m)}`}>
@@ -1289,18 +1429,24 @@ export function AuditReport({ log, m: tm, issued }: { log: readonly AuditEntry[]
                 <td className={cell} title={`${m('auditColLedger')}: ${ledgerEntryCode(e.lines, m('auditMemo'))}`}>
                   {/* One Dr/Cr leg per line, never split inside a leg. */}
                   {e.lines.length
-                    ? e.lines.map((l, i) => (
-                        <span key={`${l.gl}-${i}`} className="block whitespace-nowrap">
-                          {`${l.dr ? 'Dr' : 'Cr'} ${GL_CODE[l.gl]}`}
-                        </span>
-                      ))
+                    ? e.lines.map((l, i) =>
+                        basic ? (
+                          <span key={`${l.gl}-${i}`} className="block">
+                            {nfc(gl.line(l))}
+                          </span>
+                        ) : (
+                          <span key={`${l.gl}-${i}`} className="block cursor-help whitespace-nowrap" title={nfc(`${l.dr ? m('labelDebit') : m('labelCredit')} ${GL_CODE[l.gl]}: ${m(k(`gl_${l.gl}`))}`)}>
+                            {`${l.dr ? 'Dr' : 'Cr'} ${GL_CODE[l.gl]}`}
+                          </span>
+                        ),
+                      )
                     : m('auditMemo')}
                 </td>
                 <td className={num} title={`${m('auditColAmount')}: ${money(e.amountCents)}`}>
                   {money(e.amountCents)}
                 </td>
-                <td className={`${cell} break-all`} title={`${m('auditColStatus')}: ${e.statusCode}`}>
-                  {e.statusCode}
+                <td className={`${cell} ${basic ? '' : 'whitespace-nowrap'}`} title={`${m('auditColStatus')}: ${e.statusCode}`}>
+                  {coded(e.statusCode)}
                 </td>
                 <td className={`${cell} ${e.compliance === 'COMPLIANT' ? '' : 'font-bold'}`} title={`${m('auditColCompliance')}: ${complianceLabel(e.compliance, m)}`}>
                   {complianceLabel(e.compliance, m)}
@@ -1327,16 +1473,21 @@ export function AuditReport({ log, m: tm, issued }: { log: readonly AuditEntry[]
 }
 
 /** Export actions and a preview of the printed report. The print copy is portalled to <body> so only it reaches the page. */
-export function AuditExportDialog({ log, m, onClose, issued = new Date() }: { log: readonly AuditEntry[]; m: M; onClose: () => void; issued?: Date }) {
+/** The report page's width in the preview, close to A4 landscape at 96 dpi. */
+const REPORT_PAGE_PX = 1100;
+
+export function AuditExportDialog({ log, m, onClose, issued = new Date(), initialView = 'basic' }: { log: readonly AuditEntry[]; m: M; onClose: () => void; issued?: Date; initialView?: ViewMode }) {
+  const [view, setView] = useState<ViewMode>(initialView);
+  const [zoom, setZoom] = useState(1);
   const csv = (): void => downloadFile(`audit-trail-${stamp(issued)}-${pad2(issued.getHours())}${pad2(issued.getMinutes())}.csv`, auditCsv(log, m), 'text/csv;charset=utf-8');
-  const report = <AuditReport log={log} m={m} issued={issued} />;
+  const report = <AuditReport log={log} m={m} issued={issued} view={view} />;
   return (
     <div className="absolute inset-0 z-40 grid place-items-center overflow-hidden bg-slate-950/80 p-4 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()} data-testid="workspace-audit-backdrop">
       <style>{PRINT_CSS}</style>
       {typeof document !== 'undefined' && createPortal(<div className="pc-audit-print">{report}</div>, document.body)}
       <div role="dialog" aria-modal="true" aria-labelledby="workspace-audit-title" data-testid="workspace-audit" className="flex max-h-full w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-600 bg-slate-900 shadow-2xl">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800 px-5 py-3">
-          <div>
+          <div className="min-w-0">
             <h3 id="workspace-audit-title" className="text-[17px] font-extrabold text-slate-50">
               {m('auditTitle')}
             </h3>
@@ -1354,9 +1505,15 @@ export function AuditExportDialog({ log, m, onClose, issued = new Date() }: { lo
             </button>
           </div>
         </div>
-        {/* The preview scrolls on its own, capped below the viewport, so the whole report can be read top to bottom. */}
-        <div className="bk-scroll min-h-0 max-h-[min(75vh,calc(100vh-180px))] flex-1 overflow-x-auto overflow-y-auto bg-slate-700/40 p-4" tabIndex={0} aria-label={m('auditTitle')} data-testid="workspace-audit-preview">
-          <div className="mx-auto max-w-[1100px] rounded bg-white p-8 shadow-lg">{report}</div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900/80 px-5 py-2" data-testid="workspace-audit-controls">
+          <ViewModeToggle view={view} onChange={setView} testId="workspace-audit-view" />
+          <ZoomBar zoom={zoom} onZoom={setZoom} testId="workspace-audit-zoom" />
+        </div>
+        {/* The preview scrolls on its own, capped below the viewport, so no section is cut off at any zoom or screen size. */}
+        <div className="bk-scroll min-h-0 max-h-[calc(100vh-200px)] flex-1 overflow-x-auto overflow-y-auto bg-slate-700/40 p-4" tabIndex={0} aria-label={m('auditTitle')} data-testid="workspace-audit-preview">
+          <ZoomFrame zoom={zoom} width={REPORT_PAGE_PX}>
+            <div className="rounded bg-white p-8 shadow-lg">{report}</div>
+          </ZoomFrame>
         </div>
       </div>
     </div>
@@ -2136,9 +2293,9 @@ export function AnalystWorkspaceView({
         {incidentId === 'POWER_GRID_FAILOVER' && <PowerFlicker />}
         {consequence && !consequence.result.correct && <SopViolationPulse m={m} />}
         {challenge.finished && <ChallengeScorecard tally={challenge.finished} m={m} onAgain={cc.start} onClose={cc.dismiss} onExport={() => setAuditOpen(true)} />}
-        {auditOpen && <AuditExportDialog log={auditLog} m={m} onClose={() => setAuditOpen(false)} />}
+        {auditOpen && <AuditExportDialog log={auditLog} m={m} onClose={() => setAuditOpen(false)} initialView={mode === 'expert' ? 'advanced' : 'basic'} />}
         {badgesOpen && <BadgeDrawer career={career} m={m} onClose={() => setBadgesOpen(false)} />}
-        {ledgerOpen && <CoreLedgerSheet ledger={ledger} m={m} onClose={() => setLedgerOpen(false)} onReset={onResetLedger} />}
+        {ledgerOpen && <CoreLedgerSheet ledger={ledger} m={m} onClose={() => setLedgerOpen(false)} onReset={onResetLedger} initialView={mode === 'expert' ? 'advanced' : 'basic'} />}
         {unlock && <BadgeUnlockModal key={unlock} badge={unlock} m={m} onClose={onDismissBadgeUnlock} />}
         {pendingRole && <SwitchDeskDialog target={pendingRole} m={m} onCancel={() => setPendingRole(null)} onConfirm={confirmSwitch} />}
       </div>

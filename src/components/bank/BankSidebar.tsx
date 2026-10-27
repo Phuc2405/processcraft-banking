@@ -140,9 +140,9 @@ function History() {
             const net = pnl(r.kpis).netCents;
             return (
               <tr key={r.day} className="border-t border-slate-800/80">
-                <td className="py-1.5 font-mono text-slate-400">{r.day}</td>
+                <td className="whitespace-nowrap py-1.5 pr-2 font-mono text-slate-400">{r.day}</td>
                 <td className="py-1.5 pr-1 text-slate-300">{terms.t(eventText(r.event).title)}</td>
-                <td className={`py-1.5 text-right font-medium tabular-nums ${net >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{formatMoney(net, true)}</td>
+                <td className={`whitespace-nowrap py-1.5 pl-2 text-right font-medium tabular-nums ${net >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{formatMoney(net, true)}</td>
               </tr>
             );
           })}

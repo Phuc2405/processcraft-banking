@@ -99,9 +99,15 @@ function Batch({ batch, actions }: { batch: LedgerBatch; actions?: (batch: Ledge
   return (
     <section className="rounded-lg border border-slate-800 bg-slate-950/60 p-2.5" data-testid="ledger-batch" data-tx={batch.id}>
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h4 className="min-w-0 truncate text-[12.5px] font-semibold text-slate-100">{batch.title}</h4>
-        {batch.subtitle && <span className="truncate text-[11px] text-slate-500">{batch.subtitle}</span>}
-        <span className="ml-auto text-[11px] text-slate-500">{ui.entries(batch.entries.length)}</span>
+        <h4 className="min-w-0 truncate text-[12.5px] font-semibold text-slate-100" title={batch.title}>
+          {batch.title}
+        </h4>
+        {batch.subtitle && (
+          <span className="min-w-0 truncate text-[11px] text-slate-500" title={batch.subtitle}>
+            {batch.subtitle}
+          </span>
+        )}
+        <span className="ml-auto shrink-0 whitespace-nowrap text-[11px] text-slate-500">{ui.entries(batch.entries.length)}</span>
         <BalancedBadge ok={ok} />
         {extra}
       </header>
@@ -143,8 +149,8 @@ function TrialBalance({ tb }: { tb: Trial }) {
               <td className="px-2.5 py-1">
                 <AccountName id={r.account} />
               </td>
-              <td className="px-2.5 py-1 text-right font-mono tabular-nums">{r.debit > 0 ? formatAud(r.debit) : ''}</td>
-              <td className="px-2.5 py-1 text-right font-mono tabular-nums">{r.credit > 0 ? formatAud(r.credit) : ''}</td>
+              <td className="whitespace-nowrap px-2.5 py-1 text-right font-mono tabular-nums">{r.debit > 0 ? formatAud(r.debit) : ''}</td>
+              <td className="whitespace-nowrap px-2.5 py-1 text-right font-mono tabular-nums">{r.credit > 0 ? formatAud(r.credit) : ''}</td>
             </tr>
           ))}
         </tbody>
@@ -153,10 +159,10 @@ function TrialBalance({ tb }: { tb: Trial }) {
             <td className="px-2.5 py-1.5">
               {ui.totalDebits} / {ui.totalCredits}
             </td>
-            <td className="px-2.5 py-1.5 text-right font-mono tabular-nums" data-testid="ledger-total-debits">
+            <td className="whitespace-nowrap px-2.5 py-1.5 text-right font-mono tabular-nums" data-testid="ledger-total-debits">
               {formatAud(tb.totalDebits)}
             </td>
-            <td className="px-2.5 py-1.5 text-right font-mono tabular-nums" data-testid="ledger-total-credits">
+            <td className="whitespace-nowrap px-2.5 py-1.5 text-right font-mono tabular-nums" data-testid="ledger-total-credits">
               {formatAud(tb.totalCredits)}
             </td>
           </tr>

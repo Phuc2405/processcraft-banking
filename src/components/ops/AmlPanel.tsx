@@ -9,6 +9,7 @@ import type { TxRecord } from '../../sim/types';
 import { amlStore, useAmlStore, type AmlCase } from '../../store/amlStore';
 import { bankStore, useBankStore } from '../../store/bankStore';
 import { uiStore, useUiStore } from '../../store/uiStore';
+import { glossText } from '../bank/codeGlossary';
 import { Modal } from '../shell/Modal';
 
 /**
@@ -153,6 +154,7 @@ function SarForm({ alert, day, minute, onFiled, onBack }: { alert: AmlAlert; day
 /** The AML / SAR compliance panel. */
 export function AmlPanel() {
   const open = useUiStore((s) => s.overlay === 'aml');
+  const locale = useLocale();
   const finished = useBankStore((s) => s.view.kpis.finished);
   const day = useBankStore((s) => s.view.day);
   const minute = useBankStore((s) => s.view.minute);
@@ -267,7 +269,7 @@ export function AmlPanel() {
                 <tbody>
                   {shown.map((a) => (
                     <tr key={a.id} className="border-t border-slate-800 text-slate-200 hover:bg-slate-800/40" data-testid="aml-alert" data-kind={a.kind}>
-                      <td className="px-3 py-2 font-mono tabular-nums text-slate-400">{formatClock(Math.floor(a.minute))}</td>
+                      <td className="whitespace-nowrap px-3 py-2 font-mono tabular-nums text-slate-400">{formatClock(Math.floor(a.minute))}</td>
                       <td className="px-3 py-2">
                         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold ring-1 ${KIND_TEXT[a.kind].tone}`}>
                           <span aria-hidden="true">{KIND_TEXT[a.kind].icon}</span>
@@ -277,7 +279,7 @@ export function AmlPanel() {
                       <td className="max-w-[16rem] truncate px-3 py-2" title={localizeScenarioText(a.scenario)}>
                         {a.kind === 'VELOCITY_BURST' ? tr({ en: `${a.count} payments${isBotBurst(a, log) ? ' (botnet)' : ''}`, vi: `${a.count} giao dịch${isBotBurst(a, log) ? ' (botnet)' : ''}` }) : localizeScenarioText(a.scenario)}
                       </td>
-                      <td className="px-3 py-2 text-right font-mono tabular-nums">{formatMoney(a.amountCents)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">{formatMoney(a.amountCents)}</td>
                       <td className="px-3 py-2 text-right">
                         <span className={`font-mono font-bold ${a.riskScore >= 80 ? 'text-rose-300' : 'text-amber-300'}`}>{a.riskScore}</span>
                       </td>
@@ -344,11 +346,13 @@ export function AmlPanel() {
               <tbody>
                 {rows.slice(0, 50).map((r) => (
                   <tr key={r.id} className="border-t border-slate-800 text-slate-300">
-                    <td className="px-3 py-1.5 font-mono">{r.id}</td>
-                    <td className="px-3 py-1.5 font-mono tabular-nums">{formatClock(Math.floor(r.minute))}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5 font-mono">{r.id}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5 font-mono tabular-nums">{formatClock(Math.floor(r.minute))}</td>
                     <td className="px-3 py-1.5">{scenarioLabel(r.scenario)}</td>
-                    <td className="px-3 py-1.5 text-right font-mono tabular-nums">{formatMoney(r.amountCents)}</td>
-                    <td className={`px-3 py-1.5 ${r.status === 'APPROVED' ? 'text-lime-300' : 'text-rose-300'}`}>{r.responseCode ? rcLabel(r.responseCode, 'expert') : r.status}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5 text-right font-mono tabular-nums">{formatMoney(r.amountCents)}</td>
+                    <td className={`whitespace-nowrap px-3 py-1.5 ${r.status === 'APPROVED' ? 'text-lime-300' : 'text-rose-300'}`} title={glossText(r.responseCode ? rcLabel(r.responseCode, 'expert') : r.status, locale)}>
+                      {r.responseCode ? rcLabel(r.responseCode, 'expert') : r.status}
+                    </td>
                   </tr>
                 ))}
               </tbody>

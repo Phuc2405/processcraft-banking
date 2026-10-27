@@ -662,7 +662,9 @@ export function LearningHub() {
                 <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-[12px] font-black tabular-nums text-slate-950" style={{ background: l.accent }}>
                   {l.chapter}
                 </span>
-                <span className={`truncate text-[12.5px] font-semibold ${l.id === process ? 'text-slate-50' : 'text-slate-400'}`}>{processShort(l.id as ProcessId)}</span>
+                <span className={`min-w-0 truncate text-[12.5px] font-semibold ${l.id === process ? 'text-slate-50' : 'text-slate-400'}`} title={processShort(l.id as ProcessId)}>
+                  {processShort(l.id as ProcessId)}
+                </span>
               </button>
             ))}
           </nav>
