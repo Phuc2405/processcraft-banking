@@ -6,7 +6,7 @@ import { buildRetailCase, buildTaskCase, GL_ACCOUNTS, gradeTaskCase, openingLedg
 import { createBankStore } from '../../../store/bankStore';
 import { bundleProblems } from '../../../utils/i18nHelper';
 import { analystWorkspaceMessages } from '../analystWorkspace.messages';
-import { AuditExportDialog, AuditReport, CoreLedgerSheet, nextZoom, PREVIEW_ZOOMS } from '../AnalystWorkspaceModal';
+import { AuditExportDialog, AuditReport, CoreLedgerSheet, dragScrollTo, nextZoom, PREVIEW_ZOOMS } from '../AnalystWorkspaceModal';
 import { codeGlossaryMessages } from '../codeGlossary.messages';
 import { codesIn, explainCode, glossText, glPlain, lineRaises, lineText } from '../codeGlossary';
 
@@ -127,6 +127,27 @@ describe('Basic and Advanced views of the audit report', () => {
     expect(nextZoom(1, -1)).toBe(0.9);
     expect(nextZoom(0.75, -1)).toBe(0.75);
     expect(nextZoom(1.5, 1)).toBe(1.5);
+  });
+});
+
+describe('Select and Pan pointer modes of the audit preview', () => {
+  it('opens in Select mode, with selectable text and the Pan option beside the zoom controls', () => {
+    const out = renderToStaticMarkup(createElement(AuditExportDialog, { log: [], m: en, onClose: () => undefined, issued: AT }));
+    expect(out).toContain('data-testid="workspace-audit-pointer" data-mode="select"');
+    for (const key of ['pointerSelect', 'pointerPan'] as const) expect(out).toContain(esc(g[key].en));
+    expect(out).toMatch(/aria-checked="true"[^>]*data-testid="workspace-audit-pointer-select"/);
+    const preview = out.slice(out.lastIndexOf('<div', out.indexOf('data-testid="workspace-audit-preview"')));
+    expect(preview).toMatch(/^<div class="bk-scroll [^"]*select-text"/);
+    expect(preview).not.toContain('cursor-grab');
+    const controls = out.slice(out.indexOf('data-testid="workspace-audit-controls"'));
+    expect(controls.indexOf('workspace-audit-pointer')).toBeLessThan(controls.indexOf('workspace-audit-zoom'));
+  });
+
+  it('moves the scroll offset opposite to the drag, in both directions on both axes', () => {
+    const from = { x: 100, y: 100, left: 300, top: 400 };
+    expect(dragScrollTo(from, 160, 70)).toEqual({ left: 240, top: 430 });
+    expect(dragScrollTo(from, 40, 180)).toEqual({ left: 360, top: 320 });
+    expect(dragScrollTo(from, 100, 100)).toEqual({ left: 300, top: 400 });
   });
 });
 

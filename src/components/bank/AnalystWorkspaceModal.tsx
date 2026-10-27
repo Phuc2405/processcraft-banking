@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { formatMoney } from '../../sim/kpis';
 import { localizeScenarioText } from '../../sim/scenarios';
@@ -257,6 +257,83 @@ function ZoomBar({ zoom, onZoom, testId }: { zoom: number; onZoom: (z: number) =
       </button>
     </div>
   );
+}
+
+/** Select: the preview's text can be highlighted and copied. Pan: a left-button drag scrolls the preview instead. */
+export type PointerMode = 'select' | 'pan';
+
+function PointerModeToggle({ mode, onChange, testId }: { mode: PointerMode; onChange: (mode: PointerMode) => void; testId: string }) {
+  const { g } = useGlossary();
+  const option = (value: PointerMode, label: string, hint: string) => (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={mode === value}
+      onClick={() => onChange(value)}
+      title={hint}
+      data-testid={`${testId}-${value}`}
+      className={`whitespace-nowrap rounded-md px-2.5 py-1 text-[11.5px] font-semibold transition ${mode === value ? 'bg-sky-400 text-slate-950' : 'text-slate-300 hover:bg-slate-800'}`}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div role="radiogroup" aria-label={g('pointerLabel')} className="flex shrink-0 rounded-lg border border-slate-700 bg-slate-900 p-0.5" data-testid={testId} data-mode={mode}>
+      {option('select', g('pointerSelect'), g('pointerSelectHint'))}
+      {option('pan', g('pointerPan'), g('pointerPanHint'))}
+    </div>
+  );
+}
+
+/** Where a drag that started at `from` (pointer and scroll offset) leaves the scroll offset: the content follows the pointer. */
+export const dragScrollTo = (from: { x: number; y: number; left: number; top: number }, x: number, y: number): { left: number; top: number } => ({
+  left: from.left - (x - from.x),
+  top: from.top - (y - from.y),
+});
+
+/**
+ * Left-button drag-to-scroll on a native scroll container, while `enabled`. It moves scrollLeft/scrollTop only, so the wheel,
+ * two-finger touchpad scrolling and the scrollbars keep working in both modes. Returns whether a drag is in progress.
+ */
+function useDragScroll(ref: RefObject<HTMLElement>, enabled: boolean): boolean {
+  const [dragging, setDragging] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !enabled) return;
+    let from: { x: number; y: number; left: number; top: number; id: number } | null = null;
+    const down = (e: PointerEvent): void => {
+      // Mouse and pen only, left button only; touch already scrolls natively.
+      if (e.button !== 0 || e.pointerType === 'touch') return;
+      from = { x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop, id: e.pointerId };
+      el.setPointerCapture(e.pointerId);
+      setDragging(true);
+      e.preventDefault();
+    };
+    const move = (e: PointerEvent): void => {
+      if (!from || e.pointerId !== from.id) return;
+      const to = dragScrollTo(from, e.clientX, e.clientY);
+      el.scrollLeft = to.left;
+      el.scrollTop = to.top;
+    };
+    const up = (e: PointerEvent): void => {
+      if (!from || e.pointerId !== from.id) return;
+      if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+      from = null;
+      setDragging(false);
+    };
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    return () => {
+      el.removeEventListener('pointerdown', down);
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+      setDragging(false);
+    };
+  }, [ref, enabled]);
+  return dragging;
 }
 
 /**
@@ -1479,6 +1556,9 @@ const REPORT_PAGE_PX = 1100;
 export function AuditExportDialog({ log, m, onClose, issued = new Date(), initialView = 'basic' }: { log: readonly AuditEntry[]; m: M; onClose: () => void; issued?: Date; initialView?: ViewMode }) {
   const [view, setView] = useState<ViewMode>(initialView);
   const [zoom, setZoom] = useState(1);
+  const [pointer, setPointer] = useState<PointerMode>('select');
+  const preview = useRef<HTMLDivElement>(null);
+  const dragging = useDragScroll(preview, pointer === 'pan');
   const csv = (): void => downloadFile(`audit-trail-${stamp(issued)}-${pad2(issued.getHours())}${pad2(issued.getMinutes())}.csv`, auditCsv(log, m), 'text/csv;charset=utf-8');
   const report = <AuditReport log={log} m={m} issued={issued} view={view} />;
   return (
@@ -1507,10 +1587,20 @@ export function AuditExportDialog({ log, m, onClose, issued = new Date(), initia
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900/80 px-5 py-2" data-testid="workspace-audit-controls">
           <ViewModeToggle view={view} onChange={setView} testId="workspace-audit-view" />
-          <ZoomBar zoom={zoom} onZoom={setZoom} testId="workspace-audit-zoom" />
+          <div className="flex flex-wrap items-center gap-2">
+            <PointerModeToggle mode={pointer} onChange={setPointer} testId="workspace-audit-pointer" />
+            <ZoomBar zoom={zoom} onZoom={setZoom} testId="workspace-audit-zoom" />
+          </div>
         </div>
         {/* The preview scrolls on its own, capped below the viewport, so no section is cut off at any zoom or screen size. */}
-        <div className="bk-scroll min-h-0 max-h-[calc(100vh-200px)] flex-1 overflow-x-auto overflow-y-auto bg-slate-700/40 p-4" tabIndex={0} aria-label={m('auditTitle')} data-testid="workspace-audit-preview">
+        <div
+          ref={preview}
+          className={`bk-scroll min-h-0 max-h-[calc(100vh-200px)] flex-1 overflow-x-auto overflow-y-auto bg-slate-700/40 p-4 ${pointer === 'pan' ? `select-none ${dragging ? 'cursor-grabbing' : 'cursor-grab'}` : 'select-text'}`}
+          tabIndex={0}
+          aria-label={m('auditTitle')}
+          data-testid="workspace-audit-preview"
+          data-pointer={pointer}
+        >
           <ZoomFrame zoom={zoom} width={REPORT_PAGE_PX}>
             <div className="rounded bg-white p-8 shadow-lg">{report}</div>
           </ZoomFrame>
