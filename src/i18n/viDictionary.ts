@@ -462,6 +462,16 @@ export const VI_DICTIONARY: Readonly<Record<string, string>> = {
   "bad dCVV": "dCVV sai",
   "bank time": "giờ ngân hàng",
   "break": "lệch sổ",
+  // The 3D office: weather, time of day and the desk description.
+  "Passes when": "Đi tiếp khi",
+  "Declines when": "Từ chối khi",
+  "☀️ Morning": "☀️ Sáng",
+  "🌞 Noon": "🌞 Trưa",
+  "🌇 Afternoon": "🌇 Chiều",
+  "🌙 Night": "🌙 Tối",
+  "🌧️ Rain: On": "🌧️ Mưa: Bật",
+  "🌤️ Rain: Off": "🌤️ Mưa: Tắt",
+  "Rain: people on the pavement open umbrellas or run for the canopy, and the street turns wet": "Mưa: người đi bộ mở ô hoặc chạy vào trú dưới mái hiên, và mặt đường ướt",
   // Wire labels on the bank map (topology.ts WIRES).
   "tokenised card": "Thẻ ảo đã mã hóa",
   "DPAN found": "Tìm thấy DPAN",

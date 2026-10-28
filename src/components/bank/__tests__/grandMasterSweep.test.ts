@@ -445,7 +445,7 @@ describe('readability pass: the Knowledge Base cards, balances and Advanced dept
 
 describe('readability pass: the map legend and one switch for the dock', () => {
   it('opens a legend of the lines, gateways, frames and wire words', async () => {
-    const { MapLegend } = await import('../BankMap');
+    const { MapLegend } = await import('../MapLegend');
     const closed = renderToStaticMarkup(createElement(MapLegend, { top: 60, right: 80 }));
     expect(closed).toContain('data-testid="map-legend-open"');
     // Top-right of the viewport, never the bottom-left.

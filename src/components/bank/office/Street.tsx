@@ -1,11 +1,13 @@
 import { useFrame } from '@react-three/fiber';
-import { memo, useEffect, useMemo } from 'react';
-import { CanvasTexture, MeshBasicMaterial, RepeatWrapping, SRGBColorSpace } from 'three';
+import { memo, useEffect, useMemo, useRef } from 'react';
+import { CanvasTexture, Color, MeshBasicMaterial, RepeatWrapping, SRGBColorSpace, type MeshStandardMaterial } from 'three';
 import { bankStore } from '../../../store/bankStore';
 import { Sign, useMerged } from './Dressing';
 import { ATM_ALCOVE, KERB_Z, LAMP, ROAD_END, STREET, STREET_LAMPS } from './layout3d';
 import { box, cyl, tint, type Part } from './kit';
 import { glow, satin, solid } from './materials';
+import { atmosphereAt } from './atmosphere';
+import { weatherStore } from './weather';
 
 /**
  * The street in front of the branch: a paved sidewalk with tiles, a kerb, a strip of road with its markings, the street
@@ -155,9 +157,10 @@ const StreetLamps = memo(function StreetLamps() {
     [lensMaterial, pool],
   );
   useFrame(() => {
-    const dusk = duskAt(bankStore.getState().view.minute);
-    pool.opacity = 0.22 + 0.7 * dusk;
-    lensMaterial.color.setScalar(0.72 + 0.28 * dusk);
+    // On after dusk, and partly on under a rain sky (atmosphere.ts).
+    const lamps = atmosphereAt(bankStore.getState().view.minute, weatherStore.getState().rain).lamps;
+    pool.opacity = 0.22 + 0.7 * lamps;
+    lensMaterial.color.setScalar(0.72 + 0.28 * lamps);
   });
   return (
     <group name="street-lamps">
@@ -208,12 +211,25 @@ export const Street = memo(function Street() {
   // The tiles lie on the pavement, from the building to the kerb: four to a texture.
   const tiles = usePavers((HW * 2) / 4, STREET.walk / 4);
   const ground = useMerged(groundParts, []);
+  // Rain darkens the paving and gives it a sheen; it dries again over a few seconds when the rain stops.
+  const paving = useRef<MeshStandardMaterial>(null);
+  const wet = useRef(0);
+  const dry = useMemo(() => new Color('#ffffff'), []);
+  const soaked = useMemo(() => new Color('#9aa3ad'), []);
+  useFrame((_, dt) => {
+    const want = weatherStore.getState().rain ? 1 : 0;
+    wet.current += (want - wet.current) * Math.min(1, dt * (want ? 1.2 : 0.4));
+    if (!paving.current) return;
+    paving.current.roughness = 0.9 - 0.62 * wet.current;
+    paving.current.metalness = 0.18 * wet.current;
+    paving.current.color.copy(dry).lerp(soaked, wet.current);
+  });
   return (
     <group name="office-street">
       <mesh geometry={ground} material={solid} receiveShadow />
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, STREET.z0 + STREET.walk / 2]} receiveShadow name="street-pavement">
         <planeGeometry args={[HW * 2, STREET.walk]} />
-        <meshStandardMaterial map={tiles} roughness={0.9} />
+        <meshStandardMaterial ref={paving} map={tiles} roughness={0.9} />
       </mesh>
       <Alcove />
       <StreetLamps />

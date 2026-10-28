@@ -6,6 +6,43 @@ import { activeFlowOf, useBankStore } from '../../../store/bankStore';
 import { OfficeScene } from './OfficeScene';
 import { TourLayer3D } from './TourLayer3D';
 import { CAMERA_DIRECTION, CAMERA_DISTANCE } from './layout3d';
+import { atmosphereAt, type DayPart } from './atmosphere';
+import { useWeather, weatherStore } from './weather';
+import { MapLegend } from '../MapLegend';
+import { useDockInset } from '../ViewportControls';
+
+/** The sky behind the diorama: a gradient from the time-of-day presets, redrawn every ten bank minutes and when the rain changes. */
+function SkyBackdrop() {
+  const slot = useBankStore((s) => Math.floor(s.view.minute / 10));
+  const rain = useWeather((s) => s.rain);
+  const a = atmosphereAt(slot * 10, rain);
+  return <div className="pointer-events-none absolute inset-0 transition-[background] duration-1000" style={{ background: `linear-gradient(180deg, ${a.skyTop} 0%, ${a.skyHorizon} 78%, ${a.fog.color} 100%)` }} data-testid="office-sky" data-part={a.part} aria-hidden="true" />;
+}
+
+const DAY_PART_LABEL: Record<DayPart, string> = { morning: '☀️ Morning', noon: '🌞 Noon', afternoon: '🌇 Afternoon', night: '🌙 Night' };
+
+/** The time of day and the rain switch, beside the other 3D controls. */
+function WeatherControls() {
+  const part = useBankStore((s) => atmosphereAt(s.view.minute).part);
+  const rain = useWeather((s) => s.rain);
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="rounded-lg border border-white bg-white/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-700 shadow-md" data-testid="office-daypart" data-part={part}>
+        {t(DAY_PART_LABEL[part])}
+      </span>
+      <button
+        type="button"
+        onClick={() => weatherStore.getState().setRain(!rain)}
+        aria-pressed={rain}
+        data-testid="office-rain"
+        className={`rounded-lg border px-2.5 py-1.5 text-[11.5px] font-semibold shadow-md transition ${rain ? 'border-sky-300 bg-sky-500 text-white' : 'border-white bg-white/90 text-slate-700 hover:bg-white'}`}
+        title={t('Rain: people on the pavement open umbrellas or run for the canopy, and the street turns wet')}
+      >
+        {rain ? t('🌧️ Rain: On') : t('🌤️ Rain: Off')}
+      </button>
+    </div>
+  );
+}
 
 /**
  * The 3D Isometric Office: the same bank as the 2D blueprint, as a bright low-poly diorama. It reads the same store, so
@@ -60,13 +97,17 @@ function Office3DView() {
   const [ready, setReady] = useState(false);
   const [lost, setLost] = useState(false);
   const back = useCallback(() => setViewMode('2d'), [setViewMode]);
+  // The legend sits top-right, under the viewport dock and left of the zoom toolbar and the inspector, as on the 2D map.
+  const dockInset = useDockInset();
+  const legendRight = useBankStore((s) => 76 + (s.selection.kind !== 'none' ? s.inspectorWidth : 0));
 
   if (lost) return <Unavailable reason="The graphics context was lost." onBack={back} />;
 
   const k = CAMERA_DISTANCE / Math.sqrt(CAMERA_DIRECTION[0] ** 2 + CAMERA_DIRECTION[1] ** 2 + 1);
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-[radial-gradient(ellipse_at_50%_42%,#fdf6e8_0%,#e9eff6_58%,#d2dfec_100%)]" data-testid="office-3d" data-ready={ready} data-tour={touring ? 'on' : 'off'}>
+    <div className="relative h-full w-full overflow-hidden bg-slate-900" data-testid="office-3d" data-ready={ready} data-tour={touring ? 'on' : 'off'}>
+      <SkyBackdrop />
       {/* The sky behind the diorama dims with the room while a tour runs, so the lit desks stand out against it. */}
       <div className={`pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_42%,#1e293b_0%,#0f172a_70%,#070b14_100%)] transition-opacity duration-700 ${touring ? 'opacity-90' : flowOn ? 'opacity-60' : 'opacity-0'}`} aria-hidden="true" />
       <OfficeBoundary onBack={back}>
@@ -133,7 +174,9 @@ function Office3DView() {
         >
           {t('Labels:')} {labelMode === 'always' ? t('Always Show') : t('Hover Only')}
         </button>
+        <WeatherControls />
       </div>
+      {!touring && <MapLegend top={dockInset + 12} right={legendRight} />}
     </div>
   );
 }

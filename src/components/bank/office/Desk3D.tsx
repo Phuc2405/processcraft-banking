@@ -15,6 +15,9 @@ import { STATUS_HEX } from './palette';
 import { cursor } from './cursor';
 import { isAutomatedNode } from '../../../sim/nodeKind';
 import { ServerRack3D } from './ServerRack3D';
+import { t } from '../../../i18n/t';
+import { routingRules } from '../routingRules';
+import { statusLabel } from '../ui';
 
 export { cursor } from './cursor';
 
@@ -259,9 +262,56 @@ export function DeskPin({ id, height }: { id: StationId; height?: number }) {
   const lit = useTourLit(id);
   const visible = hovered || (lit === null ? always : lit);
   const terms = useTerms();
-  if (!visible) return null;
+  const top = height ?? (isPodium(id) ? 2.6 : 2.3);
   return (
-    <Html position={[0, height ?? (isPodium(id) ? 2.6 : 2.3), 0.1]} center zIndexRange={[20, 0]}>
+    <>
+      {hovered && <DeskTooltip3D id={id} top={top} />}
+      {visible && <PinBadge id={id} top={top} status={status} queueLength={queueLength} selected={selected} name={terms.station(id)} />}
+    </>
+  );
+}
+
+/**
+ * The description that opens above a desk while it is pointed at, over everything in the scene: its name, what it does, the
+ * conditions that pass or decline a case there, and its status. Solid, so no floor, mesh or label shows through it.
+ */
+function DeskTooltip3D({ id, top }: { id: StationId; top: number }) {
+  const status = useBankStore((s) => s.view.stations[id].status);
+  const queueLength = useBankStore((s) => s.view.stations[id].queueLength);
+  const terms = useTerms();
+  const rules = routingRules(id);
+  return (
+    <Html position={[0, top + 0.35, 0.1]} zIndexRange={[60, 50]} style={{ pointerEvents: 'none' }}>
+      <div role="tooltip" data-testid={`desk-tip-${id}`} className="w-[260px] -translate-x-1/2 -translate-y-full rounded-lg border border-slate-500 bg-slate-900 px-3 py-2 text-left shadow-[0_10px_30px_rgba(0,0,0,0.6)]">
+        <div className="text-[13px] font-semibold leading-snug text-slate-50">{terms.stationTitle(id)}</div>
+        <p className="mt-0.5 text-[12px] leading-snug text-slate-300">{terms.tip(id)}</p>
+        {(rules.pass.length > 0 || rules.decline.length > 0) && (
+          <dl className="mt-1.5 space-y-0.5 text-[11.5px] leading-snug">
+            {rules.pass.length > 0 && (
+              <div>
+                <dt className="inline font-semibold text-emerald-300">{t('Passes when')}: </dt>
+                <dd className="inline text-slate-200">{rules.pass.map((l) => t(l)).join(' · ')}</dd>
+              </div>
+            )}
+            {rules.decline.length > 0 && (
+              <div>
+                <dt className="inline font-semibold text-rose-300">{t('Declines when')}: </dt>
+                <dd className="inline text-slate-200">{rules.decline.map((l) => t(l)).join(' · ')}</dd>
+              </div>
+            )}
+          </dl>
+        )}
+        <span className="mt-1.5 inline-block rounded bg-slate-800 px-1.5 py-px text-[11px] font-semibold text-slate-200">
+          {queueLength} {t('waiting')} · {statusLabel(status)}
+        </span>
+      </div>
+    </Html>
+  );
+}
+
+function PinBadge({ id, top, status, queueLength, selected, name }: { id: StationId; top: number; status: keyof typeof STATUS_HEX; queueLength: number; selected: boolean; name: string }) {
+  return (
+    <Html position={[0, top, 0.1]} center zIndexRange={[20, 0]}>
       <button
         type="button"
         onClick={() => pickPlace(id)}
@@ -271,7 +321,7 @@ export function DeskPin({ id, height }: { id: StationId; height?: number }) {
         className="flex items-center gap-1 whitespace-nowrap rounded-full border border-white bg-white/95 py-[2px] pl-1.5 pr-[2px] text-[10px] font-semibold text-slate-700 shadow-[0_2px_6px_rgba(60,40,20,0.28)] transition-transform hover:-translate-y-0.5 data-[selected=true]:border-sky-400 data-[selected=true]:ring-2 data-[selected=true]:ring-sky-300"
       >
         <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: STATUS_HEX[status] }} />
-        <span className="max-w-[118px] truncate">{terms.station(id)}</span>
+        <span className="max-w-[118px] truncate">{name}</span>
         <span className="min-w-[16px] shrink-0 rounded-full px-1 text-center tabular-nums" style={queueLength > 0 ? { background: '#fde68a', color: '#78350f' } : { background: '#e2e8f0', color: '#64748b' }}>
           {queueLength}
         </span>

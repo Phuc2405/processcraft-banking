@@ -2,7 +2,9 @@ import { ContactShadows, OrbitControls } from '@react-three/drei';
 import { ZOOM_STEP, zoomStore } from '../../../store/zoomStore';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef } from 'react';
-import { CanvasTexture, ExtrudeGeometry, MOUSE, Path, RepeatWrapping, ShapeGeometry, SRGBColorSpace, TOUCH, Vector3, type AmbientLight, type DirectionalLight, type HemisphereLight } from 'three';
+import { t } from '../../../i18n/t';
+import { useLocale } from '../../../i18n/locale';
+import { CanvasTexture, ExtrudeGeometry, MOUSE, Path, RepeatWrapping, ShapeGeometry, SpriteMaterial, SRGBColorSpace, TOUCH, Vector3, type AmbientLight, type DirectionalLight, type HemisphereLight } from 'three';
 import { DEPARTMENTS, STATION_IDS, type DepartmentId } from '../../../sim/topology';
 import { prefersReducedMotion } from '../../canvas/timing';
 import { activeFlowOf, bankStore, useBankStore } from '../../../store/bankStore';
@@ -11,7 +13,10 @@ import { useTerms } from '../useTerms';
 import { Desk3D } from './Desk3D';
 import { AtmKiosk } from './AtmKiosk';
 import { GateStanchions, Kiosks, Plants, ServerRoom, VaultRoom, Walls } from './Dressing';
-import { duskAt, Street } from './Street';
+import { Street } from './Street';
+import { atmosphereAt } from './atmosphere';
+import { Environment3D } from './Environment3D';
+import { weatherStore } from './weather';
 import { ribbonGeometry, roundedRect, roundedRectPath, shade, tint } from './kit';
 import {
   CAMERA_DIRECTION,
@@ -21,6 +26,9 @@ import {
   ISO_AZIMUTH,
   ISO_POLAR,
   LANES,
+  LANE_LABELS,
+  laneLabelShown,
+  lanesOf,
   ORBIT_RANGE,
   clampZoom3d,
   isCameraResetKey,
@@ -378,12 +386,15 @@ function usePlanks(): CanvasTexture {
   return tex;
 }
 
-/** The slab the office stands on: a chunky rounded plinth of dark wood with a floor of warm planks. Clicking bare floor clears the selection. */
+/** The slab's corner radius: just enough to soften the edge, square enough that its front meets the pavement flush. */
+const SLAB_CORNER = 0.12;
+
+/** The slab the office stands on: a chunky plinth of dark wood with a floor of warm planks. Clicking bare floor clears the selection. */
 const Floor = memo(function Floor() {
   const select = useBankStore((s) => s.select);
   const planks = usePlanks();
-  const slab = useMemo(() => new ExtrudeGeometry(roundedRect(FLOOR_SLAB.w, FLOOR_SLAB.d, 0.7), { depth: 0.5, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05, bevelSegments: 2, curveSegments: 12 }), []);
-  const top = useMemo(() => new ShapeGeometry(roundedRect(FLOOR_SLAB.w - 0.04, FLOOR_SLAB.d - 0.04, 0.68), 12), []);
+  const slab = useMemo(() => new ExtrudeGeometry(roundedRect(FLOOR_SLAB.w, FLOOR_SLAB.d, SLAB_CORNER), { depth: 0.5, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05, bevelSegments: 2, curveSegments: 12 }), []);
+  const top = useMemo(() => new ShapeGeometry(roundedRect(FLOOR_SLAB.w - 0.04, FLOOR_SLAB.d - 0.04, SLAB_CORNER - 0.02), 12), []);
   useEffect(
     () => () => {
       slab.dispose();
@@ -522,11 +533,94 @@ const Rug = memo(function Rug({ id }: { id: DepartmentId }) {
   );
 });
 
-/** A lane painted on the floor along every wire of the 2D map, with rounded corners: the same path the packets fly. */
+/**
+ * A lane painted on the floor along every wire of the 2D map, with rounded corners: the same path the packets fly. Pointing at
+ * a desk lights its own lanes in a brighter, wider stripe and fades the others, as hovering a desk does on the 2D map.
+ */
 const Lanes = memo(function Lanes() {
   const geometry = useMemo(() => ribbonGeometry(LANES.map((l) => ({ points: smoothLane(l.points, 0.55, 5), color: laneHex(l.to, l.from) })), 0.11, 0.026), []);
+  const hover = useBankStore((s) => (s.spotlight || activeFlowOf(s) ? null : s.hoverPlace));
+  const lit = useMemo(() => lanesOf(hover), [hover]);
+  const glowGeometry = useMemo(() => (lit.size ? ribbonGeometry(LANES.filter((l) => lit.has(l.id)).map((l) => ({ points: smoothLane(l.points, 0.55, 5), color: '#fde047' })), 0.2, 0.034) : null), [lit]);
+  const material = useMemo(() => {
+    const m = tape.clone();
+    m.transparent = true;
+    return m;
+  }, []);
   useEffect(() => () => geometry.dispose(), [geometry]);
-  return <mesh geometry={geometry} material={tape} renderOrder={1} name="office-lanes" />;
+  useEffect(() => () => glowGeometry?.dispose(), [glowGeometry]);
+  useEffect(() => () => material.dispose(), [material]);
+  material.opacity = lit.size ? 0.28 : 1;
+  return (
+    <>
+      <mesh geometry={geometry} material={material} renderOrder={1} name="office-lanes" />
+      {glowGeometry && <mesh geometry={glowGeometry} material={tape} renderOrder={2} name="office-lanes-lit" />}
+    </>
+  );
+});
+
+/** A lane's words as a crisp dark badge: drawn once per text on a canvas, at four times the size it shows. */
+function useBadge(text: string): { material: SpriteMaterial; aspect: number } {
+  const made = useMemo(() => {
+    const PX = 4;
+    const font = `600 ${9 * PX}px ui-sans-serif, system-ui, sans-serif`;
+    const probe = document.createElement('canvas').getContext('2d');
+    if (probe) probe.font = font;
+    const w = Math.ceil((probe?.measureText(text).width ?? text.length * 5.4 * PX) + 16 * PX);
+    const h = 14 * PX;
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const g = c.getContext('2d');
+    if (g) {
+      g.fillStyle = '#0b1120';
+      g.strokeStyle = '#475569';
+      g.lineWidth = PX;
+      g.beginPath();
+      g.roundRect(PX / 2, PX / 2, w - PX, h - PX, 4 * PX);
+      g.fill();
+      g.stroke();
+      g.font = font;
+      g.fillStyle = '#e2e8f0';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText(text, w / 2, h / 2 + PX / 2);
+    }
+    const map = new CanvasTexture(c);
+    map.colorSpace = SRGBColorSpace;
+    map.anisotropy = 4;
+    return { material: new SpriteMaterial({ map, transparent: true, depthWrite: false, toneMapped: false }), aspect: w / h };
+  }, [text]);
+  useEffect(
+    () => () => {
+      made.material.map?.dispose();
+      made.material.dispose();
+    },
+    [made],
+  );
+  return made;
+}
+
+/** The world height of a lane badge. */
+const BADGE_H = 0.34;
+
+function LaneBadge({ text, at }: { text: string; at: readonly [number, number] }) {
+  const { material, aspect } = useBadge(text);
+  return <sprite material={material} position={[at[0], 0.32, at[1]]} scale={[BADGE_H * aspect, BADGE_H, 1]} renderOrder={6} />;
+}
+
+/** The conditions on the lanes, in the active language: the same words, and the same rules, as the 2D map (laneLabelShown). */
+const LaneLabels = memo(function LaneLabels() {
+  useLocale();
+  const hover = useBankStore((s) => (s.spotlight || activeFlowOf(s) ? null : s.hoverPlace));
+  const always = useBankStore((s) => s.labelMode === 'always' && s.spotlight === null);
+  return (
+    <group name="office-lane-labels">
+      {LANE_LABELS.filter((l) => laneLabelShown(l, hover, always)).map((l) => (
+        <LaneBadge key={l.id} text={t(l.text)} at={l.at} />
+      ))}
+    </group>
+  );
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -589,8 +683,9 @@ function Probe() {
 }
 
 /**
- * Bright daylight: a warm sun from the front-left, a sky-and-floor bounce, and a cool fill from behind so the shaded faces
- * are not black. As the bank's day runs on past 17:00 the light softens (to about two thirds) and the street lamps take over.
+ * Daylight that follows the bank's clock: a sun from the front-left, a sky-and-floor bounce, and a cool fill from behind so
+ * the shaded faces are not black. The colours and strengths come from the time-of-day presets in atmosphere.ts (morning,
+ * noon, afternoon, night) and dim under rain; after dusk the street lamps and the city's windows take over.
  */
 function Lights() {
   const sky = useRef<HemisphereLight>(null);
@@ -601,14 +696,22 @@ function Lights() {
   const tour = useRef(0);
   useFrame((_, dt) => {
     const s = bankStore.getState();
-    const dusk = duskAt(s.view.minute);
+    // Morning, noon, afternoon or night, dry or in rain (atmosphere.ts).
+    const a = atmosphereAt(s.view.minute, weatherStore.getState().rain);
     // A tour turns the daylight right down; a guided flow (Beginner scope) turns it down part of the way.
     const want = s.spotlight ? 1 : activeFlowOf(s) ? 0.6 : 0;
     tour.current += (want - tour.current) * Math.min(1, dt * 3);
-    const t = tour.current;
-    const keep = (left: number): number => 1 + (left - 1) * t;
-    if (sky.current) sky.current.intensity = (1.15 - 0.4 * dusk) * keep(TOUR_DAYLIGHT.sky);
-    if (sun.current) sun.current.intensity = (2.4 - 0.85 * dusk) * keep(TOUR_DAYLIGHT.sun);
+    const k = tour.current;
+    const keep = (left: number): number => 1 + (left - 1) * k;
+    if (sky.current) {
+      sky.current.intensity = a.hemi.intensity * keep(TOUR_DAYLIGHT.sky);
+      sky.current.color.set(a.hemi.sky);
+      sky.current.groundColor.set(a.hemi.ground);
+    }
+    if (sun.current) {
+      sun.current.intensity = a.sun.intensity * keep(TOUR_DAYLIGHT.sun);
+      sun.current.color.set(a.sun.color);
+    }
     if (ambient.current) ambient.current.intensity = 0.28 * keep(TOUR_DAYLIGHT.ambient);
     if (fill.current) fill.current.intensity = 0.4 * keep(TOUR_DAYLIGHT.fill);
   });
@@ -638,6 +741,7 @@ export function OfficeScene({ resetKey }: { resetKey: number }) {
       <Probe />
       <Floor />
       <FrameDriver />
+      <Environment3D />
       <ContactShadows position={[0, -0.66, 0]} scale={[FLOOR_SLAB.w + 6, FLOOR_SLAB.d + 6]} far={0.9} blur={2.8} opacity={0.4} resolution={512} frames={1} color="#6b4f35" />
       {/* Soft contact shadows under every desk, person and plant on the office floor, baked once. They replace the real-time
           shadow map of the sun, which redrew the whole office a second time on every frame. */}
@@ -646,6 +750,7 @@ export function OfficeScene({ resetKey }: { resetKey: number }) {
         <Rug key={id} id={id} />
       ))}
       <Lanes />
+      <LaneLabels />
       <Walls />
       <VaultRoom />
       <ServerRoom />
@@ -681,10 +786,12 @@ function FrameDriver() {
     };
     const loop = (): void => {
       const s = bankStore.getState();
-      if (s.playing || s.spotlight !== null || performance.now() < awakeUntil) invalidate();
+      // Rain keeps falling, so it keeps the canvas drawing while it lasts.
+      if (s.playing || s.spotlight !== null || weatherStore.getState().rain || performance.now() < awakeUntil) invalidate();
       frame = requestAnimationFrame(loop);
     };
     const unsubscribe = bankStore.subscribe(wake);
+    const unsubscribeWeather = weatherStore.subscribe(wake);
     const el = gl.domElement;
     el.addEventListener('pointermove', wake);
     el.addEventListener('wheel', wake, { passive: true });
@@ -694,6 +801,7 @@ function FrameDriver() {
     return () => {
       cancelAnimationFrame(frame);
       unsubscribe();
+      unsubscribeWeather();
       el.removeEventListener('pointermove', wake);
       el.removeEventListener('wheel', wake);
       el.removeEventListener('pointerdown', wake);

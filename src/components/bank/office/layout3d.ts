@@ -207,6 +207,21 @@ export function wireLane(edge: string): V2[] | null {
 
 export const LANES: ReadonlyArray<{ id: string; from: PlaceId; to: PlaceId; points: V2[] }> = BANK_WIRES.map((w) => ({ id: w.id, from: w.from, to: w.to, points: w.points.map(([x, y]) => toWorld(x, y)) }));
 
+/** The lanes a pointed-at desk or kiosk lights up: its own, in and out (the 3D twin of the 2D map's hover focus). */
+export const lanesOf = (place: string | null): ReadonlySet<string> => new Set(place ? LANES.filter((l) => l.from === place || l.to === place).map((l) => l.id) : []);
+
+/**
+ * Whether a lane's condition shows, by the 2D map's rules: a decline's condition only while its desk is pointed at; the others
+ * with "Labels: Always Show", and always for the pointed-at desk.
+ */
+export const laneLabelShown = (l: { from: string; to: string }, hover: string | null, always: boolean): boolean => {
+  const own = hover !== null && (l.from === hover || l.to === hover);
+  return own || (always && l.to !== 'OUT_DECLINED');
+};
+
+/** Each lane's words, at the spot its route gives them on the plan: the same condition the 2D map writes on its wire. */
+export const LANE_LABELS: ReadonlyArray<{ id: string; from: PlaceId; to: PlaceId; text: string; at: V2 }> = BANK_WIRES.filter((w) => w.label).map((w) => ({ id: w.id, from: w.from, to: w.to, text: w.label!, at: toWorld(w.labelAt[0], w.labelAt[1]) }));
+
 export function laneLength(points: readonly V2[]): number {
   let n = 0;
   for (let i = 1; i < points.length; i++) n += Math.hypot((points[i] as V2)[0] - (points[i - 1] as V2)[0], (points[i] as V2)[1] - (points[i - 1] as V2)[1]);
