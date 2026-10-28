@@ -230,6 +230,9 @@ export function bandRoutes(r1: number, decline: DeclineTail, laneStep = 0): Reco
  *   GATEWAY_XOR_REJECT_ROW2_B   then FacePay's under FacePay,
  *   GATEWAY_XOR_REJECT_ROW2_C   then the AML desk's under the AML desk.
  *   GATEWAY_XOR_REJECT_BAND     row 1's trunk and the floor bus, beside the ledger trunk; one trunk runs on to the gutter.
+ *
+ * The collectors partway along the floor bus (B, C) and the band join only pass a line that is already one trunk, so they are
+ * drawn as small junction dots, not diamonds (`junction`).
  *   GATEWAY_XOR_REJECT          the band's trunk and the online (3DS) decline, in the gutter; its trunk enters Declined.
  *   GATEWAY_XOR_APPROVE         the band's five clean approvals; its trunk enters Debit CASA from the right.
  *   GATEWAY_XOR_NIGHT           the two night handovers (matched, cleared); its trunk enters Settled.
@@ -281,6 +284,8 @@ export interface Gateway {
   into?: GatewayId;
   /** Its feeders run as one merged stroke on their last leg, into the diamond's corner, instead of a lane each. */
   merge?: boolean;
+  /** A pass-through join on a trunk that is already one line: drawn as a small junction dot the lines run through, not a diamond. */
+  junction?: boolean;
   /** The one trunk from the diamond's exit corner to the place (or to the next gateway's edge). */
   trunk: Pt[];
   path: string;
@@ -312,14 +317,15 @@ const GATEWAY_SPECS: readonly GatewaySpec[] = [
     ],
   },
   { id: 'GATEWAY_XOR_REJECT_ROW2_A', kind: 'reject', to: 'OUT_DECLINED', wires: ['DISPUTE_DESK>OUT_DECLINED', 'TELLER_CASH>OUT_DECLINED'], into: 'GATEWAY_XOR_REJECT_ROW2_B', trunk: busTrunk('GATEWAY_XOR_REJECT_ROW2_A', 'GATEWAY_XOR_REJECT_ROW2_B') },
-  { id: 'GATEWAY_XOR_REJECT_ROW2_B', kind: 'reject', to: 'OUT_DECLINED', wires: ['SEC_FACEPAY>OUT_DECLINED'], into: 'GATEWAY_XOR_REJECT_ROW2_C', trunk: busTrunk('GATEWAY_XOR_REJECT_ROW2_B', 'GATEWAY_XOR_REJECT_ROW2_C') },
-  { id: 'GATEWAY_XOR_REJECT_ROW2_C', kind: 'reject', to: 'OUT_DECLINED', wires: ['AML_DESK>OUT_DECLINED'], into: 'GATEWAY_XOR_REJECT_BAND', trunk: busTrunk('GATEWAY_XOR_REJECT_ROW2_C', 'GATEWAY_XOR_REJECT_BAND') },
+  { id: 'GATEWAY_XOR_REJECT_ROW2_B', kind: 'reject', to: 'OUT_DECLINED', wires: ['SEC_FACEPAY>OUT_DECLINED'], into: 'GATEWAY_XOR_REJECT_ROW2_C', junction: true, trunk: busTrunk('GATEWAY_XOR_REJECT_ROW2_B', 'GATEWAY_XOR_REJECT_ROW2_C') },
+  { id: 'GATEWAY_XOR_REJECT_ROW2_C', kind: 'reject', to: 'OUT_DECLINED', wires: ['AML_DESK>OUT_DECLINED'], into: 'GATEWAY_XOR_REJECT_BAND', junction: true, trunk: busTrunk('GATEWAY_XOR_REJECT_ROW2_C', 'GATEWAY_XOR_REJECT_BAND') },
   {
     id: 'GATEWAY_XOR_REJECT_BAND',
     kind: 'reject',
     to: 'OUT_DECLINED',
     wires: [],
     into: 'GATEWAY_XOR_REJECT',
+    junction: true,
     // Right along the floor bus to the gutter, then up into the reject gateway's bottom corner.
     trunk: [
       [gw('GATEWAY_XOR_REJECT_BAND')[0] + H, FLOOR_BUS_2D],
@@ -650,9 +656,10 @@ const hits = (a: Box, b: Box, gap = 0): boolean => a.x0 < b.x1 + gap && a.x1 > b
 
 /**
  * Gives every labelled wire a visible label: at its route's own spot when that is clear, otherwise at the clear spot on its
- * drawn run nearest the run's middle (on the line first, then just beside it), and for a hop too short to hold its words, at
- * the nearest clear spot around it as a callout with a leader line. Clear means off every desk, department title, gateway and
- * label already placed, in both languages. Wires with the fewest spots are placed first.
+ * drawn run nearest the desk it leaves (on the line first, then just beside it), and for a hop too short to hold its words,
+ * at the nearest clear spot around it as a callout with a leader line. Clear means off every desk, department title, gateway
+ * and label already placed, in both languages, and off every other wire wherever the map has room for that. Wires with the
+ * fewest spots are placed first.
  */
 function placeLabels(wires: Wire[], routes: Record<string, RouteSpec>): Wire[] {
   const fixed: Box[] = [
@@ -662,28 +669,38 @@ function placeLabels(wires: Wire[], routes: Record<string, RouteSpec>): Wire[] {
   ];
   const placed: Box[] = [];
   const free = (b: Box): boolean => b.x0 >= 2 && b.y0 >= 2 && b.x1 <= STAGE.width - 2 && b.y1 <= STAGE.height - 2 && !fixed.some((f) => hits(b, f, 1)) && !placed.some((p) => hits(b, p, 2));
+  // Every drawn stroke, so a label can keep off the lines it does not belong to.
+  const strokes: { id: string; points: readonly Pt[] }[] = [...wires.map((w) => ({ id: w.id, points: w.drawPoints })), ...GATEWAYS.map((g) => ({ id: g.id, points: g.trunk }))];
+  const onStroke = (b: Box, points: readonly Pt[]): boolean =>
+    points.slice(1).some(([bx, by], i) => {
+      const [ax, ay] = points[i]!;
+      return Math.min(ax, bx) < b.x1 + 2 && Math.max(ax, bx) > b.x0 - 2 && Math.min(ay, by) < b.y1 + 2 && Math.max(ay, by) > b.y0 - 2;
+    });
+  const clearOfOthers = (b: Box, own: string): boolean => !strokes.some((st) => st.id !== own && onStroke(b, st.points));
   type Spot = { at: Pt; anchor: Pt; cost: number };
-  /** Points along the drawn run, every `step` px. */
-  const along = (w: Wire, step: number): { on: Pt; vertical: boolean }[] => {
-    const out: { on: Pt; vertical: boolean }[] = [];
+  /** Points along the drawn run, every `step` px, with how far along the run each one is. */
+  const along = (w: Wire, step: number): { on: Pt; vertical: boolean; run: number }[] => {
+    const out: { on: Pt; vertical: boolean; run: number }[] = [];
+    let run = 0;
     for (let i = 1; i < w.drawPoints.length; i++) {
       const [ax, ay] = w.drawPoints[i - 1]!;
       const [bx, by] = w.drawPoints[i]!;
       const len = Math.hypot(bx - ax, by - ay);
-      for (let d = 0; d <= len; d += step) out.push({ on: [ax + ((bx - ax) * d) / (len || 1), ay + ((by - ay) * d) / (len || 1)], vertical: ax === bx });
+      for (let d = 0; d <= len; d += step) out.push({ on: [ax + ((bx - ax) * d) / (len || 1), ay + ((by - ay) * d) / (len || 1)], vertical: ax === bx, run: run + d });
+      run += len;
     }
     return out;
   };
   const spots = (w: Wire, chars: number): Spot[] => {
-    const mid = midOfLongestRun(w.drawPoints);
     const side = chars * 2.7 + 4;
     const out: Spot[] = [];
-    for (const { on, vertical } of along(w, 3)) {
-      // On the line, then just beside it, then a little further off: a label beside a vertical run sits clear of it.
+    for (const { on, vertical, run } of along(w, 3)) {
+      // On the line, then just beside it, then a little further off: a label beside a vertical run sits clear of it. Nearer
+      // the desk the wire leaves is better: a condition reads as the desk's own outcome, not as noise in a shared corridor.
       const offsets = vertical ? [0, side + 3, -(side + 3), side + 12, -(side + 12)] : [0, 11, -11, 20, -20];
       offsets.forEach((off, k) => {
         const at: Pt = vertical ? [on[0] + off, on[1]] : [on[0], on[1] + off];
-        out.push({ at, anchor: on, cost: Math.ceil(k / 2) * 90 + (vertical ? 25 : 0) + Math.hypot(at[0] - mid[0], at[1] - mid[1]) * 0.25 });
+        out.push({ at, anchor: on, cost: Math.ceil(k / 2) * 90 + (vertical ? 25 : 0) + run * 0.25 });
       });
     }
     return out.sort((a, b) => a.cost - b.cost);
@@ -705,7 +722,10 @@ function placeLabels(wires: Wire[], routes: Record<string, RouteSpec>): Wire[] {
     const chars = labelChars(w.label!);
     const own = routes[w.id]?.labelAt;
     const fits = (c: Spot): boolean => free(labelPill(chars, c.at));
-    const spot = (own && free(labelPill(chars, own)) ? { at: own, anchor: own, cost: 0 } : undefined) ?? candidates.get(w.id)!.find(fits) ?? callouts(w).find(fits);
+    // Off every other line first; only where no such spot exists may a label sit over another wire.
+    const clear = (c: Spot): boolean => fits(c) && clearOfOthers(labelPill(chars, c.at), w.id);
+    const ownSpot = own && free(labelPill(chars, own)) ? { at: own, anchor: own, cost: 0 } : undefined;
+    const spot = ownSpot ?? candidates.get(w.id)!.find(clear) ?? callouts(w).find(clear) ?? candidates.get(w.id)!.find(fits) ?? callouts(w).find(fits);
     if (!spot) throw new Error(`No room on the map for the label of ${w.id}`);
     placed.push(labelPill(chars, spot.at));
     at.set(w.id, spot);
@@ -717,6 +737,18 @@ function placeLabels(wires: Wire[], routes: Record<string, RouteSpec>): Wire[] {
 }
 
 export const BANK_WIRES: Wire[] = placeLabels(withGateways(buildWires(PLACE_BOX, ROUTES), GATEWAYS), ROUTES);
+
+/**
+ * What a junction dot draws in place of its diamond: a straight spoke from each line that arrives (its feeders' tips and the
+ * trunks cascading into it) to its centre, and on to where its own trunk leaves, so the bus reads as one unbroken line.
+ */
+export const GATEWAY_SPOKES: Readonly<Partial<Record<GatewayId, string>>> = Object.fromEntries(
+  GATEWAYS.filter((g) => g.junction).map((g) => {
+    const tips = [...BANK_WIRES.filter((w) => w.gateway === g.id).map((w) => w.drawPoints.at(-1)!), ...GATEWAYS.filter((o) => o.into === g.id).map((o) => o.trunk.at(-1)!)];
+    const exit = g.trunk[0]!;
+    return [g.id, [...tips.map(([x, y]) => `M${x} ${y}L${g.cx} ${g.cy}`), `M${g.cx} ${g.cy}L${exit[0]} ${exit[1]}`].join('')];
+  }),
+);
 
 const BY_ID = new Map(BANK_WIRES.map((w) => [w.id, w]));
 

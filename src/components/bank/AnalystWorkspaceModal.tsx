@@ -2636,8 +2636,9 @@ export function AnalystWorkspaceView({
               {m('close')}
             </button>
           </div>
-          {/* One row that never wraps: the incident controls sit beside sound, language, difficulty and the challenge, and the
-              ledger, badges and audit stay put at its end. A narrow window scrolls the row sideways instead of stacking it. */}
+          {/* Two fixed tiers that never wrap (a narrow window scrolls them sideways instead). Tier 1, the controls: the incident
+              switch and its batch settings, then sound, language, difficulty and the challenge. Tier 2, the records: badges, the
+              core ledger summary and the audit export. Incident Mode only changes states inside tier 1. */}
           <div className="bk-scroll flex flex-nowrap items-center gap-3 overflow-x-auto pb-0.5" data-testid="workspace-toolbar">
             <div className="flex shrink-0 items-center gap-2" data-testid="workspace-incident-controls">
               <IncidentToggle on={incidentMode} onToggle={onToggleIncidentMode} m={m} />
@@ -2649,11 +2650,11 @@ export function AnalystWorkspaceView({
               <ModeToggle mode={mode} onChange={setMode} m={m} />
               <ChallengeToggle running={challenge.run !== null} remainingSec={remainingSec} onStart={cc.start} onStop={cc.stop} m={m} />
             </div>
-            <div className="ml-auto flex shrink-0 items-center gap-3">
-              <BadgesButton unlocked={career.badges.length} onOpen={() => setBadgesOpen(true)} m={m} />
-              <CoreLedgerCard kpis={retailKpis(ledger)} onOpen={() => setLedgerOpen(true)} m={m} />
-              <AuditButton count={auditLog.length} onOpen={() => setAuditOpen(true)} m={m} />
-            </div>
+          </div>
+          <div className="bk-scroll flex flex-nowrap items-center gap-3 overflow-x-auto pb-0.5" data-testid="workspace-subheader">
+            <BadgesButton unlocked={career.badges.length} onOpen={() => setBadgesOpen(true)} m={m} />
+            <CoreLedgerCard kpis={retailKpis(ledger)} onOpen={() => setLedgerOpen(true)} m={m} />
+            <AuditButton count={auditLog.length} onOpen={() => setAuditOpen(true)} m={m} />
           </div>
         </header>
         {incident ? <IncidentBanner incident={incident} batch={crisisBatch} stream={crisisStream} sla={sla} m={m} alarm={crisis !== null} /> : <IncidentIdle m={m} />}

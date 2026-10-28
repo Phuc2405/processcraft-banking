@@ -31,7 +31,7 @@ import { knowledgeBaseMessages } from '../../knowledge/knowledgeBase.messages';
 import { SegmentedToggle } from '../../shell/SegmentedToggle';
 import { analystWorkspaceMessages, type AnalystWorkspaceKey } from '../analystWorkspace.messages';
 import { AnalystWorkspaceView, CoreLedgerSheet, type AnalystWorkspaceViewProps } from '../AnalystWorkspaceModal';
-import { BANK_WIRES, connectedWires, GATEWAY_HALF, gatewayCarries, GATEWAYS, PLACE_BOX } from '../layout';
+import { BANK_WIRES, connectedWires, GATEWAY_HALF, GATEWAY_SPOKES, gatewayCarries, GATEWAYS, labelChars, labelPill, PLACE_BOX } from '../layout';
 import { VI_DICTIONARY } from '../../../i18n/viDictionary';
 import { WIRES } from '../../../sim/topology';
 import { openingLedger } from '../../../sim/staffRoleplay';
@@ -168,13 +168,18 @@ describe('the emergency queue: batch size and the mixed crisis stream', () => {
     expect(on.slice(on.lastIndexOf('<div', on.indexOf('data-testid="workspace-case-column"')))).toMatch(/^<div class="contents"/);
   });
 
-  it('keeps the incident controls on the same single row as sound, language, difficulty and the challenge', () => {
-    const on = view({ crisisBatch: 5 });
-    const row = on.slice(on.lastIndexOf('<div', on.indexOf('data-testid="workspace-toolbar"')), on.indexOf('</header>'));
-    expect(row).toMatch(/^<div class="[^"]*flex-nowrap/);
-    const order = ['workspace-incident-toggle', 'workspace-crisis-batch-group', 'workspace-crisis-stream', 'workspace-sound', 'workspace-language', 'workspace-mode', 'workspace-ledger-open'].map((id) => row.indexOf(id));
-    for (const i of order) expect(i).toBeGreaterThan(-1);
-    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  it('lays the header out in two fixed tiers: controls, then badges, ledger and audit', () => {
+    for (const out of [view({ crisisBatch: 5 }), view({ incidentMode: false, incident: null })]) {
+      const tier1 = out.slice(out.lastIndexOf('<div', out.indexOf('data-testid="workspace-toolbar"')), out.indexOf('data-testid="workspace-subheader"'));
+      const tier2 = out.slice(out.lastIndexOf('<div', out.indexOf('data-testid="workspace-subheader"')), out.indexOf('</header>'));
+      expect(tier1).toMatch(/^<div class="[^"]*flex-nowrap/);
+      expect(tier2).toMatch(/^<div class="[^"]*flex-nowrap/);
+      const order = ['workspace-incident-toggle', 'workspace-crisis-batch-group', 'workspace-crisis-stream', 'workspace-sound', 'workspace-language', 'workspace-mode', 'workspace-challenge'].map((id) => tier1.indexOf(id));
+      for (const i of order) expect(i).toBeGreaterThan(-1);
+      expect([...order].sort((a, b) => a - b)).toEqual(order);
+      for (const id of ['workspace-badges', 'workspace-ledger-open', 'workspace-audit-open']) expect(tier2, id).toContain(id);
+      expect(tier1).not.toContain('workspace-ledger-open');
+    }
   });
 });
 
@@ -542,5 +547,47 @@ describe('a calmer map for a first-time learner', () => {
     for (const part of ['title', 'definition', 'status']) expect(src).toContain(`data-tip="${part}"`);
     expect(src).toMatch(/bk-hovertip [^`]*bg-slate-900[^`]*opacity-100/);
     expect(src).toContain("'opacity-50 hover:opacity-100 has-[:focus-visible]:opacity-100'");
+  });
+});
+
+describe('cleaner nodes and labels near the desk they belong to', () => {
+  it('draws the joins partway along the one-line trunk as junction dots, keeping diamonds where lines really meet', () => {
+    const junctions = GATEWAYS.filter((g) => g.junction).map((g) => g.id).sort();
+    expect(junctions).toEqual(['GATEWAY_XOR_REJECT_BAND', 'GATEWAY_XOR_REJECT_ROW2_B', 'GATEWAY_XOR_REJECT_ROW2_C']);
+    for (const id of junctions) {
+      const g = GATEWAYS.find((x) => x.id === id)!;
+      const spokes = GATEWAY_SPOKES[id]!;
+      // A spoke from every arriving line, and one on to the trunk: the bus is unbroken.
+      for (const w of BANK_WIRES.filter((x) => x.gateway === id)) expect(spokes, w.id).toContain(`M${w.drawPoints.at(-1)!.join(' ')}L${g.cx} ${g.cy}`);
+      for (const o of GATEWAYS.filter((x) => x.into === id)) expect(spokes, o.id).toContain(`M${o.trunk.at(-1)!.join(' ')}L${g.cx} ${g.cy}`);
+      expect(spokes).toContain(`M${g.cx} ${g.cy}L${g.trunk[0]!.join(' ')}`);
+    }
+    for (const id of ['GATEWAY_XOR_REJECT', 'GATEWAY_XOR_REJECT_ROW1', 'GATEWAY_XOR_REJECT_ROW2_A', 'GATEWAY_XOR_APPROVE', 'GATEWAY_XOR_NIGHT']) expect(GATEWAYS.find((g) => g.id === id)!.junction ?? false, id).toBe(false);
+  });
+
+  it('puts the SWIFT, eKYC and VietQR decline conditions right above their own desk, clear of every other line', () => {
+    const strokes = [...BANK_WIRES.map((w) => ({ id: w.id, p: w.drawPoints })), ...GATEWAYS.map((g) => ({ id: g.id, p: g.trunk }))];
+    for (const id of ['GATE_SWIFT>OUT_DECLINED', 'GATE_EKYC>OUT_DECLINED', 'GATE_QR>OUT_DECLINED']) {
+      const w = BANK_WIRES.find((x) => x.id === id)!;
+      const src = PLACE_BOX[w.from];
+      expect(Math.abs(w.labelAt[0] - src.cx), id).toBeLessThanOrEqual(src.w / 2);
+      expect(src.cy - src.h / 2 - w.labelAt[1], id).toBeGreaterThan(0);
+      expect(src.cy - src.h / 2 - w.labelAt[1], id).toBeLessThan(100);
+      const b = labelPill(labelChars(w.label!), w.labelAt);
+      const over = strokes.filter((st) => st.id !== w.id && st.p.slice(1).some(([bx, by], i) => {
+        const [ax, ay] = st.p[i]!;
+        return Math.min(ax, bx) < b.x1 + 2 && Math.max(ax, bx) > b.x0 - 2 && Math.min(ay, by) < b.y1 + 2 && Math.max(ay, by) > b.y0 - 2;
+      }));
+      expect(over.map((x) => x.id), id).toEqual([]);
+    }
+  });
+
+  it('keeps each desk card on fixed rows and says "N waiting" on every desk', () => {
+    const src = (import.meta.glob('../BankMap.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)['../BankMap.tsx']!;
+    expect(src).not.toMatch(/\blong \?/);
+    expect(src).toContain('className="flex h-[24px] shrink-0 items-start gap-1.5" data-testid={`station-title-${id}`}');
+    expect(src).toContain("const unit = t('waiting');");
+    expect(src).not.toContain("t('items')");
+    expect(VI_DICTIONARY.waiting).toBe('đang chờ');
   });
 });

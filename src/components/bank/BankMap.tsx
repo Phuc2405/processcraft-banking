@@ -21,7 +21,7 @@ import { StepPreviewBody } from './StepPreview';
 import { useDockInset } from './ViewportControls';
 import { PathTraveller } from '../canvas/edges/PathTraveller';
 import { WorkstationGraphic } from '../canvas/nodes/WorkstationGraphic';
-import { BANK_WIRES, CARD, connectedWires, DEPT_BOX, gatewayCarries, GATEWAYS, pathOfWire, PLACE_BOX, STAGE, TIP_SIDE, type Gateway, type TipSide } from './layout';
+import { BANK_WIRES, CARD, connectedWires, DEPT_BOX, gatewayCarries, GATEWAY_SPOKES, GATEWAYS, pathOfWire, PLACE_BOX, STAGE, TIP_SIDE, type Gateway, type TipSide } from './layout';
 import { SpotlightOverlay, SpotlightToken } from './Spotlight';
 import { StageScaleContext, useStageScale } from './stage';
 import { lookOfKind, RUN_STATUS, STATUS_DOT_CLASS, STATUS_TEXT_CLASS, statusLabel, MachineFace, WorkerFace } from './ui';
@@ -156,7 +156,7 @@ function HoverTip({ name, tip, side, caption, status }: { name: string; tip: str
 }
 
 /** The desk icon (staff workstation or server rack): one compact size in every vocabulary, so a mode switch never resizes it. */
-const DESK_ICON = 'h-[44px] w-[60px] shrink-0';
+const DESK_ICON = 'h-[36px] w-[50px] shrink-0';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Departments
@@ -252,11 +252,10 @@ const StationCard = memo(function StationCard({
   const flowLit = flow ? flow.scope.places.has(id) : false;
   const dim = !focus && !flowLit && sv.status === 'IDLE' && sv.queueLength === 0 && !isOnShift(id, phase);
   const worst = sv.alerts.some((a) => a.severity === 'crit' && a.live) ? 'crit' : sv.alerts.length > 0 ? 'warn' : null;
-  const unit = def.kind === 'ACCOUNT' ? t('items') : t('waiting');
+  // One wording on every desk, accounts included: "0 waiting · Idle".
+  const unit = t('waiting');
   const name = terms.station(id);
   const title = terms.stationTitle(id);
-  // A long plain-English name takes two lines, so the desk art gives up a little height for it.
-  const long = name.length > 22;
 
   // The seven roleplay desks wear their congestion heat (queue length and head-of-queue SLA); every other station keeps its status border.
   const heat = deskHeat(id, sv);
@@ -287,9 +286,11 @@ const StationCard = memo(function StationCard({
         className={`absolute inset-0 rounded-xl border bg-gradient-to-b from-slate-900 to-[#0b1120] transition hover:border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${lit && focus ? 'bk-spot-lit' : flowLit ? 'bk-flow-lit' : border} ${flowHere ? 'bk-flow-here' : ''} ${selected ? 'ring-2 ring-sky-400' : ''} ${pulse}`}
       />
       <div className="pointer-events-none absolute inset-0 flex flex-col p-1.5">
-        <div className={`flex gap-1.5 ${long ? 'items-start' : 'items-center'}`}>
-          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${long ? 'mt-[3px]' : ''} ${passed && focus ? 'bg-[var(--tour)]' : heat ? HEAT_DOT[heat] : STATUS_DOT_CLASS[sv.status]}`} title={heatText ?? undefined} data-testid={heat ? `heat-dot-${id}` : undefined} />
-          <span className={`font-semibold text-slate-100 ${long ? 'line-clamp-2 text-[10.5px] leading-[1.12]' : 'truncate text-[11.5px] leading-none'}`} data-testid={`station-name-${id}`} title={name}>
+        {/* Fixed rows: a two-line title box, the art and the count, and the staff row pinned to the bottom. A name of one line
+            or two, in either vocabulary, never moves anything below it. */}
+        <div className="flex h-[24px] shrink-0 items-start gap-1.5" data-testid={`station-title-${id}`}>
+          <span className={`mt-[3px] h-1.5 w-1.5 shrink-0 rounded-full ${passed && focus ? 'bg-[var(--tour)]' : heat ? HEAT_DOT[heat] : STATUS_DOT_CLASS[sv.status]}`} title={heatText ?? undefined} data-testid={heat ? `heat-dot-${id}` : undefined} />
+          <span className="line-clamp-2 text-[10.5px] font-semibold leading-[1.12] text-slate-100" data-testid={`station-name-${id}`} title={name}>
             {name}
           </span>
           {worst && !focus && (
@@ -298,7 +299,7 @@ const StationCard = memo(function StationCard({
             </span>
           )}
         </div>
-        <div className={`flex min-h-0 flex-1 items-center gap-1 ${long ? 'mt-0.5' : 'mt-1'}`}>
+        <div className="flex min-h-0 flex-1 items-center gap-1">
           {isAutomatedNode(id) ? (
             <ServerRackGraphic status={RUN_STATUS[sv.status]} accent={accent} className={DESK_ICON} />
           ) : (
@@ -310,13 +311,13 @@ const StationCard = memo(function StationCard({
             </div>
             {/* The unit and the status share a line, so a two-line name never pushes them into the staff and chapter row. */}
             <div className="mt-0.5 truncate text-[9.5px] leading-tight">
-              <span className="uppercase tracking-wide text-slate-500">{unit}</span>
+              <span className="text-slate-500">{unit}</span>
               <span className="text-slate-600"> · </span>
               <span className={`font-medium ${STATUS_TEXT_CLASS[sv.status]}`}>{statusLabel(sv.status)}</span>
             </div>
           </div>
         </div>
-        <div className="flex h-[19px] items-end justify-between">
+        <div className="flex h-[19px] shrink-0 items-end justify-between">
           <div className="flex items-center gap-0.5">
             {sv.workers.slice(0, 6).map((w, i) => (
               <WorkerButton key={w.id} id={w.id} index={i} station={id} name={w.name} role={w.role} fatigue={w.fatigue} temp={w.temp} profile={w.profile} touring={focus !== null} lit={lit} />
@@ -533,10 +534,20 @@ function GatewayMark({ g, opacity, glow, active, accent, ridden }: { g: Gateway;
       <path d={g.path} fill="none" stroke={stroke} strokeWidth={active ? 2.6 : 2} {...(st.dash ? { strokeDasharray: st.dash } : {})} markerEnd={`url(#bk-arrow-${st.base.slice(1)})`} />
       {glow > 0.05 && <path d={g.path} fill="none" stroke={st.glow} strokeWidth={2 + Math.min(glow, 6) * 0.3} strokeLinecap="round" opacity={Math.min(0.55, 0.1 + glow * 0.07)} />}
       {ridden && accent && <path d={g.path} fill="none" stroke={accent} strokeWidth={2.6} strokeLinecap="round" className="bk-tour-path" style={{ filter: `drop-shadow(0 0 5px ${accent})` }} />}
-      {/* BPMN 2.0 exclusive gateway: a small rounded diamond with a soft glow and the X marker. */}
-      <path d={d} fill={`${st.glow}1f`} stroke="none" style={{ filter: `drop-shadow(0 0 ${active ? 6 : 3}px ${st.glow}${active ? 'cc' : '66'})` }} />
-      <path d={d} fill="#0b1120" fillOpacity="0.92" stroke={active ? st.glow : `${st.glow}cc`} strokeWidth="1.4" strokeLinejoin="round" />
-      <path d={`M${g.cx - x} ${g.cy - x}L${g.cx + x} ${g.cy + x}M${g.cx + x} ${g.cy - x}L${g.cx - x} ${g.cy + x}`} stroke={st.glow} strokeWidth="1.5" strokeLinecap="round" />
+      {g.junction ? (
+        // A pass-through join on a trunk that is already one line: the lines run straight through a small dot.
+        <>
+          <path d={GATEWAY_SPOKES[g.id]} fill="none" stroke={stroke} strokeWidth={active ? 2.6 : 2} {...(st.dash ? { strokeDasharray: st.dash } : {})} />
+          <circle cx={g.cx} cy={g.cy} r="3.2" fill={st.glow} stroke="#0b1120" strokeWidth="1" data-junction={g.id} />
+        </>
+      ) : (
+        // BPMN 2.0 exclusive gateway: a small rounded diamond with a soft glow and the X marker.
+        <>
+          <path d={d} fill={`${st.glow}1f`} stroke="none" style={{ filter: `drop-shadow(0 0 ${active ? 6 : 3}px ${st.glow}${active ? 'cc' : '66'})` }} />
+          <path d={d} fill="#0b1120" fillOpacity="0.92" stroke={active ? st.glow : `${st.glow}cc`} strokeWidth="1.4" strokeLinejoin="round" />
+          <path d={`M${g.cx - x} ${g.cy - x}L${g.cx + x} ${g.cy + x}M${g.cx + x} ${g.cy - x}L${g.cx - x} ${g.cy + x}`} stroke={st.glow} strokeWidth="1.5" strokeLinecap="round" />
+        </>
+      )}
     </g>
   );
 }
