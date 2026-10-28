@@ -515,14 +515,16 @@ function GatewayMark({ g, opacity, glow, active, accent, ridden }: { g: Gateway;
   const st = GATEWAY_STYLE[g.kind];
   const stroke = active ? st.glow : (accent ?? st.base);
   const d = `M${g.cx} ${g.cy - g.half}L${g.cx + g.half} ${g.cy}L${g.cx} ${g.cy + g.half}L${g.cx - g.half} ${g.cy}Z`;
-  const x = g.half * 0.36;
+  const x = g.half * 0.3;
   return (
     <g data-gateway={g.id} data-active={active || undefined} opacity={opacity}>
       <path d={g.path} fill="none" stroke={stroke} strokeWidth={active ? 2.6 : 2} {...(st.dash ? { strokeDasharray: st.dash } : {})} markerEnd={`url(#bk-arrow-${st.base.slice(1)})`} />
       {glow > 0.05 && <path d={g.path} fill="none" stroke={st.glow} strokeWidth={2 + Math.min(glow, 6) * 0.3} strokeLinecap="round" opacity={Math.min(0.55, 0.1 + glow * 0.07)} />}
       {ridden && accent && <path d={g.path} fill="none" stroke={accent} strokeWidth={2.6} strokeLinecap="round" className="bk-tour-path" style={{ filter: `drop-shadow(0 0 5px ${accent})` }} />}
-      <path d={d} fill="#0b1120" stroke={active ? st.glow : st.glow + 'aa'} strokeWidth="1.6" />
-      <path d={`M${g.cx - x} ${g.cy - x}L${g.cx + x} ${g.cy + x}M${g.cx + x} ${g.cy - x}L${g.cx - x} ${g.cy + x}`} stroke={st.glow} strokeWidth="1.8" strokeLinecap="round" />
+      {/* BPMN 2.0 exclusive gateway: a small rounded diamond with a soft glow and the X marker. */}
+      <path d={d} fill={`${st.glow}1f`} stroke="none" style={{ filter: `drop-shadow(0 0 ${active ? 6 : 3}px ${st.glow}${active ? 'cc' : '66'})` }} />
+      <path d={d} fill="#0b1120" fillOpacity="0.92" stroke={active ? st.glow : `${st.glow}cc`} strokeWidth="1.4" strokeLinejoin="round" />
+      <path d={`M${g.cx - x} ${g.cy - x}L${g.cx + x} ${g.cy + x}M${g.cx + x} ${g.cy - x}L${g.cx - x} ${g.cy + x}`} stroke={st.glow} strokeWidth="1.5" strokeLinecap="round" />
     </g>
   );
 }
@@ -586,8 +588,17 @@ function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; t
       {BANK_WIRES.filter((w) => w.label && w.showLabel).map((w) => {
         const label = t(w.label as string);
         const lit = linked?.has(w.id) ?? false;
+        const anchor = w.labelAnchor ?? w.labelAt;
+        const leader = Math.hypot(anchor[0] - w.labelAt[0], anchor[1] - w.labelAt[1]) > 14 ? ([anchor[0] - w.labelAt[0], anchor[1] - w.labelAt[1]] as const) : null;
         return (
           <g key={`label-${w.id}`} transform={`translate(${w.labelAt[0]} ${w.labelAt[1]})`} opacity={(!focus || focus.scope.wires.has(w.id)) && (!flow || flow.scope.wires.has(w.id)) && (!linked || lit) ? 1 : 0.15} data-label-lit={lit || undefined}>
+            {/* A callout for a hop too short to hold its words: a dotted leader back to the wire, ending in a dot on it. */}
+            {leader && (
+              <>
+                <line x1={leader[0]} y1={leader[1]} x2="0" y2="0" stroke={lit ? '#94a3b8' : '#475569'} strokeWidth="1" strokeDasharray="2 2" />
+                <circle cx={leader[0]} cy={leader[1]} r="1.8" fill={lit ? '#cbd5e1' : '#64748b'} />
+              </>
+            )}
             <rect x={-label.length * 2.7 - 4} y="-7" width={label.length * 5.4 + 8} height="14" rx="4" fill="#060912" stroke={lit ? '#94a3b8' : '#1e293b'} />
             <text textAnchor="middle" y="3.2" fontSize="9" fill={lit ? '#f1f5f9' : '#94a3b8'} style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
               {label}
@@ -622,13 +633,15 @@ const LEGEND_LINES: ReadonlyArray<{ key: MapLegendKey; stroke: string; dash?: st
   { key: 'lineOtp', stroke: '#a78bfa', dash: '3 3' },
 ];
 const LEGEND_TERMS = ['CTR', 'STR', 'clean', 'released', 'refund', 'matched', 'break'] as const;
+/** The wire label each legend term stands for, where the two differ. */
+const LEGEND_LABEL: Partial<Record<(typeof LEGEND_TERMS)[number], string>> = { matched: 'matched overnight' };
 
-/** The map's legend: a button in the corner that opens what each line, diamond, frame and wire word means. */
-export function MapLegend({ bottom = 12, initiallyOpen = false }: { bottom?: number; initiallyOpen?: boolean }) {
+/** The map's legend: a button in the top-right corner that opens what each line, diamond, frame and wire word means. */
+export function MapLegend({ top = 12, right = 12, initiallyOpen = false }: { top?: number; right?: number; initiallyOpen?: boolean }) {
   const m = useMessages(mapLegendMessages);
   const [open, setOpen] = useState(initiallyOpen);
   return (
-    <div className="absolute left-3 z-40 max-w-[340px] text-[12px]" style={{ bottom }} data-testid="map-legend" data-open={open || undefined}>
+    <div className="absolute z-40 flex max-w-[340px] flex-col items-end text-[12px]" style={{ top, right }} data-testid="map-legend" data-open={open || undefined}>
       {open ? (
         <div role="region" aria-label={m('title')} className="rounded-xl border border-slate-700 bg-[#0b1120]/95 p-3 shadow-2xl backdrop-blur" data-testid="map-legend-panel">
           <div className="flex items-center justify-between gap-2">
@@ -663,7 +676,7 @@ export function MapLegend({ bottom = 12, initiallyOpen = false }: { bottom?: num
           <dl className="mt-1 space-y-1">
             {LEGEND_TERMS.map((term) => (
               <div key={term} className="leading-snug" data-legend-term={term}>
-                <dt className="inline rounded bg-slate-800 px-1.5 font-mono text-[11px] font-bold text-sky-200">{t(term)}</dt>
+                <dt className="inline rounded bg-slate-800 px-1.5 font-mono text-[11px] font-bold text-sky-200">{t(LEGEND_LABEL[term] ?? term)}</dt>
                 <dd className="inline text-slate-300"> {m(`term_${term}`)}</dd>
               </div>
             ))}
@@ -813,7 +826,8 @@ function BankMapView() {
           </div>
           <SpotlightOverlay />
         </div>
-        {!focus && <MapLegend bottom={bottomInset + 12} />}
+        {/* Top-right, left of the zoom toolbar and the inspector, under the viewport dock's inset. */}
+        {!focus && <MapLegend top={inset + 12} right={rightInset + 12} />}
       </div>
     </StageScaleContext.Provider>
   );

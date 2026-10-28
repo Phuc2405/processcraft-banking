@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { ACRONYM_GL, BUFFER_MECHANICS, CORE_LEDGER_ARTICLE, flowBalances, GL_TAXONOMY, LEDGER_FORMULAS } from '../../../data/knowledgeBase';
+import { ACRONYM_GL, ACRONYM_GL_WHY, BUFFER_MECHANICS, CORE_LEDGER_ARTICLE, flowBalances, GL_TAXONOMY, LEDGER_FORMULAS } from '../../../data/knowledgeBase';
 import { buildSearchIndex, glCodeQuery, searchIndex } from '../../../hooks/useSearchIndex';
 import { setActiveLocale } from '../../../i18n/locale';
 import {
@@ -31,7 +31,9 @@ import { knowledgeBaseMessages } from '../../knowledge/knowledgeBase.messages';
 import { SegmentedToggle } from '../../shell/SegmentedToggle';
 import { analystWorkspaceMessages, type AnalystWorkspaceKey } from '../analystWorkspace.messages';
 import { AnalystWorkspaceView, CoreLedgerSheet, type AnalystWorkspaceViewProps } from '../AnalystWorkspaceModal';
-import { BANK_WIRES, connectedWires, gatewayCarries, GATEWAYS, PLACE_BOX } from '../layout';
+import { BANK_WIRES, connectedWires, GATEWAY_HALF, gatewayCarries, GATEWAYS, PLACE_BOX } from '../layout';
+import { VI_DICTIONARY } from '../../../i18n/viDictionary';
+import { WIRES } from '../../../sim/topology';
 import { openingLedger } from '../../../sim/staffRoleplay';
 
 const msgs = analystWorkspaceMessages.messages;
@@ -164,6 +166,15 @@ describe('the emergency queue: batch size and the mixed crisis stream', () => {
     expect(strip(on, 'workspace-incident')).toContain('h-[112px]');
     expect(on).toContain('data-testid="workspace-case-column"');
     expect(on.slice(on.lastIndexOf('<div', on.indexOf('data-testid="workspace-case-column"')))).toMatch(/^<div class="contents"/);
+  });
+
+  it('keeps the incident controls on the same single row as sound, language, difficulty and the challenge', () => {
+    const on = view({ crisisBatch: 5 });
+    const row = on.slice(on.lastIndexOf('<div', on.indexOf('data-testid="workspace-toolbar"')), on.indexOf('</header>'));
+    expect(row).toMatch(/^<div class="[^"]*flex-nowrap/);
+    const order = ['workspace-incident-toggle', 'workspace-crisis-batch-group', 'workspace-crisis-stream', 'workspace-sound', 'workspace-language', 'workspace-mode', 'workspace-ledger-open'].map((id) => row.indexOf(id));
+    for (const i of order) expect(i).toBeGreaterThan(-1);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
 });
 
@@ -334,9 +345,12 @@ describe('one shared segmented switch', () => {
 describe('BPMN collector gateways on the map', () => {
   it('collects the long declines, the band approvals and the night handovers, each into one trunk', () => {
     const byId = new Map(GATEWAYS.map((g) => [g.id, g]));
-    // The band's eight declines meet a local collector under the band; its one trunk joins 3DS at the reject gateway.
-    expect(byId.get('GATEWAY_XOR_REJECT_BAND')!.wires).toHaveLength(8);
+    // Local collectors beside the band's desks cascade into one trunk that joins 3DS at the reject gateway.
+    expect(byId.get('GATEWAY_XOR_REJECT_ROW1')!.wires).toHaveLength(4);
+    expect(['GATEWAY_XOR_REJECT_ROW2_A', 'GATEWAY_XOR_REJECT_ROW2_B', 'GATEWAY_XOR_REJECT_ROW2_C'].flatMap((id) => byId.get(id as never)!.wires)).toHaveLength(4);
+    expect(gatewayCarries(byId.get('GATEWAY_XOR_REJECT_BAND')!)).toHaveLength(8);
     expect(byId.get('GATEWAY_XOR_REJECT_BAND')!.into).toBe('GATEWAY_XOR_REJECT');
+    for (const g of GATEWAYS) expect(g.half, g.id).toBe(GATEWAY_HALF);
     expect(byId.get('GATEWAY_XOR_REJECT')!.wires).toEqual(['SEC_3DS>OUT_DECLINED']);
     expect(gatewayCarries(byId.get('GATEWAY_XOR_REJECT')!)).toHaveLength(9);
     expect(byId.get('GATEWAY_XOR_APPROVE')!.wires).toHaveLength(5);
@@ -347,7 +361,9 @@ describe('BPMN collector gateways on the map', () => {
       const b = PLACE_BOX[g.to];
       if (next) expect(Math.abs(end[0] - next.cx) + Math.abs(end[1] - next.cy), g.id).toBe(next.half);
       else expect(end[0] === b.cx - b.w / 2 || end[0] === b.cx + b.w / 2 || end[1] === b.cy - b.h / 2 || end[1] === b.cy + b.h / 2, g.id).toBe(true);
-      const last = (next ?? g).trunk.at(-1)!;
+      let final = g;
+      while (final.into) final = byId.get(final.into)!;
+      const last = final.trunk.at(-1)!;
       const ends = new Set<string>();
       for (const id of g.wires) {
         const w = BANK_WIRES.find((x) => x.id === id)!;
@@ -404,15 +420,31 @@ describe('readability pass: the Knowledge Base cards, balances and Advanced dept
     expect(adv).toContain('data-statement="income"');
     expect(adv).toContain('$10,000.00');
     expect(adv).toContain('data-rule="vn-large-value"');
-    expect(basic).not.toContain('data-statement=');
+    // Amounts and the balance sheet / income statement badges are in both views.
+    expect(basic).toContain('data-statement="balance"');
+    expect(basic).toContain('$140.00');
+    expect(basic).toContain(esc(`${kb.statementBalance.en} - 2011 ↓ $140.00`));
+    expect(adv).toContain('data-rule="au-ttr"');
+  });
+
+  it('says why every account of the acronym table belongs to its acronym', () => {
+    for (const [term, row] of Object.entries(ACRONYM_GL)) for (const gl of row.gls) expect(ACRONYM_GL_WHY[term]?.[gl]?.vi, `${term} ${gl}`).toBeTruthy();
+    expect(ACRONYM_GL_WHY.SWIFT!.NOSTRO!.en).toContain('nostro');
+    const adv = renderToStaticMarkup(createElement(CoreLedgerArticle, { view: 'advanced' }));
+    const swift = adv.slice(adv.indexOf('data-acronym="SWIFT"'), adv.indexOf('</tr>', adv.indexOf('data-acronym="SWIFT"')));
+    expect(swift).toMatch(/tabindex="0"[^>]*data-gl="NOSTRO" aria-describedby=/);
+    expect(swift).toContain(esc(ACRONYM_GL_WHY.SWIFT!.NOSTRO!.en));
   });
 });
 
 describe('readability pass: the map legend and one switch for the dock', () => {
   it('opens a legend of the lines, gateways, frames and wire words', async () => {
     const { MapLegend } = await import('../BankMap');
-    const closed = renderToStaticMarkup(createElement(MapLegend, {}));
+    const closed = renderToStaticMarkup(createElement(MapLegend, { top: 60, right: 80 }));
     expect(closed).toContain('data-testid="map-legend-open"');
+    // Top-right of the viewport, never the bottom-left.
+    expect(closed).toContain('top:60px;right:80px');
+    expect(closed).not.toMatch(/left-3|bottom:/);
     const open = renderToStaticMarkup(createElement(MapLegend, { initiallyOpen: true }));
     for (const key of ['lineReject', 'lineApprove', 'lineNight', 'lineOtp', 'gateway', 'frame']) expect(open).toContain(`data-legend="${key}"`);
     for (const term of ['CTR', 'STR', 'clean', 'released', 'refund']) expect(open).toContain(`data-legend-term="${term}"`);
@@ -433,6 +465,34 @@ describe('readability pass: the map legend and one switch for the dock', () => {
     for (const file of ['../ViewportControls.tsx', '../ViewControls.tsx']) {
       expect(sources[file], file).toContain('<SegmentedToggle');
       expect(sources[file], file).not.toMatch(/function (Pill|Segmented)</);
+    }
+  });
+});
+
+describe('every edge on the map says what it means', () => {
+  it('labels every wire, shows every label, and has it in Vietnamese too', () => {
+    for (const [from, to, label] of WIRES) {
+      expect(label, `${from}>${to}`).toBeTruthy();
+      expect(VI_DICTIONARY[label!], label).toBeTruthy();
+      expect(VI_DICTIONARY[label!], label).not.toBe(label);
+    }
+    for (const w of BANK_WIRES) expect(w.showLabel, w.id).toBe(true);
+  });
+
+  it('says what the routes in the brief say', () => {
+    const vi = (id: string) => VI_DICTIONARY[BANK_WIRES.find((w) => w.id === id)!.label!];
+    expect(vi('GATE_POS>LEDGER_DEBIT')).toBe('Thẻ ghi nợ (Debit)');
+    expect(vi('GATE_POS>LEDGER_CREDIT')).toBe('Thẻ tín dụng (Credit)');
+    expect(vi('GATE_ECOM>SEC_3DS')).toBe('Xác thực OTP SMS');
+    expect(vi('GATE_ECOM>BNPL')).toBe('Trả góp BNPL');
+    expect(vi('GATE_SWIFT>SEC_FDS')).toBe('Rà soát AML & Cấm vận (Sanctions Check)');
+    expect(vi('DISPUTE_DESK>OUT_DECLINED')).toBe('Rủi ro cao / Từ chối bồi hoàn');
+  });
+
+  it('keeps a callout close to the wire it belongs to', () => {
+    for (const w of BANK_WIRES) {
+      const a = w.labelAnchor ?? w.labelAt;
+      expect(Math.hypot(a[0] - w.labelAt[0], a[1] - w.labelAt[1]), w.id).toBeLessThan(110);
     }
   });
 });

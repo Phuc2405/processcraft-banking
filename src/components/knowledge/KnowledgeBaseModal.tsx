@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   accountsOn,
   ACRONYM_GL,
+  ACRONYM_GL_WHY,
   BUFFER_MECHANICS,
   CORE_LEDGER_ARTICLE,
   flowAmount,
@@ -77,7 +79,7 @@ function AdvancedNote({ id, paragraphs, locale }: { id: string; paragraphs: read
   );
 }
 
-function FlowCard({ flow, locale, advanced }: { flow: ArticleFlow; locale: Locale; advanced: boolean }) {
+function FlowCard({ flow, locale }: { flow: ArticleFlow; locale: Locale }) {
   const m = useMessages(knowledgeBaseMessages);
   const balances = flow.watch.map((gl) => ({ gl, after: flowBalances(flow, gl) }));
   return (
@@ -100,23 +102,19 @@ function FlowCard({ flow, locale, advanced }: { flow: ArticleFlow; locale: Local
                   <span className="min-w-0 flex-1 truncate font-sans text-slate-200" title={glName(l.gl, locale)}>
                     {glName(l.gl, locale)}
                   </span>
-                  {advanced && (
-                    <span className="shrink-0 whitespace-nowrap text-slate-100" data-amount={flowAmount(flow, l)}>
-                      {formatMoney(flowAmount(flow, l))}
-                    </span>
-                  )}
+                  <span className="shrink-0 whitespace-nowrap text-slate-100" data-amount={flowAmount(flow, l)}>
+                    {formatMoney(flowAmount(flow, l))}
+                  </span>
                 </li>
               ))}
             </ul>
-            {advanced && (
-              <div className="mt-1 flex flex-wrap gap-1" data-statements={i + 1}>
-                {st.lines.map((l) => (
-                  <span key={`${l.side}-${l.gl}`} className={`whitespace-nowrap rounded px-1.5 text-[12px] font-semibold ${statementOf(l.gl) === 'income' ? 'bg-emerald-500/15 text-emerald-200' : 'bg-sky-500/15 text-sky-200'}`} data-statement={statementOf(l.gl)}>
-                    {m(statementOf(l.gl) === 'income' ? 'statementIncome' : 'statementBalance')} · {GL_CODE[l.gl]} {lineRaises(l) ? '↑' : '↓'} {formatMoney(flowAmount(flow, l))}
-                  </span>
-                ))}
-              </div>
-            )}
+            <div className="mt-1 flex flex-wrap gap-1" data-statements={i + 1}>
+              {st.lines.map((l) => (
+                <span key={`${l.side}-${l.gl}`} className={`whitespace-nowrap rounded px-1.5 text-[12px] font-semibold ${statementOf(l.gl) === 'income' ? 'bg-emerald-500/15 text-emerald-200' : 'bg-sky-500/15 text-sky-200'}`} data-statement={statementOf(l.gl)}>
+                  {m(statementOf(l.gl) === 'income' ? 'statementIncome' : 'statementBalance')} - {GL_CODE[l.gl]} {lineRaises(l) ? '↑' : '↓'} {formatMoney(flowAmount(flow, l))}
+                </span>
+              ))}
+            </div>
             {balances.map(({ gl, after }) => (
               <div key={gl} className="mt-1 text-[13px] font-semibold text-violet-200" data-balance={gl} data-after={after[i]}>
                 {m('balanceAfter', { code: GL_CODE[gl], amount: formatMoney(after[i]!) })}
@@ -126,6 +124,45 @@ function FlowCard({ flow, locale, advanced }: { flow: ArticleFlow; locale: Local
         ))}
       </ol>
     </div>
+  );
+}
+
+/**
+ * A GL badge in the acronym table. Pointing at it (or focusing it) opens a card saying exactly why the account belongs to the
+ * acronym. The card is portalled to <body> and placed beside the badge, so the table's scrolling never clips it.
+ */
+function GlWhyBadge({ gl, acronym, why, locale }: { gl: GlAccount; acronym: string; why: Localized<string> | undefined; locale: Locale }) {
+  const m = useMessages(knowledgeBaseMessages);
+  const id = useId();
+  const [at, setAt] = useState<{ left: number; top: number } | null>(null);
+  const open = (el: HTMLElement): void => {
+    const r = el.getBoundingClientRect();
+    setAt({ left: Math.min(r.left, window.innerWidth - 336), top: r.bottom + 6 });
+  };
+  return (
+    <span
+      tabIndex={0}
+      className="cursor-help whitespace-nowrap rounded bg-slate-800 px-1.5 text-[13px] outline-none ring-sky-400 hover:bg-slate-700 focus-visible:ring-2"
+      data-gl={gl}
+      aria-describedby={why ? id : undefined}
+      onPointerEnter={(e) => why && open(e.currentTarget)}
+      onPointerLeave={() => setAt(null)}
+      onFocus={(e) => why && open(e.currentTarget)}
+      onBlur={() => setAt(null)}
+    >
+      <span className="font-mono font-bold text-amber-200">{GL_CODE[gl]}</span> <span className="text-slate-300">{glName(gl, locale)}</span>
+      {why && <span id={id} className="sr-only">{pick(why, locale)}</span>}
+      {at &&
+        why &&
+        createPortal(
+          <div role="tooltip" className="pointer-events-none fixed z-[100] w-80 rounded-xl border border-sky-400/40 bg-[#0b1120] p-3 text-left shadow-2xl" style={at} data-testid="kb-gl-why">
+            <div className="text-[12px] font-semibold uppercase tracking-wider text-sky-300">{m('whyTitle', { code: GL_CODE[gl], acronym })}</div>
+            <div className="mt-0.5 text-[14px] font-bold text-slate-50">{glName(gl, locale)}</div>
+            <p className="mt-1 whitespace-normal text-[14px] leading-normal text-slate-200">{pick(why, locale)}</p>
+          </div>,
+          document.body,
+        )}
+    </span>
   );
 }
 
@@ -441,7 +478,7 @@ export function CoreLedgerArticle({ highlight = null, view = 'basic', accountQue
           {s.id === 'flows' && (
             <div className="mt-3 grid gap-3 lg:grid-cols-2" data-testid="kb-flows">
               {a.flows.map((f) => (
-                <FlowCard key={f.id} flow={f} locale={locale} advanced={advanced} />
+                <FlowCard key={f.id} flow={f} locale={locale} />
               ))}
             </div>
           )}
@@ -475,9 +512,7 @@ export function CoreLedgerArticle({ highlight = null, view = 'basic', accountQue
                           <td className={td}>
                             <div className="flex flex-wrap gap-1">
                               {row.gls.map((gl) => (
-                                <span key={gl} className="whitespace-nowrap rounded bg-slate-800 px-1.5 text-[13px]" data-gl={gl}>
-                                  <span className="font-mono font-bold text-amber-200">{GL_CODE[gl]}</span> <span className="text-slate-300">{glName(gl, locale)}</span>
-                                </span>
+                                <GlWhyBadge key={gl} gl={gl} acronym={terms.get(key)?.label ?? key} why={ACRONYM_GL_WHY[key]?.[gl]} locale={locale} />
                               ))}
                             </div>
                           </td>

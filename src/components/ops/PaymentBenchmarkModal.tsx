@@ -96,16 +96,16 @@ export function PaymentBenchmarkModal() {
       })}
       onClose={close}
       footer={
-        <button type="button" onClick={close} className="rounded-lg bg-lime-400 px-4 py-1.5 text-[12.5px] font-bold text-slate-950 hover:bg-lime-300">
+        <button type="button" onClick={close} className="rounded-lg bg-lime-400 px-4 py-1.5 text-[14.5px] font-bold text-slate-950 hover:bg-lime-300">
           {tr({ en: 'Close', vi: 'Đóng' })}
         </button>
       }
     >
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] border-separate border-spacing-0 text-left text-[12px]" data-testid="benchmark-table">
+        <table className="w-full min-w-[720px] border-separate border-spacing-0 text-left text-[14px]" data-testid="benchmark-table">
           <thead>
             <tr>
-              <th className="w-[19%] px-3 py-2 align-bottom text-[10.5px] font-semibold uppercase tracking-wider text-slate-500">{tr({ en: 'Dimension', vi: 'Tiêu chí' })}</th>
+              <th className="w-[19%] px-3 py-2 align-bottom text-[12.5px] font-semibold uppercase tracking-wider text-slate-500">{tr({ en: 'Dimension', vi: 'Tiêu chí' })}</th>
               {RAILS.map((r) => (
                 <th key={r.id} className="px-3 py-2 align-bottom">
                   <button
@@ -116,11 +116,11 @@ export function PaymentBenchmarkModal() {
                     className="w-full rounded-xl border px-3 py-2 text-left transition hover:bg-slate-800/50"
                     style={{ borderColor: focus === r.id ? r.accent : `${r.accent}55`, background: focus === r.id ? `${r.accent}1a` : undefined }}
                   >
-                    <span className="flex items-center gap-2 text-[14px] font-bold text-slate-50">
+                    <span className="flex items-center gap-2 text-[16px] font-bold text-slate-50">
                       <span aria-hidden="true">{r.icon}</span>
                       {tr(r.name)}
                     </span>
-                    <span className="mt-0.5 block font-mono text-[10.5px] font-normal text-slate-400">{r.sub}</span>
+                    <span className="mt-0.5 block font-mono text-[12.5px] font-normal text-slate-400">{r.sub}</span>
                   </button>
                 </th>
               ))}
@@ -130,18 +130,18 @@ export function PaymentBenchmarkModal() {
             {METRICS.map((m) => (
               <tr key={m.id} data-testid={`benchmark-row-${m.id}`}>
                 <th scope="row" className="border-t border-slate-800 px-3 py-2.5 align-top">
-                  <span className="block text-[12.5px] font-semibold text-slate-100">{tr(m.label)}</span>
-                  <span className="mt-0.5 block text-[11px] font-normal leading-snug text-slate-500">{tr(m.hint)}</span>
+                  <span className="block text-[14.5px] font-semibold text-slate-100">{tr(m.label)}</span>
+                  <span className="mt-0.5 block text-[13px] font-normal leading-normal text-slate-500">{tr(m.hint)}</span>
                 </th>
                 {RAILS.map((r) => {
                   const cell = GRID[r.id][m.id];
                   const top = Math.max(...RAILS.map((x) => GRID[x.id][m.id].score)) === cell.score;
                   return (
                     <td key={r.id} className={`border-t border-slate-800 px-3 py-2.5 align-top transition-opacity ${focus && focus !== r.id ? 'opacity-40' : ''}`}>
-                      <span className="block leading-snug text-slate-200">
+                      <span className="block leading-normal text-slate-200">
                         {tr(cell.text)}
                         {top && (
-                          <span className="ml-1.5 rounded bg-lime-400/15 px-1 text-[10px] font-bold text-lime-300" title={tr({ en: 'Best for the merchant on this dimension', vi: 'Tốt nhất cho cửa hàng ở tiêu chí này' })}>
+                          <span className="ml-1.5 rounded bg-lime-400/15 px-1 text-[12px] font-bold text-lime-300" title={tr({ en: 'Best for the merchant on this dimension', vi: 'Tốt nhất cho cửa hàng ở tiêu chí này' })}>
                             ★
                           </span>
                         )}
@@ -153,16 +153,16 @@ export function PaymentBenchmarkModal() {
               </tr>
             ))}
             <tr>
-              <th scope="row" className="border-t border-slate-700 px-3 py-2.5 text-[12.5px] font-bold text-slate-100">
+              <th scope="row" className="border-t border-slate-700 px-3 py-2.5 text-[14.5px] font-bold text-slate-100">
                 {tr({ en: 'Merchant score', vi: 'Điểm cho cửa hàng' })}
               </th>
               {RAILS.map((r) => (
                 <td key={r.id} className="border-t border-slate-700 px-3 py-2.5" data-testid={`benchmark-total-${r.id}`}>
-                  <span className="font-mono text-[18px] font-black" style={{ color: r.accent }}>
+                  <span className="font-mono text-[20px] font-black" style={{ color: r.accent }}>
                     {totals[r.id]}
                   </span>
-                  <span className="text-[11px] text-slate-500"> / {METRICS.length * 5}</span>
-                  {best === r.id && <span className="ml-2 rounded-full bg-lime-400 px-2 py-0.5 text-[10px] font-bold text-slate-950">{tr({ en: 'Best for merchants', vi: 'Tốt nhất cho cửa hàng' })}</span>}
+                  <span className="text-[13px] text-slate-500"> / {METRICS.length * 5}</span>
+                  {best === r.id && <span className="ml-2 rounded-full bg-lime-400 px-2 py-0.5 text-[12px] font-bold text-slate-950">{tr({ en: 'Best for merchants', vi: 'Tốt nhất cho cửa hàng' })}</span>}
                 </td>
               ))}
             </tr>
@@ -193,7 +193,7 @@ export function PaymentBenchmarkModal() {
             },
           },
         ].map((n, i) => (
-          <p key={i} className="flex gap-2 rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-[12px] leading-relaxed text-slate-300">
+          <p key={i} className="flex gap-2 rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-[14px] leading-relaxed text-slate-300">
             <span aria-hidden="true">{n.icon}</span>
             {tr(n.text)}
           </p>

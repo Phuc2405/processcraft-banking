@@ -450,6 +450,32 @@ export const REGULATORY_RULES: readonly { id: string; rule: Localized<string>; c
     source: L('Circular 09/2023/TT-NHNN', 'Thông tư 09/2023/TT-NHNN'),
   },
   {
+    id: 'au-ttr',
+    rule: L(
+      'In Australia, a physical cash transaction of AUD 10,000 or more is reported to AUSTRAC as a Threshold Transaction Report: the line the simulator’s CTR uses.',
+      'Tại Úc, giao dịch tiền mặt từ 10.000 AUD trở lên phải báo cáo AUSTRAC (Threshold Transaction Report): đúng ngưỡng CTR của trình mô phỏng.',
+    ),
+    cents: CTR_THRESHOLD_CENTS,
+    source: L('AML/CTF Act 2006 (Cth), AUSTRAC', 'Luật AML/CTF 2006 của Úc, AUSTRAC'),
+  },
+  {
+    id: 'au-smr',
+    rule: L(
+      'A Suspicious Matter Report goes to AUSTRAC within three business days, or within 24 hours when it concerns terrorism financing.',
+      'Báo cáo giao dịch đáng ngờ (SMR) gửi AUSTRAC trong ba ngày làm việc, hoặc trong 24 giờ nếu liên quan đến tài trợ khủng bố.',
+    ),
+    days: 3,
+    source: L('AML/CTF Act 2006 (Cth), s 41', 'Luật AML/CTF 2006 của Úc, Điều 41'),
+  },
+  {
+    id: 'au-cps230',
+    rule: L(
+      'APRA expects the bank to identify its critical operations, set tolerance levels for disruption and test its business continuity plans.',
+      'APRA yêu cầu ngân hàng xác định các hoạt động trọng yếu, đặt mức chịu đựng gián đoạn và kiểm thử kế hoạch kinh doanh liên tục.',
+    ),
+    source: L('APRA Prudential Standard CPS 230 Operational Risk Management', 'Chuẩn mực an toàn CPS 230 của APRA về quản lý rủi ro hoạt động'),
+  },
+  {
     id: 'vn-records',
     rule: L('Customer identification records and transaction documents are kept for at least five years.', 'Hồ sơ nhận biết khách hàng và chứng từ giao dịch được lưu trữ tối thiểu năm năm.'),
     source: L('Law on Anti-Money Laundering 2022 (14/2022/QH15)', 'Luật Phòng, chống rửa tiền 2022 (14/2022/QH15)'),
@@ -509,6 +535,71 @@ export const ACRONYM_GL: Readonly<Record<string, { gls: readonly GlAccount[]; ro
   SUSPENSE: { gls: ['ATM_SUSPENSE', 'CLEARING_SUSPENSE'] },
   AML: { gls: ['FROZEN_ASSETS'], role: 'aml' },
   FDS: { gls: ['CASA', 'INTERBANK_SETTLEMENT'], role: 'fds' },
+};
+
+/** Why each account of the lookup table belongs to its acronym: the hover card on its badge in Section 5. */
+export const ACRONYM_GL_WHY: Readonly<Record<string, Partial<Record<GlAccount, Localized<string>>>>> = {
+  CTR: {
+    TILL_CASH: L('A CTR is about physical cash: the notes counted at the teller come into or leave the till.', 'CTR liên quan đến tiền mặt: số tiền giao dịch viên kiểm đếm được nhập vào hoặc chi ra từ quỹ quầy.'),
+    CASA: L('The other leg of the cash deposit or withdrawal is the customer’s current account.', 'Vế còn lại của giao dịch nộp hoặc rút tiền mặt là tài khoản thanh toán của khách.'),
+  },
+  STR: {
+    FROZEN_ASSETS: L('A suspicious payment is held, not returned: its money moves into frozen assets while the STR is investigated.', 'Giao dịch đáng ngờ bị giữ lại chứ không hoàn trả: tiền chuyển vào tài sản phong tỏa trong lúc điều tra STR.'),
+    CASA: L('The hold is taken from the customer’s current account, and released back to it if the STR is cleared.', 'Khoản phong tỏa được trích từ tài khoản thanh toán của khách và trả lại nếu STR được giải tỏa.'),
+  },
+  SWIFT: {
+    NOSTRO: L('A SWIFT payment abroad is paid out of the bank’s own account at its foreign correspondent: the nostro.', 'Lệnh SWIFT ra nước ngoài được chi từ tài khoản của chính ngân hàng tại ngân hàng đại lý nước ngoài: tài khoản nostro.'),
+    WIRE_FEE_INCOME: L('The bank charges a fee for every international wire it sends, earned on the same journal.', 'Ngân hàng thu phí cho mỗi lệnh chuyển tiền quốc tế, ghi nhận ngay trong cùng bút toán.'),
+    CLEARING_SUSPENSE: L('A returned wire (pacs.004) or one sent during an outage waits in interbank suspense until it is matched.', 'Lệnh bị trả về (pacs.004) hoặc gửi trong lúc mất kết nối được treo ở tài khoản treo liên ngân hàng cho đến khi khớp.'),
+  },
+  BNPL: {
+    LOAN_PRINCIPAL: L('Pay-in-4 is a loan: the amount the bank pays the shop becomes the customer’s loan principal.', 'Mua trước trả sau là khoản vay: số tiền ngân hàng trả cho cửa hàng trở thành dư nợ gốc của khách.'),
+    INTERBANK_SETTLEMENT: L('The shop is paid through the interbank switch, so settlement carries the other leg.', 'Cửa hàng được thanh toán qua hệ thống liên ngân hàng, nên tài khoản thanh toán bù trừ mang vế còn lại.'),
+    INTEREST_INCOME: L('Instalments repay principal plus interest, and the interest is the bank’s income.', 'Các kỳ trả góp gồm gốc và lãi, phần lãi là thu nhập của ngân hàng.'),
+    LATE_PENALTY_INCOME: L('A late instalment adds a penalty fee, posted to late penalty income.', 'Kỳ trả góp trễ hạn phát sinh phí phạt, hạch toán vào thu nhập phạt trễ hạn.'),
+  },
+  DTI: {
+    LOAN_PRINCIPAL: L('The debt-to-income check decides whether a new loan may be booked at all.', 'Kiểm tra tỷ lệ nợ trên thu nhập quyết định có được ghi nhận khoản vay mới hay không.'),
+    OVERDRAFT_RECV: L('An overdraft is debt too, so it counts in the customer’s monthly debt load.', 'Thấu chi cũng là nợ, nên được tính vào gánh nặng nợ hằng tháng của khách.'),
+  },
+  MDR: {
+    FEE_INCOME: L('The merchant discount the shop pays on each card sale is the bank’s fee income.', 'Phí chiết khấu cửa hàng trả trên mỗi giao dịch thẻ là thu nhập phí của ngân hàng.'),
+    INTERBANK_SETTLEMENT: L('The fee is netted from what the card network settles to the shop.', 'Khoản phí được cấn trừ vào số tiền tổ chức thẻ quyết toán cho cửa hàng.'),
+  },
+  POS: {
+    CASA: L('A debit card at the shop counter takes the money from the customer’s current account.', 'Thẻ ghi nợ tại quầy thanh toán trừ tiền từ tài khoản thanh toán của khách.'),
+    INTERBANK_SETTLEMENT: L('The shop’s bank is paid through the card network’s settlement.', 'Ngân hàng của cửa hàng được thanh toán qua quyết toán của tổ chức thẻ.'),
+  },
+  EKYC: {
+    CASA: L('Passing eKYC opens the customer’s current account.', 'Vượt qua eKYC thì tài khoản thanh toán của khách được mở.'),
+    OVERDRAFT_RECV: L('Card and overdraft fees on a new account are charged to its overdraft receivable.', 'Phí thẻ và thấu chi của tài khoản mới được ghi vào khoản phải thu thấu chi.'),
+    FEE_INCOME: L('Those account fees are the bank’s fee income.', 'Các khoản phí tài khoản đó là thu nhập phí của ngân hàng.'),
+  },
+  EOD: {
+    INTERBANK_SETTLEMENT: L('The overnight batch settles the day’s interbank positions.', 'Lô xử lý ban đêm quyết toán các vị thế liên ngân hàng trong ngày.'),
+    CLEARING_SUSPENSE: L('Breaks found by the night reconciliation wait in clearing suspense.', 'Các khoản lệch mà đối soát ban đêm phát hiện được treo ở tài khoản treo thanh toán bù trừ.'),
+    ATM_SUSPENSE: L('ATM differences are settled at the end-of-day cash count.', 'Chênh lệch ATM được xử lý khi kiểm quỹ cuối ngày.'),
+  },
+  ATM: {
+    ATM_CASH: L('The notes inside the machine are the ATM’s cash account.', 'Tiền mặt trong máy là tài khoản tiền mặt ATM.'),
+    ATM_SUSPENSE: L('A jam or a timeout parks the amount in ATM suspense until the cash count.', 'Kẹt tiền hoặc quá thời gian thì số tiền được treo vào tài khoản treo ATM cho đến khi kiểm quỹ.'),
+  },
+  NAPAS: { INTERBANK_SETTLEMENT: L('NAPAS is the national switch: what it owes us, or we owe it, sits in interbank settlement.', 'NAPAS là hệ thống chuyển mạch quốc gia: khoản NAPAS nợ ta hoặc ta nợ NAPAS nằm ở tài khoản thanh toán liên ngân hàng.') },
+  NOSTRO: { NOSTRO: L('Nostro means "ours": the bank’s own money held at another bank.', 'Nostro nghĩa là "của chúng ta": tiền của ngân hàng gửi tại một ngân hàng khác.') },
+  CHARGEBACK: {
+    DISPUTE_ACCOUNT: L('The provisional credit given to the customer is a receivable until the chargeback is won or lost.', 'Khoản tạm ứng cho khách là khoản phải thu cho đến khi bồi hoàn thành công hoặc thất bại.'),
+    INTERBANK_SETTLEMENT: L('A won chargeback is paid back by the merchant’s bank through settlement.', 'Bồi hoàn thành công thì ngân hàng của cửa hàng hoàn trả qua thanh toán bù trừ.'),
+  },
+  CASA: { CASA: L('CASA is the customer’s current and savings account itself.', 'CASA chính là tài khoản thanh toán và tiết kiệm không kỳ hạn của khách.') },
+  SUSPENSE: {
+    ATM_SUSPENSE: L('Suspense for ATM cash that the machine and the ledger disagree on.', 'Tài khoản treo cho tiền mặt ATM mà máy và sổ cái không khớp.'),
+    CLEARING_SUSPENSE: L('Suspense for interbank amounts not yet matched or confirmed.', 'Tài khoản treo cho các khoản liên ngân hàng chưa khớp hoặc chưa được xác nhận.'),
+  },
+  AML: { FROZEN_ASSETS: L('Money the AML desk blocks is held in frozen assets pending the investigation.', 'Tiền bị quầy AML phong tỏa được giữ trong tài sản phong tỏa chờ kết quả điều tra.') },
+  FDS: {
+    CASA: L('A payment the fraud screen passes is debited from the customer’s current account.', 'Giao dịch qua được sàng lọc gian lận sẽ được trừ vào tài khoản thanh toán của khách.'),
+    INTERBANK_SETTLEMENT: L('…and paid on to the other bank through settlement.', '…và chuyển tiếp cho ngân hàng bên kia qua thanh toán bù trừ.'),
+  },
 };
 
 /** The balance of `gl` after a flow's steps, in the account's own direction (credit-positive for liabilities). */

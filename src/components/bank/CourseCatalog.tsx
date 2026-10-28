@@ -43,17 +43,17 @@ export function AcademyButton() {
       }
       data-testid="academy-button"
       data-active={live ? live.id : undefined}
-      className={`flex items-center gap-2 rounded-lg py-1 pl-2.5 pr-1.5 text-[12.5px] font-semibold text-slate-100 ring-1 transition ${open ? 'bg-slate-800 ring-slate-500' : 'bg-slate-900 ring-slate-700 hover:bg-slate-800'}`}
+      className={`flex items-center gap-2 rounded-lg py-1 pl-2.5 pr-1.5 text-[14.5px] font-semibold text-slate-100 ring-1 transition ${open ? 'bg-slate-800 ring-slate-500' : 'bg-slate-900 ring-slate-700 hover:bg-slate-800'}`}
     >
       <span aria-hidden="true">🎓</span>
       <span>{t('Academy')}</span>
       {live ? (
-        <span className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-black tabular-nums text-slate-950" style={{ background: live.accent }} data-testid="academy-badge" aria-label={tr({ en: `Chapter ${live.number} in progress`, vi: `Đang học Chương ${live.number}` })}>
+        <span className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[12.5px] font-black tabular-nums text-slate-950" style={{ background: live.accent }} data-testid="academy-badge" aria-label={tr({ en: `Chapter ${live.number} in progress`, vi: `Đang học Chương ${live.number}` })}>
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-950/70" aria-hidden="true" />
           {tr({ en: `Ch ${live.number}`, vi: `Ch. ${live.number}` })}
         </span>
       ) : (
-        <span className="rounded-md bg-slate-700 px-1.5 py-0.5 text-[10.5px] font-bold tabular-nums text-slate-200" data-testid="academy-badge" aria-label={tr({ en: `${list.length} chapters`, vi: `${list.length} chương` })}>
+        <span className="rounded-md bg-slate-700 px-1.5 py-0.5 text-[12.5px] font-bold tabular-nums text-slate-200" data-testid="academy-badge" aria-label={tr({ en: `${list.length} chapters`, vi: `${list.length} chương` })}>
           {list.length}
         </span>
       )}
@@ -74,33 +74,33 @@ function ChapterCard({ chapter, first }: { chapter: Chapter; first: boolean }) {
     <li className="flex" data-testid={`chapter-card-${chapter.id}`} data-chapter={chapter.number} data-live={here ? 'yes' : 'no'}>
       <article className="flex w-full flex-col rounded-2xl border bg-slate-900/70 p-4 transition hover:bg-slate-900" style={{ borderColor: here ? chapter.accent : '#334155', boxShadow: here ? `0 0 0 1px ${chapter.accent}66, 0 0 28px ${chapter.accent}22` : undefined }}>
         <div className="flex items-center gap-2">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[15px] font-black tabular-nums text-slate-950" style={{ background: chapter.accent }} aria-hidden="true">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[17px] font-black tabular-nums text-slate-950" style={{ background: chapter.accent }} aria-hidden="true">
             {chapter.number}
           </span>
           <div className="min-w-0 leading-tight">
-            <div className="text-[10.5px] font-bold uppercase tracking-wider" style={{ color: chapter.accent }}>
+            <div className="text-[12.5px] font-bold uppercase tracking-wider" style={{ color: chapter.accent }}>
               {tr({ en: `Chapter ${chapter.number}`, vi: `Chương ${chapter.number}` })}
             </div>
             <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-              <span title={difficultyHint(chapter.difficulty)} data-testid={`chapter-difficulty-${chapter.id}`} className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ring-1 ${DIFFICULTY_STYLE[chapter.difficulty]}`}>
+              <span title={difficultyHint(chapter.difficulty)} data-testid={`chapter-difficulty-${chapter.id}`} className={`rounded-full px-2 py-0.5 text-[12.5px] font-semibold ring-1 ${DIFFICULTY_STYLE[chapter.difficulty]}`}>
                 {difficultyText(chapter.difficulty)}
               </span>
-              <span className="text-[11px] tabular-nums text-slate-400" data-testid={`chapter-steps-${chapter.id}`} title={t('About how many steps the guided tour takes, depending on the example you pick')}>
+              <span className="text-[13px] tabular-nums text-slate-400" data-testid={`chapter-steps-${chapter.id}`} title={t('About how many steps the guided tour takes, depending on the example you pick')}>
                 ≈ {stepsText(chapter)}
               </span>
             </div>
           </div>
         </div>
 
-        <h3 className="mt-3 text-[15px] font-bold leading-snug text-slate-50" data-testid={`chapter-title-${chapter.id}`}>
+        <h3 className="mt-3 text-[17px] font-bold leading-normal text-slate-50" data-testid={`chapter-title-${chapter.id}`}>
           {terms.t(lessonOf(chapter.id).title)}
         </h3>
-        <p className="mt-1.5 flex-1 text-[12.5px] leading-relaxed text-slate-300" data-testid={`chapter-layman-${chapter.id}`}>
+        <p className="mt-1.5 flex-1 text-[14.5px] leading-relaxed text-slate-300" data-testid={`chapter-layman-${chapter.id}`}>
           {laymanText(chapter)}
         </p>
 
         {here && (
-          <p className="mt-2 text-[11.5px] font-semibold" style={{ color: chapter.accent }} data-testid={`chapter-live-${chapter.id}`}>
+          <p className="mt-2 text-[13.5px] font-semibold" style={{ color: chapter.accent }} data-testid={`chapter-live-${chapter.id}`}>
             {t('In progress')} · {here.intro ? t('at the briefing') : tr({ en: `step ${Math.min(here.step + 1, total)} of ${total}`, vi: `bước ${Math.min(here.step + 1, total)}/${total}` })}
           </p>
         )}
@@ -111,7 +111,7 @@ function ChapterCard({ chapter, first }: { chapter: Chapter; first: boolean }) {
             autoFocus={first}
             onClick={() => startChapter(chapter.id)}
             data-testid={`chapter-start-${chapter.id}`}
-            className="flex-1 whitespace-nowrap rounded-lg px-3 py-2 text-[12.5px] font-bold text-slate-950 transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            className="flex-1 whitespace-nowrap rounded-lg px-3 py-2 text-[14.5px] font-bold text-slate-950 transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             style={{ background: chapter.accent }}
           >
             {here ? t('Restart Chapter') : t('Start Chapter')} ▶
@@ -122,7 +122,7 @@ function ChapterCard({ chapter, first }: { chapter: Chapter; first: boolean }) {
               onClick={() => openHub(chapter.id)}
               data-testid={`chapter-lab-${chapter.id}`}
               title={t('Change the bank’s rules and see what the same day would have looked like')}
-              className="whitespace-nowrap rounded-lg px-2.5 py-2 text-[12px] font-medium text-slate-200 ring-1 ring-slate-700 transition hover:bg-slate-800"
+              className="whitespace-nowrap rounded-lg px-2.5 py-2 text-[14px] font-medium text-slate-200 ring-1 ring-slate-700 transition hover:bg-slate-800"
             >
               {t('Rule Lab')}
             </button>
@@ -164,11 +164,11 @@ export function CourseCatalog() {
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="academy-title" className="flex max-h-[min(860px,calc(100vh-32px))] w-[min(1120px,100%)] flex-col overflow-hidden rounded-3xl border border-slate-700 bg-[#070b14] shadow-2xl" data-testid="academy-modal">
         <header className="flex shrink-0 items-start gap-3 border-b border-slate-800 bg-slate-950 px-6 py-4">
           <div className="min-w-0 flex-1">
-            <div className="text-[10.5px] font-bold uppercase tracking-wider text-slate-500">🎓 {t('Academy')}</div>
-            <h2 id="academy-title" className="text-[20px] font-bold leading-tight text-slate-50">
+            <div className="text-[12.5px] font-bold uppercase tracking-wider text-slate-500">🎓 {t('Academy')}</div>
+            <h2 id="academy-title" className="text-[22px] font-bold leading-tight text-slate-50">
               {t('Course Catalog')}
             </h2>
-            <p className="mt-1 max-w-[720px] text-[12.5px] leading-relaxed text-slate-400">
+            <p className="mt-1 max-w-[720px] text-[14.5px] leading-relaxed text-slate-400">
               {t('Six chapters, best taken in order. Each one is a guided tour of the bank at a quarter of normal speed: the parts that do not matter fade back, and at every decision the tour asks you what happens next.')}
             </p>
           </div>

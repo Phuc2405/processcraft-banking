@@ -31,24 +31,24 @@ function Choice({ icon, title, badge, body, onPick, testId, accent, current, m }
       className="group flex w-full items-start gap-3 rounded-xl border bg-slate-950/60 p-3.5 text-left transition hover:-translate-y-px hover:bg-slate-800/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
       style={{ borderColor: current ? `${accent}aa` : 'rgba(51,65,85,0.8)' }}
     >
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-[20px]" style={{ background: `${accent}22`, boxShadow: `inset 0 0 0 1px ${accent}55` }} aria-hidden="true">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-[22px]" style={{ background: `${accent}22`, boxShadow: `inset 0 0 0 1px ${accent}55` }} aria-hidden="true">
         {icon}
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2">
-          <span className="text-[14px] font-bold text-slate-50">{title}</span>
+          <span className="text-[16px] font-bold text-slate-50">{title}</span>
           {badge && (
-            <span className="rounded-full px-2 py-px text-[10px] font-bold uppercase tracking-wider text-slate-950" style={{ background: accent }}>
+            <span className="rounded-full px-2 py-px text-[12px] font-bold uppercase tracking-wider text-slate-950" style={{ background: accent }}>
               {badge}
             </span>
           )}
           {current && (
-            <span className="rounded-full px-2 py-px text-[10px] font-bold uppercase tracking-wider ring-1" style={{ color: accent, boxShadow: `inset 0 0 0 1px ${accent}88` }}>
+            <span className="rounded-full px-2 py-px text-[12px] font-bold uppercase tracking-wider ring-1" style={{ color: accent, boxShadow: `inset 0 0 0 1px ${accent}88` }}>
               {m('current')}
             </span>
           )}
         </span>
-        <span className="mt-1 block text-[12.5px] leading-relaxed text-slate-300">{body}</span>
+        <span className="mt-1 block text-[14.5px] leading-relaxed text-slate-300">{body}</span>
       </span>
       <span className="mt-2.5 text-slate-500 transition group-hover:translate-x-0.5 group-hover:text-slate-200" aria-hidden="true">
         →
@@ -115,7 +115,7 @@ export function WelcomeModal({ onOpenAcademy, onChooseBank }: { onOpenAcademy: (
     <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${solid ? 'bg-black/85' : 'bg-black/80 backdrop-blur-md'}`} onClick={(e) => e.target === e.currentTarget && close()} data-testid="welcome-backdrop">
       <div role="dialog" aria-modal="true" aria-labelledby="welcome-title" className="w-full max-w-xl rounded-2xl border border-slate-700/80 bg-slate-900 p-6 text-slate-100 shadow-2xl" data-testid="welcome-modal">
         <div className="flex items-start justify-between gap-3">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-400/10 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-sky-300 ring-1 ring-sky-400/40">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-400/10 px-2.5 py-1 text-[12.5px] font-bold uppercase tracking-wider text-sky-300 ring-1 ring-sky-400/40">
             <span className="h-1.5 w-1.5 rounded-full bg-sky-300" aria-hidden="true" />
             {m('badge')}
           </span>
@@ -124,7 +124,7 @@ export function WelcomeModal({ onOpenAcademy, onChooseBank }: { onOpenAcademy: (
         <h2 id="welcome-title" className="mt-3 text-[22px] font-bold leading-tight tracking-tight text-slate-50">
           {m('title')}
         </h2>
-        <p className="mt-1.5 text-[13px] leading-relaxed text-slate-400">{m('intro')}</p>
+        <p className="mt-1.5 text-[15px] leading-relaxed text-slate-400">{m('intro')}</p>
         <div className="mt-5 space-y-2.5">
           <Choice
             icon="🧭"
@@ -170,7 +170,7 @@ export function WelcomeModal({ onOpenAcademy, onChooseBank }: { onOpenAcademy: (
           />
           {rolesOpen && (
             <div role="menu" aria-label={m('roleplayPick')} className="rounded-xl border border-amber-400/40 bg-slate-950/80 p-2" data-testid="welcome-roleplay-menu">
-              <div className="px-1.5 pb-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-amber-200/80">{m('roleplayPick')}</div>
+              <div className="px-1.5 pb-1.5 text-[12.5px] font-semibold uppercase tracking-wider text-amber-200/80">{m('roleplayPick')}</div>
               <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
                 {ROLE_PICKS.map((role) => (
                   <button
@@ -179,7 +179,7 @@ export function WelcomeModal({ onOpenAcademy, onChooseBank }: { onOpenAcademy: (
                     role="menuitem"
                     onClick={() => roleplay(role)}
                     data-testid={`welcome-role-${ROLE_STATION[role]}`}
-                    className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12.5px] text-slate-100 transition hover:bg-amber-400/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300"
+                    className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[14.5px] text-slate-100 transition hover:bg-amber-400/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300"
                   >
                     <span aria-hidden="true">{ROLE_ICON[role]}</span>
                     <span className="min-w-0 flex-1 truncate">{ws(`role_${role}_title` as AnalystWorkspaceKey)}</span>
@@ -189,9 +189,9 @@ export function WelcomeModal({ onOpenAcademy, onChooseBank }: { onOpenAcademy: (
             </div>
           )}
         </div>
-        <div className="mt-4 flex items-center justify-between text-[11.5px] text-slate-500">
+        <div className="mt-4 flex items-center justify-between text-[13.5px] text-slate-500">
           <span>
-            {formatNodes(m('escHint'), { key: <kbd className="rounded border border-slate-700 px-1 font-mono text-[10.5px] text-slate-300">Esc</kbd> })}
+            {formatNodes(m('escHint'), { key: <kbd className="rounded border border-slate-700 px-1 font-mono text-[12.5px] text-slate-300">Esc</kbd> })}
           </span>
           <button type="button" onClick={close} className="font-medium text-slate-400 transition hover:text-slate-100" data-testid="welcome-skip">
             {m('skip')}

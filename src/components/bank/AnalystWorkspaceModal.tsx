@@ -2636,19 +2636,23 @@ export function AnalystWorkspaceView({
               {m('close')}
             </button>
           </div>
-          <div className="flex flex-wrap items-center gap-3" data-testid="workspace-toolbar">
+          {/* One row that never wraps: the incident controls sit beside sound, language, difficulty and the challenge, and the
+              ledger, badges and audit stay put at its end. A narrow window scrolls the row sideways instead of stacking it. */}
+          <div className="bk-scroll flex flex-nowrap items-center gap-3 overflow-x-auto pb-0.5" data-testid="workspace-toolbar">
             <div className="flex shrink-0 items-center gap-2" data-testid="workspace-incident-controls">
               <IncidentToggle on={incidentMode} onToggle={onToggleIncidentMode} m={m} />
               <CrisisBatchPicker batch={crisisBatch} stream={crisisStream} onBatch={onCrisisBatch} onStream={onCrisisStream} m={m} disabled={!incidentMode} />
             </div>
-            <BadgesButton unlocked={career.badges.length} onOpen={() => setBadgesOpen(true)} m={m} />
-            <CoreLedgerCard kpis={retailKpis(ledger)} onOpen={() => setLedgerOpen(true)} m={m} />
-            <AuditButton count={auditLog.length} onOpen={() => setAuditOpen(true)} m={m} />
-            <div className="flex items-center gap-3 sm:ml-auto">
+            <div className="flex shrink-0 items-center gap-3" data-testid="workspace-session-controls">
               <SoundToggle m={m} />
               <LanguageToggle variant="globe" testId="workspace-language" />
               <ModeToggle mode={mode} onChange={setMode} m={m} />
               <ChallengeToggle running={challenge.run !== null} remainingSec={remainingSec} onStart={cc.start} onStop={cc.stop} m={m} />
+            </div>
+            <div className="ml-auto flex shrink-0 items-center gap-3">
+              <BadgesButton unlocked={career.badges.length} onOpen={() => setBadgesOpen(true)} m={m} />
+              <CoreLedgerCard kpis={retailKpis(ledger)} onOpen={() => setLedgerOpen(true)} m={m} />
+              <AuditButton count={auditLog.length} onOpen={() => setAuditOpen(true)} m={m} />
             </div>
           </div>
         </header>

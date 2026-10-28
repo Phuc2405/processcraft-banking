@@ -41,9 +41,9 @@ const STEP_TEXT: Record<Step, Localized<string>> = {
 };
 
 function statusBadge(c: AmlCase | undefined) {
-  if (!c) return <span className="rounded-full bg-sky-400/15 px-2 py-0.5 text-[10.5px] font-bold text-sky-200 ring-1 ring-sky-400/40">{tr({ en: 'Open', vi: 'Đang mở' })}</span>;
-  if (c.status === 'SAR_FILED') return <span className="rounded-full bg-lime-400/15 px-2 py-0.5 text-[10.5px] font-bold text-lime-200 ring-1 ring-lime-400/40">{tr({ en: 'SAR filed', vi: 'Đã nộp SAR' })}</span>;
-  return <span className="rounded-full bg-slate-700/60 px-2 py-0.5 text-[10.5px] font-bold text-slate-300 ring-1 ring-slate-600">{tr({ en: 'False positive', vi: 'Cảnh báo sai' })}</span>;
+  if (!c) return <span className="rounded-full bg-sky-400/15 px-2 py-0.5 text-[12.5px] font-bold text-sky-200 ring-1 ring-sky-400/40">{tr({ en: 'Open', vi: 'Đang mở' })}</span>;
+  if (c.status === 'SAR_FILED') return <span className="rounded-full bg-lime-400/15 px-2 py-0.5 text-[12.5px] font-bold text-lime-200 ring-1 ring-lime-400/40">{tr({ en: 'SAR filed', vi: 'Đã nộp SAR' })}</span>;
+  return <span className="rounded-full bg-slate-700/60 px-2 py-0.5 text-[12.5px] font-bold text-slate-300 ring-1 ring-slate-600">{tr({ en: 'False positive', vi: 'Cảnh báo sai' })}</span>;
 }
 
 function riskFactors(a: AmlAlert, rows: readonly TxRecord[]): string[] {
@@ -102,17 +102,17 @@ function SarForm({ alert, day, minute, onFiled, onBack }: { alert: AmlAlert; day
         submit();
       }}
     >
-      <div className="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-[12px] text-slate-300">
+      <div className="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-[14px] text-slate-300">
         <span className="font-semibold text-slate-100">{tr({ en: 'Alert', vi: 'Cảnh báo' })}:</span> <span className="font-mono">{alert.id}</span> · {tr(KIND_TEXT[alert.kind].label)} · {formatMoney(alert.amountCents)}
       </div>
       <label className="block">
-        <span className="text-[11.5px] font-semibold text-slate-300">{tr({ en: 'Subject of the report', vi: 'Đối tượng của báo cáo' })}</span>
-        <input value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })} data-testid="sar-subject" aria-invalid={err('SUBJECT')} className={`mt-1 w-full rounded-lg border bg-slate-950 px-3 py-2 text-[13px] text-slate-100 outline-none focus:border-sky-400 ${err('SUBJECT') ? 'border-rose-400' : 'border-slate-700'}`} />
-        {err('SUBJECT') && <span className="mt-1 block text-[11px] text-rose-300">{tr({ en: 'Name who the report is about.', vi: 'Hãy ghi rõ báo cáo về ai.' })}</span>}
+        <span className="text-[13.5px] font-semibold text-slate-300">{tr({ en: 'Subject of the report', vi: 'Đối tượng của báo cáo' })}</span>
+        <input value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })} data-testid="sar-subject" aria-invalid={err('SUBJECT')} className={`mt-1 w-full rounded-lg border bg-slate-950 px-3 py-2 text-[15px] text-slate-100 outline-none focus:border-sky-400 ${err('SUBJECT') ? 'border-rose-400' : 'border-slate-700'}`} />
+        {err('SUBJECT') && <span className="mt-1 block text-[13px] text-rose-300">{tr({ en: 'Name who the report is about.', vi: 'Hãy ghi rõ báo cáo về ai.' })}</span>}
       </label>
       <label className="block">
-        <span className="text-[11.5px] font-semibold text-slate-300">{tr({ en: 'Type of suspicious activity', vi: 'Loại hoạt động đáng ngờ' })}</span>
-        <select value={draft.activity} onChange={(e) => setDraft({ ...draft, activity: e.target.value as SarActivity })} data-testid="sar-activity" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-[13px] text-slate-100 outline-none focus:border-sky-400">
+        <span className="text-[13.5px] font-semibold text-slate-300">{tr({ en: 'Type of suspicious activity', vi: 'Loại hoạt động đáng ngờ' })}</span>
+        <select value={draft.activity} onChange={(e) => setDraft({ ...draft, activity: e.target.value as SarActivity })} data-testid="sar-activity" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-[15px] text-slate-100 outline-none focus:border-sky-400">
           {SAR_ACTIVITIES.map((a) => (
             <option key={a} value={a}>
               {tr(ACTIVITY_TEXT[a])}
@@ -121,16 +121,16 @@ function SarForm({ alert, day, minute, onFiled, onBack }: { alert: AmlAlert; day
         </select>
       </label>
       <label className="block">
-        <span className="flex items-baseline justify-between text-[11.5px] font-semibold text-slate-300">
+        <span className="flex items-baseline justify-between text-[13.5px] font-semibold text-slate-300">
           {tr({ en: 'Grounds for suspicion (narrative)', vi: 'Cơ sở nghi ngờ (diễn giải)' })}
           <span className={`font-mono font-normal ${draft.narrative.trim().length < SAR_MIN_NARRATIVE ? 'text-rose-300' : 'text-slate-500'}`}>
             {draft.narrative.trim().length}/{SAR_MIN_NARRATIVE}+
           </span>
         </span>
-        <textarea value={draft.narrative} onChange={(e) => setDraft({ ...draft, narrative: e.target.value })} rows={5} data-testid="sar-narrative" aria-invalid={err('NARRATIVE')} className={`mt-1 w-full resize-y rounded-lg border bg-slate-950 px-3 py-2 text-[12.5px] leading-relaxed text-slate-100 outline-none focus:border-sky-400 ${err('NARRATIVE') ? 'border-rose-400' : 'border-slate-700'}`} />
-        {err('NARRATIVE') && <span className="mt-1 block text-[11px] text-rose-300">{tr({ en: `Explain what happened and why it is suspicious, in at least ${SAR_MIN_NARRATIVE} characters.`, vi: `Giải thích điều gì đã xảy ra và vì sao đáng ngờ, tối thiểu ${SAR_MIN_NARRATIVE} ký tự.` })}</span>}
+        <textarea value={draft.narrative} onChange={(e) => setDraft({ ...draft, narrative: e.target.value })} rows={5} data-testid="sar-narrative" aria-invalid={err('NARRATIVE')} className={`mt-1 w-full resize-y rounded-lg border bg-slate-950 px-3 py-2 text-[14.5px] leading-relaxed text-slate-100 outline-none focus:border-sky-400 ${err('NARRATIVE') ? 'border-rose-400' : 'border-slate-700'}`} />
+        {err('NARRATIVE') && <span className="mt-1 block text-[13px] text-rose-300">{tr({ en: `Explain what happened and why it is suspicious, in at least ${SAR_MIN_NARRATIVE} characters.`, vi: `Giải thích điều gì đã xảy ra và vì sao đáng ngờ, tối thiểu ${SAR_MIN_NARRATIVE} ký tự.` })}</span>}
       </label>
-      <label className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-[12px] ${err('TIP_OFF') ? 'border-rose-400 bg-rose-950/30' : 'border-slate-800 bg-slate-950/50'}`}>
+      <label className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-[14px] ${err('TIP_OFF') ? 'border-rose-400 bg-rose-950/30' : 'border-slate-800 bg-slate-950/50'}`}>
         <input type="checkbox" checked={draft.noTipOff} onChange={(e) => setDraft({ ...draft, noTipOff: e.target.checked })} data-testid="sar-no-tipoff" className="mt-0.5 h-4 w-4 accent-lime-400" />
         <span className="text-slate-300">
           {tr({
@@ -140,10 +140,10 @@ function SarForm({ alert, day, minute, onFiled, onBack }: { alert: AmlAlert; day
         </span>
       </label>
       <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-        <button type="button" onClick={onBack} className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-slate-300 ring-1 ring-slate-700 hover:bg-slate-800">
+        <button type="button" onClick={onBack} className="rounded-lg px-3 py-1.5 text-[14px] font-semibold text-slate-300 ring-1 ring-slate-700 hover:bg-slate-800">
           ← {tr({ en: 'Back to the investigation', vi: 'Quay lại điều tra' })}
         </button>
-        <button type="submit" data-testid="sar-submit" className="rounded-lg bg-rose-500 px-4 py-2 text-[12.5px] font-bold text-white shadow hover:bg-rose-400">
+        <button type="submit" data-testid="sar-submit" className="rounded-lg bg-rose-500 px-4 py-2 text-[14.5px] font-bold text-white shadow hover:bg-rose-400">
           📨 {tr({ en: 'Submit SAR to Regulator', vi: 'Nộp SAR cho cơ quan quản lý' })}
         </button>
       </div>
@@ -208,10 +208,10 @@ export function AmlPanel() {
           const done = step > n;
           return (
             <li key={n} className="flex flex-1 items-center gap-2">
-              <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-[12px] font-black ${active ? 'bg-sky-400 text-slate-950' : done ? 'bg-lime-400 text-slate-950' : 'bg-slate-800 text-slate-400'}`} aria-current={active ? 'step' : undefined}>
+              <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-[14px] font-black ${active ? 'bg-sky-400 text-slate-950' : done ? 'bg-lime-400 text-slate-950' : 'bg-slate-800 text-slate-400'}`} aria-current={active ? 'step' : undefined}>
                 {done ? '✓' : n}
               </span>
-              <span className={`text-[12.5px] font-semibold ${active ? 'text-slate-50' : 'text-slate-400'}`}>{tr(STEP_TEXT[n])}</span>
+              <span className={`text-[14.5px] font-semibold ${active ? 'text-slate-50' : 'text-slate-400'}`}>{tr(STEP_TEXT[n])}</span>
               {n < 3 && <span className="h-px flex-1 bg-slate-700" aria-hidden="true" />}
             </li>
           );
@@ -223,7 +223,7 @@ export function AmlPanel() {
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <div className="flex rounded-lg bg-slate-950 p-0.5 ring-1 ring-slate-800" role="group">
               {(['all', 'open'] as const).map((f) => (
-                <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} className={`rounded-md px-2.5 py-1 text-[11.5px] font-semibold ${filter === f ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-100'}`}>
+                <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} className={`rounded-md px-2.5 py-1 text-[13.5px] font-semibold ${filter === f ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-100'}`}>
                   {f === 'all' ? tr({ en: `All alerts (${alerts.length})`, vi: `Tất cả (${alerts.length})` }) : tr({ en: `Open (${alerts.filter((a) => !cases[a.id]).length})`, vi: `Đang mở (${alerts.filter((a) => !cases[a.id]).length})` })}
                 </button>
               ))}
@@ -235,18 +235,18 @@ export function AmlPanel() {
               disabled={dayOver || minute >= WORK_END}
               data-testid="aml-send-test"
               title={tr({ en: 'Send a well-formed $12,500 instant business transfer into the bank to see the >$10,000 rule fire', vi: 'Gửi một lệnh chuyển khoản doanh nghiệp $12,500 hợp lệ vào ngân hàng để thấy quy tắc >$10,000 kích hoạt' })}
-              className="rounded-lg bg-slate-800 px-3 py-1.5 text-[12px] font-semibold text-slate-100 ring-1 ring-slate-700 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-lg bg-slate-800 px-3 py-1.5 text-[14px] font-semibold text-slate-100 ring-1 ring-slate-700 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
               🧪 {tr({ en: 'Send a $12,500 test transfer', vi: 'Gửi lệnh chuyển thử $12,500' })}
             </button>
           </div>
           {sent && (
-            <p className="mb-3 rounded-lg border border-sky-400/40 bg-sky-950/40 px-3 py-2 text-[12px] text-sky-100" role="status" data-testid="aml-test-sent">
+            <p className="mb-3 rounded-lg border border-sky-400/40 bg-sky-950/40 px-3 py-2 text-[14px] text-sky-100" role="status" data-testid="aml-test-sent">
               {tr({ en: `Test transfer ${sent} is in the bank. Its alert appears here as soon as it finishes.`, vi: `Lệnh chuyển thử ${sent} đã vào ngân hàng. Cảnh báo sẽ hiện ở đây ngay khi giao dịch hoàn tất.` })}
             </p>
           )}
           {shown.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-slate-700 px-4 py-8 text-center text-[12.5px] leading-relaxed text-slate-400" data-testid="aml-empty">
+            <p className="rounded-xl border border-dashed border-slate-700 px-4 py-8 text-center text-[14.5px] leading-relaxed text-slate-400" data-testid="aml-empty">
               {tr({
                 en: 'No alerts yet today. Ordinary traffic rarely crosses $10,000; send the test transfer, or play day 3 (botnet) to see a velocity burst.',
                 vi: 'Hôm nay chưa có cảnh báo. Giao dịch thông thường hiếm khi vượt $10,000; hãy gửi lệnh chuyển thử, hoặc chạy ngày 3 (botnet) để thấy tần suất bất thường.',
@@ -254,8 +254,8 @@ export function AmlPanel() {
             </p>
           ) : (
             <div className="overflow-hidden rounded-xl border border-slate-800">
-              <table className="w-full text-left text-[12px]" data-testid="aml-alerts">
-                <thead className="bg-slate-950 text-[10.5px] uppercase tracking-wider text-slate-500">
+              <table className="w-full text-left text-[14px]" data-testid="aml-alerts">
+                <thead className="bg-slate-950 text-[12.5px] uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="px-3 py-2 font-semibold">{tr({ en: 'Time', vi: 'Giờ' })}</th>
                     <th className="px-3 py-2 font-semibold">{tr({ en: 'Rule', vi: 'Quy tắc' })}</th>
@@ -271,7 +271,7 @@ export function AmlPanel() {
                     <tr key={a.id} className="border-t border-slate-800 text-slate-200 hover:bg-slate-800/40" data-testid="aml-alert" data-kind={a.kind}>
                       <td className="whitespace-nowrap px-3 py-2 font-mono tabular-nums text-slate-400">{formatClock(Math.floor(a.minute))}</td>
                       <td className="px-3 py-2">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold ring-1 ${KIND_TEXT[a.kind].tone}`}>
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12.5px] font-bold ring-1 ${KIND_TEXT[a.kind].tone}`}>
                           <span aria-hidden="true">{KIND_TEXT[a.kind].icon}</span>
                           {tr(KIND_TEXT[a.kind].label)}
                         </span>
@@ -292,7 +292,7 @@ export function AmlPanel() {
                             setStep(2);
                           }}
                           data-testid="aml-investigate"
-                          className="rounded-md bg-sky-500 px-2.5 py-1 text-[11.5px] font-bold text-sky-950 hover:bg-sky-400"
+                          className="rounded-md bg-sky-500 px-2.5 py-1 text-[13.5px] font-bold text-sky-950 hover:bg-sky-400"
                         >
                           {tr({ en: 'Investigate →', vi: 'Điều tra →' })}
                         </button>
@@ -309,21 +309,21 @@ export function AmlPanel() {
       {step === 2 && alert && (
         <section className="space-y-3" data-testid="aml-investigate-step">
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ring-1 ${KIND_TEXT[alert.kind].tone}`}>
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[13px] font-bold ring-1 ${KIND_TEXT[alert.kind].tone}`}>
               {KIND_TEXT[alert.kind].icon} {tr(KIND_TEXT[alert.kind].label)}
             </span>
-            <span className="font-mono text-[12px] text-slate-400">{alert.id}</span>
+            <span className="font-mono text-[14px] text-slate-400">{alert.id}</span>
             {statusBadge(c)}
             <span className="flex-1" />
-            <span className="text-[12px] text-slate-300">
+            <span className="text-[14px] text-slate-300">
               {tr({ en: 'Risk score', vi: 'Điểm rủi ro' })} <b className="font-mono text-rose-300">{alert.riskScore}</b>
             </span>
           </div>
           <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
-            <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{tr({ en: 'Risk factors', vi: 'Yếu tố rủi ro' })}</h3>
+            <h3 className="text-[13px] font-bold uppercase tracking-wider text-slate-400">{tr({ en: 'Risk factors', vi: 'Yếu tố rủi ro' })}</h3>
             <ul className="mt-2 space-y-1.5" data-testid="aml-factors">
               {riskFactors(alert, rows).map((f, i) => (
-                <li key={i} className="flex gap-2 text-[12.5px] leading-snug text-slate-200">
+                <li key={i} className="flex gap-2 text-[14.5px] leading-normal text-slate-200">
                   <span className="text-rose-300" aria-hidden="true">
                     ▲
                   </span>
@@ -333,8 +333,8 @@ export function AmlPanel() {
             </ul>
           </div>
           <div className="max-h-56 overflow-auto rounded-xl border border-slate-800">
-            <table className="w-full text-left text-[11.5px]">
-              <thead className="sticky top-0 bg-slate-950 text-[10px] uppercase tracking-wider text-slate-500">
+            <table className="w-full text-left text-[13.5px]">
+              <thead className="sticky top-0 bg-slate-950 text-[12px] uppercase tracking-wider text-slate-500">
                 <tr>
                   <th className="px-3 py-1.5">{tr({ en: 'Payment', vi: 'Giao dịch' })}</th>
                   <th className="px-3 py-1.5">{tr({ en: 'Time', vi: 'Giờ' })}</th>
@@ -359,17 +359,17 @@ export function AmlPanel() {
             </table>
           </div>
           {c?.status === 'SAR_FILED' && (
-            <p className="rounded-lg border border-lime-400/40 bg-lime-950/30 px-3 py-2 text-[12px] text-lime-100">
+            <p className="rounded-lg border border-lime-400/40 bg-lime-950/30 px-3 py-2 text-[14px] text-lime-100">
               {tr({ en: `SAR filed with the regulator, reference ${c.reference}.`, vi: `Đã nộp SAR cho cơ quan quản lý, mã tham chiếu ${c.reference}.` })}
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2 pt-1">
-            <button type="button" onClick={() => setStep(1)} className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-slate-300 ring-1 ring-slate-700 hover:bg-slate-800">
+            <button type="button" onClick={() => setStep(1)} className="rounded-lg px-3 py-1.5 text-[14px] font-semibold text-slate-300 ring-1 ring-slate-700 hover:bg-slate-800">
               ← {tr({ en: 'All alerts', vi: 'Tất cả cảnh báo' })}
             </button>
             <span className="flex-1" />
             {c ? (
-              <button type="button" onClick={() => amlStore.getState().reopen(alert.id)} className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-slate-300 ring-1 ring-slate-700 hover:bg-slate-800">
+              <button type="button" onClick={() => amlStore.getState().reopen(alert.id)} className="rounded-lg px-3 py-1.5 text-[14px] font-semibold text-slate-300 ring-1 ring-slate-700 hover:bg-slate-800">
                 {tr({ en: 'Reopen the case', vi: 'Mở lại hồ sơ' })}
               </button>
             ) : (
@@ -381,11 +381,11 @@ export function AmlPanel() {
                     setStep(1);
                   }}
                   data-testid="aml-close-fp"
-                  className="rounded-lg bg-slate-800 px-3 py-1.5 text-[12px] font-semibold text-slate-100 ring-1 ring-slate-700 hover:bg-slate-700"
+                  className="rounded-lg bg-slate-800 px-3 py-1.5 text-[14px] font-semibold text-slate-100 ring-1 ring-slate-700 hover:bg-slate-700"
                 >
                   {tr({ en: 'Close as false positive', vi: 'Đóng: cảnh báo sai' })}
                 </button>
-                <button type="button" onClick={() => setStep(3)} data-testid="aml-escalate" className="rounded-lg bg-rose-500 px-3 py-1.5 text-[12px] font-bold text-white hover:bg-rose-400">
+                <button type="button" onClick={() => setStep(3)} data-testid="aml-escalate" className="rounded-lg bg-rose-500 px-3 py-1.5 text-[14px] font-bold text-white hover:bg-rose-400">
                   {tr({ en: 'Escalate: draft a SAR →', vi: 'Chuyển cấp: soạn SAR →' })}
                 </button>
               </>
@@ -401,18 +401,18 @@ export function AmlPanel() {
               <div className="text-[40px]" aria-hidden="true">
                 ✅
               </div>
-              <h3 className="text-[16px] font-bold text-slate-50">{tr({ en: 'Suspicious Activity Report submitted', vi: 'Đã nộp báo cáo giao dịch đáng ngờ' })}</h3>
-              <p className="text-[12.5px] text-slate-300">
+              <h3 className="text-[18px] font-bold text-slate-50">{tr({ en: 'Suspicious Activity Report submitted', vi: 'Đã nộp báo cáo giao dịch đáng ngờ' })}</h3>
+              <p className="text-[14.5px] text-slate-300">
                 {tr({ en: 'Reference', vi: 'Mã tham chiếu' })} <span className="font-mono font-bold text-lime-300" data-testid="sar-reference">{c.reference}</span> ·{' '}
                 {tr({ en: `filed day ${c.day} at ${formatClock(Math.floor(c.filedMinute))}`, vi: `nộp ngày ${c.day} lúc ${formatClock(Math.floor(c.filedMinute))}` })}
               </p>
-              <p className="mx-auto max-w-lg text-[12px] leading-relaxed text-slate-400">
+              <p className="mx-auto max-w-lg text-[14px] leading-relaxed text-slate-400">
                 {tr({
                   en: 'In Australia this is a suspicious matter report to AUSTRAC, due within three business days (24 hours for terrorism financing). The customer must not be told.',
                   vi: 'Tại Úc đây là báo cáo vấn đề đáng ngờ gửi AUSTRAC, hạn trong ba ngày làm việc (24 giờ với tài trợ khủng bố). Không được thông báo cho khách hàng.',
                 })}
               </p>
-              <button type="button" onClick={() => setStep(1)} className="rounded-lg bg-lime-400 px-4 py-1.5 text-[12.5px] font-bold text-slate-950 hover:bg-lime-300">
+              <button type="button" onClick={() => setStep(1)} className="rounded-lg bg-lime-400 px-4 py-1.5 text-[14.5px] font-bold text-slate-950 hover:bg-lime-300">
                 {tr({ en: 'Back to the alerts', vi: 'Quay lại danh sách cảnh báo' })}
               </button>
             </div>

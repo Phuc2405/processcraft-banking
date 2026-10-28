@@ -21,7 +21,7 @@ const slug = (text: string): string => text.toLowerCase().replace(/[^a-z0-9]+/g,
 
 function Line({ label, cents, sign, strong }: { label: PnlLabel; cents: number; sign: '+' | '−' | ''; strong?: boolean }) {
   return (
-    <div className={`flex items-baseline justify-between gap-3 py-1 text-[12.5px] ${strong ? 'border-t border-slate-700 pt-2 text-[14px] font-bold text-slate-50' : 'text-slate-300'}`}>
+    <div className={`flex items-baseline justify-between gap-3 py-1 text-[14.5px] ${strong ? 'border-t border-slate-700 pt-2 text-[16px] font-bold text-slate-50' : 'text-slate-300'}`}>
       <span className="flex items-center">
         {reportLabel(label)}
         <InfoTip label={reportLabel(label)} text={reportGloss(label, PNL_GLOSSARY[label])} testId={`tip-pnl-${slug(label)}`} />
@@ -51,9 +51,9 @@ function NightShift({ shift }: { shift: NightShiftReport }) {
   const pctDone = Math.round(shift.completion * 100);
   return (
     <section data-testid="report-night-shift">
-      <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{t('Tonight’s night shift')}</h3>
+      <h3 className="mb-1.5 text-[13px] font-semibold uppercase tracking-wider text-slate-400">{t('Tonight’s night shift')}</h3>
       <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-3">
-        <div className="flex items-center justify-between gap-3 text-[12px]">
+        <div className="flex items-center justify-between gap-3 text-[14px]">
           <span className={`font-semibold ${done ? 'text-emerald-300' : 'text-amber-300'}`} data-testid="night-shift-status">
             {done
               ? tr({ en: `Shift complete · finished at ${formatClock(shift.finishedAt as number)}`, vi: `Hoàn thành ca · xong lúc ${formatClock(shift.finishedAt as number)}` })
@@ -71,13 +71,13 @@ function NightShift({ shift }: { shift: NightShiftReport }) {
             const st = staminaState(m.fatigue);
             const stamina = Math.max(0, 100 - m.fatigue);
             return (
-              <li key={m.id} className="grid grid-cols-[minmax(0,1fr)_92px_74px] items-center gap-2 text-[12px]" data-testid={`night-crew-${m.id}`} data-fatigue={m.fatigue}>
+              <li key={m.id} className="grid grid-cols-[minmax(0,1fr)_92px_74px] items-center gap-2 text-[14px]" data-testid={`night-crew-${m.id}`} data-fatigue={m.fatigue}>
                 <div className="min-w-0">
                   <div className="truncate font-medium text-slate-100">
                     {m.name}
-                    {m.temp && <span className="ml-1 text-[10.5px] text-slate-500">{t('(cover)')}</span>}
+                    {m.temp && <span className="ml-1 text-[12.5px] text-slate-500">{t('(cover)')}</span>}
                   </div>
-                  <div className="truncate text-[10.5px] text-slate-500">
+                  <div className="truncate text-[12.5px] text-slate-500">
                     {terms.station(m.station)} · {tr({ en: `${m.items} records`, vi: `${m.items} bản ghi` })}
                   </div>
                 </div>
@@ -88,15 +88,15 @@ function NightShift({ shift }: { shift: NightShiftReport }) {
                   <div className="h-1.5 overflow-hidden rounded-full bg-slate-800">
                     <div className={`h-full rounded-full ${st.bar}`} style={{ width: `${stamina}%` }} />
                   </div>
-                  <div className="mt-0.5 text-[10.5px] tabular-nums text-slate-400">{tr({ en: `Stamina ${stamina}%`, vi: `Thể lực ${stamina}%` })}</div>
+                  <div className="mt-0.5 text-[12.5px] tabular-nums text-slate-400">{tr({ en: `Stamina ${stamina}%`, vi: `Thể lực ${stamina}%` })}</div>
                 </div>
-                <span className={`text-right text-[11px] font-semibold ${TONE_TEXT[st.tone]}`}>{st.label}</span>
+                <span className={`text-right text-[13px] font-semibold ${TONE_TEXT[st.tone]}`}>{st.label}</span>
               </li>
             );
           })}
         </ul>
         {shift.resting.length > 0 && (
-          <p className="mt-2.5 border-t border-slate-800 pt-2 text-[11.5px] leading-snug text-slate-400" data-testid="night-shift-resting">
+          <p className="mt-2.5 border-t border-slate-800 pt-2 text-[13.5px] leading-normal text-slate-400" data-testid="night-shift-resting">
             <span className="font-semibold text-slate-300">{t('Off tonight (rota): ')}</span>
             {shift.resting.join(', ')}. {t('The rota turns every night, so everyone works two nights in three.')}
           </p>
@@ -108,7 +108,7 @@ function NightShift({ shift }: { shift: NightShiftReport }) {
 
 type ReportView = 'overview' | 'audit';
 
-const H3 = 'mb-1.5 flex items-center text-[11px] font-semibold uppercase tracking-wider text-slate-400';
+const H3 = 'mb-1.5 flex items-center text-[13px] font-semibold uppercase tracking-wider text-slate-400';
 
 /** Saves a CSV with the browser's own download, entirely on this device: nothing is sent anywhere. */
 function downloadCsv(text: string, fileName: string): void {
@@ -126,7 +126,7 @@ function downloadCsv(text: string, fileName: string): void {
 function HeroCard({ title, testId, children }: { title: OverviewLabel; testId: string; children: ReactNode }) {
   return (
     <section className="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/50 p-4" data-testid={testId}>
-      <h3 className="flex items-center text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
+      <h3 className="flex items-center text-[12.5px] font-semibold uppercase tracking-wider text-slate-400">
         {reportLabel(title)}
         <InfoTip label={reportLabel(title)} text={reportGloss(title, OVERVIEW_GLOSSARY[title])} testId={`tip-${testId}`} />
       </h3>
@@ -150,12 +150,12 @@ function Overview({ report, onChapter }: { report: DayReport; onChapter: (p: Pro
     <div className="space-y-4 overflow-y-auto p-4 sm:p-6" data-testid="report-overview">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <HeroCard title="Capital & P&L" testId="hero-capital">
-          <div className={`mt-1 text-[26px] font-bold tabular-nums leading-tight ${p.netCents >= 0 ? 'text-emerald-300' : 'text-rose-300'}`} data-testid="hero-net">
+          <div className={`mt-1 text-[28px] font-bold tabular-nums leading-tight ${p.netCents >= 0 ? 'text-emerald-300' : 'text-rose-300'}`} data-testid="hero-net">
             {signedMoney(p.netCents)}
           </div>
-          <div className="text-[11.5px] text-slate-500">{t('today’s net result')}</div>
+          <div className="text-[13.5px] text-slate-500">{t('today’s net result')}</div>
           {book && (
-            <div className="mt-2 text-[12px] text-slate-300" data-testid="hero-reserves">
+            <div className="mt-2 text-[14px] text-slate-300" data-testid="hero-reserves">
               {t('Reserves')} <span className="tabular-nums text-slate-400">{formatMoney(book.reservesStartCents)}</span>
               <span className="mx-1 text-slate-500" aria-hidden="true">→</span>
               <span className={`font-semibold tabular-nums ${book.reservesEndCents >= book.reservesStartCents ? 'text-emerald-200' : 'text-rose-200'}`}>{formatMoney(book.reservesEndCents)}</span>
@@ -164,13 +164,13 @@ function Overview({ report, onChapter }: { report: DayReport; onChapter: (p: Pro
         </HeroCard>
 
         <HeroCard title="Settlement & volume" testId="hero-volume">
-          <div className="mt-1 text-[26px] font-bold tabular-nums leading-tight text-slate-50" data-testid="hero-approval">
+          <div className="mt-1 text-[28px] font-bold tabular-nums leading-tight text-slate-50" data-testid="hero-approval">
             {formatPct(pct(k.approved, k.arrivals))}
           </div>
-          <div className="text-[11.5px] text-slate-500">
+          <div className="text-[13.5px] text-slate-500">
             {tr({ en: `approval rate · ${k.approved.toLocaleString()} of ${k.arrivals.toLocaleString()} payments`, vi: `tỷ lệ chấp thuận · ${k.approved.toLocaleString()}/${k.arrivals.toLocaleString()} giao dịch` })}
           </div>
-          <div className="mt-2 text-[12px] text-slate-300">
+          <div className="mt-2 text-[14px] text-slate-300">
             {t('Settled volume')} <span className="font-semibold tabular-nums text-slate-100" data-testid="hero-settled">{formatMoney(k.approvedCents, true)}</span>
           </div>
         </HeroCard>
@@ -178,34 +178,34 @@ function Overview({ report, onChapter }: { report: DayReport; onChapter: (p: Pro
         <HeroCard title="Customer base & churn" testId="hero-customers">
           {book ? (
             <>
-              <div className="mt-1 text-[26px] font-bold tabular-nums leading-tight text-slate-50" data-testid="hero-active">
+              <div className="mt-1 text-[28px] font-bold tabular-nums leading-tight text-slate-50" data-testid="hero-active">
                 {book.customersEnd.toLocaleString()}
               </div>
-              <div className="text-[11.5px] text-slate-500">{t('active customers')}</div>
-              <div className="mt-2 flex gap-4 text-[12px]">
+              <div className="text-[13.5px] text-slate-500">{t('active customers')}</div>
+              <div className="mt-2 flex gap-4 text-[14px]">
                 <span className="tabular-nums text-emerald-300" data-testid="hero-signups">+{book.signups} {t('new signups')}</span>
                 <span className="tabular-nums text-rose-300" data-testid="hero-churn">−{book.churned} {t('churned')}</span>
               </div>
             </>
           ) : (
-            <p className="mt-2 text-[12px] text-slate-500">{t('Not recorded for this saved day.')}</p>
+            <p className="mt-2 text-[14px] text-slate-500">{t('Not recorded for this saved day.')}</p>
           )}
         </HeroCard>
 
         <HeroCard title="Top revenue drain" testId="hero-drain">
           {drain ? (
             <>
-              <div className="mt-1 text-[26px] font-bold tabular-nums leading-tight text-rose-300" data-testid="hero-drain-amount">
+              <div className="mt-1 text-[28px] font-bold tabular-nums leading-tight text-rose-300" data-testid="hero-drain-amount">
                 −{formatMoney(drain.cents)}
               </div>
-              <div className="flex items-center text-[12px] font-medium text-slate-200" data-testid="hero-drain-label">
+              <div className="flex items-center text-[14px] font-medium text-slate-200" data-testid="hero-drain-label">
                 {reportLabel(drain.label)}
                 <InfoTip label={reportLabel(drain.label)} text={reportGloss(drain.label, PNL_GLOSSARY[drain.label])} testId="tip-hero-drain-line" />
               </div>
-              <div className="mt-1 text-[11.5px] text-slate-500">{tr({ en: `${Math.round(drain.share * 100)}% of everything lost today`, vi: `${Math.round(drain.share * 100)}% tổng tổn thất hôm nay` })}</div>
+              <div className="mt-1 text-[13.5px] text-slate-500">{tr({ en: `${Math.round(drain.share * 100)}% of everything lost today`, vi: `${Math.round(drain.share * 100)}% tổng tổn thất hôm nay` })}</div>
             </>
           ) : (
-            <p className="mt-2 text-[12px] text-emerald-200">{t('Nothing was lost today.')}</p>
+            <p className="mt-2 text-[14px] text-emerald-200">{t('Nothing was lost today.')}</p>
           )}
         </HeroCard>
       </div>
@@ -219,7 +219,7 @@ function Overview({ report, onChapter }: { report: DayReport; onChapter: (p: Pro
           { label: 'Gross revenue', cents: bal.revenueCents, bar: 'bg-emerald-400', text: 'text-emerald-300', sign: '+' },
           { label: 'Losses & write-offs', cents: bal.lossCents, bar: 'bg-rose-400', text: 'text-rose-300', sign: '−' },
         ].map((row) => (
-          <div key={row.label} className="mt-2 grid grid-cols-[110px_minmax(0,1fr)_96px] items-center gap-3 text-[12px] sm:grid-cols-[140px_minmax(0,1fr)_110px]">
+          <div key={row.label} className="mt-2 grid grid-cols-[110px_minmax(0,1fr)_96px] items-center gap-3 text-[14px] sm:grid-cols-[140px_minmax(0,1fr)_110px]">
             <span className="text-slate-300">{reportLabel(row.label)}</span>
             <div className="h-3 overflow-hidden rounded-full bg-slate-800" role="img" aria-label={`${reportLabel(row.label)} ${formatMoney(row.cents)}`}>
               <div className={`h-full rounded-full ${row.bar}`} style={{ width: `${(row.cents / scale) * 100}%` }} />
@@ -230,7 +230,7 @@ function Overview({ report, onChapter }: { report: DayReport; onChapter: (p: Pro
             </span>
           </div>
         ))}
-        <p className="mt-2 text-right text-[11.5px] text-slate-400">
+        <p className="mt-2 text-right text-[13.5px] text-slate-400">
           {t('Net')} <span className={`font-semibold tabular-nums ${bal.netCents >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{signedMoney(bal.netCents)}</span>
         </p>
       </section>
@@ -242,7 +242,7 @@ function Overview({ report, onChapter }: { report: DayReport; onChapter: (p: Pro
           <span className="ml-auto font-normal normal-case tracking-normal text-slate-500">{tr({ en: `${declines.toLocaleString()} declined`, vi: `${declines.toLocaleString()} bị từ chối` })}</span>
         </h3>
         {declines === 0 ? (
-          <p className="text-[12px] text-slate-500">{t('Nothing was declined.')}</p>
+          <p className="text-[14px] text-slate-500">{t('Nothing was declined.')}</p>
         ) : (
           <>
             <div className="mt-1 flex h-4 overflow-hidden rounded-full bg-slate-800" role="img" aria-label={groups.filter((g) => g.count > 0).map((g) => `${reportLabel(g.label)} ${g.count}`).join(', ')}>
@@ -250,7 +250,7 @@ function Overview({ report, onChapter }: { report: DayReport; onChapter: (p: Pro
                 <div key={g.id} className="h-full border-r border-[#070b14] last:border-r-0" style={{ width: `${g.share * 100}%`, background: g.color }} title={`${reportLabel(g.label)}: ${g.count}`} data-testid={`decline-seg-${g.id}`} />
               ))}
             </div>
-            <ul className="mt-2.5 grid grid-cols-1 gap-x-4 gap-y-1 text-[12px] sm:grid-cols-2">
+            <ul className="mt-2.5 grid grid-cols-1 gap-x-4 gap-y-1 text-[14px] sm:grid-cols-2">
               {groups.map((g) => (
                 <li key={g.id} className={`flex items-center gap-2 ${g.count === 0 ? 'opacity-45' : ''}`}>
                   <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: g.color }} aria-hidden="true" />
@@ -266,10 +266,10 @@ function Overview({ report, onChapter }: { report: DayReport; onChapter: (p: Pro
       </section>
 
       <section className="rounded-2xl border border-sky-400/30 bg-sky-400/[0.06] p-4" data-testid="takeaway">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-sky-300">{tr({ en: `Takeaway for Day ${report.day + 1}`, vi: `Bài học cho Ngày ${report.day + 1}` })}</h3>
-        <p className="mt-1 text-[13.5px] leading-relaxed text-slate-100">{terms.t(tipText(take.text))}</p>
+        <h3 className="text-[13px] font-semibold uppercase tracking-wider text-sky-300">{tr({ en: `Takeaway for Day ${report.day + 1}`, vi: `Bài học cho Ngày ${report.day + 1}` })}</h3>
+        <p className="mt-1 text-[15.5px] leading-relaxed text-slate-100">{terms.t(tipText(take.text))}</p>
         {take.process && (
-          <button type="button" onClick={() => onChapter(take.process as ProcessId)} data-testid="takeaway-chapter" className="mt-2 text-[12.5px] font-semibold text-sky-300 underline-offset-2 transition hover:text-sky-200 hover:underline">
+          <button type="button" onClick={() => onChapter(take.process as ProcessId)} data-testid="takeaway-chapter" className="mt-2 text-[14.5px] font-semibold text-sky-300 underline-offset-2 transition hover:text-sky-200 hover:underline">
             {tr({ en: `Open Chapter ${lessonOf(take.process).chapter}`, vi: `Mở Chương ${lessonOf(take.process).chapter}` })}: {terms.t(processShort(take.process))} →
           </button>
         )}
@@ -299,7 +299,7 @@ function Audit({ report, onHub }: { report: DayReport; onHub: (p: ProcessId) => 
 
         <section>
           <h3 className={H3}>{t('The day in numbers')}</h3>
-          <dl className="grid grid-cols-2 gap-1.5 text-[12px]">
+          <dl className="grid grid-cols-2 gap-1.5 text-[14px]">
             {(
               [
                 ['Payments', k.arrivals.toLocaleString()],
@@ -321,7 +321,7 @@ function Audit({ report, onHub }: { report: DayReport; onHub: (p: ProcessId) => 
               ] satisfies Array<[StatLabel, string]>
             ).map(([label, value]) => (
               <div key={label} className="rounded-lg border border-slate-800 bg-slate-900/50 px-2.5 py-1.5">
-                <dt className="flex items-center text-[10px] uppercase tracking-wide text-slate-500">
+                <dt className="flex items-center text-[12px] uppercase tracking-wide text-slate-500">
                   {reportLabel(label)}
                   <InfoTip label={reportLabel(label)} text={reportGloss(label, STAT_GLOSSARY[label])} testId={`tip-stat-${slug(label)}`} />
                 </dt>
@@ -338,10 +338,10 @@ function Audit({ report, onHub }: { report: DayReport; onHub: (p: ProcessId) => 
         <section>
           <h3 className={H3}>{t('Why payments were declined')}</h3>
           <div className="space-y-1.5 rounded-2xl border border-slate-800 bg-slate-900/40 p-3" data-testid="report-declines">
-            {reasons.length === 0 && <p className="text-[12px] text-slate-500">{t('Nothing was declined.')}</p>}
+            {reasons.length === 0 && <p className="text-[14px] text-slate-500">{t('Nothing was declined.')}</p>}
             {reasons.map(([reason, n]) => (
               <div key={reason}>
-                <div className="flex justify-between text-[12px]">
+                <div className="flex justify-between text-[14px]">
                   <span className="flex items-center text-slate-300">
                     {terms.t(declineLabel(reason, DECLINE_LABEL[reason]))}
                     <InfoTip label={terms.t(declineLabel(reason, DECLINE_LABEL[reason]))} text={declineGloss(reason, DECLINE_GLOSSARY[reason])} testId={`tip-decline-${reason}`} />
@@ -359,14 +359,14 @@ function Audit({ report, onHub }: { report: DayReport; onHub: (p: ProcessId) => 
         <section>
           <h3 className={H3}>{t('What to look at next')}</h3>
           {tips.length === 0 ? (
-            <p className="rounded-2xl border border-emerald-400/25 bg-emerald-400/5 p-3 text-[12.5px] leading-relaxed text-emerald-100">{t('A clean day. Try changing a rule in the Rule Lab and see whether you can beat it.')}</p>
+            <p className="rounded-2xl border border-emerald-400/25 bg-emerald-400/5 p-3 text-[14.5px] leading-relaxed text-emerald-100">{t('A clean day. Try changing a rule in the Rule Lab and see whether you can beat it.')}</p>
           ) : (
             <ul className="space-y-2" data-testid="report-tips">
               {tips.map((tip) => (
-                <li key={tip.text} className="rounded-2xl border border-slate-800 bg-slate-900/50 p-3 text-[12.5px] leading-relaxed text-slate-200">
+                <li key={tip.text} className="rounded-2xl border border-slate-800 bg-slate-900/50 p-3 text-[14.5px] leading-relaxed text-slate-200">
                   {terms.t(tipText(tip.text))}
                   {tip.process && (
-                    <button type="button" onClick={() => onHub(tip.process as ProcessId)} className="mt-1.5 block text-[12px] font-semibold text-sky-300 transition hover:text-sky-200">
+                    <button type="button" onClick={() => onHub(tip.process as ProcessId)} className="mt-1.5 block text-[14px] font-semibold text-sky-300 transition hover:text-sky-200">
                       {tr({ en: `Chapter ${lessonOf(tip.process).chapter}`, vi: `Chương ${lessonOf(tip.process).chapter}` })}: {terms.t(processShort(tip.process))} →
                     </button>
                   )}
@@ -416,11 +416,11 @@ export function DayReportModal() {
       <div ref={ref} role="dialog" aria-modal="true" aria-label={tr({ en: `Day ${report.day} report`, vi: `Báo cáo ngày ${report.day}` })} tabIndex={-1} onKeyDown={(e) => e.key === 'Escape' && dismiss()} className="flex max-h-[min(900px,calc(100vh-16px))] w-[min(1020px,100%)] flex-col overflow-hidden rounded-3xl border border-slate-700 bg-[#070b14] shadow-2xl outline-none" data-testid="day-report" data-day={report.day} data-view={view}>
         <header className="flex shrink-0 flex-wrap items-start gap-x-4 gap-y-3 border-b border-slate-800 bg-gradient-to-b from-amber-400/10 to-transparent px-4 py-4 sm:px-6">
           <div className="min-w-0 flex-1 basis-[320px]">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-300">{tr({ en: 'The bank is closed for the night', vi: 'Ngân hàng đã đóng cửa qua đêm' })}</div>
+            <div className="text-[13px] font-semibold uppercase tracking-wider text-amber-300">{tr({ en: 'The bank is closed for the night', vi: 'Ngân hàng đã đóng cửa qua đêm' })}</div>
             <h2 className="mt-0.5 text-[22px] font-bold text-slate-50">
               {tr({ en: 'Day', vi: 'Ngày' })} {report.day} · {terms.t(eventText(report.event).title)}
             </h2>
-            <p className="mt-0.5 text-[12.5px] text-slate-400">
+            <p className="mt-0.5 text-[14.5px] text-slate-400">
               {done !== null
                 ? tr({ en: `The night team finished at ${formatClock(done)}.`, vi: `Ca đêm hoàn thành lúc ${formatClock(done)}.` })
                 : tr({ en: `The night team ran out of time: ${report.close.reconBacklog} records are still waiting.`, vi: `Ca đêm hết giờ: còn ${report.close.reconBacklog} bản ghi đang chờ.` })}
@@ -445,7 +445,7 @@ export function DayReportModal() {
                   aria-selected={view === id}
                   onClick={() => setView(id)}
                   data-testid={`report-view-${id}`}
-                  className={`rounded-md px-3 py-1.5 text-[12px] font-semibold transition ${view === id ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-slate-100'}`}
+                  className={`rounded-md px-3 py-1.5 text-[14px] font-semibold transition ${view === id ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-slate-100'}`}
                 >
                   {label}
                 </button>
@@ -456,7 +456,7 @@ export function DayReportModal() {
               onClick={() => downloadCsv(reportCsv(report), reportFileName(report))}
               data-testid="report-export"
               title={t('Download every P&L line, decline reason and operational figure of the day as a spreadsheet file')}
-              className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-[12px] font-semibold text-slate-100 ring-1 ring-slate-700 transition hover:bg-slate-700"
+              className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-[14px] font-semibold text-slate-100 ring-1 ring-slate-700 transition hover:bg-slate-700"
             >
               <span aria-hidden="true">📥</span> {tr({ en: 'Export Day Report (.CSV)', vi: 'Xuất báo cáo ngày (.CSV)' })}
             </button>
@@ -474,7 +474,7 @@ export function DayReportModal() {
                     })
                   : t('The transaction log is kept for the day just played. Reloading the page or starting the next day clears it.')
               }
-              className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-[12px] font-semibold text-slate-100 ring-1 ring-slate-700 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-[14px] font-semibold text-slate-100 ring-1 ring-slate-700 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <span aria-hidden="true">📥</span> {tr({ en: 'Export Transactions (.CSV)', vi: 'Xuất giao dịch (.CSV)' })}
             </button>
@@ -488,7 +488,7 @@ export function DayReportModal() {
                 en: 'Download the end-of-day audit: summary, trial balance, Chaos Monkey impact, exceptions for sampling and the full audit trail with ISO response codes',
                 vi: 'Tải báo cáo kiểm toán cuối ngày: tóm tắt, bảng cân đối thử, tác động Chaos Monkey, các ngoại lệ cần chọn mẫu và toàn bộ dấu vết kiểm toán kèm mã phản hồi ISO',
               })}
-              className="flex items-center gap-1.5 rounded-lg bg-amber-400 px-3 py-1.5 text-[12px] font-bold text-slate-950 ring-1 ring-amber-300 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex items-center gap-1.5 rounded-lg bg-amber-400 px-3 py-1.5 text-[14px] font-bold text-slate-950 ring-1 ring-amber-300 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <span aria-hidden="true">📥</span> {tr({ en: 'Export Audit Report (CSV)', vi: 'Xuất báo cáo kiểm toán (CSV)' })}
             </button>
@@ -514,10 +514,10 @@ export function DayReportModal() {
         )}
 
         <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-800 bg-slate-950 px-4 py-3 sm:px-6">
-          <button type="button" onClick={dismiss} data-testid="report-dismiss" className="rounded-lg bg-slate-800 px-4 py-2 text-[13px] font-medium text-slate-200 transition hover:bg-slate-700">
+          <button type="button" onClick={dismiss} data-testid="report-dismiss" className="rounded-lg bg-slate-800 px-4 py-2 text-[15px] font-medium text-slate-200 transition hover:bg-slate-700">
             {tr({ en: 'Look around the bank', vi: 'Xem quanh ngân hàng' })}
           </button>
-          <button type="button" onClick={startNextDay} disabled={!dayOver} data-testid="report-next-day" className="rounded-lg bg-lime-400 px-4 py-2 text-[13px] font-bold text-slate-950 transition hover:bg-lime-300 disabled:opacity-40">
+          <button type="button" onClick={startNextDay} disabled={!dayOver} data-testid="report-next-day" className="rounded-lg bg-lime-400 px-4 py-2 text-[15px] font-bold text-slate-950 transition hover:bg-lime-300 disabled:opacity-40">
             {tr({ en: `Start day ${report.day + 1}`, vi: `Bắt đầu ngày ${report.day + 1}` })}
           </button>
         </footer>

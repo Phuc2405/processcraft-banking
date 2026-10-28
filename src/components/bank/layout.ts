@@ -6,6 +6,7 @@
  * a handful of channels are reserved between the columns so that no two wires share a vertical run.
  */
 
+import { VI_DICTIONARY } from '../../i18n/viDictionary';
 import { edgeId, WIRES, type DepartmentId, type PlaceId } from '../../sim/topology';
 
 /**
@@ -220,22 +221,47 @@ export function bandRoutes(r1: number, decline: DeclineTail, laneStep = 0): Reco
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Exclusive (XOR) join gateways: where many wires converge on one place, they end at a diamond and a single trunk goes on.
+ * Exclusive (XOR) join gateways: where several wires converge on one place, they end at a compact diamond and a single trunk
+ * goes on. Local collectors sit right beside the desks they serve and cascade into the next one, so no run of parallel lanes is
+ * left along the floor or the right-hand gutter:
  *
- *   GATEWAY_XOR_REJECT_BAND   the band's eight declines (identity, fraud, AML, teller, disputes), on the floor lanes right
- *                             under the band; one trunk climbs the right-hand gutter into the reject gateway.
- *   GATEWAY_XOR_REJECT    the band's trunk and the online (3DS) decline, in the gutter; its trunk enters Declined from above.
- *   GATEWAY_XOR_APPROVE   the band's five clean approvals on the ledger trunk; its trunk enters Debit CASA from the right.
- *   GATEWAY_XOR_NIGHT     the two night handovers (matched, cleared) between Suspense and Recon; its trunk enters Settled.
+ *   GATEWAY_XOR_REJECT_ROW1     row 1's four declines (SWIFT, eKYC, VietQR, FDS) on their lanes above the band.
+ *   GATEWAY_XOR_REJECT_ROW2_A   row 2 on the floor bus: the disputes decline joins the teller's under the teller desk,
+ *   GATEWAY_XOR_REJECT_ROW2_B   then FacePay's under FacePay,
+ *   GATEWAY_XOR_REJECT_ROW2_C   then the AML desk's under the AML desk.
+ *   GATEWAY_XOR_REJECT_BAND     row 1's trunk and the floor bus, beside the ledger trunk; one trunk runs on to the gutter.
+ *   GATEWAY_XOR_REJECT          the band's trunk and the online (3DS) decline, in the gutter; its trunk enters Declined.
+ *   GATEWAY_XOR_APPROVE         the band's five clean approvals; its trunk enters Debit CASA from the right.
+ *   GATEWAY_XOR_NIGHT           the two night handovers (matched, cleared); its trunk enters Settled.
  *
- * Gateways are drawn on the map, not modelled in the topology: every wire still runs from its desk to its place, through the
- * diamond, so packets, tours and the simulation are unchanged. Each feeder meets the diamond at its own point on the edge.
+ * Gateways are drawn on the map, not modelled in the topology: every wire still runs from its desk to its place, through each
+ * diamond on its way, so packets, tours and the simulation are unchanged. Each feeder meets its diamond at its own point.
  */
-export type GatewayId = 'GATEWAY_XOR_REJECT_BAND' | 'GATEWAY_XOR_REJECT' | 'GATEWAY_XOR_APPROVE' | 'GATEWAY_XOR_NIGHT';
+export type GatewayId =
+  | 'GATEWAY_XOR_REJECT_ROW1'
+  | 'GATEWAY_XOR_REJECT_ROW2_A'
+  | 'GATEWAY_XOR_REJECT_ROW2_B'
+  | 'GATEWAY_XOR_REJECT_ROW2_C'
+  | 'GATEWAY_XOR_REJECT_BAND'
+  | 'GATEWAY_XOR_REJECT'
+  | 'GATEWAY_XOR_APPROVE'
+  | 'GATEWAY_XOR_NIGHT';
+
+/** Half a gateway's diamond: every gateway is the same compact size. */
+export const GATEWAY_HALF = 10;
+
+/** The floor bus under band row 2 that the row-2 declines drop onto. */
+const FLOOR_BUS_2D = BAND_ROW_2D + BAND.rowGap + 110;
 
 export const GATEWAY_AT: Readonly<Record<GatewayId, Pt>> = {
-  // Centred on the eight floor lanes (y 960-988), just right of the row-1 drops.
-  GATEWAY_XOR_REJECT_BAND: [940, 974],
+  // Centred on row 1's decline lanes (y 604-616), left of the ledger trunk.
+  GATEWAY_XOR_REJECT_ROW1: [850, BAND_ROW_2D - 122],
+  // Under the teller, FacePay and AML desks' bottom ports.
+  GATEWAY_XOR_REJECT_ROW2_A: [BAND.cols[1] - 40, FLOOR_BUS_2D],
+  GATEWAY_XOR_REJECT_ROW2_B: [BAND.cols[2], FLOOR_BUS_2D],
+  GATEWAY_XOR_REJECT_ROW2_C: [BAND.cols[3] + 40, FLOOR_BUS_2D],
+  // Just right of the ledger trunk's lanes, left of the night-cycle frame.
+  GATEWAY_XOR_REJECT_BAND: [900, FLOOR_BUS_2D],
   GATEWAY_XOR_REJECT: [1324, 400],
   GATEWAY_XOR_APPROVE: [876, 500],
   GATEWAY_XOR_NIGHT: [1105, 752],
@@ -258,34 +284,54 @@ export interface Gateway {
   path: string;
 }
 
-type GatewaySpec = Omit<Gateway, 'cx' | 'cy' | 'path' | 'trunk'> & { trunk: readonly Pt[] };
+type GatewaySpec = Omit<Gateway, 'cx' | 'cy' | 'path' | 'trunk' | 'half'> & { trunk: readonly Pt[] };
 
 const gw = (id: GatewayId): Pt => GATEWAY_AT[id];
+const H = GATEWAY_HALF;
+/** A collector on the floor bus feeding the next one along it: right corner to the next one's left corner. */
+const busTrunk = (from: GatewayId, to: GatewayId): Pt[] => [
+  [gw(from)[0] + H, FLOOR_BUS_2D],
+  [gw(to)[0] - H, FLOOR_BUS_2D],
+];
 
 const GATEWAY_SPECS: readonly GatewaySpec[] = [
   {
+    id: 'GATEWAY_XOR_REJECT_ROW1',
+    kind: 'reject',
+    to: 'OUT_DECLINED',
+    wires: ['GATE_SWIFT>OUT_DECLINED', 'GATE_EKYC>OUT_DECLINED', 'GATE_QR>OUT_DECLINED', 'SEC_FDS>OUT_DECLINED'],
+    into: 'GATEWAY_XOR_REJECT_BAND',
+    // Right to the decline drop beside the ledger trunk, then down into the band collector's top corner.
+    trunk: [
+      [gw('GATEWAY_XOR_REJECT_ROW1')[0] + H, gw('GATEWAY_XOR_REJECT_ROW1')[1]],
+      [gw('GATEWAY_XOR_REJECT_BAND')[0], gw('GATEWAY_XOR_REJECT_ROW1')[1]],
+      [gw('GATEWAY_XOR_REJECT_BAND')[0], FLOOR_BUS_2D - H],
+    ],
+  },
+  { id: 'GATEWAY_XOR_REJECT_ROW2_A', kind: 'reject', to: 'OUT_DECLINED', wires: ['DISPUTE_DESK>OUT_DECLINED', 'TELLER_CASH>OUT_DECLINED'], into: 'GATEWAY_XOR_REJECT_ROW2_B', trunk: busTrunk('GATEWAY_XOR_REJECT_ROW2_A', 'GATEWAY_XOR_REJECT_ROW2_B') },
+  { id: 'GATEWAY_XOR_REJECT_ROW2_B', kind: 'reject', to: 'OUT_DECLINED', wires: ['SEC_FACEPAY>OUT_DECLINED'], into: 'GATEWAY_XOR_REJECT_ROW2_C', trunk: busTrunk('GATEWAY_XOR_REJECT_ROW2_B', 'GATEWAY_XOR_REJECT_ROW2_C') },
+  { id: 'GATEWAY_XOR_REJECT_ROW2_C', kind: 'reject', to: 'OUT_DECLINED', wires: ['AML_DESK>OUT_DECLINED'], into: 'GATEWAY_XOR_REJECT_BAND', trunk: busTrunk('GATEWAY_XOR_REJECT_ROW2_C', 'GATEWAY_XOR_REJECT_BAND') },
+  {
     id: 'GATEWAY_XOR_REJECT_BAND',
     kind: 'reject',
-    half: 16,
     to: 'OUT_DECLINED',
-    wires: Object.keys(DECLINE_SLOT).map((d) => `${d}>OUT_DECLINED`),
+    wires: [],
     into: 'GATEWAY_XOR_REJECT',
-    // Right along the floor to the gutter, then up into the reject gateway's bottom corner.
+    // Right along the floor bus to the gutter, then up into the reject gateway's bottom corner.
     trunk: [
-      [gw('GATEWAY_XOR_REJECT_BAND')[0] + 16, gw('GATEWAY_XOR_REJECT_BAND')[1]],
-      [gw('GATEWAY_XOR_REJECT')[0], gw('GATEWAY_XOR_REJECT_BAND')[1]],
-      [gw('GATEWAY_XOR_REJECT')[0], gw('GATEWAY_XOR_REJECT')[1] + 16],
+      [gw('GATEWAY_XOR_REJECT_BAND')[0] + H, FLOOR_BUS_2D],
+      [gw('GATEWAY_XOR_REJECT')[0], FLOOR_BUS_2D],
+      [gw('GATEWAY_XOR_REJECT')[0], gw('GATEWAY_XOR_REJECT')[1] + H],
     ],
   },
   {
     id: 'GATEWAY_XOR_REJECT',
     kind: 'reject',
-    half: 16,
     to: 'OUT_DECLINED',
     wires: ['SEC_3DS>OUT_DECLINED'],
     // Up the gutter from the top corner, along the top lane and down into Declined beside the virtual-card declines.
     trunk: [
-      [gw('GATEWAY_XOR_REJECT')[0], gw('GATEWAY_XOR_REJECT')[1] - 16],
+      [gw('GATEWAY_XOR_REJECT')[0], gw('GATEWAY_XOR_REJECT')[1] - H],
       [gw('GATEWAY_XOR_REJECT')[0], 44],
       [PLACE_BOX.OUT_DECLINED.cx + 30, 44],
       [PLACE_BOX.OUT_DECLINED.cx + 30, PLACE_BOX.OUT_DECLINED.cy - PLACE_BOX.OUT_DECLINED.h / 2],
@@ -294,11 +340,10 @@ const GATEWAY_SPECS: readonly GatewaySpec[] = [
   {
     id: 'GATEWAY_XOR_APPROVE',
     kind: 'approve',
-    half: 12,
     to: 'LEDGER_DEBIT',
     wires: ['GATE_EKYC>LEDGER_DEBIT', 'SEC_FDS>LEDGER_DEBIT', 'AML_DESK>LEDGER_DEBIT', 'TELLER_CASH>LEDGER_DEBIT', 'DISPUTE_DESK>LEDGER_DEBIT'],
     trunk: [
-      [gw('GATEWAY_XOR_APPROVE')[0], gw('GATEWAY_XOR_APPROVE')[1] - 12],
+      [gw('GATEWAY_XOR_APPROVE')[0], gw('GATEWAY_XOR_APPROVE')[1] - H],
       [gw('GATEWAY_XOR_APPROVE')[0], PLACE_BOX.LEDGER_DEBIT.cy + 24],
       [PLACE_BOX.LEDGER_DEBIT.cx + PLACE_BOX.LEDGER_DEBIT.w / 2, PLACE_BOX.LEDGER_DEBIT.cy + 24],
     ],
@@ -306,11 +351,10 @@ const GATEWAY_SPECS: readonly GatewaySpec[] = [
   {
     id: 'GATEWAY_XOR_NIGHT',
     kind: 'night',
-    half: 11,
     to: 'OUT_SETTLED',
     wires: ['RECON>OUT_SETTLED', 'SUSPENSE>OUT_SETTLED'],
     trunk: [
-      [gw('GATEWAY_XOR_NIGHT')[0], gw('GATEWAY_XOR_NIGHT')[1] + 11],
+      [gw('GATEWAY_XOR_NIGHT')[0], gw('GATEWAY_XOR_NIGHT')[1] + H],
       [PLACE_BOX.OUT_SETTLED.cx, PLACE_BOX.OUT_SETTLED.cy - PLACE_BOX.OUT_SETTLED.h / 2],
     ],
   },
@@ -319,7 +363,7 @@ const GATEWAY_SPECS: readonly GatewaySpec[] = [
 export const GATEWAYS: readonly Gateway[] = GATEWAY_SPECS.map((g) => {
   const [cx, cy] = GATEWAY_AT[g.id];
   const trunk = [...g.trunk];
-  return { ...g, cx, cy, trunk, path: roundedPath(trunk) };
+  return { ...g, cx, cy, half: H, trunk, path: roundedPath(trunk) };
 });
 
 const GATEWAY_BY_ID = new Map(GATEWAYS.map((g) => [g.id, g]));
@@ -370,6 +414,9 @@ function withGateways(wires: Wire[], gateways: readonly Gateway[]): Wire[] {
   });
 }
 
+/** The online (3DS) decline's lane up the gutter: inside the reject gateway's reach, beside the band's trunk. */
+const ONLINE_DECLINE_X = GATEWAY_AT.GATEWAY_XOR_REJECT[0] - 8;
+
 /** Declined's centre on the 2D map: the entry points are offsets from it. */
 const PLACE_BOX_DECLINED_CX = PLACE_BOX.OUT_DECLINED.cx;
 
@@ -412,9 +459,9 @@ const ROUTES: Record<string, RouteSpec> = {
   'CUSTOMER_OTP>SEC_3DS': R(['l', 10], ['r', -14], { bendX: 396, quiet: true }),
   'SEC_3DS>LEDGER_DEBIT': R(['r', 4], ['l', 14], { bendX: 652 }),
   'SEC_3DS>LEDGER_CREDIT': R(['r', 20], ['l', 8], { bendX: 664 }),
-  // The online decline takes the innermost gutter lane and the lowest top lane, so it nests inside the band's eight declines.
+  // The online decline climbs the gutter just left of the band's trunk, into the reject gateway's left edge.
   'SEC_3DS>OUT_DECLINED': R(['b', 50], ['t', DECLINE_LANES.entryX(-1) - PLACE_BOX_DECLINED_CX], {
-    via: [[350, 446], [DECLINE_LANES.gutterX(-1), 446], [DECLINE_LANES.gutterX(-1), DECLINE_LANES.topY(-1)], [DECLINE_LANES.entryX(-1), DECLINE_LANES.topY(-1)]],
+    via: [[350, 446], [ONLINE_DECLINE_X, 446], [ONLINE_DECLINE_X, DECLINE_LANES.topY(-1)], [DECLINE_LANES.entryX(-1), DECLINE_LANES.topY(-1)]],
     labelAt: [460, 446],
   }),
   // Pay-in-4
@@ -454,6 +501,13 @@ const ROUTES: Record<string, RouteSpec> = {
       };
     },
     DECLINE_LANES.step,
+  ),
+  // Row 2 drops straight onto the floor bus, where its collectors pick each decline up in turn (GATEWAYS).
+  ...Object.fromEntries(
+    ([['DISPUTE_DESK', -20], ['TELLER_CASH', -40], ['SEC_FACEPAY', 0], ['AML_DESK', 40]] as const).map(([desk, port]) => {
+      const x = PLACE_BOX[desk].cx + port;
+      return [`${desk}>OUT_DECLINED`, R(['b', port], ['t', 30], { via: [[x, FLOOR_BUS_2D], [1324, FLOOR_BUS_2D], [1324, 44], [PLACE_BOX.OUT_DECLINED.cx + 30, 44]], quiet: true })];
+    }),
   ),
 };
 
@@ -514,6 +568,8 @@ export interface Wire {
   path: string;
   points: Pt[];
   labelAt: Pt;
+  /** The point on the wire its label belongs to: the label itself, or where a callout's leader line meets the run. */
+  labelAnchor?: Pt;
   showLabel: boolean;
   /** The gateway that collects this wire, if any: then only its feeder (`drawPath`) is drawn, and the gateway draws the trunk. */
   gateway?: GatewayId;
@@ -549,7 +605,97 @@ export function buildWires(boxes: Record<PlaceId, PlaceBox>, routes: Record<stri
   });
 }
 
-export const BANK_WIRES: Wire[] = withGateways(buildWires(PLACE_BOX, ROUTES), GATEWAYS);
+// ─────────────────────────────────────────────────────────────────────────────
+// Every wire's label, placed on its own run (2D map)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface Box {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+/** The label pill BankMap draws for `chars` characters at `at`: 5.4 px a character plus padding, 14 px tall. */
+export const labelPill = (chars: number, [x, y]: Pt): Box => ({ x0: x - chars * 2.7 - 4, x1: x + chars * 2.7 + 4, y0: y - 7, y1: y + 7 });
+
+/** A label's length in its longer language, so a spot that fits holds it in both. */
+export const labelChars = (label: string): number => Math.max(label.length, (VI_DICTIONARY[label] ?? label).length);
+
+/** The title chip each department frame carries in its top-left corner (up to two lines across the frame). */
+export const deptTitleBox = (d: DeptBox): Box => ({ x0: d.x + 8, x1: d.x + d.w - 8, y0: d.y + 4, y1: d.y + 38 });
+
+const hits = (a: Box, b: Box, gap = 0): boolean => a.x0 < b.x1 + gap && a.x1 > b.x0 - gap && a.y0 < b.y1 + gap && a.y1 > b.y0 - gap;
+
+/**
+ * Gives every labelled wire a visible label: at its route's own spot when that is clear, otherwise at the clear spot on its
+ * drawn run nearest the run's middle (on the line first, then just beside it), and for a hop too short to hold its words, at
+ * the nearest clear spot around it as a callout with a leader line. Clear means off every desk, department title, gateway and
+ * label already placed, in both languages. Wires with the fewest spots are placed first.
+ */
+function placeLabels(wires: Wire[], routes: Record<string, RouteSpec>): Wire[] {
+  const fixed: Box[] = [
+    ...Object.values(PLACE_BOX).map((b) => ({ x0: b.cx - b.w / 2, y0: b.cy - b.h / 2, x1: b.cx + b.w / 2, y1: b.cy + b.h / 2 })),
+    ...Object.values(DEPT_BOX).map(deptTitleBox),
+    ...GATEWAYS.map((g) => ({ x0: g.cx - g.half, y0: g.cy - g.half, x1: g.cx + g.half, y1: g.cy + g.half })),
+  ];
+  const placed: Box[] = [];
+  const free = (b: Box): boolean => b.x0 >= 2 && b.y0 >= 2 && b.x1 <= STAGE.width - 2 && b.y1 <= STAGE.height - 2 && !fixed.some((f) => hits(b, f, 1)) && !placed.some((p) => hits(b, p, 2));
+  type Spot = { at: Pt; anchor: Pt; cost: number };
+  /** Points along the drawn run, every `step` px. */
+  const along = (w: Wire, step: number): { on: Pt; vertical: boolean }[] => {
+    const out: { on: Pt; vertical: boolean }[] = [];
+    for (let i = 1; i < w.drawPoints.length; i++) {
+      const [ax, ay] = w.drawPoints[i - 1]!;
+      const [bx, by] = w.drawPoints[i]!;
+      const len = Math.hypot(bx - ax, by - ay);
+      for (let d = 0; d <= len; d += step) out.push({ on: [ax + ((bx - ax) * d) / (len || 1), ay + ((by - ay) * d) / (len || 1)], vertical: ax === bx });
+    }
+    return out;
+  };
+  const spots = (w: Wire, chars: number): Spot[] => {
+    const mid = midOfLongestRun(w.drawPoints);
+    const side = chars * 2.7 + 4;
+    const out: Spot[] = [];
+    for (const { on, vertical } of along(w, 3)) {
+      // On the line, then just beside it, then a little further off: a label beside a vertical run sits clear of it.
+      const offsets = vertical ? [0, side + 3, -(side + 3), side + 12, -(side + 12)] : [0, 11, -11, 20, -20];
+      offsets.forEach((off, k) => {
+        const at: Pt = vertical ? [on[0] + off, on[1]] : [on[0], on[1] + off];
+        out.push({ at, anchor: on, cost: Math.ceil(k / 2) * 90 + (vertical ? 25 : 0) + Math.hypot(at[0] - mid[0], at[1] - mid[1]) * 0.25 });
+      });
+    }
+    return out.sort((a, b) => a.cost - b.cost);
+  };
+  /** A wire too short to hold its words: the nearest clear spot around it, joined to the run by a leader line. */
+  const callouts = (w: Wire): Spot[] => {
+    const out: Spot[] = [];
+    for (const { on } of along(w, 6)) for (let dx = -180; dx <= 180; dx += 5) for (let dy = -100; dy <= 100; dy += 5) out.push({ at: [on[0] + dx, on[1] + dy], anchor: on, cost: Math.hypot(dx, dy) });
+    return out.sort((a, b) => a.cost - b.cost);
+  };
+  const labelled = wires.filter((w) => w.label);
+  const candidates = new Map(labelled.map((w) => [w.id, spots(w, labelChars(w.label!))]));
+  const room = (w: Wire): number => candidates.get(w.id)!.filter((c) => free(labelPill(labelChars(w.label!), c.at))).length;
+  // Wires whose own spot is given go first (it is a deliberate choice), then the ones with the least room.
+  const rooms = new Map(labelled.map((w) => [w.id, room(w)]));
+  const order = [...labelled].sort((a, b) => Number(!routes[a.id]?.labelAt) - Number(!routes[b.id]?.labelAt) || rooms.get(a.id)! - rooms.get(b.id)!);
+  const at = new Map<string, Spot>();
+  for (const w of order) {
+    const chars = labelChars(w.label!);
+    const own = routes[w.id]?.labelAt;
+    const fits = (c: Spot): boolean => free(labelPill(chars, c.at));
+    const spot = (own && free(labelPill(chars, own)) ? { at: own, anchor: own, cost: 0 } : undefined) ?? candidates.get(w.id)!.find(fits) ?? callouts(w).find(fits);
+    if (!spot) throw new Error(`No room on the map for the label of ${w.id}`);
+    placed.push(labelPill(chars, spot.at));
+    at.set(w.id, spot);
+  }
+  return wires.map((w) => {
+    const spot = at.get(w.id);
+    return spot ? { ...w, labelAt: spot.at, labelAnchor: spot.anchor, showLabel: true } : w;
+  });
+}
+
+export const BANK_WIRES: Wire[] = placeLabels(withGateways(buildWires(PLACE_BOX, ROUTES), GATEWAYS), ROUTES);
 
 const BY_ID = new Map(BANK_WIRES.map((w) => [w.id, w]));
 

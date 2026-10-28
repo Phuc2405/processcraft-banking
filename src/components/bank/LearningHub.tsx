@@ -48,7 +48,7 @@ function Facts({ facts }: { facts: readonly WalkFact[] }) {
   return (
     <dl className="mt-2 flex flex-wrap gap-1.5">
       {facts.map((f) => (
-        <div key={f.label} className="rounded-md bg-slate-950/60 px-2 py-1 text-[11px] ring-1 ring-slate-700/70">
+        <div key={f.label} className="rounded-md bg-slate-950/60 px-2 py-1 text-[13px] ring-1 ring-slate-700/70">
           <dt className="inline text-slate-400">{factLabel(f.label)}: </dt>
           <dd className="inline font-semibold text-slate-100">{factValue(f.value)}</dd>
         </div>
@@ -61,7 +61,7 @@ function Panel({ title, aside, children, testId }: { title: string; aside?: Reac
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-3.5" data-testid={testId}>
       <div className="mb-2.5 flex items-center justify-between gap-2">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{title}</h3>
+        <h3 className="text-[13px] font-semibold uppercase tracking-wider text-slate-400">{title}</h3>
         {aside}
       </div>
       {children}
@@ -83,10 +83,10 @@ function Dial({ ruleKey, accent }: { ruleKey: keyof BankRules; accent: string })
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3" data-testid={`dial-${ruleKey}`}>
       <div className="flex items-baseline justify-between gap-2">
-        <label htmlFor={`dial-input-${ruleKey}`} className="text-[12.5px] font-semibold text-slate-100">
+        <label htmlFor={`dial-input-${ruleKey}`} className="text-[14.5px] font-semibold text-slate-100">
           {ruleLabel(ruleKey)}
         </label>
-        <span className={`rounded-md px-1.5 py-0.5 text-[13px] font-bold tabular-nums ${changed ? 'bg-sky-400/15 text-sky-200' : 'text-slate-200'}`} data-testid={`dial-value-${ruleKey}`}>
+        <span className={`rounded-md px-1.5 py-0.5 text-[15px] font-bold tabular-nums ${changed ? 'bg-sky-400/15 text-sky-200' : 'text-slate-200'}`} data-testid={`dial-value-${ruleKey}`}>
           {formatRule(ruleKey, draft)}
         </span>
       </div>
@@ -107,12 +107,12 @@ function Dial({ ruleKey, accent }: { ruleKey: keyof BankRules; accent: string })
           <div className="pointer-events-none absolute -bottom-1 h-2 w-px bg-slate-400" style={{ left: `calc(${pos(bank)}% * 0.96 + 2%)` }} title={tr({ en: `The bank runs ${formatRule(ruleKey, bank)}`, vi: `Ngân hàng đang chạy ${formatRule(ruleKey, bank)}` })} />
         )}
       </div>
-      <div className="mt-1 flex justify-between text-[10px] text-slate-500">
+      <div className="mt-1 flex justify-between text-[12px] text-slate-500">
         <span>{formatRule(ruleKey, meta.min)}</span>
         <span>{changed ? tr({ en: `bank runs ${formatRule(ruleKey, bank)}`, vi: `ngân hàng đang chạy ${formatRule(ruleKey, bank)}` }) : t('as the bank runs it')}</span>
         <span>{formatRule(ruleKey, meta.max)}</span>
       </div>
-      <p className="mt-1.5 text-[11.5px] leading-snug text-slate-400">{ruleHelp(ruleKey)}</p>
+      <p className="mt-1.5 text-[13.5px] leading-normal text-slate-400">{ruleHelp(ruleKey)}</p>
     </div>
   );
 }
@@ -129,14 +129,14 @@ function ImpactRow({ row, focus }: { row: KpiComparisonRow; focus: boolean }) {
   return (
     <tr className={focus ? 'bg-slate-800/40' : ''} data-testid={`impact-${def.id}`} data-verdict={row.verdict}>
       <td className="py-1.5 pl-2 pr-2 align-top">
-        <div className="text-[12px] font-medium text-slate-100" title={kpiHelp(def)}>
+        <div className="text-[14px] font-medium text-slate-100" title={kpiHelp(def)}>
           {kpiLabel(def)}
         </div>
       </td>
-      <td className="whitespace-nowrap px-1 py-1.5 text-right text-[12px] tabular-nums text-slate-400">{formatKpi(row.before, def.format)}</td>
-      <td className="whitespace-nowrap px-1 py-1.5 text-right text-[12px] font-semibold tabular-nums text-slate-100">{formatKpi(row.after, def.format)}</td>
+      <td className="whitespace-nowrap px-1 py-1.5 text-right text-[14px] tabular-nums text-slate-400">{formatKpi(row.before, def.format)}</td>
+      <td className="whitespace-nowrap px-1 py-1.5 text-right text-[14px] font-semibold tabular-nums text-slate-100">{formatKpi(row.after, def.format)}</td>
       <td className="whitespace-nowrap py-1.5 pl-1 pr-2 text-right">
-        <span className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${VERDICT_PILL[row.verdict]}`}>{formatDelta(row.delta, def.format)}</span>
+        <span className={`inline-block rounded px-1.5 py-0.5 text-[13px] font-semibold tabular-nums ${VERDICT_PILL[row.verdict]}`}>{formatDelta(row.delta, def.format)}</span>
       </td>
     </tr>
   );
@@ -156,7 +156,7 @@ function Impact({ lesson, horizon, setHorizon }: { lesson: Lesson; horizon: 1 | 
   let body: ReactNode;
   if (untouched) {
     body = (
-      <p className="rounded-xl border border-dashed border-slate-700 px-3 py-4 text-center text-[12.5px] text-slate-400">
+      <p className="rounded-xl border border-dashed border-slate-700 px-3 py-4 text-center text-[14.5px] text-slate-400">
         {tr({
           en: `Move a dial. The bank plays ${horizon === 1 ? 'tomorrow' : 'the next five days'} twice, once with today’s rules and once with yours, and shows you what changed.`,
           vi: `Xoay một nút chỉnh. Ngân hàng chạy ${horizon === 1 ? 'ngày mai' : 'năm ngày tới'} hai lần, một lần với quy tắc hôm nay và một lần với quy tắc của bạn, rồi cho bạn thấy điều gì thay đổi.`,
@@ -165,7 +165,7 @@ function Impact({ lesson, horizon, setHorizon }: { lesson: Lesson; horizon: 1 | 
     );
   } else if (!fresh) {
     body = (
-      <p className="rounded-xl border border-slate-800 px-3 py-4 text-center text-[12.5px] text-sky-200" role="status" data-testid="impact-running">
+      <p className="rounded-xl border border-slate-800 px-3 py-4 text-center text-[14.5px] text-sky-200" role="status" data-testid="impact-running">
         <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-sky-400" />
         {status === 'running'
           ? tr({ en: `Playing ${horizon === 1 ? `day ${tomorrow}` : `days ${tomorrow}–${tomorrow + 4}`} twice…`, vi: `Đang chạy ${horizon === 1 ? `ngày ${tomorrow}` : `các ngày ${tomorrow}–${tomorrow + 4}`} hai lần…` })
@@ -181,23 +181,23 @@ function Impact({ lesson, horizon, setHorizon }: { lesson: Lesson; horizon: 1 | 
       <div data-testid="impact-table-wrap">
         {net && (
           <div className={`mb-2.5 rounded-xl border px-3 py-2.5 ${net.verdict === 'better' ? 'border-emerald-400/35 bg-emerald-400/10' : net.verdict === 'worse' ? 'border-rose-400/35 bg-rose-400/10' : 'border-slate-700 bg-slate-900/60'}`} data-testid="impact-net" data-verdict={net.verdict}>
-            <div className="text-[10.5px] font-semibold uppercase tracking-wide text-slate-400">{comparison.count === 1
+            <div className="text-[12.5px] font-semibold uppercase tracking-wide text-slate-400">{comparison.count === 1
                 ? tr({ en: `Day ${comparison.startDay} profit & loss`, vi: `Lãi lỗ ngày ${comparison.startDay}` })
                 : tr({ en: `Days ${comparison.startDay}–${comparison.startDay + comparison.count - 1} profit & loss`, vi: `Lãi lỗ các ngày ${comparison.startDay}–${comparison.startDay + comparison.count - 1}` })}</div>
             <div className="mt-0.5 flex items-baseline gap-2">
               <span className={`text-[22px] font-bold leading-none tabular-nums ${VERDICT_TEXT[net.verdict]}`}>{net.delta === 0 ? t('No change') : `${net.delta > 0 ? '+' : '−'}${formatMoney(Math.abs(net.delta))}`}</span>
-              <span className="text-[11.5px] text-slate-400">
+              <span className="text-[13.5px] text-slate-400">
                 {formatMoney(net.before)} → {formatMoney(net.after)}
               </span>
             </div>
           </div>
         )}
         {first && comparison.count === 1 && (
-          <p className="mb-2 text-[11.5px] leading-snug text-slate-400">
+          <p className="mb-2 text-[13.5px] leading-normal text-slate-400">
             <span className="font-semibold text-slate-300">{eventText(first.event).title}.</span> {eventText(first.event).blurb}
           </p>
         )}
-        {comparison.count > 1 && <p className="mb-2 text-[11.5px] leading-snug text-slate-400">{comparison.days.map((d) => tr({ en: `Day ${d.day}: ${eventText(d.event).title}`, vi: `Ngày ${d.day}: ${eventText(d.event).title}` })).join(' · ')}</p>}
+        {comparison.count > 1 && <p className="mb-2 text-[13.5px] leading-normal text-slate-400">{comparison.days.map((d) => tr({ en: `Day ${d.day}: ${eventText(d.event).title}`, vi: `Ngày ${d.day}: ${eventText(d.event).title}` })).join(' · ')}</p>}
         <table className="w-full table-fixed border-separate border-spacing-0 text-left" data-testid="impact-table">
           <colgroup>
             <col />
@@ -205,7 +205,7 @@ function Impact({ lesson, horizon, setHorizon }: { lesson: Lesson; horizon: 1 | 
             <col className="w-[70px]" />
             <col className="w-[76px]" />
           </colgroup>
-          <thead className="text-[10px] uppercase tracking-wide text-slate-500">
+          <thead className="text-[12px] uppercase tracking-wide text-slate-500">
             <tr>
               <th className="pb-1 pl-2 font-medium">{t('What the manager watches')}</th>
               <th className="pb-1 text-right font-medium">{t('Today’s rules')}</th>
@@ -221,7 +221,7 @@ function Impact({ lesson, horizon, setHorizon }: { lesson: Lesson; horizon: 1 | 
         </table>
         {others.length > 0 && (
           <>
-            <div className="mb-1 mt-3 text-[10.5px] font-semibold uppercase tracking-wide text-slate-500">{t('Also moved')}</div>
+            <div className="mb-1 mt-3 text-[12.5px] font-semibold uppercase tracking-wide text-slate-500">{t('Also moved')}</div>
             <table className="w-full table-fixed border-separate border-spacing-0 text-left">
               <colgroup>
                 <col />
@@ -237,7 +237,7 @@ function Impact({ lesson, horizon, setHorizon }: { lesson: Lesson; horizon: 1 | 
             </table>
           </>
         )}
-        <p className="mt-2.5 text-[11px] leading-snug text-slate-500">{t('Same customers, same staff, same night. Only your rule differs, so every change above is down to it.')}</p>
+        <p className="mt-2.5 text-[13px] leading-normal text-slate-500">{t('Same customers, same staff, same night. Only your rule differs, so every change above is down to it.')}</p>
       </div>
     );
   }
@@ -249,7 +249,7 @@ function Impact({ lesson, horizon, setHorizon }: { lesson: Lesson; horizon: 1 | 
       aside={
         <div className="flex rounded-md bg-slate-800 p-0.5" role="group" aria-label={t('How far ahead to look')}>
           {([1, 5] as const).map((h) => (
-            <button key={h} type="button" onClick={() => setHorizon(h)} aria-pressed={horizon === h} data-testid={`horizon-${h}`} className={`whitespace-nowrap rounded px-2 py-1 text-[11px] font-semibold transition ${horizon === h ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-slate-100'}`}>
+            <button key={h} type="button" onClick={() => setHorizon(h)} aria-pressed={horizon === h} data-testid={`horizon-${h}`} className={`whitespace-nowrap rounded px-2 py-1 text-[13px] font-semibold transition ${horizon === h ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-slate-100'}`}>
               {h === 1 ? t('Tomorrow') : t('5 days')}
             </button>
           ))}
@@ -327,14 +327,14 @@ function Lessonview({ lesson }: { lesson: Lesson }) {
       {/* ── Left: the story ─────────────────────────────────────────────── */}
       <div className="min-h-0 space-y-4 overflow-y-auto p-5" data-testid="hub-left">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: lesson.accent }}>
+          <div className="text-[13px] font-semibold uppercase tracking-wider" style={{ color: lesson.accent }}>
             {tr({ en: `Chapter ${lesson.chapter}`, vi: `Chương ${lesson.chapter}` })} · {terms.t(lesson.subtitle)}
           </div>
           <h2 className="mt-1 text-[21px] font-bold leading-tight text-slate-50" data-testid="hub-title">
             {terms.t(lesson.title)}
           </h2>
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            <span className="text-[10.5px] font-semibold uppercase tracking-wide text-slate-500">{t('On the map')}</span>
+            <span className="text-[12.5px] font-semibold uppercase tracking-wide text-slate-500">{t('On the map')}</span>
             {lesson.desks.map((d) => (
               <button
                 key={d}
@@ -343,7 +343,7 @@ function Lessonview({ lesson }: { lesson: Lesson }) {
                   closeHub();
                   select({ kind: 'station', id: d });
                 }}
-                className="rounded-full bg-slate-800 px-2.5 py-1 text-[11px] font-medium text-slate-200 transition hover:bg-slate-700"
+                className="rounded-full bg-slate-800 px-2.5 py-1 text-[13px] font-medium text-slate-200 transition hover:bg-slate-700"
                 title={t('Close this and look at the desk on the map')}
               >
                 {terms.station(d)}
@@ -361,19 +361,19 @@ function Lessonview({ lesson }: { lesson: Lesson }) {
                 onClick={() => setExampleId(e.id)}
                 aria-pressed={e.id === example.id}
                 data-testid={`example-${e.id}`}
-                className={`rounded-lg px-2.5 py-1.5 text-left text-[12px] font-medium leading-tight transition ${e.id === example.id ? 'text-slate-950' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}
+                className={`rounded-lg px-2.5 py-1.5 text-left text-[14px] font-medium leading-tight transition ${e.id === example.id ? 'text-slate-950' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}
                 style={e.id === example.id ? { background: lesson.accent } : undefined}
               >
                 {e.label}
               </button>
             ))}
           </div>
-          <p className="mt-2.5 text-[12.5px] leading-relaxed text-slate-200" data-testid="example-story">
+          <p className="mt-2.5 text-[14.5px] leading-relaxed text-slate-200" data-testid="example-story">
             {terms.t(example.story)}
           </p>
           <dl className="mt-2 flex flex-wrap gap-1.5" aria-label={t('What the payment carries')}>
             {walk.carries.map((f) => (
-              <div key={f.label} className="rounded-md bg-slate-950/60 px-2 py-1 text-[11px] ring-1 ring-slate-700/70">
+              <div key={f.label} className="rounded-md bg-slate-950/60 px-2 py-1 text-[13px] ring-1 ring-slate-700/70">
                 <dt className="inline text-slate-500">{factLabel(f.label)}: </dt>
                 <dd className="inline font-semibold text-slate-100">{factValue(f.value)}</dd>
               </div>
@@ -430,7 +430,7 @@ function Lessonview({ lesson }: { lesson: Lesson }) {
                     aria-current={i === active ? 'step' : undefined}
                     title={s.title}
                     data-testid={`hub-step-${i}`}
-                    className={`grid h-6 min-w-6 place-items-center rounded-full px-1 text-[10.5px] font-bold tabular-nums transition ${i === active ? 'scale-110 text-slate-950' : i < active ? 'bg-slate-700 text-slate-200' : 'bg-slate-800/70 text-slate-500'}`}
+                    className={`grid h-6 min-w-6 place-items-center rounded-full px-1 text-[12.5px] font-bold tabular-nums transition ${i === active ? 'scale-110 text-slate-950' : i < active ? 'bg-slate-700 text-slate-200' : 'bg-slate-800/70 text-slate-500'}`}
                     style={i === active ? { background: lesson.accent } : undefined}
                   >
                     {i + 1}
@@ -438,7 +438,7 @@ function Lessonview({ lesson }: { lesson: Lesson }) {
                 </li>
               ))}
             </ol>
-            <span className="shrink-0 text-[11px] tabular-nums text-slate-500" data-testid="hub-progress">
+            <span className="shrink-0 text-[13px] tabular-nums text-slate-500" data-testid="hub-progress">
               {tr({ en: `Step ${Math.min(active, last) + 1} of ${walk.steps.length}`, vi: `Bước ${Math.min(active, last) + 1}/${walk.steps.length}` })}
             </span>
           </div>
@@ -448,28 +448,28 @@ function Lessonview({ lesson }: { lesson: Lesson }) {
           <section className={`rounded-2xl border p-4 ${TONE_BOX[step.tone]}`} aria-live="polite" data-testid="hub-step-card" data-step={step.index} data-node={step.nodeId}>
             <div className="flex items-center gap-2">
               <span className={`h-2 w-2 rounded-full ${TONE_DOT[step.tone]}`} />
-              <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
+              <span className="text-[12.5px] font-semibold uppercase tracking-wider text-slate-400">
                 {tr({ en: `Step ${step.index + 1}`, vi: `Bước ${step.index + 1}` })}
                 {step.pass === 2 && tr({ en: ' · the diagram runs again', vi: ' · sơ đồ chạy lại' })}
               </span>
             </div>
-            <h3 className="mt-1 text-[16px] font-bold text-slate-50" data-testid="hub-step-title">
+            <h3 className="mt-1 text-[18px] font-bold text-slate-50" data-testid="hub-step-title">
               {terms.t(step.title)}
             </h3>
-            <p className="mt-1.5 text-[13px] leading-relaxed text-slate-200">{terms.t(step.what)}</p>
-            <div className={`mt-3 rounded-xl border border-white/10 bg-slate-950/50 p-3 text-[13px] leading-relaxed ${TONE_TEXT[step.tone]}`} data-testid="hub-step-happened">
-              <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">{t('For this payment')}</div>
+            <p className="mt-1.5 text-[15px] leading-relaxed text-slate-200">{terms.t(step.what)}</p>
+            <div className={`mt-3 rounded-xl border border-white/10 bg-slate-950/50 p-3 text-[15px] leading-relaxed ${TONE_TEXT[step.tone]}`} data-testid="hub-step-happened">
+              <div className="mb-0.5 text-[12px] font-semibold uppercase tracking-wider text-slate-400">{t('For this payment')}</div>
               {terms.t(step.happened)}
               <Facts facts={step.facts} />
             </div>
             {step.why && (
-              <p className="mt-3 text-[12.5px] leading-relaxed text-slate-300">
+              <p className="mt-3 text-[14.5px] leading-relaxed text-slate-300">
                 <span className="font-semibold text-slate-100">{t('Why it matters: ')}</span>
                 {terms.t(step.why)}
               </p>
             )}
             {step.fails.length > 0 && (
-              <div className="mt-3 text-[12.5px] leading-relaxed text-slate-300" data-testid="hub-step-fails">
+              <div className="mt-3 text-[14.5px] leading-relaxed text-slate-300" data-testid="hub-step-fails">
                 <span className="font-semibold text-slate-100">{t('What can go wrong: ')}</span>
                 <ul className="mt-1 list-disc space-y-0.5 pl-5 marker:text-rose-400">
                   {step.fails.map((f) => (
@@ -482,13 +482,13 @@ function Lessonview({ lesson }: { lesson: Lesson }) {
         )}
 
         <section className={`rounded-2xl border px-4 py-3 ${TONE_BOX[walk.verdict.tone]}`} data-testid="hub-verdict" data-outcome={walk.verdict.outcome}>
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{t('How it ends')}</div>
-          <div className={`text-[16px] font-bold ${TONE_TEXT[walk.verdict.tone]}`}>{terms.t(walk.verdict.headline)}</div>
-          <p className="mt-0.5 text-[12.5px] leading-snug text-slate-300">{terms.t(walk.verdict.detail)}</p>
+          <div className="text-[12px] font-semibold uppercase tracking-wider text-slate-400">{t('How it ends')}</div>
+          <div className={`text-[18px] font-bold ${TONE_TEXT[walk.verdict.tone]}`}>{terms.t(walk.verdict.headline)}</div>
+          <p className="mt-0.5 text-[14.5px] leading-normal text-slate-300">{terms.t(walk.verdict.detail)}</p>
         </section>
 
         <Panel title={t('The idea')} testId="hub-idea">
-          <div className="max-w-[80ch] space-y-2 text-[13px] leading-relaxed text-slate-300">
+          <div className="max-w-[80ch] space-y-2 text-[15px] leading-relaxed text-slate-300">
             {lesson.intro.map((p) => (
               <p key={p.slice(0, 24)}>{terms.t(p)}</p>
             ))}
@@ -503,7 +503,7 @@ function Lessonview({ lesson }: { lesson: Lesson }) {
         </Panel>
 
         <Panel title={t('Take away')}>
-          <ul className="space-y-1.5 text-[12.5px] leading-relaxed text-slate-300">
+          <ul className="space-y-1.5 text-[14.5px] leading-relaxed text-slate-300">
             {lesson.takeaways.map((t) => (
               <li key={t} className="flex gap-2">
                 <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: lesson.accent }} />
@@ -523,14 +523,14 @@ function Lessonview({ lesson }: { lesson: Lesson }) {
             ))}
           </div>
           {dialKeys.length === 0 && (
-            <p className="rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-[12px] leading-snug text-slate-400" data-testid="dials-none">
+            <p className="rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-[14px] leading-normal text-slate-400" data-testid="dials-none">
               {t('This chapter is about the order things happen in, not a number you can turn. Play the examples on the left to see which path each payment takes; the bank’s other dials are below if you want to try them.')}
             </p>
           )}
           {suggestion && (
             <div className="mt-3 rounded-xl border border-sky-400/25 bg-sky-400/5 p-3" data-testid="suggestion">
-              <div className="text-[10.5px] font-semibold uppercase tracking-wider text-sky-300">{tr({ en: `Try this for “${example.label}”`, vi: `Thử điều này cho “${example.label}”` })}</div>
-              <p className="mt-1 text-[12px] leading-snug text-slate-200">{terms.t(suggestion.text)}</p>
+              <div className="text-[12.5px] font-semibold uppercase tracking-wider text-sky-300">{tr({ en: `Try this for “${example.label}”`, vi: `Thử điều này cho “${example.label}”` })}</div>
+              <p className="mt-1 text-[14px] leading-normal text-slate-200">{terms.t(suggestion.text)}</p>
               <button
                 type="button"
                 disabled={suggestionApplied}
@@ -538,7 +538,7 @@ function Lessonview({ lesson }: { lesson: Lesson }) {
                   for (const [k, v] of Object.entries(suggestion.rules) as Array<[keyof BankRules, number]>) setDraftRule(k, v);
                 }}
                 data-testid="suggestion-apply"
-                className="mt-2 rounded-lg bg-sky-500 px-3 py-1.5 text-[12px] font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-default disabled:bg-slate-700 disabled:text-slate-400"
+                className="mt-2 rounded-lg bg-sky-500 px-3 py-1.5 text-[14px] font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-default disabled:bg-slate-700 disabled:text-slate-400"
               >
                 {suggestionApplied
                   ? t('Dialled in')
@@ -549,7 +549,7 @@ function Lessonview({ lesson }: { lesson: Lesson }) {
               </button>
             </div>
           )}
-          <button type="button" onClick={() => setShowAllDials((v) => !v)} className="mt-3 text-[11.5px] font-medium text-slate-400 transition hover:text-slate-100" aria-expanded={showAllDials}>
+          <button type="button" onClick={() => setShowAllDials((v) => !v)} className="mt-3 text-[13.5px] font-medium text-slate-400 transition hover:text-slate-100" aria-expanded={showAllDials}>
             {showAllDials ? t('Hide the other dials') : t('Show all of the bank’s dials')}
           </button>
           {showAllDials && (
@@ -590,7 +590,7 @@ function HubImpact({ lesson }: { lesson: Lesson }) {
       <Impact lesson={lesson} horizon={horizon} setHorizon={setHorizon} />
       <div className="sticky bottom-0 -mx-1 space-y-2 rounded-2xl border border-slate-800 bg-slate-950/95 p-3" data-testid="hub-actions">
         {notice && (
-          <div className="flex items-start justify-between gap-2 rounded-lg bg-emerald-400/10 px-2.5 py-1.5 text-[12px] text-emerald-100" role="status" data-testid="hub-notice">
+          <div className="flex items-start justify-between gap-2 rounded-lg bg-emerald-400/10 px-2.5 py-1.5 text-[14px] text-emerald-100" role="status" data-testid="hub-notice">
             <span>{noticeText(notice.message)}</span>
             <button type="button" onClick={dismissNotice} className="text-emerald-300/80 hover:text-emerald-100" aria-label={t('Dismiss')}>
               ×
@@ -598,14 +598,14 @@ function HubImpact({ lesson }: { lesson: Lesson }) {
           </div>
         )}
         <div className="flex gap-2">
-          <button type="button" onClick={applyDraft} disabled={same} data-testid="hub-apply" className="flex-1 rounded-lg bg-lime-400 px-3 py-2 text-[12.5px] font-bold text-slate-950 transition hover:bg-lime-300 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500">
+          <button type="button" onClick={applyDraft} disabled={same} data-testid="hub-apply" className="flex-1 rounded-lg bg-lime-400 px-3 py-2 text-[14.5px] font-bold text-slate-950 transition hover:bg-lime-300 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500">
             {t('Apply to the bank')}
           </button>
-          <button type="button" onClick={resetDraft} disabled={same} data-testid="hub-reset" className="rounded-lg bg-slate-800 px-3 py-2 text-[12.5px] font-medium text-slate-200 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40">
+          <button type="button" onClick={resetDraft} disabled={same} data-testid="hub-reset" className="rounded-lg bg-slate-800 px-3 py-2 text-[14.5px] font-medium text-slate-200 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40">
             {t('Put back')}
           </button>
         </div>
-        <p className="text-[11px] leading-snug text-slate-500">{dayOver ? t('The day is over. New rules start with the next day.') : t('New rules apply to customers who arrive from now on. Anyone already in the bank keeps the old rules.')}</p>
+        <p className="text-[13px] leading-normal text-slate-500">{dayOver ? t('The day is over. New rules start with the next day.') : t('New rules apply to customers who arrive from now on. Anyone already in the bank keeps the old rules.')}</p>
       </div>
     </>
   );
@@ -646,8 +646,8 @@ export function LearningHub() {
       >
         <header className="flex shrink-0 items-center gap-3 border-b border-slate-800 bg-slate-950 px-5 py-3">
           <div className="mr-2">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{t('Academy')}</div>
-            <div className="text-[14px] font-bold text-slate-100">{t('Rule Lab')}</div>
+            <div className="text-[12px] font-semibold uppercase tracking-wider text-slate-500">{t('Academy')}</div>
+            <div className="text-[16px] font-bold text-slate-100">{t('Rule Lab')}</div>
           </div>
           <nav className="flex min-w-0 flex-1 gap-1.5" aria-label={t('Chapters')}>
             {LESSON_LIST.map((l) => (
@@ -659,10 +659,10 @@ export function LearningHub() {
                 data-testid={`hub-tab-${l.id}`}
                 className={`flex min-w-0 items-center gap-2 rounded-xl px-3 py-2 text-left transition ${l.id === process ? 'bg-slate-800 ring-1 ring-slate-600' : 'hover:bg-slate-900'}`}
               >
-                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-[12px] font-black tabular-nums text-slate-950" style={{ background: l.accent }}>
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-[14px] font-black tabular-nums text-slate-950" style={{ background: l.accent }}>
                   {l.chapter}
                 </span>
-                <span className={`min-w-0 truncate text-[12.5px] font-semibold ${l.id === process ? 'text-slate-50' : 'text-slate-400'}`} title={processShort(l.id as ProcessId)}>
+                <span className={`min-w-0 truncate text-[14.5px] font-semibold ${l.id === process ? 'text-slate-50' : 'text-slate-400'}`} title={processShort(l.id as ProcessId)}>
                   {processShort(l.id as ProcessId)}
                 </span>
               </button>

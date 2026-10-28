@@ -46,9 +46,10 @@ export const knowledgeBaseMessages = defineMessages('knowledgeBase', {
   days: { en: '{n} days', vi: '{n} ngày' },
   seeRule: { en: 'see the rule', vi: 'xem quy định' },
   rulesNote: {
-    en: 'The simulator’s amounts are in its own dollars. The Vietnamese rules are quoted for study: check the current SBV texts before relying on them.',
-    vi: 'Số tiền của trình mô phỏng tính theo đơn vị đô la riêng của nó. Các quy định của Việt Nam được trích dẫn để học tập: hãy đối chiếu văn bản hiện hành của Ngân hàng Nhà nước trước khi áp dụng.',
+    en: 'The simulator’s amounts are in Australian dollars. The Vietnamese (SBV) and Australian (AUSTRAC, APRA) rules are quoted for study: check the current texts before relying on them.',
+    vi: 'Số tiền của trình mô phỏng tính bằng đô la Úc. Các quy định của Việt Nam (Ngân hàng Nhà nước) và Úc (AUSTRAC, APRA) được trích dẫn để học tập: hãy đối chiếu văn bản hiện hành trước khi áp dụng.',
   },
+  whyTitle: { en: 'Why {code} under {acronym}', vi: 'Vì sao {code} thuộc {acronym}' },
   controlsTitle: { en: 'Internal control checks, in the order a day runs them', vi: 'Các bước kiểm soát nội bộ, theo trình tự trong ngày' },
   colAcronym: { en: 'Acronym', vi: 'Từ viết tắt' },
   colGlAccounts: { en: 'GL accounts it moves', vi: 'Tài khoản GL liên quan' },
