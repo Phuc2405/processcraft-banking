@@ -30,7 +30,7 @@ import { CoreLedgerArticle, KnowledgeHeaderControls } from '../../knowledge/Know
 import { knowledgeBaseMessages } from '../../knowledge/knowledgeBase.messages';
 import { SegmentedToggle } from '../../shell/SegmentedToggle';
 import { analystWorkspaceMessages, type AnalystWorkspaceKey } from '../analystWorkspace.messages';
-import { AnalystWorkspaceView, CoreLedgerSheet, type AnalystWorkspaceViewProps } from '../AnalystWorkspaceModal';
+import { AnalystWorkspaceView, CoreLedgerSheet, IncidentBanner, IncidentToggle, type AnalystWorkspaceViewProps } from '../AnalystWorkspaceModal';
 import { BANK_WIRES, connectedWires, GATEWAY_HALF, GATEWAY_SPOKES, gatewayCarries, GATEWAYS, labelChars, labelPill, PLACE_BOX } from '../layout';
 import { VI_DICTIONARY } from '../../../i18n/viDictionary';
 import { WIRES } from '../../../sim/topology';
@@ -589,5 +589,43 @@ describe('cleaner nodes and labels near the desk they belong to', () => {
     expect(src).toContain("const unit = t('waiting');");
     expect(src).not.toContain("t('items')");
     expect(VI_DICTIONARY.waiting).toBe('đang chờ');
+  });
+});
+
+describe('no horizontal jitter in the workspace header and incident banner', () => {
+  const m = en as Parameters<typeof IncidentToggle>[0]['m'];
+  it('lays out both Incident Mode labels in one cell, so ON and OFF are the same width', () => {
+    for (const on of [true, false]) {
+      const out = renderToStaticMarkup(createElement(IncidentToggle, { on, onToggle: () => undefined, m }));
+      expect(out).toContain(esc(msgs.incidentToggleOn.en));
+      expect(out).toContain(esc(msgs.incidentToggleOff.en));
+      expect(out).toContain(`data-stable="${on ? 'on' : 'off'}"`);
+      // The state not shown still takes its space, hidden.
+      expect(out).toMatch(new RegExp(`class="col-start-1 row-start-1 whitespace-nowrap invisible" aria-hidden="true">${esc(on ? msgs.incidentToggleOff.en : msgs.incidentToggleOn.en)}`));
+    }
+  });
+
+  it('gives the challenge button the same footprint whether it is idle or counting down', () => {
+    const src = (import.meta.glob('../AnalystWorkspaceModal.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)['../AnalystWorkspaceModal.tsx']!;
+    expect(src).toMatch(/<StableLabel\s+value=\{running \? 'running' : 'idle'\}/);
+    expect(src).toContain("<StableLabel value={on ? 'on' : 'off'} states={{ on: '🔊', off: '🔇' }} />");
+  });
+
+  it('starts "Rule in force" at the same x in every incident: equal fixed columns and a fixed-width chip column', () => {
+    const banners = (['AUDIT_DAY', 'NETWORK_LATENCY', 'POWER_GRID_FAILOVER', 'FDS_BIN_STORM'] as const).map((id) =>
+      renderToStaticMarkup(createElement(IncidentBanner, { incident: { id, compliance: 100, reviews: 1 }, sla: 30, m })),
+    );
+    const shape = (out: string) => [
+      out.match(/<div class="([^"]*)" data-testid="workspace-incident-columns"/)?.[1],
+      out.match(/<div class="([^"]*)" data-testid="workspace-incident-chips"/)?.[1],
+    ];
+    for (const out of banners) {
+      const [cols, chips] = shape(out);
+      expect(cols).toContain('grid-cols-[minmax(0,1fr)_minmax(0,1fr)]');
+      expect(cols).not.toMatch(/\bmd:grid-cols/);
+      expect(chips).toContain('w-[240px]');
+      expect(chips).toContain('shrink-0');
+    }
+    expect(new Set(banners.map((b) => shape(b).join('|'))).size).toBe(1);
   });
 });

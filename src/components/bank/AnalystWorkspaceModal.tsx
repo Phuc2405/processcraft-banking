@@ -1842,16 +1842,21 @@ function ChallengeToggle({ running, remainingSec, onStart, onStop, m }: { runnin
       data-running={running || undefined}
       className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[14px] font-semibold tabular-nums transition ${running ? (urgent ? 'border-rose-400/70 bg-rose-500/20 text-rose-100' : 'border-amber-400/70 bg-amber-400/15 text-amber-100') : 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'}`}
     >
-      {running ? (
-        <>
-          <span aria-label={m('challengeTimerLabel')} data-testid="workspace-challenge-clock">
-            ⏱️ {clockText(remainingSec)}
-          </span>
-          <span className="text-[13px] opacity-80">{m('challengeStop')}</span>
-        </>
-      ) : (
-        m('challengeToggle')
-      )}
+      <StableLabel
+        value={running ? 'running' : 'idle'}
+        states={{
+          idle: m('challengeToggle'),
+          // Laid out at its widest (0:00 is as wide as any time, the digits being tabular) so the countdown never jitters.
+          running: (
+            <span className="flex items-center gap-1.5">
+              <span aria-label={m('challengeTimerLabel')} data-testid={running ? 'workspace-challenge-clock' : undefined}>
+                ⏱️ {clockText(running ? remainingSec : 0)}
+              </span>
+              <span className="text-[13px] opacity-80">{m('challengeStop')}</span>
+            </span>
+          ),
+        }}
+      />
     </button>
   );
 }
@@ -1983,7 +1988,9 @@ function SoundToggle({ m }: { m: M }) {
   const label = m(on ? 'soundOn' : 'soundOff');
   return (
     <button type="button" aria-pressed={on} aria-label={label} title={label} onClick={() => uiStore.getState().setSoundOn(!on)} data-testid="workspace-sound" data-on={on || undefined} className="rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-[15px] transition hover:bg-slate-800">
-      <span aria-hidden="true">{on ? '🔊' : '🔇'}</span>
+      <span aria-hidden="true">
+        <StableLabel value={on ? 'on' : 'off'} states={{ on: '🔊', off: '🔇' }} />
+      </span>
     </button>
   );
 }
@@ -1991,6 +1998,22 @@ function SoundToggle({ m }: { m: M }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Incident Mode: toggle, live-incident banner, power-failover flicker
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Text that changes with a control's state, in a box as wide as its widest state: every state is laid out in the same grid
+ * cell and only the current one is visible, so switching never changes the control's width or moves what sits beside it.
+ */
+export function StableLabel({ value, states }: { value: string; states: Readonly<Record<string, ReactNode>> }) {
+  return (
+    <span className="inline-grid justify-items-center" data-stable={value}>
+      {Object.entries(states).map(([key, node]) => (
+        <span key={key} className={`col-start-1 row-start-1 whitespace-nowrap ${key === value ? '' : 'invisible'}`} aria-hidden={key === value ? undefined : true}>
+          {node}
+        </span>
+      ))}
+    </span>
+  );
+}
 
 export function IncidentToggle({ on, onToggle, m }: { on: boolean; onToggle: () => void; m: M }) {
   return (
@@ -2007,7 +2030,7 @@ export function IncidentToggle({ on, onToggle, m }: { on: boolean; onToggle: () 
       <span aria-hidden="true" className={on ? 'animate-pulse text-amber-300 drop-shadow-[0_0_6px_rgba(251,191,36,0.9)]' : 'grayscale'} data-testid="workspace-incident-badge">
         ⚡
       </span>
-      {m(on ? 'incidentToggleOn' : 'incidentToggleOff')}
+      <StableLabel value={on ? 'on' : 'off'} states={{ on: m('incidentToggleOn'), off: m('incidentToggleOff') }} />
       <span aria-hidden="true">]</span>
     </button>
   );
@@ -2056,7 +2079,8 @@ export function IncidentBanner({ incident, batch = CRISIS_BATCH.default, stream 
           )}
           <span className="rounded-full border border-slate-600 px-2 py-0.5 text-[12px] font-semibold uppercase tracking-wider text-slate-300">{m(incidentRole(id) ? 'incidentScopeDesk' : 'incidentScopeGlobal')}</span>
         </div>
-        <div className="mt-1 grid gap-x-4 gap-y-0.5 text-[13.5px] leading-normal md:grid-cols-2">
+        {/* Two equal columns that content can never widen: "Rule in force" starts at the same x in every incident. */}
+        <div className="mt-1 grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-6 text-[13.5px] leading-normal" data-testid="workspace-incident-columns">
           <p className="line-clamp-2 text-slate-300" title={m(k(`incident_${id}_phenomenon`))}>
             <span className="font-semibold text-amber-200">{m('incidentPhenomenon')}: </span>
             {m(k(`incident_${id}_phenomenon`))}
@@ -2067,7 +2091,8 @@ export function IncidentBanner({ incident, batch = CRISIS_BATCH.default, stream 
           </p>
         </div>
       </div>
-      <div className="relative flex h-full shrink-0 flex-col flex-wrap-reverse content-start items-end justify-start gap-1 text-[13px] font-semibold tabular-nums">
+      {/* A fixed-width chip column, so how many chips an incident shows never narrows the text beside it. */}
+      <div className="relative flex h-full w-[240px] shrink-0 flex-col items-end justify-start gap-1 overflow-hidden text-right text-[13px] font-semibold tabular-nums" data-testid="workspace-incident-chips">
         {audit && (
           <span className={`rounded-full px-2 py-0.5 ${incident.compliance < 70 ? 'bg-rose-500/25 text-rose-100' : 'bg-emerald-500/15 text-emerald-200'}`} data-testid="workspace-incident-compliance" data-compliance={incident.compliance}>
             {m('incidentCompliance', { pct: incident.compliance })}
