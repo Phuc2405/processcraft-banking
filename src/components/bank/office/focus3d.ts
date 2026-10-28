@@ -12,11 +12,14 @@ import { pathLength, pointAlongPath } from './tour3d';
 // Focus: a pointed-at desk, or a guided scenario
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** How strongly the rest of the office fades: to 20% round a pointed-at desk, and outside a guided scenario. */
-export const DIM = { hover: 0.2, flow: 0.2 } as const;
+/** How strongly the rest of the office fades: to 20% round a pointed-at desk, to 15% outside a sub-process (guided scenario). */
+export const DIM = { hover: 0.2, flow: 0.15 } as const;
 
-/** How far the unrelated lanes and their condition badges fade when a desk is pointed at. */
+/** How far the unrelated lanes fade (a pointed-at desk or a sub-process), and their hovered-desk badges. */
 export const LANE_DIM = 0.15;
+
+/** How far a condition badge outside the sub-process fades: almost gone, so only the scenario's own words read. */
+export const FLOW_BADGE_DIM = 0.1;
 
 /** The places one lane away from `place`, and the place itself. */
 export function neighbours(place: PlaceId): ReadonlySet<PlaceId> {
@@ -38,16 +41,45 @@ export function deskFocus(place: PlaceId, hover: PlaceId | null, flow: FlowId | 
 /** The lanes lit now: the pointed-at desk's own, else the guided scenario's; and how much the others fade. */
 export function litLanes(hover: PlaceId | null, flow: FlowId | null): { lanes: ReadonlySet<string>; dim: number } {
   if (hover) return { lanes: new Set(LANES.filter((l) => l.from === hover || l.to === hover).map((l) => l.id)), dim: LANE_DIM };
-  if (flow) return { lanes: flowScope(flow).wires, dim: DIM.flow };
+  if (flow) return { lanes: flowScope(flow).wires, dim: LANE_DIM };
   return { lanes: new Set(), dim: 1 };
 }
 
+export type BadgeFocus = 'lit' | 'dim' | 'plain' | 'faded';
+
 /**
- * How a lane's condition badge shows while a desk is pointed at: its own lanes' badges bright yellow ('lit'), every other
- * badge faded to LANE_DIM ('dim'); with nothing pointed at, as usual ('plain').
+ * How a lane's condition badge shows. A pointed-at desk: its own lanes' badges bright yellow ('lit'), every other badge
+ * faded to LANE_DIM ('dim'). A sub-process: its own wires' badges as usual and in full ('plain'), every other badge almost
+ * gone ('faded', FLOW_BADGE_DIM). Otherwise as usual ('plain'). A pointed-at desk wins over the sub-process.
  */
-export const badgeFocus = (l: { from: PlaceId; to: PlaceId }, hover: PlaceId | null): 'lit' | 'dim' | 'plain' =>
-  hover === null ? 'plain' : l.from === hover || l.to === hover ? 'lit' : 'dim';
+export function badgeFocus(l: { id?: string; from: PlaceId; to: PlaceId }, hover: PlaceId | null, flow: FlowId | null = null): BadgeFocus {
+  if (hover !== null) return l.from === hover || l.to === hover ? 'lit' : 'dim';
+  if (flow !== null) return l.id !== undefined && flowScope(flow).wires.has(l.id) ? 'plain' : 'faded';
+  return 'plain';
+}
+
+/** A badge's opacity for its focus. */
+export const badgeOpacity = (f: BadgeFocus): number => (f === 'dim' ? LANE_DIM : f === 'faded' ? FLOW_BADGE_DIM : 1);
+
+/**
+ * A lane cut into dashes, `dash` = [on, off] in world units (none: the whole lane), each dash its own run of points, so a
+ * ribbon drawn over them reads dashed or dotted like the 2D wire.
+ */
+export function dashLane(points: readonly V2[], dash?: readonly [number, number]): V2[][] {
+  if (!dash) return [points.slice()];
+  const len = pathLength(points);
+  const [on, off] = dash;
+  const out: V2[][] = [];
+  for (let d = 0; d < len; d += on + off) {
+    const end = Math.min(len, d + on);
+    const run: V2[] = [];
+    // Sampled finely enough that a dash going round a bend follows it.
+    for (let k = d; k < end; k += 0.08) run.push(pointAlongPath(points, k));
+    run.push(pointAlongPath(points, end));
+    if (run.length >= 2) out.push(run);
+  }
+  return out;
+}
 
 /** Light pulses on a lit lane: how many ride it at once, and how fast (world units a second). */
 export const PULSE = { perLane: 2, speed: 3.2 } as const;

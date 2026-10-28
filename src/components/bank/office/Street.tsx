@@ -6,7 +6,7 @@ import { Sign, useMerged } from './Dressing';
 import { ATM_ALCOVE, KERB_Z, LAMP, ROAD_END, STREET, STREET_LAMPS } from './layout3d';
 import { box, cyl, tint, type Part } from './kit';
 import { glow, satin, solid } from './materials';
-import { atmosphereAt, rainOf } from './atmosphere';
+import { atmosphereAt, wetOf } from './atmosphere';
 import { liveMix } from './weather';
 
 /**
@@ -217,7 +217,7 @@ export const Street = memo(function Street() {
   const dry = useMemo(() => new Color('#ffffff'), []);
   const soaked = useMemo(() => new Color('#9aa3ad'), []);
   useFrame((_, dt) => {
-    const want = rainOf(liveMix);
+    const want = wetOf(liveMix);
     wet.current += (want - wet.current) * Math.min(1, dt * (want ? 1.2 : 0.4));
     if (!paving.current) return;
     paving.current.roughness = 0.9 - 0.62 * wet.current;

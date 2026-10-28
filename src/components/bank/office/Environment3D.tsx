@@ -22,13 +22,30 @@ import {
   type Group,
 } from 'three';
 import { bankStore } from '../../../store/bankStore';
-import { atmosphereAt, gustOf, rainOf, sameMix, stepMix, WEATHER_MIX, windOf } from './atmosphere';
+import { atmosphereAt, gustOf, rainOf, sameMix, stepMix, WEATHER_MIX, windOf, type WeatherMix } from './atmosphere';
 import { useMerged } from './Dressing';
 import { box, cyl, mix, type Part } from './kit';
 import { customerShirt, FLOOR_SLAB, KERB_Z, ROAD_END, STATION_POSES, STREET } from './layout3d';
 import { glow, pane, solid } from './materials';
 import { CustomerFigure, type Wear } from './Avatars';
-import { BUS_STOP, liveMix, outfitOf, outfitShirt, OVERHANG, PEDESTRIANS, pedestrianAt, useWeather, weatherStore, type Outfit, type Pedestrian, type PedestrianPose, type Roof } from './weather';
+import {
+  BUS_STOP,
+  carriesDrink,
+  liveMix,
+  outfitOf,
+  outfitShirt,
+  OVERHANG,
+  PEDESTRIANS,
+  pedestrianAt,
+  useWeather,
+  weatherStore,
+  type AfterRain,
+  type Downpour,
+  type Outfit,
+  type Pedestrian,
+  type PedestrianPose,
+  type Roof,
+} from './weather';
 
 /**
  * The world around the branch in the 3D office: the city it stands in, the sky light and the haze, the morning mist, the
@@ -590,7 +607,7 @@ function Rain() {
 
 /** Things drifting down on the wind: snowflakes, autumn leaves or blossom petals. */
 export interface DriftKind {
-  id: 'snow' | 'leaves' | 'petals';
+  id: 'snow' | 'leaves' | 'petals' | 'hail';
   count: number;
   colors: readonly string[];
   /** Point size in pixels. */
@@ -600,13 +617,19 @@ export interface DriftKind {
   carry: number;
   /** How wide they flutter from side to side. */
   flutter: number;
+  /** Seconds a pellet spends bouncing on the ground before the next one falls (hail). */
+  bounce?: number;
 }
 
 export const DRIFTS: readonly DriftKind[] = [
   { id: 'snow', count: 1400, colors: ['#ffffff', '#eef4ff', '#dbe7f5'], size: 3.5, fall: 1.1, carry: 0.9, flutter: 0.35 },
   { id: 'leaves', count: 260, colors: ['#c2410c', '#ea580c', '#b45309', '#a16207', '#92400e', '#dc2626'], size: 6, fall: 0.8, carry: 3.2, flutter: 0.7 },
   { id: 'petals', count: 320, colors: ['#fbcfe8', '#f9a8d4', '#ffffff', '#fce7f3', '#f472b6'], size: 4.5, fall: 0.45, carry: 2.2, flutter: 0.9 },
+  { id: 'hail', count: 1100, colors: ['#f8fafc', '#e2e8f0', '#dbeafe'], size: 3, fall: 11, carry: 0.6, flutter: 0.02, bounce: 0.45 },
 ];
+
+/** How high a hail pellet bounces, at `u` (0-1) through its bounce: one big hop, then a little one. */
+const hop = (u: number): number => (u < 0.65 ? 0.35 * Math.sin((Math.PI * u) / 0.65) : 0.08 * Math.sin((Math.PI * (u - 0.65)) / 0.35));
 
 /** Where drifting particle `i` is after `t` seconds in wind `wind`: falling, carried downwind (+x) and fluttering, wrapped round the box. */
 export function driftAt(kind: DriftKind, i: number, t: number, wind: number): [number, number, number] {
@@ -615,7 +638,14 @@ export function driftAt(kind: DriftKind, i: number, t: number, wind: number): [n
   const y0 = rnd(i, 42) * RAIN_BOX.top;
   const z = RAIN_BOX.z0 + rnd(i, 43) * (RAIN_BOX.z1 - RAIN_BOX.z0);
   const speed = kind.fall * (0.7 + 0.6 * rnd(i, 44));
-  const y = RAIN_BOX.top - ((((RAIN_BOX.top - y0 + t * speed) % RAIN_BOX.top) + RAIN_BOX.top) % RAIN_BOX.top);
+  let y = RAIN_BOX.top - ((((RAIN_BOX.top - y0 + t * speed) % RAIN_BOX.top) + RAIN_BOX.top) % RAIN_BOX.top);
+  if (kind.bounce) {
+    // Hail: a fall, then a bounce on the ground, then the next pellet from the top.
+    const fallT = RAIN_BOX.top / speed;
+    const cycle = fallT + kind.bounce;
+    const c = (((t + (y0 / RAIN_BOX.top) * cycle) % cycle) + cycle) % cycle;
+    y = c < fallT ? RAIN_BOX.top - c * speed : hop((c - fallT) / kind.bounce);
+  }
   const x = x0 + t * kind.carry * wind + Math.sin(t * (1.3 + rnd(i, 45)) + i) * kind.flutter;
   return [-RAIN_BOX.x + ((((x + RAIN_BOX.x) % span) + span) % span), y, z + Math.cos(t * 0.9 + i * 0.7) * kind.flutter * 0.5];
 }
@@ -646,7 +676,7 @@ function Drift({ kind }: { kind: DriftKind }) {
     [geometry, material],
   );
   useFrame((_, dt) => {
-    const amount = Math.min(1, liveMix[kind.id === 'snow' ? 'snow' : kind.id]);
+    const amount = Math.min(1, liveMix[kind.id]);
     const count = Math.round(kind.count * amount);
     geometry.setDrawRange(0, count);
     if (points.current) points.current.visible = count > 0;
@@ -706,6 +736,67 @@ function WindStreaks() {
   return (
     <group ref={lines} visible={false}>
       <lineSegments geometry={geometry} material={material} name="office-wind" frustumCulled={false} />
+    </group>
+  );
+}
+
+/**
+ * A rainbow over the city after rain: seven bands in a half circle behind the branch, fading in with the sun. Kept out of the
+ * haze so it reads against the sky.
+ */
+const RAINBOW_BANDS = ['#ef4444', '#f97316', '#facc15', '#22c55e', '#3b82f6', '#6366f1', '#a855f7'];
+function Rainbow() {
+  const group = useRef<Group>(null);
+  const materials = useMemo(() => RAINBOW_BANDS.map((c) => new MeshBasicMaterial({ color: c, transparent: true, opacity: 0, depthWrite: false, fog: false, toneMapped: false })), []);
+  useEffect(() => () => materials.forEach((m) => m.dispose()), [materials]);
+  useFrame(() => {
+    const a = atmosphereAt(bankStore.getState().view.minute, liveMix).rainbow;
+    if (group.current) group.current.visible = a > 0.01;
+    for (const m of materials) m.opacity = 0.42 * a;
+  });
+  return (
+    <group ref={group} visible={false} position={[6, -2, -HZ - 46]} name="office-rainbow">
+      {materials.map((m, i) => (
+        <mesh key={i} material={m} renderOrder={1}>
+          <torusGeometry args={[34 - i * 0.9, 0.45, 6, 72, Math.PI]} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+/** Wavy lines of light, for the heat shimmer. */
+const drawShimmer = (g: CanvasRenderingContext2D, S: number): void => {
+  g.clearRect(0, 0, S, S);
+  for (let y = 0; y < S; y += 6) {
+    g.strokeStyle = `rgba(255,255,255,${0.12 + 0.18 * ((y / 6) % 2)})`;
+    g.lineWidth = 2;
+    g.beginPath();
+    for (let x = 0; x <= S; x += 4) g.lineTo(x, y + Math.sin((x / S) * Math.PI * 6 + y) * 2.5);
+    g.stroke();
+  }
+};
+
+/** Heat shimmer: wavering bands of light over the road in a heatwave, drifting slowly. */
+function HeatShimmer() {
+  const map = useTiled(drawShimmer, 6);
+  const material = useMemo(() => new MeshBasicMaterial({ map, transparent: true, opacity: 0, depthWrite: false, blending: AdditiveBlending, toneMapped: false }), [map]);
+  const mesh = useRef<Group>(null);
+  useEffect(() => () => material.dispose(), [material]);
+  useFrame((_, dt) => {
+    const a = atmosphereAt(bankStore.getState().view.minute, liveMix).shimmer;
+    material.opacity = 0.35 * a;
+    if (mesh.current) mesh.current.visible = a > 0.01;
+    if (a > 0) {
+      map.offset.y += Math.min(dt, 0.1) * 0.12;
+      map.offset.x = Math.sin(map.offset.y * 9) * 0.01;
+    }
+  });
+  return (
+    <group ref={mesh} visible={false} name="office-heat-shimmer">
+      <mesh position={[0, 0.25, (KERB_Z + ROAD_END) / 2]} rotation={[-Math.PI / 2.4, 0, 0]} material={material} renderOrder={5}>
+        <planeGeometry args={[REACH * 2, ROAD_END - KERB_Z]} />
+      </mesh>
     </group>
   );
 }
@@ -795,7 +886,17 @@ const umbrellaCanopy = new ConeGeometry(0.62, 0.32, 10, 1, true);
 const umbrellaStick = new CylinderGeometry(0.018, 0.018, 0.9, 5);
 const UMBRELLA_TONES = ['#1d4ed8', '#e11d48', '#0f766e', '#7c3aed', '#ea580c', '#334155'];
 
-const WEAR: Readonly<Record<Outfit, Wear>> = { everyday: 'none', summer: 'summer', winter: 'winter', rain: 'rain' };
+const WEAR: Readonly<Record<Outfit, Wear>> = { everyday: 'none', summer: 'summer', winter: 'winter', rain: 'rain', mask: 'mask', jacket: 'none' };
+
+/** The weather the people on the pavement react to, from a pick's blend: dry (null), rain, a storm, or hail. */
+export const downpourOf = (w: WeatherMix): Downpour | null => (w.hail > 0 ? 'hail' : w.storm > 0 ? true : w.rain > 0 ? false : null);
+
+interface PavementClock {
+  t: number;
+  rainFor: number | null;
+  storm: Downpour;
+  after: AfterRain | null;
+}
 
 /** Where the hand holding an umbrella is (figure scale 0.7): low by the side, then raised overhead and a little forward. */
 const HAND = { down: [0.19, 0.36, 0], up: [0.19, 0.95, 0.13] } as const;
@@ -810,18 +911,22 @@ export const umbrellaWobble = (index: number, t: number, wind: number): { z: num
 });
 
 /** One person on the pavement, placed each frame from pedestrianAt (weather.ts). Walking and standing are separate rigs. */
-function Passer({ p, clock }: { p: Pedestrian; clock: { t: number; rainFor: number | null; storm: boolean } }) {
+function Passer({ p, clock }: { p: Pedestrian; clock: PavementClock }) {
   const root = useRef<Group>(null);
   const hand = useRef<Group>(null);
   const brolly = useRef<Group>(null);
   const raise = useMemo(() => ({ current: 0 }), []);
   const outfit = useWeather((s) => outfitOf(s.weather));
+  const drink = useWeather((s) => carriesDrink(s.weather));
   const [pose, setPose] = useState<PedestrianPose>(() => pedestrianAt(p, 0, null).pose);
   useFrame(() => {
-    const s = pedestrianAt(p, clock.t, clock.rainFor, clock.storm);
+    const s = pedestrianAt(p, clock.t, clock.rainFor, clock.storm, clock.after);
     if (root.current) {
       root.current.position.set(s.x, 0, s.z);
       root.current.rotation.y = s.heading;
+      // Looking up at the first drops: a lean back. Shaking the water off a furled umbrella: a quick wiggle.
+      root.current.rotation.x = s.pose === 'lookup' ? -0.12 : 0;
+      root.current.rotation.z = s.pose === 'shake' ? Math.sin(clock.t * 34) * 0.09 : 0;
     }
     // The arm comes up first, then the umbrella pops open over the head: from a furled stick to its full canopy.
     raise.current = Math.min(1, s.umbrella * 2);
@@ -835,7 +940,7 @@ function Passer({ p, clock }: { p: Pedestrian; clock: { t: number; rainFor: numb
     if (brolly.current) brolly.current.scale.set(0.2 + 0.8 * s.umbrella, 0.5 + 0.5 * s.umbrella, 0.2 + 0.8 * s.umbrella);
     if (s.pose !== pose) setPose(s.pose);
   });
-  const moving = pose === 'walk' || pose === 'umbrella' || pose === 'run';
+  const moving = pose === 'walk' || pose === 'umbrella' || pose === 'run' || pose === 'fold';
   return (
     <group ref={root} name={`pedestrian-${p.index}`}>
       <CustomerFigure
@@ -847,7 +952,20 @@ function Passer({ p, clock }: { p: Pedestrian; clock: { t: number; rainFor: numb
         wear={WEAR[outfit]}
         raise={raise}
       />
-      {pose === 'umbrella' && (
+      {drink && pose !== 'umbrella' && pose !== 'fold' && (
+        // A cold drink in the heat: a cup with a straw, in the left hand.
+        <group position={[-0.19, 0.4, 0.05]}>
+          <mesh>
+            <cylinderGeometry args={[0.04, 0.032, 0.12, 8]} />
+            <meshStandardMaterial color="#f8fafc" roughness={0.6} />
+          </mesh>
+          <mesh position={[0.01, 0.09, 0]}>
+            <cylinderGeometry args={[0.006, 0.006, 0.08, 4]} />
+            <meshStandardMaterial color="#ef4444" />
+          </mesh>
+        </group>
+      )}
+      {(pose === 'umbrella' || pose === 'fold') && (
         <group ref={hand} position={[HAND.down[0], HAND.down[1], HAND.down[2]]}>
           <mesh geometry={umbrellaStick} position={[0, 0.45, 0]} material={solid} />
           <group ref={brolly} position={[0, 0.92, 0]}>
@@ -880,16 +998,22 @@ function Passer({ p, clock }: { p: Pedestrian; clock: { t: number; rainFor: numb
 
 /** The passers-by: their own clock runs only while the canvas draws, so a resting office never makes them jump. */
 function Pedestrians() {
-  const clock = useMemo(() => ({ t: 0, rainFor: null as number | null, storm: false }), []);
+  const clock = useMemo<PavementClock>(() => ({ t: 0, rainFor: null, storm: false, after: null }), []);
   useFrame((_, dt) => {
     const step = Math.min(dt, 0.1);
     clock.t += step;
     // The weather they react to is the one picked, so they move as the first drops fall rather than when the blend is done.
-    const want = WEATHER_MIX[weatherStore.getState().weather];
-    const raining = want.rain > 0;
-    if (!raining) clock.rainFor = null;
-    else clock.rainFor = clock.rainFor === null ? 0 : clock.rainFor + step;
-    clock.storm = want.storm > 0;
+    const wet = downpourOf(WEATHER_MIX[weatherStore.getState().weather]);
+    if (wet === null) {
+      // It has just dried up: remember how long it lasted and what it was, so they fold their umbrellas and step back out.
+      if (clock.rainFor !== null) clock.after = { since: 0, lasted: clock.rainFor, was: clock.storm };
+      else if (clock.after) clock.after.since += step;
+      clock.rainFor = null;
+    } else {
+      clock.after = null;
+      clock.rainFor = clock.rainFor === null ? 0 : clock.rainFor + step;
+      clock.storm = wet;
+    }
   });
   return (
     <group name="office-pedestrians">
@@ -919,6 +1043,8 @@ export const Environment3D = memo(function Environment3D() {
       ))}
       <WindStreaks />
       <SnowCover />
+      <Rainbow />
+      <HeatShimmer />
       <Lightning />
       <DeskLights />
       <Pedestrians />

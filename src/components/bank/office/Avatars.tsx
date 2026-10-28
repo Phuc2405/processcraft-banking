@@ -311,7 +311,7 @@ function walkerRig(index: number, shirt: string): WalkerRig {
 }
 
 /** What a passer-by has on over their clothes, for the weather: a beanie and scarf, sunglasses, or a raincoat hood. */
-export type Wear = 'none' | 'winter' | 'summer' | 'rain';
+export type Wear = 'none' | 'winter' | 'summer' | 'rain' | 'mask';
 
 interface CustomerProps {
   index: number;
@@ -331,6 +331,20 @@ const WEAR_TONES = ['#b91c1c', '#1d4ed8', '#047857', '#7c2d12', '#6d28d9', '#be1
 function Wearables({ wear, index }: { wear: Wear; index: number }) {
   if (wear === 'none') return null;
   const tone = WEAR_TONES[index % WEAR_TONES.length]!;
+  if (wear === 'mask')
+    // A face mask over the nose and mouth, its straps round to the ears.
+    return (
+      <group>
+        <mesh position={[0, 1.15, 0.19]}>
+          <boxGeometry args={[0.24, 0.12, 0.05]} />
+          <meshStandardMaterial color={index % 3 === 0 ? '#bfdbfe' : '#f8fafc'} roughness={0.9} />
+        </mesh>
+        <mesh position={[0, 1.2, 0.02]}>
+          <boxGeometry args={[0.42, 0.015, 0.34]} />
+          <meshStandardMaterial color="#e2e8f0" roughness={0.9} />
+        </mesh>
+      </group>
+    );
   if (wear === 'summer')
     return (
       <mesh position={[0, 1.235, 0.205]}>

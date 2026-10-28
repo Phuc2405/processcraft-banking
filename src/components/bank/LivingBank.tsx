@@ -1,7 +1,7 @@
 import { t } from '../../i18n/t';
 import { Component, lazy, Suspense, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
 import { noticeText } from '../../i18n/simVi';
-import { activeFlowOf, useBankStore } from '../../store/bankStore';
+import { useBankStore } from '../../store/bankStore';
 import { useAcademyStore } from '../../store/academyStore';
 import { AcademySplitLayout } from '../academy/AcademySplitLayout';
 import { GuidedBar, ResumeWalkthrough, WalkChip } from '../education/GuidedWalkthrough';
@@ -76,12 +76,29 @@ const NOTICE_STYLE = {
   error: 'border-rose-400/40 bg-rose-950/90 text-rose-100',
 } as const;
 
-/** A short message from the bank ("New rules are live"), shown over the map for a few seconds. */
+/**
+ * Every floating message over the map (the bank's notices, the decline and incident toasts) in one column in the top-left
+ * corner, away from the legend (top-right), the viewport dock (top-centre) and the preset dock (bottom). In 3D the office's
+ * own controls hold the very corner, so the column starts below them.
+ */
+export const NOTICE_CORNER = { '2d': 'top-4', '3d': 'top-[176px] xl:top-[64px]', '3dSplit': 'top-[260px]' } as const;
+
+function NoticeColumn() {
+  const viewMode = useBankStore((s) => s.viewMode);
+  const splitOpen = useAcademyStore((s) => s.isSplitScreenOpen);
+  const corner = viewMode === '3d' ? NOTICE_CORNER[splitOpen ? '3dSplit' : '3d'] : NOTICE_CORNER['2d'];
+  return (
+    <div className={`pointer-events-none absolute left-4 ${corner} z-50 flex max-w-[min(440px,calc(100%-32px))] flex-col items-start gap-2`} data-testid="notice-column">
+      <Notice />
+      <HudToasts />
+    </div>
+  );
+}
+
+/** A short message from the bank ("New rules are live"), shown for a few seconds at the top of the notice column. */
 function Notice() {
   const notice = useBankStore((s) => s.notice);
   const hubOpen = useBankStore((s) => s.hubOpen);
-  // In the Beginner scope the preset dock sits at the bottom of the map, so the message goes just above it.
-  const dockBelow = useBankStore((s) => activeFlowOf(s) !== null);
   const dismiss = useBankStore((s) => s.dismissNotice);
   useEffect(() => {
     if (!notice) return;
@@ -90,7 +107,7 @@ function Notice() {
   }, [notice, dismiss]);
   if (!notice || hubOpen) return null;
   return (
-    <div className={`absolute ${dockBelow ? 'bottom-[76px]' : 'bottom-4'} left-1/2 z-30 flex max-w-[520px] -translate-x-1/2 items-start gap-3 rounded-xl border px-4 py-2.5 text-[13px] shadow-xl ${NOTICE_STYLE[notice.kind]}`} role="status" data-testid="bank-notice">
+    <div className={`pointer-events-auto flex items-start gap-3 rounded-xl border px-4 py-2.5 text-[13px] shadow-xl ${NOTICE_STYLE[notice.kind]}`} role="status" data-testid="bank-notice">
       <span>{noticeText(notice.message)}</span>
       <button type="button" onClick={dismiss} aria-label={t('Dismiss')} className="opacity-70 transition hover:opacity-100">
         ×
@@ -148,11 +165,10 @@ export function LivingBank() {
               <ViewportControls />
               <ZoomToolbar />
               <LedgerDrawer />
-              <HudToasts />
               <PresetDock />
               <WalkChip />
               <ResumeWalkthrough />
-              <Notice />
+              <NoticeColumn />
               <Inspector />
             </div>
             </div>

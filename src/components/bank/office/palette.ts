@@ -24,13 +24,30 @@ export const PACKET_HEX: Record<PacketKind, string> = {
   SETTLEMENT: '#f59e0b',
 };
 
-/** The colour of a wire's painted lane: pastel tape on the warm floor, matching the 2D map's meaning. */
-export function laneHex(to: string, from: string): string {
-  if (to === 'OUT_DECLINED') return '#f0a3b3';
-  if (from === 'OUT_APPROVED' || from.startsWith('EOD_') || from === 'RECON' || from === 'SUSPENSE' || to === 'OUT_SETTLED') return '#e8bd7a';
-  if (to === 'CUSTOMER_OTP' || from === 'CUSTOMER_OTP') return '#c4b5fd';
-  return '#c9c2b4';
+/** What a wire carries, by the 2D map legend: a decline, the night run, an OTP challenge, or the approved, everyday path. */
+export type LaneKind = 'reject' | 'night' | 'otp' | 'approve';
+
+/** The same rules as the 2D map's wire colours (BankMap wireStyle). */
+export function laneKind(to: string, from: string): LaneKind {
+  if (to === 'OUT_DECLINED') return 'reject';
+  if (from === 'OUT_APPROVED' || from.startsWith('EOD_') || from === 'RECON' || from === 'SUSPENSE' || to === 'OUT_SETTLED') return 'night';
+  if (to === 'CUSTOMER_OTP' || from === 'CUSTOMER_OTP') return 'otp';
+  return 'approve';
 }
+
+/**
+ * How each kind of lane is drawn: its pastel tape on the warm floor; the legend colour it glows in when lit (the 2D Map
+ * Legend's own strokes: red, blue, amber, purple); and its dashes in world units (red dashed, purple dotted, as in 2D).
+ */
+export const LANE_STYLE: Readonly<Record<LaneKind, { tape: string; glow: string; dash?: readonly [number, number] }>> = {
+  reject: { tape: '#f0a3b3', glow: '#fb7185', dash: [0.42, 0.3] },
+  approve: { tape: '#c9c2b4', glow: '#38bdf8' },
+  night: { tape: '#e8bd7a', glow: '#fbbf24' },
+  otp: { tape: '#c4b5fd', glow: '#a78bfa', dash: [0.13, 0.15] },
+};
+
+/** The colour of a wire's painted lane: pastel tape on the warm floor, matching the 2D map's meaning. */
+export const laneHex = (to: string, from: string): string => LANE_STYLE[laneKind(to, from)].tape;
 
 export const KIOSK_HEX = {
   OUT_APPROVED: '#22c55e',

@@ -4,11 +4,13 @@ import { STATION_IDS, WIRES } from '../../../../sim/topology';
 import { routingRules } from '../../routingRules';
 import { flowPlaces, flowScope } from '../../../../sim/guidedFlows';
 import { FLOW_IDS } from '../../../../types/viewport';
-import { badgeFocus, deskFocus, DIM, isOffShift, LANE_DIM, leaveAt, leaveRoute, litLanes, neighbours, PULSE, pulseDistance } from '../focus3d';
-import { atmosphereAt, CLEAR, DAY_KEYS, gustOf, nextRandomWeather, RANDOM_EVERY_S, sameMix, stepMix, WEATHER_BLEND_S, WEATHER_MIX, WEATHERS, windOf } from '../atmosphere';
-import { CITY_BLOCKS, driftAt, DRIFTS, swayAt, TREE_BELTS, TREES, umbrellaWobble, type Tree } from '../Environment3D';
+import { badgeFocus, badgeOpacity, dashLane, deskFocus, DIM, FLOW_BADGE_DIM, isOffShift, LANE_DIM, leaveAt, leaveRoute, litLanes, neighbours, PULSE, pulseDistance } from '../focus3d';
+import { atmosphereAt, CLEAR, DAY_KEYS, gustOf, MOODS, nextRandomWeather, RANDOM_EVERY_S, RANDOM_WEATHERS, sameMix, stepMix, WEATHER_BLEND_S, WEATHER_MIX, WEATHERS, wetOf, windOf } from '../atmosphere';
+import { CITY_BLOCKS, downpourOf, driftAt, DRIFTS, swayAt, TREE_BELTS, TREES, umbrellaWobble, type Tree } from '../Environment3D';
+import { LANE_STYLE, laneKind } from '../palette';
+import { pathLength } from '../tour3d';
 import { deskPose, FLOOR_SLAB, KERB_Z, LANE_LABELS, LANES, laneLabelShown, lanesOf, ROAD_END, STREET } from '../layout3d';
-import { BUS_STOP, outfitOf, outfitShirt, OVERHANG, PAVEMENT, PEDESTRIANS, pedestrianAt, shelterSpot, stormGoesToBus, UMBRELLA, umbrellaDelay, underRoof, WALK, weatherStore } from '../weather';
+import { BUS_STOP, carriesDrink, FOLD, LOOK_UP, outfitOf, outfitShirt, OVERHANG, PAVEMENT, PEDESTRIANS, pedestrianAt, shelterSpot, stormGoesToBus, UMBRELLA, umbrellaDelay, underRoof, WALK, weatherStore } from '../weather';
 
 const lum = (hex: string): number => {
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
@@ -80,6 +82,7 @@ describe('people on the pavement', () => {
     for (const p of umbrellas) {
       const d = umbrellaDelay(p);
       expect(pedestrianAt(p, 60, d - 0.01).umbrella).toBe(0);
+      expect(pedestrianAt(p, 60, d - 0.01).pose).toBe('lookup');
       expect(pedestrianAt(p, 60, d + UMBRELLA.open / 2).umbrella).toBeCloseTo(0.5, 1);
       const open = pedestrianAt(p, 60, 10);
       expect(open.pose).toBe('umbrella');
@@ -87,7 +90,9 @@ describe('people on the pavement', () => {
       expect(open.speed).toBe(WALK.umbrella);
     }
     for (const p of runners) {
-      const early = pedestrianAt(p, 60, 0.2);
+      // First they stop and look up at the sky, then they run.
+      expect(pedestrianAt(p, 60, 0.2).pose).toBe('lookup');
+      const early = pedestrianAt(p, 60, LOOK_UP + 0.2);
       expect(['run', 'shelter']).toContain(early.pose);
       if (early.pose === 'run') expect(early.speed).toBe(WALK.sprint);
       const later = pedestrianAt(p, 90, 30);
@@ -130,12 +135,54 @@ describe('people on the pavement', () => {
     weatherStore.getState().setWeather('clear');
   });
 
-  it('moves random mode on to a different weather, every few minutes', () => {
-    expect(WEATHERS).toHaveLength(9);
-    for (const w of WEATHERS) for (const r of [0, 0.3, 0.6, 0.999]) expect(nextRandomWeather(w, r)).not.toBe(w);
-    const reached = new Set(Array.from({ length: 40 }, (_, k) => nextRandomWeather('clear', k / 40)));
-    expect(reached.size).toBe(8);
+  it('moves random mode on to a different everyday weather every few minutes, never snow or hail', () => {
+    expect(WEATHERS).toHaveLength(15);
+    expect(RANDOM_WEATHERS).not.toContain('snow');
+    expect(RANDOM_WEATHERS).not.toContain('hail');
+    for (const w of WEATHERS) for (const r of [0, 0.3, 0.6, 0.999]) {
+      const next = nextRandomWeather(w, r);
+      expect(next).not.toBe(w);
+      expect(RANDOM_WEATHERS).toContain(next);
+    }
+    const reached = new Set(Array.from({ length: 80 }, (_, k) => nextRandomWeather('clear', k / 80)));
+    expect(reached.size).toBe(RANDOM_WEATHERS.length - 1);
     expect(RANDOM_EVERY_S).toBeGreaterThanOrEqual(60);
+  });
+
+  it('after the rain, umbrellas come down and are shaken off before people walk on; the sheltering step back out', () => {
+    const walker = PEDESTRIANS.find((p) => p.umbrella && p.chatX === null)!;
+    const lasted = 20;
+    const after = (since: number) => pedestrianAt(walker, 100 + since, null, false, { since, lasted, was: false });
+    expect(after(0.01).pose).toBe('fold');
+    expect(after(FOLD.lower / 2).umbrella).toBeGreaterThan(0);
+    expect(after(FOLD.lower / 2).umbrella).toBeLessThan(1);
+    expect(after(FOLD.lower + 0.1).pose).toBe('shake');
+    expect(after(FOLD.lower + FOLD.shake + 1).pose).toBe('walk');
+    // It carries on from where it stopped, no jump.
+    expect(Math.abs(after(FOLD.lower + FOLD.shake + 0.01).x - after(FOLD.lower + FOLD.shake - 0.01).x)).toBeLessThan(0.05);
+
+    const runner = PEDESTRIANS.find((p) => !p.umbrella && p.chatX === null)!;
+    const sheltered = pedestrianAt(runner, 100, lasted);
+    expect(sheltered.pose).toBe('shelter');
+    const out = (since: number) => pedestrianAt(runner, 100 + since, null, false, { since, lasted, was: false });
+    expect(Math.hypot(out(0).x - sheltered.x, out(0).z - sheltered.z)).toBeLessThan(0.01);
+    expect(out(0.3).pose).toBe('walk');
+    expect(out(30).z).toBe(PAVEMENT.lanes[runner.lane]);
+    const pair = PEDESTRIANS.find((p) => p.chatX !== null)!;
+    expect(pedestrianAt(pair, 160, null, true, null).pose).toBe('chat');
+    expect(pedestrianAt(pair, 160, null, false, { since: 60, lasted, was: true }).pose).toBe('chat');
+  });
+
+  it('sends everyone under the entrance canopy in hail, umbrella or not', () => {
+    for (const p of PEDESTRIANS) {
+      const s = pedestrianAt(p, 120, 40, 'hail');
+      expect(s.pose, `${p.index}`).toBe('shelter');
+      expect(underRoof(OVERHANG, s.x, s.z), `${p.index}`).toBe(true);
+    }
+    expect(downpourOf(WEATHER_MIX.hail)).toBe('hail');
+    expect(downpourOf(WEATHER_MIX.storm)).toBe(true);
+    expect(downpourOf(WEATHER_MIX.rain)).toBe(false);
+    expect(downpourOf(WEATHER_MIX.rainbow)).toBe(null);
   });
 });
 
@@ -193,6 +240,32 @@ describe('weather moods, the two-second blend and the wind', () => {
     expect(g.skyHorizon).not.toBe(atmosphereAt(noon).skyHorizon);
   });
 
+  it('blends between ANY two weathers the same way, every mood reaching its target together at two seconds', () => {
+    for (const from of WEATHERS)
+      for (const to of WEATHERS) {
+        let m = { ...WEATHER_MIX[from] };
+        for (let k = 0; k < 19; k++) m = stepMix(m, WEATHER_MIX[to], 0.1);
+        if (from !== to) expect(sameMix(m, WEATHER_MIX[to]), `${from} -> ${to} early`).toBe(MOODS.every((k) => Math.abs(WEATHER_MIX[from][k] - WEATHER_MIX[to][k]) <= 0.95 + 1e-9));
+        m = stepMix(m, WEATHER_MIX[to], 0.1);
+        expect(sameMix(m, WEATHER_MIX[to]), `${from} -> ${to}`).toBe(true);
+      }
+  });
+
+  it('gives the new weathers their own look: smog hazes and lights the lamps, a rainbow shows after rain, a heatwave shimmers', () => {
+    const noon = 12 * 60;
+    const [clear, smog, rainbow, heat, pollen, cloudy] = [WEATHER_MIX.clear, WEATHER_MIX.smog, WEATHER_MIX.rainbow, WEATHER_MIX.heatwave, WEATHER_MIX.pollen, WEATHER_MIX.cloudy].map((w) => atmosphereAt(noon, w));
+    expect(smog!.fog.far).toBeLessThan(clear!.fog.far - 20);
+    expect(smog!.lamps).toBeGreaterThan(0.4);
+    const [r, g, b] = [1, 3, 5].map((k) => parseInt(smog!.skyHorizon.slice(k, k + 2), 16));
+    expect(r! + g!).toBeGreaterThan(2 * b! + 20);
+    expect(rainbow!.rainbow).toBe(1);
+    expect(atmosphereAt(21 * 60, WEATHER_MIX.rainbow).rainbow).toBe(0);
+    expect(wetOf(WEATHER_MIX.rainbow)).toBeGreaterThan(0.5);
+    expect(heat!.shimmer).toBe(1);
+    expect(pollen!.motes).toBe(1);
+    expect(cloudy!.sun.intensity).toBeLessThan(clear!.sun.intensity);
+  });
+
   it('settles snow on the ground, closes in the fog, and keeps the sun’s dust out of both', () => {
     const noon = 12 * 60;
     const [clear, snow, fog] = [WEATHER_MIX.clear, WEATHER_MIX.snow, WEATHER_MIX.fog].map((w) => atmosphereAt(noon, w));
@@ -217,8 +290,12 @@ describe('weather moods, the two-second blend and the wind', () => {
     expect(gustOf(WEATHER_MIX.storm)).toBeGreaterThan(0.8);
   });
 
-  it('carries snow, leaves and petals downwind, inside the weather box', () => {
-    expect(DRIFTS.map((d) => d.id).sort()).toEqual(['leaves', 'petals', 'snow']);
+  it('carries snow, leaves and petals downwind, inside the weather box, and bounces the hail', () => {
+    expect(DRIFTS.map((d) => d.id).sort()).toEqual(['hail', 'leaves', 'petals', 'snow']);
+    const hail = DRIFTS.find((d) => d.id === 'hail')!;
+    // Some pellets are bouncing just above the ground at any moment.
+    const low = Array.from({ length: 400 }, (_, i) => driftAt(hail, i, 5, 1)[1]).filter((y) => y > 0 && y < 0.4);
+    expect(low.length).toBeGreaterThan(5);
     for (const kind of DRIFTS) {
       const wind = windOf(WEATHER_MIX.autumn);
       let moved = 0;
@@ -248,6 +325,12 @@ describe('weather moods, the two-second blend and the wind', () => {
   });
 
   it('dresses the crowd for the weather', () => {
+    expect(outfitOf('smog')).toBe('mask');
+    expect(outfitOf('pollen')).toBe('mask');
+    expect(outfitOf('autumn')).toBe('jacket');
+    expect(outfitOf('heatwave')).toBe('summer');
+    expect(carriesDrink('heatwave')).toBe(true);
+    expect(carriesDrink('clear')).toBe(false);
     expect(outfitOf('snow')).toBe('winter');
     expect(outfitOf('hot')).toBe('summer');
     expect(outfitOf('rain')).toBe('rain');
@@ -329,9 +412,9 @@ describe('the 3D view shares the 2D map’s overlays', () => {
     const office = src['../Office3D.tsx']!;
     expect(office).toContain('aria-haspopup="listbox"');
     expect(office).not.toContain('SegmentedToggle');
-    const labels = [...office.matchAll(/^ {2}(?:random|clear|golden|hot|rain|storm|snow|fog|autumn|spring): '([^']+)',$/gm)].map((m) => m[1]!);
-    // Ten labels and ten hints.
-    expect(labels).toHaveLength(20);
+    const labels = [...office.matchAll(/^ {2}(?:random|clear|cloudy|golden|hot|heatwave|rain|rainbow|storm|hail|fog|smog|autumn|spring|pollen|snow): '([^']+)',$/gm)].map((m) => m[1]!);
+    // Sixteen labels and sixteen hints.
+    expect(labels).toHaveLength(32);
     for (const l of labels) expect(VI_DICTIONARY[l], l).toBeTruthy();
   });
 });
@@ -339,10 +422,40 @@ describe('the 3D view shares the 2D map’s overlays', () => {
 describe('lit lanes keep their 2D colours', () => {
   const scene = (import.meta.glob('../OfficeScene.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)['../OfficeScene.tsx']!;
   it('draws the lit stripe, halo and pulses in each lane’s own colour, not one highlight colour', () => {
-    expect(scene).toContain('color: laneHex(l.to, l.from) })), [lit]);');
+    expect(scene).toContain('return { points: smoothLane(l.points, 0.55, 5), color: style.glow, dash: style.dash };');
     expect(scene).toContain('<LanePulses paths={paths} colors={colors} />');
     expect(scene).not.toContain('#fde047');
-    expect(scene).toContain("material.opacity = focus === 'dim' ? LANE_DIM : 1;");
+    expect(scene).toContain('material.opacity = badgeOpacity(focus);');
+  });
+
+  it('uses the 2D Map Legend’s own colours and line types: red dashed, solid blue, amber, purple dotted', () => {
+    const legend = (import.meta.glob('../../MapLegend.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)['../../MapLegend.tsx']!;
+    const line = (key: string) => legend.match(new RegExp(`key: '${key}', stroke: '(#[0-9a-f]{6})'(?:, dash: '([^']+)')?`))!;
+    expect(LANE_STYLE.reject.glow).toBe(line('lineReject')[1]);
+    expect(LANE_STYLE.approve.glow).toBe(line('lineApprove')[1]);
+    expect(LANE_STYLE.night.glow).toBe(line('lineNight')[1]);
+    expect(LANE_STYLE.otp.glow).toBe(line('lineOtp')[1]);
+    expect(LANE_STYLE.reject.dash).toBeDefined();
+    expect(LANE_STYLE.otp.dash).toBeDefined();
+    expect(LANE_STYLE.otp.dash![0]).toBeLessThan(LANE_STYLE.reject.dash![0]);
+    expect(LANE_STYLE.approve.dash).toBeUndefined();
+    expect(LANE_STYLE.night.dash).toBeUndefined();
+    expect(laneKind('OUT_DECLINED', 'SEC_FDS')).toBe('reject');
+    expect(laneKind('CUSTOMER_OTP', 'SEC_3DS')).toBe('otp');
+  });
+
+  it('cuts a dashed lane into evenly spaced dashes that follow it', () => {
+    const lane: [number, number][] = [
+      [0, 0],
+      [4, 0],
+      [4, 3],
+    ];
+    expect(dashLane(lane)).toHaveLength(1);
+    const dashes = dashLane(lane, [0.5, 0.25]);
+    expect(dashes.length).toBe(Math.ceil(7 / 0.75));
+    for (const d of dashes) expect(pathLength(d)).toBeLessThanOrEqual(0.5 + 1e-6);
+    // A dash across the corner bends with it.
+    expect(dashes.some((d) => d.some(([x, z]) => x === 4 && z > 0) && d.some(([, z]) => z === 0))).toBe(true);
   });
 });
 
@@ -356,12 +469,13 @@ describe('focus in 3D: a pointed-at desk and a guided scenario', () => {
     expect(DIM.hover).toBe(0.2);
   });
 
-  it('fades the desks a scenario leaves out to 20%, and lights its route', () => {
+  it('fades the desks a sub-process leaves out to 15%, and lights its route', () => {
     const flow = FLOW_IDS[0]!;
     const inside = flowPlaces(flow);
     for (const id of STATION_IDS) expect(deskFocus(id, null, flow), id).toBe(inside.has(id) ? 1 : DIM.flow);
     const lit = litLanes(null, flow);
-    expect(lit.dim).toBe(0.2);
+    expect(lit.dim).toBe(0.15);
+    expect(DIM.flow).toBe(0.15);
     expect([...lit.lanes].sort()).toEqual([...flowScope(flow).wires].sort());
     // A pointed-at desk wins over the scenario; nothing in focus leaves everything as it is.
     expect(litLanes('SEC_FDS', flow).dim).toBe(LANE_DIM);
@@ -375,6 +489,19 @@ describe('focus in 3D: a pointed-at desk and a guided scenario', () => {
     expect(own.length).toBeGreaterThan(0);
     for (const l of LANE_LABELS) expect(badgeFocus(l, 'SEC_FDS')).toBe(own.includes(l) ? 'lit' : 'dim');
     expect(badgeFocus(LANE_LABELS[0]!, null)).toBe('plain');
+    expect(badgeOpacity('lit')).toBe(1);
+    expect(badgeOpacity('dim')).toBe(0.15);
+  });
+
+  it('keeps only a sub-process’s own condition badges in full and lets every other one all but disappear', () => {
+    for (const flow of FLOW_IDS) {
+      const wires = flowScope(flow).wires;
+      for (const l of LANE_LABELS) expect(badgeFocus(l, null, flow), `${flow} ${l.id}`).toBe(wires.has(l.id) ? 'plain' : 'faded');
+    }
+    expect(FLOW_BADGE_DIM).toBe(0.1);
+    expect(badgeOpacity('faded')).toBe(0.1);
+    // A pointed-at desk still wins.
+    expect(badgeFocus(LANE_LABELS[0]!, LANE_LABELS[0]!.from, FLOW_IDS[0]!)).toBe('lit');
   });
 
   it('runs pulses along a lit lane, evenly spaced and looping', () => {

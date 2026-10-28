@@ -40,7 +40,7 @@ export function HudToasts() {
 
   if (toasts.length === 0) return null;
   return (
-    <div className="pointer-events-none absolute right-3 top-16 z-30 flex w-[230px] flex-col items-end gap-1.5" aria-live="polite" data-testid="hud-toasts">
+    <div className="pointer-events-none flex w-[230px] flex-col items-start gap-1.5" aria-live="polite" data-testid="hud-toasts">
       {toasts.map((toast) => {
         const meta = META[toast.kind];
         if (!meta) return null;

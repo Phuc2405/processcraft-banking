@@ -1,19 +1,19 @@
 import { t } from '../../i18n/t';
 import { memo, useEffect, useState } from 'react';
 import { flowText, GUIDED_FLOWS } from '../../sim/guidedFlows';
-import { FLOW_IDS, type DataDepth, type Dimension, type FlowId, type Scope } from '../../types/viewport';
+import { FLOW_IDS, type Dimension, type FlowId, type Scope } from '../../types/viewport';
 import { dataDepthOf, useBankStore } from '../../store/bankStore';
 import { webglAvailable } from './office/webgl';
-import { SegmentedToggle, type SegmentOption } from '../shell/SegmentedToggle';
+import { DepthToggle, SegmentedToggle, type SegmentOption } from '../shell/SegmentedToggle';
 
 /**
  * The viewport dock, floating at the top centre of the Living Bank (clear of the walkthrough card, which is placed beside
- * the desk it explains): three two-way switches that combine into eight views, and, in the Beginner scope, a bar of the four
- * guided flows that slides down beneath it.
+ * the desk it explains): three two-way switches that combine into eight views, and, in the Sub-process scope (the store's
+ * 'beginner'), a bar of the guided flows that slides down beneath it.
  *
- *   Scope        🟢 Beginner | 🟣 Advanced
+ *   Scope        🧩 Sub-process | 🔄 Full process
  *   Dimension    2D | 3D
- *   Data depth   Standard | </> Expert
+ *   Terminology  💡 Standard | </> Expert   (the shared DepthToggle)
  *
  * Over the 3D office the dock is a solid panel: a backdrop blur over a live WebGL canvas makes the browser re-blur every frame.
  */
@@ -33,19 +33,14 @@ const IsoBoxIcon = () => (
   </svg>
 );
 
-const Dot = ({ color }: { color: string }) => <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />;
-
 const SCOPE_OPTIONS = (): readonly SegmentOption<Scope>[] => [
-  { value: 'beginner', label: <><Dot color="#4ade80" />{t('Beginner')}</>, hint: t('Guided: one payment flow at a time is lit, everything else fades back'), tone: 'emerald' },
-  { value: 'advanced', label: <><Dot color="#c084fc" />{t('Advanced')}</>, hint: t('The whole Living Bank, every desk and wire lit'), tone: 'violet' },
+  { value: 'beginner', label: <><span aria-hidden="true">🧩</span>{t('Sub-process')}</>, hint: t('One isolated sub-flow at a time (pick 01-08): only its desks, wires and conditions stay lit, the rest fades back'), tone: 'emerald' },
+  { value: 'advanced', label: <><span aria-hidden="true">🔄</span>{t('Full process')}</>, hint: t('The full end-to-end bank: every desk, wire and condition lit'), tone: 'violet' },
 ];
+export const SCOPE_TITLE = 'Switch between an isolated sub-process view (Sub-process) and the full end-to-end operating map (Full process)';
 const DIMENSION_OPTIONS = (): readonly SegmentOption<Dimension>[] => [
   { value: '2d', label: <><SchematicIcon />2D</>, hint: t('The flat blueprint map of departments and wires') },
   { value: '3d', label: <><IsoBoxIcon />3D</>, hint: t('The same bank as an isometric office: desks, staff and customers') },
-];
-const DEPTH_OPTIONS = (): readonly SegmentOption<DataDepth>[] => [
-  { value: 'standard', label: <>{t('Standard')}</>, hint: t('Plain-English names and simple facts in the inspector') },
-  { value: 'expert', label: <><span className="font-mono text-[10.5px]">&lt;/&gt;</span>{t('Expert')}</>, hint: t('Fintech terms, ISO 8583 response codes, the raw message and the GL journal'), tone: 'emerald' },
 ];
 
 /** The guided flows under the dock while the Beginner scope is on: 01-04 on the first row, the Phase 8 flows 05-08 on the second. */
@@ -105,11 +100,11 @@ function ViewportControlsView() {
   return (
     <div className="pointer-events-none absolute top-3 z-40 flex -translate-x-1/2 flex-col items-center transition-[left] duration-200 ease-out" style={{ left }} data-testid="viewport-controls">
       <div className={`pointer-events-auto flex items-center gap-3 rounded-2xl border border-slate-800 p-1.5 px-3 shadow-2xl ${solid ? 'bg-slate-900/95' : 'bg-slate-950/90 backdrop-blur-md'}`} role="toolbar" aria-label={t('Viewport')}>
-        <SegmentedToggle<Scope> label={t('Scope')} value={scope} options={SCOPE_OPTIONS()} onChange={setScope} testId="scope" stateKey="scope" />
+        <SegmentedToggle<Scope> label={t('Scope')} value={scope} options={SCOPE_OPTIONS()} onChange={setScope} testId="scope" stateKey="scope" title={t(SCOPE_TITLE)} />
         <span className="h-5 w-px bg-slate-800" aria-hidden="true" />
         <SegmentedToggle<Dimension> label={t('Dimension')} value={dimension} options={DIMENSION_OPTIONS()} onChange={chooseDimension} testId="dim" stateKey="dimension" />
         <span className="h-5 w-px bg-slate-800" aria-hidden="true" />
-        <SegmentedToggle<DataDepth> label={t('Data depth')} value={depth} options={DEPTH_OPTIONS()} onChange={setDepth} testId="depth" stateKey="depth" />
+        <DepthToggle value={depth} onChange={setDepth} testId="depth" />
       </div>
       {noWebgl && (
         <p role="alert" className="pointer-events-auto mt-1.5 w-[270px] rounded-lg border border-amber-400/40 bg-amber-950/95 px-3 py-2 text-center text-[12px] leading-snug text-amber-100 shadow-xl" data-testid="view-no-webgl">

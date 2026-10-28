@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useMessages } from '../../utils/i18nHelper';
-import { viewModeMessages } from './viewModeToggle.messages';
+import { depthMessages, viewModeMessages } from './viewModeToggle.messages';
 
 /** The colour of the option that is on. */
 export type SegmentTone = 'sky' | 'violet' | 'emerald';
@@ -64,6 +64,54 @@ export function SegmentedToggle<T extends string>({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+export type Depth = 'standard' | 'expert';
+
+/**
+ * [💡 Standard | </> Expert]: the one terminology switch, drawn the same in the Living Bank header, the guided tour bar,
+ * the Academy and the analyst workspace: plain business words, or the technical codes (ISO 20022, pacs.008, SWIFT MT/MX).
+ */
+export function DepthToggle({ value, onChange, testId, stateKey = 'depth', caption = false }: { value: Depth; onChange: (depth: Depth) => void; testId: string; stateKey?: string; caption?: boolean }) {
+  const m = useMessages(depthMessages);
+  return (
+    <div className="flex shrink-0 items-center gap-1.5" data-testid={`${testId}-group`}>
+      {caption && <span className="whitespace-nowrap text-[12px] font-semibold uppercase tracking-wider text-slate-400">{m('label')}</span>}
+      <SegmentedToggle<Depth>
+        label={m('label')}
+        value={value}
+        onChange={onChange}
+        testId={testId}
+        stateKey={stateKey}
+        options={[
+          {
+            value: 'standard',
+            label: (
+              <>
+                <span aria-hidden="true">💡</span>
+                {m('standard')}
+              </>
+            ),
+            hint: m('standardHint'),
+            tone: 'sky',
+          },
+          {
+            value: 'expert',
+            label: (
+              <>
+                <span aria-hidden="true" className="font-mono text-[11.5px]">
+                  &lt;/&gt;
+                </span>
+                {m('expert')}
+              </>
+            ),
+            hint: m('expertHint'),
+            tone: 'emerald',
+          },
+        ]}
+      />
     </div>
   );
 }

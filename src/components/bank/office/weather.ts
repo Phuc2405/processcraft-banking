@@ -38,19 +38,44 @@ export const liveMix: WeatherMix = { ...CLEAR };
 /** Whether it is raining now (any rain in the blend), or about to (the pick brings rain). */
 export const isRaining = (): boolean => rainOf(liveMix) > 0.02 || WEATHER_MIX[weatherStore.getState().weather].rain > 0;
 
-/** What people on the pavement wear: coats, scarves and hats in snow; T-shirts and sunglasses in the heat; raincoats in the wet. */
-export type Outfit = 'everyday' | 'summer' | 'winter' | 'rain';
+/**
+ * What people on the pavement wear: coats, scarves and hats in snow; T-shirts and sunglasses in the heat; raincoats in the
+ * wet; a face mask in smog or pollen; a jacket on a cool, cloudy or autumn day.
+ */
+export type Outfit = 'everyday' | 'summer' | 'winter' | 'rain' | 'mask' | 'jacket';
 
-export const outfitOf = (w: Weather): Outfit => (w === 'snow' ? 'winter' : w === 'hot' || w === 'spring' ? 'summer' : w === 'rain' || w === 'storm' ? 'rain' : 'everyday');
+const OUTFIT_OF: Readonly<Record<Weather, Outfit>> = {
+  clear: 'everyday',
+  golden: 'everyday',
+  cloudy: 'jacket',
+  autumn: 'jacket',
+  hot: 'summer',
+  heatwave: 'summer',
+  spring: 'summer',
+  rain: 'rain',
+  rainbow: 'everyday',
+  storm: 'rain',
+  hail: 'rain',
+  fog: 'jacket',
+  smog: 'mask',
+  pollen: 'mask',
+  snow: 'winter',
+};
+export const outfitOf = (w: Weather): Outfit => OUTFIT_OF[w];
 
-const OUTFIT_TONES: Readonly<Record<Exclude<Outfit, 'everyday'>, readonly string[]>> = {
+/** In a heatwave people carry a cold drink. */
+export const carriesDrink = (w: Weather): boolean => w === 'heatwave';
+
+const OUTFIT_TONES: Readonly<Record<Exclude<Outfit, 'everyday' | 'mask'>, readonly string[]>> = {
   summer: ['#fde68a', '#f9a8d4', '#a7f3d0', '#bae6fd', '#fecaca', '#ffffff'],
   winter: ['#374151', '#7f1d1d', '#1e3a8a', '#3f3f46', '#78350f', '#14532d'],
   rain: ['#facc15', '#1f2937', '#0e7490', '#b45309', '#4d7c0f', '#334155'],
+  jacket: ['#78716c', '#57534e', '#9a3412', '#3f6212', '#1e40af', '#713f12'],
 };
 
 /** The top a person wears in an outfit (`everyday` keeps their own `shirt`). */
-export const outfitShirt = (outfit: Outfit, index: number, shirt: string): string => (outfit === 'everyday' ? shirt : OUTFIT_TONES[outfit][index % OUTFIT_TONES[outfit].length]!);
+export const outfitShirt = (outfit: Outfit, index: number, shirt: string): string =>
+  outfit === 'everyday' || outfit === 'mask' ? shirt : OUTFIT_TONES[outfit][index % OUTFIT_TONES[outfit].length]!;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shelters
@@ -91,7 +116,23 @@ export const WALK = { relaxed: [0.45, 0.75] as const, umbrella: 0.95, sprint: 2.
 /** How long an umbrella takes to open, and the gap between one person opening theirs and the next. */
 export const UMBRELLA = { open: 0.5, stagger: 0.35, first: 0.3 } as const;
 
-export type PedestrianPose = 'walk' | 'chat' | 'umbrella' | 'run' | 'shelter' | 'phone';
+export type PedestrianPose = 'walk' | 'chat' | 'umbrella' | 'run' | 'shelter' | 'phone' | 'lookup' | 'fold' | 'shake';
+
+/** The wet weather people react to: rain (false), a storm (true) or hail ('hail'). */
+export type Downpour = boolean | 'hail';
+
+/** How long people stop and look up when the first drops fall, before they run (umbrella carriers wait until they open theirs). */
+export const LOOK_UP = 0.5;
+
+/** After the rain: lowering and furling the umbrella, then shaking the water off it, in seconds. */
+export const FOLD = { lower: 0.6, shake: 0.7 } as const;
+
+/** The rain that has just stopped: how long ago, how long it lasted, and what it was. */
+export interface AfterRain {
+  since: number;
+  lasted: number;
+  was: Downpour;
+}
 
 export interface Pedestrian {
   /** Stable per person: shirt colour, lane, pace and whether they carry an umbrella. */
@@ -172,19 +213,24 @@ const strollX = (p: Pedestrian, t: number, pace: number): number => wrap(PAVEMEN
 export const umbrellaDelay = (p: Pedestrian): number => UMBRELLA.first + (PEDESTRIANS.indexOf(p) % 6) * UMBRELLA.stagger;
 
 /**
- * Where person `p` is at `t` seconds, and what they are doing.
+ * Where person `p` is at `t` seconds, and what they are doing: a small state machine driven by how long the weather has
+ * been wet, or how long ago it dried up.
  *
- *   Dry      a relaxed stroll along their lane; the two pairs stand and talk at their spot (facing each other).
- *   Rain     umbrella carriers open their umbrellas one after another and walk on, a little faster; everyone else sprints to
- *            their spot under the entrance overhang and waits there, facing the street.
- *   Storm    no one stays out: the umbrella carriers and the chatting pairs run for the bus stop and wait there on their
- *            phones, calling a taxi; the rest sprint for the overhang.
+ *   Dry        a relaxed stroll along their lane; the two pairs stand and talk at their spot (facing each other).
+ *   Rain       everyone stops and looks up; umbrella carriers then raise an arm and open their umbrellas one after another
+ *              and walk on, a little faster; everyone else sprints to their spot under the entrance overhang and waits there.
+ *   Storm      no one stays out: the umbrella carriers and the chatting pairs run for the bus stop and wait there on their
+ *              phones, calling a taxi; the rest sprint for the overhang.
+ *   Hail       everyone, umbrella or not, ducks under the overhang.
+ *   After      (`after`, once it dries up) umbrella carriers lower and furl their umbrellas, shake the water off and walk
+ *              on; the sheltering step back out to their lane (the pairs to their spot) and carry on.
  *
- * `rainFor` is how long it has been raining (seconds), or null when dry.
+ * `rainFor` is how long it has been wet (seconds), or null when dry.
  */
-export function pedestrianAt(p: Pedestrian, t: number, rainFor: number | null, storm = false): PedestrianState {
+export function pedestrianAt(p: Pedestrian, t: number, rainFor: number | null, storm: Downpour = false, after: AfterRain | null = null): PedestrianState {
   const laneZ = PAVEMENT.lanes[p.lane];
   const along = p.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+  if (rainFor === null && after) return afterRainAt(p, t, after);
   if (rainFor === null) {
     if (p.chatX !== null) {
       // The pair face each other, the first of them to the right.
@@ -193,19 +239,50 @@ export function pedestrianAt(p: Pedestrian, t: number, rainFor: number | null, s
     }
     return { x: strollX(p, t, p.pace), z: laneZ, heading: along, pose: 'walk', speed: p.pace, umbrella: 0 };
   }
-  if (p.umbrella && p.chatX === null && !storm) {
-    const opened = umbrellaDelay(p) + UMBRELLA.open;
-    const open = Math.max(0, Math.min(1, (rainFor - umbrellaDelay(p)) / UMBRELLA.open));
-    // Until it is open they keep their dry pace; from then on they walk a little faster under it.
-    const x = rainFor < opened ? strollX(p, t, p.pace) : wrap(strollX(p, t - rainFor + opened, p.pace) + p.dir * WALK.umbrella * (rainFor - opened));
-    return { x, z: laneZ, heading: along, pose: open > 0 ? 'umbrella' : 'walk', speed: rainFor < opened ? p.pace : WALK.umbrella, umbrella: open };
+  const hail = storm === 'hail';
+  const caught: [number, number] = p.chatX !== null ? [p.chatX, laneZ] : [strollX(p, t - rainFor, p.pace), laneZ];
+  if (p.umbrella && p.chatX === null && storm === false) {
+    const delay = umbrellaDelay(p);
+    // They stop where the first drops caught them and look up; then the arm goes up and the umbrella opens as they set off
+    // again at their own pace, and once it is open they walk on a little faster under it.
+    if (rainFor < delay) return { x: caught[0], z: laneZ, heading: along, pose: 'lookup', speed: 0, umbrella: 0 };
+    const open = Math.min(1, (rainFor - delay) / UMBRELLA.open);
+    const x = open < 1 ? caught[0] + p.dir * p.pace * (rainFor - delay) : caught[0] + p.dir * (p.pace * UMBRELLA.open + WALK.umbrella * (rainFor - delay - UMBRELLA.open));
+    return { x: wrap(x), z: laneZ, heading: along, pose: 'umbrella', speed: open < 1 ? p.pace : WALK.umbrella, umbrella: open };
   }
-  // Run from where the weather caught them to their shelter, then wait there.
-  const start: [number, number] = p.chatX !== null ? [p.chatX, laneZ] : [strollX(p, t - rainFor, p.pace), laneZ];
-  const [sx, sz] = shelterSpot(p, storm);
+  // A moment to look up, then run from where the weather caught them to their shelter, and wait there.
+  if (rainFor < LOOK_UP) return { x: caught[0], z: caught[1], heading: along, pose: 'lookup', speed: 0, umbrella: 0 };
+  const start = caught;
+  const [sx, sz] = hail ? overhangSpot(p) : shelterSpot(p, storm === true);
   const dist = Math.hypot(sx - start[0], sz - start[1]);
-  const run = Math.min(1, (rainFor * WALK.sprint) / Math.max(dist, 1e-6));
-  const atBus = storm && stormGoesToBus(p);
+  const run = Math.min(1, ((rainFor - LOOK_UP) * WALK.sprint) / Math.max(dist, 1e-6));
+  const atBus = storm === true && stormGoesToBus(p);
   if (run >= 1) return { x: sx, z: sz, heading: atBus ? Math.PI : 0, pose: atBus ? 'phone' : 'shelter', speed: 0, umbrella: 0 };
   return { x: start[0] + (sx - start[0]) * run, z: start[1] + (sz - start[1]) * run, heading: Math.atan2(sx - start[0], sz - start[1]), pose: 'run', speed: WALK.sprint, umbrella: 0 };
+}
+
+/** Once it dries up: where the person was when it stopped, then folding the umbrella or stepping back out, then on as before. */
+function afterRainAt(p: Pedestrian, t: number, after: AfterRain): PedestrianState {
+  const laneZ = PAVEMENT.lanes[p.lane];
+  const along = p.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+  const s = after.since;
+  const at = pedestrianAt(p, t - s, after.lasted, after.was);
+  if (at.umbrella > 0) {
+    // Lower and furl it while slowing to a stop, shake the water off, then stroll on.
+    const slow = WALK.relaxed[0] * 0.5;
+    if (s < FOLD.lower) return { x: wrap(at.x + p.dir * slow * s), z: laneZ, heading: along, pose: 'fold', speed: slow, umbrella: at.umbrella * (1 - s / FOLD.lower) };
+    const stop = wrap(at.x + p.dir * slow * FOLD.lower);
+    if (s < FOLD.lower + FOLD.shake) return { x: stop, z: laneZ, heading: along, pose: 'shake', speed: 0, umbrella: 0 };
+    return { x: wrap(stop + p.dir * p.pace * (s - FOLD.lower - FOLD.shake)), z: laneZ, heading: along, pose: 'walk', speed: p.pace, umbrella: 0 };
+  }
+  // Step back out from the shelter (or from wherever the run had got to) to their lane, or the pair to their spot.
+  const target: [number, number] = p.chatX !== null ? [p.chatX, laneZ] : [at.x, laneZ];
+  const dist = Math.hypot(target[0] - at.x, target[1] - at.z);
+  const back = dist / WALK.relaxed[1];
+  if (s < back) {
+    const k = s / back;
+    return { x: at.x + (target[0] - at.x) * k, z: at.z + (target[1] - at.z) * k, heading: Math.atan2(target[0] - at.x, target[1] - at.z), pose: 'walk', speed: WALK.relaxed[1], umbrella: 0 };
+  }
+  if (p.chatX !== null) return { x: p.chatX, z: laneZ, heading: p.index % 2 === 0 ? Math.PI / 2 : -Math.PI / 2, pose: 'chat', speed: 0, umbrella: 0 };
+  return { x: wrap(target[0] + p.dir * p.pace * (s - back)), z: laneZ, heading: along, pose: 'walk', speed: p.pace, umbrella: 0 };
 }

@@ -33,7 +33,11 @@ describe('the structured lesson view', () => {
     expect(expert).toContain('RC 62 Restricted Card');
     expect(expert).toContain('DR 1110 / CR 2110');
     const toggle = renderToStaticMarkup(createElement(ViewLevelToggle));
-    expect(toggle).toContain('Beginner View');
-    expect(toggle).toContain('Expert View');
+    // The shared 💡 Standard | </> Expert switch, the same as the Living Bank header's.
+    expect(toggle).toContain('💡');
+    expect(toggle).toContain('Standard');
+    expect(toggle).toContain('&lt;/&gt;');
+    expect(toggle).toContain('Expert');
+    expect(toggle).toContain('data-testid="view-level-expert"');
   });
 });

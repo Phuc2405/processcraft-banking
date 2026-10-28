@@ -17,7 +17,7 @@ import { Street } from './Street';
 import { atmosphereAt, CLEAR, sameMix } from './atmosphere';
 import { Environment3D } from './Environment3D';
 import { liveMix, weatherStore } from './weather';
-import { badgeFocus, LANE_DIM, litLanes, PULSE, pulseDistance } from './focus3d';
+import { badgeFocus, badgeOpacity, dashLane, litLanes, PULSE, pulseDistance, type BadgeFocus } from './focus3d';
 import { pathLength, pointAlongPath } from './tour3d';
 import type { V2 } from './layout3d';
 import { ribbonGeometry, roundedRect, roundedRectPath, shade, tint } from './kit';
@@ -46,7 +46,7 @@ import {
   viewGround,
 } from './layout3d';
 import { tape } from './materials';
-import { laneHex, SET } from './palette';
+import { LANE_STYLE, laneKind, SET } from './palette';
 import { Arrivals, Packets } from './Traffic';
 import { TOUR_DAYLIGHT, TOUR_GLIDE_MS, type CamFocus } from './tour3d';
 import { TourStage, useTourCamera } from './TourStage';
@@ -536,21 +536,42 @@ const Rug = memo(function Rug({ id }: { id: DepartmentId }) {
 });
 
 /**
- * A lane painted on the floor along every wire of the 2D map, with rounded corners: the same path the packets fly. Pointing at
- * a desk lights its own lanes (a guided scenario lights its route) in their own 2D colours (blue approved, amber end of day,
- * purple OTP, red decline): a brightened stripe over a soft additive halo, the floor's stand-in for an emissive glow, with
- * pulses of light running along them, while every other lane fades to LANE_DIM, as the 2D map does.
+ * A lane painted on the floor along every wire of the 2D map, with rounded corners: the same path the packets fly, and the
+ * same line type (red dashed declines, purple dotted OTP, solid blue and amber). Pointing at a desk lights its own lanes (a
+ * sub-process lights its route) in the 2D Map Legend's own colours: a bright stripe over a soft additive halo, the floor's
+ * stand-in for an emissive glow, with pulses of light running along them, while every other lane fades to LANE_DIM.
  */
 const Lanes = memo(function Lanes() {
-  const geometry = useMemo(() => ribbonGeometry(LANES.map((l) => ({ points: smoothLane(l.points, 0.55, 5), color: laneHex(l.to, l.from) })), 0.11, 0.026), []);
+  const geometry = useMemo(
+    () =>
+      ribbonGeometry(
+        LANES.flatMap((l) => {
+          const style = LANE_STYLE[laneKind(l.to, l.from)];
+          return dashLane(smoothLane(l.points, 0.55, 5), style.dash).map((points) => ({ points, color: style.tape }));
+        }),
+        0.11,
+        0.026,
+      ),
+    [],
+  );
   const hover = useBankStore((s) => (s.spotlight ? null : s.hoverPlace));
   const flow = useBankStore((s) => (s.spotlight ? null : activeFlowOf(s)));
   const { lanes: lit, dim } = useMemo(() => litLanes(hover, flow), [hover, flow]);
-  const litLanes3d = useMemo(() => LANES.filter((l) => lit.has(l.id)).map((l) => ({ points: smoothLane(l.points, 0.55, 5), color: laneHex(l.to, l.from) })), [lit]);
+  const litLanes3d = useMemo(
+    () =>
+      LANES.filter((l) => lit.has(l.id)).map((l) => {
+        const style = LANE_STYLE[laneKind(l.to, l.from)];
+        return { points: smoothLane(l.points, 0.55, 5), color: style.glow, dash: style.dash };
+      }),
+    [lit],
+  );
   const paths = useMemo(() => litLanes3d.map((l) => l.points), [litLanes3d]);
   const colors = useMemo(() => litLanes3d.map((l) => l.color), [litLanes3d]);
-  // The stripe is the lane's own colour, brightened toward white so it reads as lit; the halo glows in the same colour.
-  const stripe = useMemo(() => (paths.length ? ribbonGeometry(litLanes3d.map((l) => ({ points: l.points, color: glowHex(l.color) })), 0.2, 0.034) : null), [litLanes3d, paths]);
+  // The stripe is the legend colour, dashed or dotted like the 2D wire; the halo glows in the same colour, unbroken.
+  const stripe = useMemo(
+    () => (paths.length ? ribbonGeometry(litLanes3d.flatMap((l) => dashLane(l.points, l.dash).map((points) => ({ points, color: glowHex(l.color) }))), 0.2, 0.034) : null),
+    [litLanes3d, paths],
+  );
   const halo = useMemo(() => (paths.length ? ribbonGeometry(litLanes3d, 0.62, 0.03) : null), [litLanes3d, paths]);
   const material = useMemo(() => {
     const m = tape.clone();
@@ -599,8 +620,8 @@ function pulseTexture(): CanvasTexture {
   return pulseTex;
 }
 
-/** A lane colour pushed toward white: how a lit lane's stripe and pulses glow. */
-const glowHex = (c: string): string => `#${new Color(c).lerp(new Color('#ffffff'), 0.35).getHexString()}`;
+/** A legend colour pushed a little toward white: how a lit lane's stripe and pulses glow. */
+const glowHex = (c: string): string => `#${new Color(c).lerp(new Color('#ffffff'), 0.2).getHexString()}`;
 
 /** Glowing pulses running along the lit lanes, PULSE.perLane to a lane, each in its lane's colour, looping: the flow of a payment made visible. */
 function LanePulses({ paths, colors }: { paths: readonly (readonly V2[])[]; colors: readonly string[] }) {
@@ -684,10 +705,10 @@ function useBadge(text: string, lit: boolean): { material: SpriteMaterial; aspec
 /** The world height of a lane badge. */
 const BADGE_H = 0.34;
 
-function LaneBadge({ text, at, focus }: { text: string; at: readonly [number, number]; focus: 'lit' | 'dim' | 'plain' }) {
+function LaneBadge({ text, at, focus }: { text: string; at: readonly [number, number]; focus: BadgeFocus }) {
   const lit = focus === 'lit';
   const { material, aspect } = useBadge(text, lit);
-  material.opacity = focus === 'dim' ? LANE_DIM : 1;
+  material.opacity = badgeOpacity(focus);
   // A lit badge is drawn a touch larger and over everything else on the floor.
   const h = BADGE_H * (lit ? 1.05 : 1);
   return <sprite material={material} position={[at[0], lit ? 0.36 : 0.32, at[1]]} scale={[h * aspect, h, 1]} renderOrder={lit ? 9 : 6} />;
@@ -695,16 +716,18 @@ function LaneBadge({ text, at, focus }: { text: string; at: readonly [number, nu
 
 /**
  * The conditions on the lanes, in the active language: the same words, and the same rules, as the 2D map (laneLabelShown).
- * Pointing at a desk lights its own lanes' badges bright yellow and fades every other badge in the bank (badgeFocus).
+ * Pointing at a desk lights its own lanes' badges bright yellow and fades every other badge in the bank; a sub-process keeps
+ * its own badges in full and lets every other one all but disappear (badgeFocus).
  */
 const LaneLabels = memo(function LaneLabels() {
   useLocale();
-  const hover = useBankStore((s) => (s.spotlight || activeFlowOf(s) ? null : s.hoverPlace));
+  const flow = useBankStore((s) => (s.spotlight ? null : activeFlowOf(s)));
+  const hover = useBankStore((s) => (s.spotlight ? null : s.hoverPlace));
   const always = useBankStore((s) => s.labelMode === 'always' && s.spotlight === null);
   return (
     <group name="office-lane-labels">
-      {LANE_LABELS.filter((l) => hover !== null || laneLabelShown(l, hover, always)).map((l) => (
-        <LaneBadge key={l.id} text={t(l.text)} at={l.at} focus={badgeFocus(l, hover)} />
+      {LANE_LABELS.filter((l) => hover !== null || flow !== null || laneLabelShown(l, hover, always)).map((l) => (
+        <LaneBadge key={l.id} text={t(l.text)} at={l.at} focus={badgeFocus(l, hover, flow)} />
       ))}
     </group>
   );

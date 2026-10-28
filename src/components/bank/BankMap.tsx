@@ -777,8 +777,9 @@ function BankMapView() {
             {focus && <SpotlightToken focus={focus} />}
             <SearchGlow />
           </div>
-          <SpotlightOverlay />
         </div>
+        {/* Outside the panned, zoomed stage: the briefing card is never transformed, so its words stay crisp. */}
+        <SpotlightOverlay />
         {/* Top-right, left of the zoom toolbar and the inspector, under the viewport dock's inset. */}
         {!focus && <MapLegend top={inset + 12} right={rightInset + 12} />}
       </div>

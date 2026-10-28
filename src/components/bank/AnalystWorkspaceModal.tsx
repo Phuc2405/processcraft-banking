@@ -78,7 +78,7 @@ import { useLocale, useMessages, type Locale, type Translate } from '../../utils
 import { analystWorkspaceMessages, PERSONAS, type AnalystWorkspaceKey } from './analystWorkspace.messages';
 import { InfoTip } from './InfoTip';
 import { LanguageToggle } from '../shell/LanguageToggle';
-import { SegmentedToggle, ViewModeToggle } from '../shell/SegmentedToggle';
+import { DepthToggle, SegmentedToggle, ViewModeToggle } from '../shell/SegmentedToggle';
 import { useTerms } from './useTerms';
 import { glossText, useGlossary, type Glossary, type ViewMode } from './codeGlossary';
 
@@ -186,18 +186,8 @@ function ModeToggle({ mode, onChange, m }: { mode: WorkspaceMode; onChange: (mod
   return (
     <div className="flex items-center gap-2">
       <span className="hidden text-[12px] font-semibold uppercase tracking-wider text-slate-500 sm:inline">{m('modeLabel')}</span>
-      <SegmentedToggle<WorkspaceMode>
-        label={m('modeLabel')}
-        value={mode}
-        onChange={onChange}
-        testId="workspace-mode"
-        stateKey="mode"
-        title={m(mode === 'standard' ? 'modeStandardHint' : 'modeExpertHint')}
-        options={[
-          { value: 'standard', label: m('modeStandard'), tone: 'sky' },
-          { value: 'expert', label: m('modeExpert'), tone: 'violet' },
-        ]}
-      />
+      {/* The same Standard / Expert switch as the Living Bank header and the guided tour. */}
+      <DepthToggle value={mode} onChange={onChange} testId="workspace-mode" stateKey="mode" />
     </div>
   );
 }
@@ -1974,9 +1964,9 @@ export function ComboBadge({ combo, m }: { combo: number; m: M }) {
 
 export function SopViolationPulse({ m }: { m: M }) {
   return (
-    <div className="pointer-events-none absolute inset-0 z-[25] grid place-items-start justify-center rounded-2xl ring-4 ring-inset ring-rose-500/80" data-testid="workspace-sop-violation">
+    <div className="pointer-events-none absolute inset-0 z-[25] grid place-items-start justify-start rounded-2xl ring-4 ring-inset ring-rose-500/80" data-testid="workspace-sop-violation">
       <div className="absolute inset-0 animate-pulse rounded-2xl bg-rose-600/20" aria-hidden="true" />
-      <div role="alert" className="relative mt-16 rounded-xl border-2 border-rose-400 bg-rose-950/95 px-5 py-2 text-[17px] font-black tracking-wider text-rose-100 shadow-[0_0_30px_rgba(244,63,94,0.6)]">
+      <div role="alert" className="relative ml-4 mt-4 rounded-xl border-2 border-rose-400 bg-rose-950/95 px-5 py-2 text-[17px] font-black tracking-wider text-rose-100 shadow-[0_0_30px_rgba(244,63,94,0.6)]">
         {m('sopViolation')}
       </div>
     </div>

@@ -7,11 +7,12 @@ import { lessonOf, processShort } from '../../sim/learningVi';
 import { isStation } from '../../sim/topology';
 import { quizzesOf } from '../../sim/walkQuiz';
 import type { StepTone } from '../../sim/walkthrough';
-import { bankStore, useBankStore } from '../../store/bankStore';
+import { bankStore, dataDepthOf, useBankStore } from '../../store/bankStore';
 import { useWalkthroughDock } from '../../hooks/useWalkthroughDock';
 import { useMessages } from '../../utils/i18nHelper';
 import { useSpotlightFocus, type Focus } from '../bank/useSpotlight';
 import { useTerms } from '../bank/useTerms';
+import { DepthToggle } from '../shell/SegmentedToggle';
 import { ScenarioPicker } from './ScenarioPicker';
 import { walkMessages } from './walkthrough.messages';
 
@@ -44,6 +45,13 @@ function Section({ title, children, testId }: { title: string; children: ReactNo
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+/** The tour bar's terminology switch, over the same store setting as the Living Bank header. */
+function WalkDepth() {
+  const depth = useBankStore(dataDepthOf);
+  const setDepth = useBankStore((s) => s.setDataDepth);
+  return <DepthToggle value={depth} onChange={setDepth} testId="walk-depth" />;
+}
+
 // Kickoff
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -66,52 +74,51 @@ export function Kickoff({ focus }: { focus: Focus }) {
   }, [begin]);
 
   return (
-    <div className="absolute inset-0 z-40 grid place-items-center p-6" data-testid="walk-kickoff">
-      <div className="absolute inset-0 bg-[#050810]/80" onClick={exit} aria-hidden="true" />
-      <div role="dialog" aria-modal="true" aria-label={`${ui.tour}: ${lesson.title}`} className="relative w-full select-text max-w-[560px] rounded-2xl border bg-[#0b1120] p-5 shadow-2xl" style={{ borderColor: focus.accent, boxShadow: `0 0 0 1px ${focus.accent}55, 0 0 48px ${focus.accent}33` }}>
-        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: focus.accent }}>
-          <span className="grid h-5 w-5 place-items-center rounded text-[11px] font-black text-slate-950" style={{ background: focus.accent }}>
-            {lesson.chapter}
-          </span>
+    // A workspace-size card, drawn flat: no transform or scale anywhere on it or its parents (the map mounts it outside its
+    // panned, zoomed stage), so the words render on whole pixels, crisp.
+    <div className="absolute inset-0 z-40 grid place-items-center overflow-y-auto p-6 antialiased" data-testid="walk-kickoff">
+      <div className="absolute inset-0 bg-[#050810]/85" onClick={exit} aria-hidden="true" />
+      <div role="dialog" aria-modal="true" aria-label={`${ui.tour}: ${lesson.title}`} className="relative w-full max-w-3xl select-text rounded-2xl border bg-[#0b1120] p-8 shadow-2xl" style={{ borderColor: focus.accent, boxShadow: `0 0 0 1px ${focus.accent}55, 0 0 48px ${focus.accent}33` }}>
+        <span className="inline-flex items-center gap-2 rounded-full border border-lime-500/30 bg-lime-950/60 px-3 py-1 text-xs font-bold uppercase tracking-widest text-lime-400" data-testid="walk-chapter-tag">
           {ui.tour} · {ui.chapter} {lesson.chapter}
-        </div>
-        <h2 className="mt-1.5 text-[19px] font-bold leading-tight text-slate-50">{terms.t(scene.chapter)}</h2>
-        <p className="mt-2.5 text-[13.5px] leading-relaxed text-slate-200">{terms.t(scene.scene)}</p>
+        </span>
+        <h2 className="mt-3 text-[26px] font-bold leading-tight tracking-tight text-white">{terms.t(scene.chapter)}</h2>
+        <p className="mt-3 text-base leading-relaxed text-slate-200">{terms.t(scene.scene)}</p>
 
         {example && (
-          <div className="mt-3 rounded-lg border border-slate-700 bg-slate-900/70 p-3">
+          <div className="mt-5 rounded-xl border border-slate-700/80 bg-slate-900/90 p-5">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">{ui.thisRun}</span>
+              <span className="text-xs font-bold uppercase tracking-widest text-slate-300">{ui.thisRun}</span>
               <ScenarioPicker lessonId={lesson.id} examples={lesson.examples} value={focus.tour.exampleId} onChange={setExample} accent={focus.accent} placement="down" testId="walk-example" />
             </div>
-            <p className="mt-1.5 text-[12.5px] leading-relaxed text-slate-300">{terms.t(example.story)}</p>
-            <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+            <p className="mt-2 text-[15px] leading-relaxed text-slate-200">{terms.t(example.story)}</p>
+            <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5">
               {focus.plan.walk.carries.map((f) => (
-                <div key={f.label} className="text-[11.5px]">
-                  <dt className="inline text-slate-500">{factLabel(f.label)}: </dt>
-                  <dd className="inline font-medium tabular-nums text-slate-200">{factValue(f.value)}</dd>
+                <div key={f.label} className="text-[13.5px]">
+                  <dt className="inline text-slate-400">{factLabel(f.label)}: </dt>
+                  <dd className="inline font-semibold tabular-nums text-slate-50">{factValue(f.value)}</dd>
                 </div>
               ))}
             </dl>
           </div>
         )}
 
-        <div className="mt-3">
-          <div className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">{ui.lookFor}</div>
-          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[12.5px] leading-snug text-slate-300">
+        <div className="mt-4 rounded-xl border border-slate-700/80 bg-slate-900/90 p-5">
+          <div className="text-xs font-bold uppercase tracking-widest text-slate-300">{ui.lookFor}</div>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-[15px] leading-relaxed text-slate-200">
             {scene.lookFor.map((l) => (
               <li key={l}>{terms.t(l)}</li>
             ))}
           </ul>
         </div>
 
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <p className="max-w-[300px] text-[11.5px] leading-snug text-slate-500">{ui.startHint}</p>
+        <div className="mt-6 flex items-center justify-between gap-4">
+          <p className="max-w-[380px] text-[13px] leading-snug text-slate-400">{ui.startHint}</p>
           <div className="flex shrink-0 gap-2">
-            <button type="button" onClick={exit} className="whitespace-nowrap rounded-lg px-3 py-2 text-[12.5px] font-medium text-slate-300 ring-1 ring-slate-700 transition hover:bg-slate-800">
+            <button type="button" onClick={exit} className="whitespace-nowrap rounded-lg px-4 py-2.5 text-[14px] font-medium text-slate-200 ring-1 ring-slate-700 transition hover:bg-slate-800">
               {ui.exit}
             </button>
-            <button type="button" onClick={begin} data-testid="walk-start" className="whitespace-nowrap rounded-lg px-4 py-2 text-[13px] font-bold text-slate-950 transition hover:brightness-110" style={{ background: focus.accent }}>
+            <button type="button" onClick={begin} data-testid="walk-start" className="whitespace-nowrap rounded-lg px-5 py-2.5 text-[14px] font-bold text-slate-950 transition hover:brightness-110" style={{ background: focus.accent }}>
               {ui.start} ▶
             </button>
           </div>
@@ -378,6 +385,8 @@ export function GuidedBar() {
         </div>
 
         <div className="flex min-w-0 flex-1 basis-0 items-center justify-end gap-2">
+          {/* The same Standard / Expert switch as the header and the workspace: the tour's words follow it. */}
+          <WalkDepth />
           <button type="button" onClick={() => openHub(tour.process)} data-testid="walk-rule-lab" className="whitespace-nowrap rounded-lg px-2.5 py-2 text-[12px] font-medium text-slate-200 ring-1 ring-slate-700 transition hover:bg-slate-800">
             {ui.ruleLab}
           </button>

@@ -5,7 +5,8 @@ import { extrasFor, type KeyTerm } from '../../sim/lessonExtras';
 import { plainText, rcLabel } from '../../sim/plainLanguage';
 import type { TermMode } from '../../sim/terms';
 import { useAcademyStore } from '../../store/academyStore';
-import { useBankStore } from '../../store/bankStore';
+import { dataDepthOf, useBankStore } from '../../store/bankStore';
+import { DepthToggle } from '../shell/SegmentedToggle';
 import { termsFor } from '../bank/useTerms';
 import { MessageInspector, SimulateButton } from './AcademyStudy';
 
@@ -259,32 +260,9 @@ export function LessonView({ level: raw, roomy = false, viewLevel }: { level: Ac
   );
 }
 
-/** [🟢 Beginner View | 🔴 Expert View]: the same switch as the Living Bank's vocabulary (bankStore.termMode). */
+/** [💡 Standard | </> Expert]: the shared DepthToggle over the Living Bank's vocabulary (bankStore.termMode). */
 export function ViewLevelToggle() {
-  const mode = useBankStore((s) => s.termMode);
-  const setMode = useBankStore((s) => s.setTermMode);
-  const options = [
-    { id: 'beginner', icon: '🟢', label: tr({ en: 'Beginner View', vi: 'Chế độ người mới' }), title: tr({ en: 'Plain English: no GL numbers or response codes', vi: 'Ngôn ngữ dễ hiểu: không có số tài khoản sổ cái hay mã phản hồi' }) },
-    { id: 'expert', icon: '🔴', label: tr({ en: 'Expert View', vi: 'Chế độ chuyên gia' }), title: tr({ en: 'GL codes, ISO 8583 response codes and scheme jargon', vi: 'Mã sổ cái, mã phản hồi ISO 8583 và thuật ngữ tổ chức thẻ' }) },
-  ] as const;
-  return (
-    <div className="flex rounded-lg bg-slate-900 p-0.5 ring-1 ring-slate-800" role="group" aria-label={tr({ en: 'View level', vi: 'Mức hiển thị' })}>
-      {options.map((o) => (
-        <button
-          key={o.id}
-          type="button"
-          onClick={() => setMode(o.id)}
-          aria-pressed={mode === o.id}
-          title={o.title}
-          data-testid={`view-level-${o.id}`}
-          className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-[11.5px] font-semibold transition ${mode === o.id ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-slate-100'}`}
-        >
-          <span aria-hidden="true" className="text-[9px]">
-            {o.icon}
-          </span>
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
+  const depth = useBankStore(dataDepthOf);
+  const setDepth = useBankStore((s) => s.setDataDepth);
+  return <DepthToggle value={depth} onChange={setDepth} testId="view-level" />;
 }
