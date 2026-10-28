@@ -12,8 +12,11 @@ import { pathLength, pointAlongPath } from './tour3d';
 // Focus: a pointed-at desk, or a guided scenario
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** How strongly the rest of the office fades: to 20% round a pointed-at desk, to 25% outside a guided scenario. */
-export const DIM = { hover: 0.2, flow: 0.25 } as const;
+/** How strongly the rest of the office fades: to 20% round a pointed-at desk, and outside a guided scenario. */
+export const DIM = { hover: 0.2, flow: 0.2 } as const;
+
+/** How far the unrelated lanes and their condition badges fade when a desk is pointed at. */
+export const LANE_DIM = 0.15;
 
 /** The places one lane away from `place`, and the place itself. */
 export function neighbours(place: PlaceId): ReadonlySet<PlaceId> {
@@ -34,10 +37,17 @@ export function deskFocus(place: PlaceId, hover: PlaceId | null, flow: FlowId | 
 
 /** The lanes lit now: the pointed-at desk's own, else the guided scenario's; and how much the others fade. */
 export function litLanes(hover: PlaceId | null, flow: FlowId | null): { lanes: ReadonlySet<string>; dim: number } {
-  if (hover) return { lanes: new Set(LANES.filter((l) => l.from === hover || l.to === hover).map((l) => l.id)), dim: DIM.hover };
+  if (hover) return { lanes: new Set(LANES.filter((l) => l.from === hover || l.to === hover).map((l) => l.id)), dim: LANE_DIM };
   if (flow) return { lanes: flowScope(flow).wires, dim: DIM.flow };
   return { lanes: new Set(), dim: 1 };
 }
+
+/**
+ * How a lane's condition badge shows while a desk is pointed at: its own lanes' badges bright yellow ('lit'), every other
+ * badge faded to LANE_DIM ('dim'); with nothing pointed at, as usual ('plain').
+ */
+export const badgeFocus = (l: { from: PlaceId; to: PlaceId }, hover: PlaceId | null): 'lit' | 'dim' | 'plain' =>
+  hover === null ? 'plain' : l.from === hover || l.to === hover ? 'lit' : 'dim';
 
 /** Light pulses on a lit lane: how many ride it at once, and how fast (world units a second). */
 export const PULSE = { perLane: 2, speed: 3.2 } as const;

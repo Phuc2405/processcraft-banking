@@ -9,8 +9,9 @@
  *   Afternoon   15:30  a deep golden-amber sun, low in the west, for long raking light
  *   Night       20:00  deep navy sky, the sun gone, street lamps, lit windows and bright desk lights
  *
- * The weather is a blend of four moods over clear sky (WeatherMix): harsh sun, overcast, rain and storm. The scene eases the
- * blend towards the one the learner picks over two seconds, so the change is gradual: a drizzle thickens into rain.
+ * The weather is a blend of moods over clear sky (WeatherMix): harsh sun, overcast, rain, storm, a golden low sun, snow, fog,
+ * falling leaves and blossom. The scene eases the blend towards the one picked over two seconds, so the change is gradual: a
+ * drizzle thickens into rain.
  */
 
 export type DayPart = 'morning' | 'noon' | 'afternoon' | 'night';
@@ -21,20 +22,43 @@ export interface WeatherMix {
   overcast: number;
   rain: number;
   storm: number;
+  /** A low, deep-amber sun whatever the hour: the golden hour. */
+  golden: number;
+  snow: number;
+  /** Thick ground fog. */
+  fog: number;
+  /** Autumn leaves and spring blossom drifting on the wind. */
+  leaves: number;
+  petals: number;
 }
 
-export const CLEAR: WeatherMix = { harsh: 0, overcast: 0, rain: 0, storm: 0 };
+export const MOODS = ['harsh', 'overcast', 'rain', 'storm', 'golden', 'snow', 'fog', 'leaves', 'petals'] as const satisfies readonly (keyof WeatherMix)[];
 
-export type Weather = 'clear' | 'harsh' | 'overcast' | 'rain' | 'storm';
-export const WEATHERS: readonly Weather[] = ['clear', 'harsh', 'overcast', 'rain', 'storm'];
+export const CLEAR: WeatherMix = { harsh: 0, overcast: 0, rain: 0, storm: 0, golden: 0, snow: 0, fog: 0, leaves: 0, petals: 0 };
 
-/** The blend a weather pick aims for. A storm is rain too, and overcast. */
+export type Weather = 'clear' | 'golden' | 'hot' | 'rain' | 'storm' | 'snow' | 'fog' | 'autumn' | 'spring';
+export const WEATHERS: readonly Weather[] = ['clear', 'golden', 'hot', 'rain', 'storm', 'snow', 'fog', 'autumn', 'spring'];
+
+const moods = (m: Partial<WeatherMix>): WeatherMix => ({ ...CLEAR, ...m });
+
+/** The blend a weather pick aims for. A storm is rain too, and overcast; snow and fog come under a grey sky. */
 export const WEATHER_MIX: Readonly<Record<Weather, WeatherMix>> = {
   clear: CLEAR,
-  harsh: { harsh: 1, overcast: 0, rain: 0, storm: 0 },
-  overcast: { harsh: 0, overcast: 1, rain: 0, storm: 0 },
-  rain: { harsh: 0, overcast: 0.6, rain: 1, storm: 0 },
-  storm: { harsh: 0, overcast: 1, rain: 1, storm: 1 },
+  golden: moods({ golden: 1 }),
+  hot: moods({ harsh: 1 }),
+  rain: moods({ overcast: 0.6, rain: 1 }),
+  storm: moods({ overcast: 1, rain: 1, storm: 1 }),
+  snow: moods({ overcast: 0.7, snow: 1 }),
+  fog: moods({ overcast: 0.4, fog: 1 }),
+  autumn: moods({ golden: 0.3, leaves: 1 }),
+  spring: moods({ petals: 1 }),
+};
+
+/** In random mode, how often the weather moves on (seconds of real time), and the next weather: never the same twice running. */
+export const RANDOM_EVERY_S = 150;
+export const nextRandomWeather = (now: Weather, r: number): Weather => {
+  const others = WEATHERS.filter((w) => w !== now);
+  return others[Math.min(others.length - 1, Math.floor(Math.max(0, r) * others.length))]!;
 };
 
 /** How long the sky takes to move from one weather to the next, in seconds. */
@@ -44,13 +68,19 @@ export const WEATHER_BLEND_S = 2;
 export function stepMix(from: WeatherMix, to: WeatherMix, dt: number): WeatherMix {
   const k = Math.max(0, dt) / WEATHER_BLEND_S;
   const step = (a: number, b: number): number => (Math.abs(b - a) <= k ? b : a + Math.sign(b - a) * k);
-  return { harsh: step(from.harsh, to.harsh), overcast: step(from.overcast, to.overcast), rain: step(from.rain, to.rain), storm: step(from.storm, to.storm) };
+  const out = { ...from };
+  for (const m of MOODS) out[m] = step(from[m], to[m]);
+  return out;
 }
 
-export const sameMix = (a: WeatherMix, b: WeatherMix): boolean => a.harsh === b.harsh && a.overcast === b.overcast && a.rain === b.rain && a.storm === b.storm;
+export const sameMix = (a: WeatherMix, b: WeatherMix): boolean => MOODS.every((m) => a[m] === b[m]);
 
-/** How hard the wind blows, 0 (still) to about 2 (storm): it sways the trees and slants the rain. */
-export const windOf = (w: WeatherMix): number => Math.max(0.1, 0.3 - 0.15 * w.harsh + 0.35 * w.overcast + 0.45 * w.rain + 1.3 * w.storm);
+/** How hard the wind blows, 0 (still) to about 2 (storm): it sways the trees, slants the rain and carries the leaves. */
+export const windOf = (w: WeatherMix): number =>
+  Math.max(0.1, 0.3 - 0.15 * w.harsh + 0.35 * w.overcast + 0.45 * w.rain + 1.3 * w.storm + 0.55 * w.leaves + 0.2 * w.petals + 0.25 * w.snow - 0.2 * w.fog);
+
+/** Wind strong enough to see: the streaks blowing across the scene, 0-1. */
+export const gustOf = (w: WeatherMix): number => Math.max(0, Math.min(1, (windOf(w) - 0.7) / 1.2));
 
 /** How much rain falls, 0-1 (the share of the drops drawn). */
 export const rainOf = (w: WeatherMix): number => Math.min(1, w.rain);
@@ -72,6 +102,8 @@ export interface Atmosphere {
   windows: number;
   /** Dust and pollen floating in sunlight, 0-1. */
   motes: number;
+  /** How white the ground is with settled snow, 0-1. */
+  snowCover: number;
 }
 
 interface Key {
@@ -118,9 +150,12 @@ const desaturate = (c: string, k: number): string => {
   return toHex([r + (l - r) * k, g + (l - g) * k, b + (l - b) * k]);
 };
 
-/** The storm's slate grey, mixed into the sky. */
+/** The storm's slate grey, mixed into the sky; the pale sky of snow and fog. */
 const STORM_GREY = '#39414e';
 const RAIN_GREY = '#7d8794';
+const SNOW_SKY = '#dfe5ec';
+const FOG_SKY = '#d5dadf';
+const GOLD = '#e67e22';
 
 /** The atmosphere at `minute` (minutes since midnight) under `weather` (a blend, or `true` for full rain). */
 export function atmosphereAt(minute: number, weather: WeatherMix | boolean = CLEAR): Atmosphere {
@@ -140,28 +175,38 @@ export function atmosphereAt(minute: number, weather: WeatherMix | boolean = CLE
     let out = mixHex(c, deep, 0.25 * w.harsh * daylight);
     out = desaturate(out, 0.75 * w.overcast);
     out = mixHex(out, RAIN_GREY, (night ? 0.2 : 0.45) * w.rain);
+    out = mixHex(out, SNOW_SKY, (night ? 0.15 : 0.55) * w.snow);
+    out = mixHex(out, FOG_SKY, (night ? 0.2 : 0.7) * w.fog);
     return mixHex(out, STORM_GREY, (night ? 0.35 : 0.65) * w.storm);
   };
   const top = mixHex(a.skyTop, b.skyTop, t);
-  const horizon = mixHex(a.skyHorizon, b.skyHorizon, t);
+  // The golden hour warms the horizon to amber and the top of the sky to a dusky blue.
+  const horizon = mixHex(mixHex(a.skyHorizon, b.skyHorizon, t), GOLD, 0.75 * w.golden * daylight);
+  const topSky = mixHex(top, '#4d5d96', 0.45 * w.golden * daylight);
 
   const sunBase = lerp(a.sun, b.sun, t);
-  const sunIntensity = sunBase * (1 + 0.45 * w.harsh * daylight) * (1 - 0.6 * w.overcast) * (1 - 0.25 * w.rain) * (1 - 0.4 * w.storm);
-  const sunColor = mixHex(desaturate(mixHex(a.sunColor, b.sunColor, t), 0.6 * w.overcast), '#fffbe6', 0.5 * w.harsh * (part === 'afternoon' ? 0.3 : 1));
+  const sunIntensity = sunBase * (1 + 0.45 * w.harsh * daylight) * (1 - 0.6 * w.overcast) * (1 - 0.25 * w.rain) * (1 - 0.4 * w.storm) * (1 - 0.35 * w.fog);
+  const sunColor = mixHex(
+    mixHex(desaturate(mixHex(a.sunColor, b.sunColor, t), 0.6 * w.overcast), '#fffbe6', 0.5 * w.harsh * (part === 'afternoon' ? 0.3 : 1)),
+    GOLD,
+    w.golden * daylight,
+  );
   // Harsh sun lowers the bounce for contrast; overcast raises it for soft, shadowless light.
   const hemiIntensity = lerp(a.hemi, b.hemi, t) * (1 - 0.3 * w.harsh * daylight) * (1 + 0.2 * w.overcast * daylight) * (1 - 0.3 * w.storm);
-  const haze = 8 * w.overcast + 10 * w.rain + 12 * w.storm;
-  const dir = a.sunDir.map((v, k) => lerp(v, b.sunDir[k]!, t)) as unknown as readonly [number, number, number];
+  const haze = 8 * w.overcast + 10 * w.rain + 12 * w.storm + 6 * w.snow + 34 * w.fog;
+  // The golden hour drops the sun low in the west, so the light rakes long across the floor.
+  const dir = a.sunDir.map((v, k) => lerp(lerp(v, b.sunDir[k]!, t), ([30, 8, 12] as const)[k]!, w.golden * daylight)) as unknown as readonly [number, number, number];
   return {
     part,
-    skyTop: sky(top, '#2f7fd4'),
+    skyTop: sky(topSky, '#2f7fd4'),
     skyHorizon: sky(horizon, '#dbe9f7'),
     sun: { intensity: sunIntensity, color: sunColor, dir },
     hemi: { intensity: hemiIntensity, sky: desaturate(mixHex(a.hemiSky, b.hemiSky, t), 0.5 * w.overcast), ground: mixHex(a.hemiGround, b.hemiGround, t) },
     fog: { near: lerp(a.fogNear, b.fogNear, t) - haze * 0.4, far: lerp(a.fogFar, b.fogFar, t) - haze, color: sky(horizon, '#dbe9f7') },
-    mist: Math.min(1, lerp(a.mist, b.mist, t) + 0.2 * w.rain + 0.15 * w.overcast),
-    lamps: Math.min(1, lerp(a.lamps, b.lamps, t) + 0.35 * w.rain * daylight + 0.5 * w.storm * daylight),
-    windows: Math.min(1, lerp(a.windows, b.windows, t) + 0.5 * w.storm * daylight),
-    motes: part === 'night' ? 0 : Math.max(0, (part === 'morning' ? 0.6 : 1) * (1 + 0.5 * w.harsh) - w.overcast - w.rain) / 1.5,
+    mist: Math.min(1, lerp(a.mist, b.mist, t) + 0.2 * w.rain + 0.15 * w.overcast + w.fog),
+    lamps: Math.min(1, lerp(a.lamps, b.lamps, t) + 0.35 * w.rain * daylight + 0.5 * w.storm * daylight + 0.4 * w.fog * daylight + 0.3 * w.golden * daylight),
+    windows: Math.min(1, lerp(a.windows, b.windows, t) + 0.5 * w.storm * daylight + 0.3 * w.golden * daylight),
+    motes: part === 'night' ? 0 : Math.max(0, (part === 'morning' ? 0.6 : 1) * (1 + 0.5 * w.harsh + 0.3 * w.golden) - w.overcast - w.rain - w.fog - w.snow) / 1.5,
+    snowCover: w.snow,
   };
 }

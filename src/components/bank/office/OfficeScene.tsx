@@ -4,7 +4,7 @@ import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef } from 'react';
 import { t } from '../../../i18n/t';
 import { useLocale } from '../../../i18n/locale';
-import { AdditiveBlending, CanvasTexture, ExtrudeGeometry, MeshBasicMaterial, MOUSE, Path, RepeatWrapping, ShapeGeometry, SpriteMaterial, SRGBColorSpace, TOUCH, Vector3, type AmbientLight, type DirectionalLight, type Group, type HemisphereLight } from 'three';
+import { AdditiveBlending, CanvasTexture, Color, ExtrudeGeometry, MeshBasicMaterial, MOUSE, Path, RepeatWrapping, ShapeGeometry, SpriteMaterial, SRGBColorSpace, TOUCH, Vector3, type AmbientLight, type DirectionalLight, type Group, type HemisphereLight } from 'three';
 import { DEPARTMENTS, STATION_IDS, type DepartmentId } from '../../../sim/topology';
 import { prefersReducedMotion } from '../../canvas/timing';
 import { activeFlowOf, bankStore, useBankStore } from '../../../store/bankStore';
@@ -17,10 +17,9 @@ import { Street } from './Street';
 import { atmosphereAt, CLEAR, sameMix } from './atmosphere';
 import { Environment3D } from './Environment3D';
 import { liveMix, weatherStore } from './weather';
-import { litLanes, PULSE, pulseDistance } from './focus3d';
+import { badgeFocus, LANE_DIM, litLanes, PULSE, pulseDistance } from './focus3d';
 import { pathLength, pointAlongPath } from './tour3d';
 import type { V2 } from './layout3d';
-import { GUIDED_FLOWS } from '../../../sim/guidedFlows';
 import { ribbonGeometry, roundedRect, roundedRectPath, shade, tint } from './kit';
 import {
   CAMERA_DIRECTION,
@@ -538,24 +537,27 @@ const Rug = memo(function Rug({ id }: { id: DepartmentId }) {
 
 /**
  * A lane painted on the floor along every wire of the 2D map, with rounded corners: the same path the packets fly. Pointing at
- * a desk lights its own lanes (a guided scenario lights its route): a bright stripe over a soft additive halo, with pulses of
- * light running along them, while every other lane fades, as the 2D map does.
+ * a desk lights its own lanes (a guided scenario lights its route) in their own 2D colours (blue approved, amber end of day,
+ * purple OTP, red decline): a brightened stripe over a soft additive halo, the floor's stand-in for an emissive glow, with
+ * pulses of light running along them, while every other lane fades to LANE_DIM, as the 2D map does.
  */
 const Lanes = memo(function Lanes() {
   const geometry = useMemo(() => ribbonGeometry(LANES.map((l) => ({ points: smoothLane(l.points, 0.55, 5), color: laneHex(l.to, l.from) })), 0.11, 0.026), []);
   const hover = useBankStore((s) => (s.spotlight ? null : s.hoverPlace));
   const flow = useBankStore((s) => (s.spotlight ? null : activeFlowOf(s)));
   const { lanes: lit, dim } = useMemo(() => litLanes(hover, flow), [hover, flow]);
-  const accent = !hover && flow ? GUIDED_FLOWS[flow].accent : '#fde047';
-  const paths = useMemo(() => LANES.filter((l) => lit.has(l.id)).map((l) => smoothLane(l.points, 0.55, 5)), [lit]);
-  const stripe = useMemo(() => (paths.length ? ribbonGeometry(paths.map((points) => ({ points, color: accent })), 0.2, 0.034) : null), [paths, accent]);
-  const halo = useMemo(() => (paths.length ? ribbonGeometry(paths.map((points) => ({ points, color: accent })), 0.62, 0.03) : null), [paths, accent]);
+  const litLanes3d = useMemo(() => LANES.filter((l) => lit.has(l.id)).map((l) => ({ points: smoothLane(l.points, 0.55, 5), color: laneHex(l.to, l.from) })), [lit]);
+  const paths = useMemo(() => litLanes3d.map((l) => l.points), [litLanes3d]);
+  const colors = useMemo(() => litLanes3d.map((l) => l.color), [litLanes3d]);
+  // The stripe is the lane's own colour, brightened toward white so it reads as lit; the halo glows in the same colour.
+  const stripe = useMemo(() => (paths.length ? ribbonGeometry(litLanes3d.map((l) => ({ points: l.points, color: glowHex(l.color) })), 0.2, 0.034) : null), [litLanes3d, paths]);
+  const halo = useMemo(() => (paths.length ? ribbonGeometry(litLanes3d, 0.62, 0.03) : null), [litLanes3d, paths]);
   const material = useMemo(() => {
     const m = tape.clone();
     m.transparent = true;
     return m;
   }, []);
-  const haloMaterial = useMemo(() => new MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.32, depthWrite: false, blending: AdditiveBlending, toneMapped: false }), []);
+  const haloMaterial = useMemo(() => new MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.45, depthWrite: false, blending: AdditiveBlending, toneMapped: false }), []);
   useEffect(() => () => geometry.dispose(), [geometry]);
   useEffect(() => () => stripe?.dispose(), [stripe]);
   useEffect(() => () => halo?.dispose(), [halo]);
@@ -572,7 +574,7 @@ const Lanes = memo(function Lanes() {
       <mesh geometry={geometry} material={material} renderOrder={1} name="office-lanes" />
       {halo && <mesh geometry={halo} material={haloMaterial} renderOrder={2} name="office-lanes-halo" />}
       {stripe && <mesh geometry={stripe} material={tape} renderOrder={2} name="office-lanes-lit" />}
-      {paths.length > 0 && <LanePulses paths={paths} color={accent} />}
+      {paths.length > 0 && <LanePulses paths={paths} colors={colors} />}
     </>
   );
 });
@@ -597,11 +599,18 @@ function pulseTexture(): CanvasTexture {
   return pulseTex;
 }
 
-/** Glowing pulses running along the lit lanes, PULSE.perLane to a lane, looping: the flow of a payment made visible. */
-function LanePulses({ paths, color }: { paths: readonly (readonly V2[])[]; color: string }) {
+/** A lane colour pushed toward white: how a lit lane's stripe and pulses glow. */
+const glowHex = (c: string): string => `#${new Color(c).lerp(new Color('#ffffff'), 0.35).getHexString()}`;
+
+/** Glowing pulses running along the lit lanes, PULSE.perLane to a lane, each in its lane's colour, looping: the flow of a payment made visible. */
+function LanePulses({ paths, colors }: { paths: readonly (readonly V2[])[]; colors: readonly string[] }) {
   const lengths = useMemo(() => paths.map(pathLength), [paths]);
-  const material = useMemo(() => new SpriteMaterial({ map: pulseTexture(), color, transparent: true, depthWrite: false, blending: AdditiveBlending, toneMapped: false }), [color]);
-  useEffect(() => () => material.dispose(), [material]);
+  const materials = useMemo(() => {
+    const byColor = new Map<string, SpriteMaterial>();
+    for (const c of colors) if (!byColor.has(c)) byColor.set(c, new SpriteMaterial({ map: pulseTexture(), color: glowHex(c), transparent: true, depthWrite: false, blending: AdditiveBlending, toneMapped: false }));
+    return byColor;
+  }, [colors]);
+  useEffect(() => () => materials.forEach((m) => m.dispose()), [materials]);
   const group = useRef<Group>(null);
   const clock = useRef(0);
   useFrame((_, dt) => {
@@ -618,16 +627,23 @@ function LanePulses({ paths, color }: { paths: readonly (readonly V2[])[]; color
   });
   return (
     <group ref={group} name="office-lane-pulses">
-      {paths.flatMap((_, i) => Array.from({ length: PULSE.perLane }, (__, k) => <sprite key={`${i}-${k}`} material={material} scale={[0.42, 0.42, 1]} renderOrder={7} />))}
+      {paths.flatMap((_, i) => Array.from({ length: PULSE.perLane }, (__, k) => <sprite key={`${i}-${k}`} material={materials.get(colors[i]!)} scale={[0.46, 0.46, 1]} renderOrder={7} />))}
     </group>
   );
 }
 
-/** A lane's words as a crisp dark badge: drawn once per text on a canvas, at four times the size it shows. */
-function useBadge(text: string): { material: SpriteMaterial; aspect: number } {
+/** The badge looks: plain dark, or lit bright amber with dark bold words (the desk pointed at is on this lane). */
+const BADGE_LOOK = {
+  plain: { fill: '#0b1120', stroke: '#475569', ink: '#e2e8f0', weight: 600 },
+  lit: { fill: '#fbbf24', stroke: '#fcd34d', ink: '#020617', weight: 700 },
+} as const;
+
+/** A lane's words as a crisp badge: drawn once per text and look on a canvas, at four times the size it shows. */
+function useBadge(text: string, lit: boolean): { material: SpriteMaterial; aspect: number } {
   const made = useMemo(() => {
     const PX = 4;
-    const font = `600 ${9 * PX}px ui-sans-serif, system-ui, sans-serif`;
+    const look = BADGE_LOOK[lit ? 'lit' : 'plain'];
+    const font = `${look.weight} ${9 * PX}px ui-sans-serif, system-ui, sans-serif`;
     const probe = document.createElement('canvas').getContext('2d');
     if (probe) probe.font = font;
     const w = Math.ceil((probe?.measureText(text).width ?? text.length * 5.4 * PX) + 16 * PX);
@@ -637,15 +653,15 @@ function useBadge(text: string): { material: SpriteMaterial; aspect: number } {
     c.height = h;
     const g = c.getContext('2d');
     if (g) {
-      g.fillStyle = '#0b1120';
-      g.strokeStyle = '#475569';
+      g.fillStyle = look.fill;
+      g.strokeStyle = look.stroke;
       g.lineWidth = PX;
       g.beginPath();
       g.roundRect(PX / 2, PX / 2, w - PX, h - PX, 4 * PX);
       g.fill();
       g.stroke();
       g.font = font;
-      g.fillStyle = '#e2e8f0';
+      g.fillStyle = look.ink;
       g.textAlign = 'center';
       g.textBaseline = 'middle';
       g.fillText(text, w / 2, h / 2 + PX / 2);
@@ -654,7 +670,7 @@ function useBadge(text: string): { material: SpriteMaterial; aspect: number } {
     map.colorSpace = SRGBColorSpace;
     map.anisotropy = 4;
     return { material: new SpriteMaterial({ map, transparent: true, depthWrite: false, toneMapped: false }), aspect: w / h };
-  }, [text]);
+  }, [text, lit]);
   useEffect(
     () => () => {
       made.material.map?.dispose();
@@ -668,20 +684,27 @@ function useBadge(text: string): { material: SpriteMaterial; aspect: number } {
 /** The world height of a lane badge. */
 const BADGE_H = 0.34;
 
-function LaneBadge({ text, at }: { text: string; at: readonly [number, number] }) {
-  const { material, aspect } = useBadge(text);
-  return <sprite material={material} position={[at[0], 0.32, at[1]]} scale={[BADGE_H * aspect, BADGE_H, 1]} renderOrder={6} />;
+function LaneBadge({ text, at, focus }: { text: string; at: readonly [number, number]; focus: 'lit' | 'dim' | 'plain' }) {
+  const lit = focus === 'lit';
+  const { material, aspect } = useBadge(text, lit);
+  material.opacity = focus === 'dim' ? LANE_DIM : 1;
+  // A lit badge is drawn a touch larger and over everything else on the floor.
+  const h = BADGE_H * (lit ? 1.05 : 1);
+  return <sprite material={material} position={[at[0], lit ? 0.36 : 0.32, at[1]]} scale={[h * aspect, h, 1]} renderOrder={lit ? 9 : 6} />;
 }
 
-/** The conditions on the lanes, in the active language: the same words, and the same rules, as the 2D map (laneLabelShown). */
+/**
+ * The conditions on the lanes, in the active language: the same words, and the same rules, as the 2D map (laneLabelShown).
+ * Pointing at a desk lights its own lanes' badges bright yellow and fades every other badge in the bank (badgeFocus).
+ */
 const LaneLabels = memo(function LaneLabels() {
   useLocale();
   const hover = useBankStore((s) => (s.spotlight || activeFlowOf(s) ? null : s.hoverPlace));
   const always = useBankStore((s) => s.labelMode === 'always' && s.spotlight === null);
   return (
     <group name="office-lane-labels">
-      {LANE_LABELS.filter((l) => laneLabelShown(l, hover, always)).map((l) => (
-        <LaneBadge key={l.id} text={t(l.text)} at={l.at} />
+      {LANE_LABELS.filter((l) => hover !== null || laneLabelShown(l, hover, always)).map((l) => (
+        <LaneBadge key={l.id} text={t(l.text)} at={l.at} focus={badgeFocus(l, hover)} />
       ))}
     </group>
   );

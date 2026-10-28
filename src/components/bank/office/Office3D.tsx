@@ -1,15 +1,14 @@
 import { t } from '../../../i18n/t';
 import { Canvas } from '@react-three/fiber';
-import { Component, memo, useCallback, useState, type ErrorInfo, type ReactNode } from 'react';
+import { Component, memo, useCallback, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
 import { useAcademyStore } from '../../../store/academyStore';
 import { activeFlowOf, useBankStore } from '../../../store/bankStore';
 import { OfficeScene } from './OfficeScene';
 import { TourLayer3D } from './TourLayer3D';
 import { CAMERA_DIRECTION, CAMERA_DISTANCE } from './layout3d';
-import { atmosphereAt, WEATHERS, type DayPart, type Weather } from './atmosphere';
-import { useWeather, weatherStore } from './weather';
+import { atmosphereAt, nextRandomWeather, RANDOM_EVERY_S, WEATHERS, type DayPart } from './atmosphere';
+import { useWeather, weatherStore, type WeatherChoice } from './weather';
 import { skyFlash } from './Environment3D';
-import { SegmentedToggle } from '../../shell/SegmentedToggle';
 import { MapLegend } from '../MapLegend';
 import { useDockInset } from '../ViewportControls';
 
@@ -33,32 +32,124 @@ function SkyBackdrop() {
 }
 
 const DAY_PART_LABEL: Record<DayPart, string> = { morning: '☀️ Morning', noon: '🌞 Noon', afternoon: '🌇 Afternoon', night: '🌙 Night' };
-const WEATHER_LABEL: Record<Weather, string> = { clear: '🌤️ Clear', harsh: '🔆 Harsh sun', overcast: '☁️ Overcast', rain: '🌧️ Rain', storm: '⛈️ Storm' };
-const WEATHER_HINT: Record<Weather, string> = {
-  clear: 'Clear sky and a light breeze: people stroll and stop to chat',
-  harsh: 'Hard, bright sun with strong contrast and dust in the air',
-  overcast: 'A grey, gloomy sky and soft, shadowless light',
-  rain: 'Rain: people open umbrellas one by one or run for the shelters, and the street turns wet',
-  storm: 'A storm: dark clouds, lightning, heavy rain and trees bending in the wind; people crowd the bus stop calling taxis',
+export const WEATHER_LABEL: Record<WeatherChoice, string> = {
+  random: '🎲 Random weather (auto-switch)',
+  clear: '☀️ Clear / Sunny',
+  golden: '🌅 Golden hour sunset',
+  hot: '🔥 Hot & dry',
+  rain: '🌧️ Rain & drizzle',
+  storm: '🌩️ Heavy storm & lightning',
+  snow: '❄️ Snow & cold frost',
+  fog: '🌫️ Early morning fog',
+  autumn: '🍂 Autumn & falling leaves',
+  spring: '🌸 Spring & blossom drift',
+};
+export const WEATHER_HINT: Record<WeatherChoice, string> = {
+  random: 'Moves on to another weather every few minutes, blending over two seconds',
+  clear: 'Clear sky and a light breeze: people stroll and stop to chat, pollen floats in the sun',
+  golden: 'A low, deep-amber sun with long raking light, whatever the hour',
+  hot: 'Hard, bright sun with strong contrast: T-shirts and sunglasses',
+  rain: 'Rain: people raise their umbrellas one by one or run for the shelters in raincoats, and the street turns wet',
+  storm: 'A storm: lightning, heavy slanting rain, wind streaks and trees bending; people crowd the bus stop calling taxis',
+  snow: 'Falling snow settling on the ground: coats, scarves and beanies',
+  fog: 'Thick ground fog over the street and the city, the lamps on',
+  autumn: 'A gusty day with brown and orange leaves blowing across the street',
+  spring: 'Pink and white blossom petals fluttering on the breeze',
 };
 
-/** The time of day and the weather picker, beside the other 3D controls. The sky eases to a new weather over two seconds. */
+/** In random mode, moves the weather on: once on arrival, then every RANDOM_EVERY_S. A manual pick stops it. */
+function RandomWeather() {
+  const random = useWeather((s) => s.choice === 'random');
+  useEffect(() => {
+    if (!random) return;
+    const next = (): void => {
+      const s = weatherStore.getState();
+      s.setWeather(nextRandomWeather(s.weather, Math.random()));
+    };
+    next();
+    const timer = window.setInterval(next, RANDOM_EVERY_S * 1000);
+    return () => window.clearInterval(timer);
+  }, [random]);
+  return null;
+}
+
+const CHOICES: readonly WeatherChoice[] = ['random', ...WEATHERS];
+
+/**
+ * The weather dropdown: random (the default) or one of the nine weathers. In random mode the button also names the weather
+ * now. The sky eases to a new weather over two seconds.
+ */
+function WeatherMenu() {
+  const choice = useWeather((s) => s.choice);
+  const weather = useWeather((s) => s.weather);
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent): void => {
+      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('pointerdown', away);
+    window.addEventListener('keydown', esc);
+    return () => {
+      window.removeEventListener('pointerdown', away);
+      window.removeEventListener('keydown', esc);
+    };
+  }, [open]);
+  const shown = choice === 'random' ? `🎲 ${t('Random')} · ${t(WEATHER_LABEL[weather])}` : t(WEATHER_LABEL[choice]);
+  return (
+    <div ref={box} className="relative" data-testid="office-weather" data-weather={weather} data-choice={choice}>
+      <button
+        type="button"
+        className="flex w-[260px] items-center justify-between gap-2 rounded-lg border border-white bg-white/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-700 shadow-md hover:bg-white"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title={t(WEATHER_HINT[choice])}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="truncate">
+          <span className="text-slate-500">{t('Weather')}:</span> {shown}
+        </span>
+        <span aria-hidden="true" className="text-slate-400">
+          ▾
+        </span>
+      </button>
+      {open && (
+        <ul role="listbox" aria-label={t('Weather')} className="absolute right-0 top-full z-50 mt-1 w-[300px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
+          {CHOICES.map((c) => (
+            <li key={c} role="option" aria-selected={c === choice}>
+              <button
+                type="button"
+                className={`block w-full px-3 py-1.5 text-left ${c === choice ? 'bg-sky-50 text-sky-800' : 'text-slate-700 hover:bg-slate-50'} ${c === 'random' ? 'border-b border-slate-100' : ''}`}
+                onClick={() => {
+                  weatherStore.getState().choose(c);
+                  setOpen(false);
+                }}
+              >
+                <span className="block text-[12px] font-semibold">{t(WEATHER_LABEL[c])}</span>
+                <span className="block text-[10.5px] leading-snug text-slate-500">{t(WEATHER_HINT[c])}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** The time of day and the weather dropdown, beside the other 3D controls. */
 function WeatherControls() {
   const part = useBankStore((s) => atmosphereAt(s.view.minute).part);
-  const weather = useWeather((s) => s.weather);
   return (
     <div className="flex items-center gap-1.5">
+      <RandomWeather />
       <span className="rounded-lg border border-white bg-white/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-700 shadow-md" data-testid="office-daypart" data-part={part}>
         {t(DAY_PART_LABEL[part])}
       </span>
-      <SegmentedToggle<Weather>
-        label={t('Weather')}
-        value={weather}
-        onChange={(w) => weatherStore.getState().setWeather(w)}
-        testId="office-weather"
-        stateKey="weather"
-        options={WEATHERS.map((w) => ({ value: w, label: t(WEATHER_LABEL[w]), hint: t(WEATHER_HINT[w]), tone: w === 'storm' ? 'violet' : 'sky' }))}
-      />
+      <WeatherMenu />
     </div>
   );
 }

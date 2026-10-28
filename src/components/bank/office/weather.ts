@@ -9,17 +9,25 @@ import { KERB_Z, STREET } from './layout3d';
  * through a shower.
  */
 
+/** What the learner picked: one weather, or random (the default), which moves on to another every RANDOM_EVERY_S. */
+export type WeatherChoice = 'random' | Weather;
+
 interface WeatherState {
-  /** The weather picked. */
+  choice: WeatherChoice;
+  /** The weather now: the pick, or random mode's current one. */
   weather: Weather;
-  /** The blend the sky has reached (eased towards the pick by WeatherDriver), refreshed a few times a second for the page. */
+  /** The blend the sky has reached (eased towards the weather by WeatherDriver), refreshed a few times a second for the page. */
   mix: WeatherMix;
+  /** Pick a weather, or random mode (which moves on from the weather now). */
+  choose(choice: WeatherChoice): void;
   setWeather(weather: Weather): void;
 }
 
 export const weatherStore = createStore<WeatherState>()((set) => ({
+  choice: 'random',
   weather: 'clear',
   mix: CLEAR,
+  choose: (choice) => set(choice === 'random' ? { choice } : { choice, weather: choice }),
   setWeather: (weather) => set({ weather }),
 }));
 export const useWeather = <T>(pick: (s: WeatherState) => T): T => useStore(weatherStore, pick);
@@ -29,6 +37,20 @@ export const liveMix: WeatherMix = { ...CLEAR };
 
 /** Whether it is raining now (any rain in the blend), or about to (the pick brings rain). */
 export const isRaining = (): boolean => rainOf(liveMix) > 0.02 || WEATHER_MIX[weatherStore.getState().weather].rain > 0;
+
+/** What people on the pavement wear: coats, scarves and hats in snow; T-shirts and sunglasses in the heat; raincoats in the wet. */
+export type Outfit = 'everyday' | 'summer' | 'winter' | 'rain';
+
+export const outfitOf = (w: Weather): Outfit => (w === 'snow' ? 'winter' : w === 'hot' || w === 'spring' ? 'summer' : w === 'rain' || w === 'storm' ? 'rain' : 'everyday');
+
+const OUTFIT_TONES: Readonly<Record<Exclude<Outfit, 'everyday'>, readonly string[]>> = {
+  summer: ['#fde68a', '#f9a8d4', '#a7f3d0', '#bae6fd', '#fecaca', '#ffffff'],
+  winter: ['#374151', '#7f1d1d', '#1e3a8a', '#3f3f46', '#78350f', '#14532d'],
+  rain: ['#facc15', '#1f2937', '#0e7490', '#b45309', '#4d7c0f', '#334155'],
+};
+
+/** The top a person wears in an outfit (`everyday` keeps their own `shirt`). */
+export const outfitShirt = (outfit: Outfit, index: number, shirt: string): string => (outfit === 'everyday' ? shirt : OUTFIT_TONES[outfit][index % OUTFIT_TONES[outfit].length]!);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shelters

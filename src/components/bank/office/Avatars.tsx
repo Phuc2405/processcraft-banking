@@ -310,6 +310,9 @@ function walkerRig(index: number, shirt: string): WalkerRig {
   return rig;
 }
 
+/** What a passer-by has on over their clothes, for the weather: a beanie and scarf, sunglasses, or a raincoat hood. */
+export type Wear = 'none' | 'winter' | 'summer' | 'rain';
+
 interface CustomerProps {
   index: number;
   shirt: string;
@@ -317,17 +320,68 @@ interface CustomerProps {
   phase?: number;
   walking?: boolean;
   scale?: number;
+  wear?: Wear;
+  /** How far the right arm is raised overhead (holding an umbrella), 0-1, read every frame. */
+  raise?: { current: number };
+}
+
+const WEAR_TONES = ['#b91c1c', '#1d4ed8', '#047857', '#7c2d12', '#6d28d9', '#be185d'];
+
+/** The weather's extras on a figure, in the figure's own units (its head sits at about 1.21). */
+function Wearables({ wear, index }: { wear: Wear; index: number }) {
+  if (wear === 'none') return null;
+  const tone = WEAR_TONES[index % WEAR_TONES.length]!;
+  if (wear === 'summer')
+    return (
+      <mesh position={[0, 1.235, 0.205]}>
+        <boxGeometry args={[0.3, 0.06, 0.03]} />
+        <meshStandardMaterial color="#0f172a" roughness={0.2} metalness={0.4} />
+      </mesh>
+    );
+  if (wear === 'rain')
+    return (
+      <mesh position={[0, 1.27, -0.04]}>
+        <sphereGeometry args={[0.25, 10, 8, 0, Math.PI * 2, 0, Math.PI / 1.8]} />
+        <meshStandardMaterial color="#facc15" roughness={0.45} />
+      </mesh>
+    );
+  return (
+    <group>
+      <mesh position={[0, 1.36, -0.01]}>
+        <sphereGeometry args={[0.235, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        <meshStandardMaterial color={tone} roughness={0.9} />
+      </mesh>
+      <mesh position={[0, 1.6, -0.01]}>
+        <sphereGeometry args={[0.06, 8, 6]} />
+        <meshStandardMaterial color="#f8fafc" roughness={0.9} />
+      </mesh>
+      <mesh position={[0, 1.06, 0]}>
+        <boxGeometry args={[0.32, 0.1, 0.3]} />
+        <meshStandardMaterial color={tone} roughness={0.9} />
+      </mesh>
+      <mesh position={[0.1, 0.92, 0.14]}>
+        <boxGeometry args={[0.08, 0.22, 0.04]} />
+        <meshStandardMaterial color={tone} roughness={0.9} />
+      </mesh>
+    </group>
+  );
 }
 
 /**
  * A customer. Smaller than the staff so a queue reads as a crowd at the front of a counter. Standing, they shift their
  * weight; walking, their legs and arms swing and they bob along.
  */
-export const CustomerFigure = memo(function CustomerFigure({ index, shirt, phase = 0, walking = false, scale = 0.72 }: CustomerProps) {
-  return walking ? <Walker index={index} shirt={shirt} phase={phase} scale={scale} /> : <Stander index={index} shirt={shirt} phase={phase} scale={scale} />;
+export const CustomerFigure = memo(function CustomerFigure({ index, shirt, phase = 0, walking = false, scale = 0.72, wear = 'none', raise }: CustomerProps) {
+  return walking ? (
+    <Walker index={index} shirt={shirt} phase={phase} scale={scale} wear={wear} raise={raise} />
+  ) : (
+    <Stander index={index} shirt={shirt} phase={phase} scale={scale} wear={wear} />
+  );
 });
 
-function Stander({ index, shirt, phase, scale }: Required<Omit<CustomerProps, 'walking'>>) {
+type FigureProps = Required<Omit<CustomerProps, 'walking' | 'raise'>> & { raise?: { current: number } };
+
+function Stander({ index, shirt, phase, scale, wear }: Omit<FigureProps, 'raise'>) {
   const geometry = useMemo(() => standerGeometry(index, shirt), [index, shirt]);
   const root = useRef<Group>(null);
   useFrame(({ clock }) => {
@@ -340,12 +394,13 @@ function Stander({ index, shirt, phase, scale }: Required<Omit<CustomerProps, 'w
     <group scale={scale}>
       <group ref={root}>
         <mesh geometry={geometry} material={solid} castShadow />
+        <Wearables wear={wear} index={index} />
       </group>
     </group>
   );
 }
 
-function Walker({ index, shirt, phase, scale }: Required<Omit<CustomerProps, 'walking'>>) {
+function Walker({ index, shirt, phase, scale, wear, raise }: FigureProps) {
   const rig = useMemo(() => walkerRig(index, shirt), [index, shirt]);
   const root = useRef<Group>(null);
   const legL = useRef<Group>(null);
@@ -359,7 +414,9 @@ function Walker({ index, shirt, phase, scale }: Required<Omit<CustomerProps, 'wa
     if (legL.current) legL.current.rotation.x = swing * 0.7;
     if (legR.current) legR.current.rotation.x = -swing * 0.7;
     if (armL.current) armL.current.rotation.x = -swing * 0.55;
-    if (armR.current) armR.current.rotation.x = swing * 0.55;
+    // An umbrella held up: the right arm rises from its swing to straight up and a little forward.
+    const up = raise?.current ?? 0;
+    if (armR.current) armR.current.rotation.x = swing * 0.55 * (1 - up) - 2.7 * up;
   });
   return (
     <group scale={scale}>
@@ -377,6 +434,7 @@ function Walker({ index, shirt, phase, scale }: Required<Omit<CustomerProps, 'wa
         <group ref={armR} position={[0.27, 0.95, 0]}>
           <mesh geometry={rig.arm} material={solid} castShadow />
         </group>
+        <Wearables wear={wear} index={index} />
       </group>
     </group>
   );
