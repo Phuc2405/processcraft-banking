@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { accountsOn, CORE_LEDGER_ARTICLE, GL_SIDES, INTERMEDIATE_ACCOUNTS, INTERMEDIATE_ROLE, isIntermediate, SIDE_RULE, SIDE_TITLE, type ArticleFlow } from '../../data/knowledgeBase';
+import { accountsOn, CORE_LEDGER_ARTICLE, GL_SIDES, glUsage, INTERMEDIATE_ACCOUNTS, INTERMEDIATE_ROLE, isIntermediate, SIDE_RULE, SIDE_TITLE, type ArticleFlow } from '../../data/knowledgeBase';
 import { pick, useLocale, type Locale } from '../../i18n/locale';
 import { GL_CODE, type GlAccount } from '../../sim/staffRoleplay';
 import { uiStore, useUiStore } from '../../store/uiStore';
@@ -11,6 +11,35 @@ import { knowledgeBaseMessages } from './knowledgeBase.messages';
 
 /** The formal account name the ledger sheet uses ("Nostro accounts (correspondents)"). */
 const glName = (gl: GlAccount, locale: Locale): string => message(analystWorkspaceMessages, `gl_${gl}` as AnalystWorkspaceKey, undefined, locale);
+
+export type GlossaryView = 'basic' | 'advanced';
+
+/** A scene id from glUsage() in words: the drill or retail scenario's title, or the crisis queue. */
+const sceneTitle = (scene: string, locale: Locale): string =>
+  scene === 'crisis' ? message(knowledgeBaseMessages, 'triggerCrisis', undefined, locale) : message(analystWorkspaceMessages, `${scene}_title` as AnalystWorkspaceKey, undefined, locale);
+
+function GlossaryViewToggle({ view, onChange }: { view: GlossaryView; onChange: (view: GlossaryView) => void }) {
+  const m = useMessages(knowledgeBaseMessages);
+  const option = (value: GlossaryView, label: string) => (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={view === value}
+      onClick={() => onChange(value)}
+      title={value === 'advanced' ? m('viewAdvancedHint') : undefined}
+      data-testid={`kb-view-${value}`}
+      className={`whitespace-nowrap rounded-md px-2.5 py-1 text-[11.5px] font-semibold transition ${view === value ? (value === 'advanced' ? 'bg-violet-500 text-white' : 'bg-sky-400 text-slate-950') : 'text-slate-300 hover:bg-slate-800'}`}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div role="radiogroup" aria-label={m('viewLabel')} className="flex w-fit rounded-lg border border-slate-700 bg-slate-900 p-0.5" data-testid="kb-view" data-view={view}>
+      {option('basic', m('viewBasic'))}
+      {option('advanced', m('viewAdvanced'))}
+    </div>
+  );
+}
 
 /** The element id of an anchor inside the article: a section id, `gl-<ID>` or `term-<KEY>`. */
 export const kbAnchorId = (anchor: string): string => `kb-${anchor}`;
@@ -45,9 +74,12 @@ function FlowCard({ flow, locale }: { flow: ArticleFlow; locale: Locale }) {
 }
 
 /** The article body, separate from the window so it renders (and is tested) on its own. */
-export function CoreLedgerArticle({ highlight = null }: { highlight?: string | null }) {
+export function CoreLedgerArticle({ highlight = null, initialView = 'basic' }: { highlight?: string | null; initialView?: GlossaryView }) {
   const m = useMessages(knowledgeBaseMessages);
   const locale = useLocale();
+  const [view, setView] = useState<GlossaryView>(initialView);
+  const advanced = view === 'advanced';
+  const usage = advanced ? glUsage() : null;
   const a = CORE_LEDGER_ARTICLE;
   const lit = (anchor: string): string => (highlight === anchor ? 'ring-2 ring-amber-300/80 rounded-lg' : '');
   const th = 'border-b border-slate-700 px-2 py-1 text-left text-[10.5px] font-semibold uppercase tracking-wider text-slate-400';
@@ -107,17 +139,20 @@ export function CoreLedgerArticle({ highlight = null }: { highlight?: string | n
           )}
 
           {s.id === 'accounts' && (
-            <div className="mt-3 space-y-3">
+            <div className="mt-3 space-y-3" data-view={view}>
+              <GlossaryViewToggle view={view} onChange={setView} />
               {GL_SIDES.map((side) => (
                 <div key={side} className="overflow-x-auto">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{pick(SIDE_TITLE[side], locale)}</div>
-                  <table className="mt-1 w-full min-w-[560px] border-collapse text-[12px]" data-testid={`kb-accounts-${side}`}>
+                  <table className={`mt-1 w-full border-collapse text-[12px] ${advanced ? 'min-w-[980px]' : 'min-w-[560px]'}`} data-testid={`kb-accounts-${side}`}>
                     <thead>
                       <tr>
                         <th className={`${th} w-16`}>{m('colCode')}</th>
                         <th className={th}>{m('colAccount')}</th>
                         <th className={th}>{m('colPlain')}</th>
                         <th className={`${th} w-28`}>{m('colType')}</th>
+                        {advanced && <th className={th}>{m('colTrigger')}</th>}
+                        {advanced && <th className={`${th} w-48`}>{m('colEntry')}</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -135,6 +170,16 @@ export function CoreLedgerArticle({ highlight = null }: { highlight?: string | n
                               <span className="rounded bg-slate-800 px-1.5 text-[10.5px] font-semibold text-slate-300">{m('typeOperational')}</span>
                             )}
                           </td>
+                          {usage && (
+                            <td className={`${td} text-slate-300`} data-col="trigger">
+                              {usage[acc.id].scenes.length ? usage[acc.id].scenes.map((sc) => sceneTitle(sc, locale)).join(' · ') : <span className="italic text-slate-500">{m('triggerOpening')}</span>}
+                            </td>
+                          )}
+                          {usage && (
+                            <td className={`${td} whitespace-nowrap font-mono text-[11.5px] text-emerald-200`} data-col="entry">
+                              {usage[acc.id].entry ?? '—'}
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>

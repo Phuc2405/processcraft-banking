@@ -15,7 +15,7 @@ import { edgeId, WIRES, type DepartmentId, type PlaceId } from '../../sim/topolo
 export const BUILDING = { width: 1080, height: 1180 } as const;
 // 2D stage (Phase 1A compact grid: EOD moved under the outcome column; Phase 8 adds the extended-flows band below it,
 // raised flush under the processing grid once the ATM moved to the top-right).
-export const STAGE = { width: 1320, height: 984 } as const;
+export const STAGE = { width: 1352, height: 1000 } as const;
 
 // Right-side clusters (Flows 3 and 4): `right` px of extra free space so the zoom toolbar never covers them and the camera
 // never parks against the edge. Triggered by an edge within `band` of the stage's right side, or a centre past `centre`.
@@ -150,10 +150,20 @@ export interface RouteSpec {
 
 export const R = (from: Port, to: Port, extra: Partial<RouteSpec> = {}): RouteSpec => ({ from, to, ...extra });
 
-/** How a decline leaves the band from a lane at `y`: the corners after the lane, and the port it enters Declined by. */
-export type DeclineTail = (y: number) => { via: readonly Pt[]; to: Port };
+/**
+ * How a decline leaves the band from a lane at `y`: the corners after the lane, and the port it enters Declined by. `slot`
+ * (0-7) is the wire's own lane on every shared run, so a tail can keep the eight declines apart.
+ */
+export type DeclineTail = (y: number, slot: number) => { via: readonly Pt[]; to: Port };
 
-export function bandRoutes(r1: number, decline: DeclineTail): Record<string, RouteSpec> {
+/**
+ * The band's declines in lane order, top lane first. Row 1 leaves upwards and row 2 downwards; within each row the desk
+ * further right takes the lane nearer its cards. With every later run nested the same way, no decline crosses another.
+ */
+export const DECLINE_SLOT = { GATE_SWIFT: 0, GATE_EKYC: 1, GATE_QR: 2, SEC_FDS: 3, AML_DESK: 4, SEC_FACEPAY: 5, TELLER_CASH: 6, DISPUTE_DESK: 7 } as const;
+
+/** `laneStep`: the gap between the row-1 declines' own lanes above the band (0 keeps them on one lane, as the 3D plan does). */
+export function bandRoutes(r1: number, decline: DeclineTail, laneStep = 0): Record<string, RouteSpec> {
   const r2 = r1 + BAND.rowGap;
   const T = BAND.trunk;
   const LD = r1 - 116;
@@ -164,34 +174,65 @@ export function bandRoutes(r1: number, decline: DeclineTail): Record<string, Rou
   const B1 = r2 + 64;
   const B2 = r2 + 76;
   const B3 = r2 + 88;
-  const out = (fromX: number, lane: number, from: Port): RouteSpec => {
-    const tail = decline(lane);
+  /**
+   * The ledger trunk's own lane and port per wire, when `laneStep` spreads them (the 2D map). A wire that joins the trunk
+   * higher takes the lane nearer the Debit card and enters it lower, so the five green wires climb side by side and never cross.
+   */
+  const lane = (k: number): number => T - (4 - k) * laneStep;
+  const port = (k: number): number => (laneStep ? 18 + (4 - k) * 6 : [40, 20, 30, 40, 40][k]!);
+  /** Teller's approval runs just above the dispute desk's on the ledger lane below row 2. */
+  const B2T = B2 - (laneStep ? 6 : 0);
+  const out = (fromX: number, lane: number, from: Port, slot: number): RouteSpec => {
+    const tail = decline(lane, slot);
     return R(from, tail.to, { via: [[fromX, lane], ...tail.via], quiet: true });
   };
+  /** Row 1's departure lane for a slot: the SWIFT decline highest, the FDS one nearest the cards. */
+  const up = (slot: number): number => LD - (DECLINE_SLOT.SEC_FDS - slot) * laneStep;
+  /** Row 2's departure lane, which is also its floor lane: AML nearest the cards, disputes lowest. */
+  const down = (slot: number): number => B3 + slot * laneStep;
   return {
-    'GATE_EKYC>LEDGER_DEBIT': R(['t', 40], ['r', 40], { via: [[340, LE], [T, LE], [T, 280]], labelAt: [420, LE] }),
+    'GATE_EKYC>LEDGER_DEBIT': R(['t', 40], ['r', port(0)], { via: [[340, LE], [lane(0), LE], [lane(0), 240 + port(0)]], labelAt: [420, LE] }),
     'GATE_EKYC>AML_DESK': R(['b', 40], ['l', -15], { via: [[340, M1], [604, M1], [604, r2 - 15]], labelAt: [470, M1] }),
-    'GATE_EKYC>OUT_DECLINED': out(270, LD, ['t', -30]),
+    'GATE_EKYC>OUT_DECLINED': out(270, up(DECLINE_SLOT.GATE_EKYC), ['t', -30], DECLINE_SLOT.GATE_EKYC),
     'GATE_QR>SEC_FACEPAY': R(['b'], ['t'], { labelAt: [540, r1 + 60] }),
     'GATE_QR>SEC_FDS': R(['r'], ['l'], { quiet: true }),
-    'GATE_QR>OUT_DECLINED': out(500, LD, ['t']),
+    'GATE_QR>OUT_DECLINED': out(500, up(DECLINE_SLOT.GATE_QR), ['t'], DECLINE_SLOT.GATE_QR),
     'GATE_SWIFT>SEC_FACEPAY': R(['r', 20], ['l', -10], { via: [[196, r1 + 20], [196, M2], [410, M2], [410, r2 - 10]], labelAt: [300, M2] }),
     'GATE_SWIFT>SEC_FDS': R(['t', 30], ['t', -10], { via: [[130, LS], [690, LS]], quiet: true }),
-    'GATE_SWIFT>OUT_DECLINED': out(70, LD, ['t', -30]),
+    'GATE_SWIFT>OUT_DECLINED': out(70, up(DECLINE_SLOT.GATE_SWIFT), ['t', -30], DECLINE_SLOT.GATE_SWIFT),
     'SEC_FACEPAY>SEC_FDS': R(['r', 10], ['l', 20], { via: [[596, r2 + 10], [596, r1 + 20]], quiet: true }),
-    'SEC_FACEPAY>OUT_DECLINED': out(500, B3, ['b']),
+    'SEC_FACEPAY>OUT_DECLINED': out(500, down(DECLINE_SLOT.SEC_FACEPAY), ['b'], DECLINE_SLOT.SEC_FACEPAY),
     'SEC_FDS>AML_DESK': R(['b'], ['t'], { labelAt: [740, r1 + 70] }),
-    'SEC_FDS>LEDGER_DEBIT': R(['r'], ['r', 20], { via: [[T, r1], [T, 260]], labelAt: [832, r1] }),
-    'SEC_FDS>OUT_DECLINED': out(730, LD, ['t', 30]),
+    'SEC_FDS>LEDGER_DEBIT': R(['r'], ['r', port(1)], { via: [[lane(1), r1], [lane(1), 240 + port(1)]], labelAt: [832, r1] }),
+    'SEC_FDS>OUT_DECLINED': out(730, up(DECLINE_SLOT.SEC_FDS), ['t', 30], DECLINE_SLOT.SEC_FDS),
     'TELLER_CASH>AML_DESK': R(['b', 30], ['b', -60], { via: [[330, B1], [640, B1]], labelAt: [480, B1] }),
-    'TELLER_CASH>LEDGER_DEBIT': R(['b', -10], ['r', 40], { via: [[290, B2], [T, B2], [T, 280]], quiet: true }),
-    'TELLER_CASH>OUT_DECLINED': out(260, B3, ['b', -40]),
-    'AML_DESK>LEDGER_DEBIT': R(['r'], ['r', 30], { via: [[T, r2], [T, 270]], labelAt: [832, r2] }),
-    'AML_DESK>OUT_DECLINED': out(740, B3, ['b', 40]),
-    'DISPUTE_DESK>LEDGER_DEBIT': R(['b', 20], ['r', 40], { via: [[120, B2], [T, B2], [T, 280]], labelAt: [190, B2] }),
-    'DISPUTE_DESK>OUT_DECLINED': out(80, B3, ['b', -20]),
+    'TELLER_CASH>LEDGER_DEBIT': R(['b', -10], ['r', port(3)], { via: [[290, B2T], [lane(3), B2T], [lane(3), 240 + port(3)]], quiet: true }),
+    'TELLER_CASH>OUT_DECLINED': out(260, down(DECLINE_SLOT.TELLER_CASH), ['b', -40], DECLINE_SLOT.TELLER_CASH),
+    'AML_DESK>LEDGER_DEBIT': R(['r'], ['r', port(2)], { via: [[lane(2), r2], [lane(2), 240 + port(2)]], labelAt: [832, r2] }),
+    'AML_DESK>OUT_DECLINED': out(740, down(DECLINE_SLOT.AML_DESK), ['b', 40], DECLINE_SLOT.AML_DESK),
+    'DISPUTE_DESK>LEDGER_DEBIT': R(['b', 20], ['r', port(4)], { via: [[120, B2], [lane(4), B2], [lane(4), 240 + port(4)]], labelAt: [190, B2] }),
+    'DISPUTE_DESK>OUT_DECLINED': out(80, down(DECLINE_SLOT.DISPUTE_DESK), ['b', -20], DECLINE_SLOT.DISPUTE_DESK),
   };
 }
+
+/** Declined's centre on the 2D map: the entry points are offsets from it. */
+const PLACE_BOX_DECLINED_CX = PLACE_BOX.OUT_DECLINED.cx;
+
+/**
+ * The lanes the 2D map's declines run on, one per wire, `step` apart (2 px strokes, so a clear gap between neighbours).
+ * Slots 0-7 are the band (DECLINE_SLOT); slot -1 is the online (3DS) decline. Nesting rules that keep them from crossing:
+ * the trunk and the floor go outward with the slot, the gutter outward with the slot, and the top lane and the entry point
+ * inward, so each wire turns inside the ones it meets.
+ */
+export const DECLINE_LANES = {
+  step: 4,
+  /** Row 1 drops beside the ledger trunk: FDS (slot 3) nearest it. */
+  trunkX: (slot: number): number => 896 + (DECLINE_SLOT.SEC_FDS - slot) * 4,
+  floorY: (slot: number): number => BAND_FLOOR_2D + slot * 4,
+  gutterX: (slot: number): number => 1312 + slot * 4,
+  topY: (slot: number): number => 60 - slot * 4,
+  entryX: (slot: number): number => 1020 + (7 - slot) * 4,
+} as const;
 
 const ROUTES: Record<string, RouteSpec> = {
   // Virtual cards
@@ -213,9 +254,13 @@ const ROUTES: Record<string, RouteSpec> = {
   'GATE_ECOM>BNPL': R(['r', 14], ['l'], { bendX: 204 }),
   'SEC_3DS>CUSTOMER_OTP': R(['r', -30], ['l', -10], { bendX: 407, quiet: true }),
   'CUSTOMER_OTP>SEC_3DS': R(['l', 10], ['r', -14], { bendX: 396, quiet: true }),
-  'SEC_3DS>LEDGER_DEBIT': R(['r', 4], ['l', 8], { bendX: 652 }),
+  'SEC_3DS>LEDGER_DEBIT': R(['r', 4], ['l', 14], { bendX: 652 }),
   'SEC_3DS>LEDGER_CREDIT': R(['r', 20], ['l', 8], { bendX: 664 }),
-  'SEC_3DS>OUT_DECLINED': R(['b', 50], ['t', 40], { via: [[350, 446], [1305, 446], [1305, 32], [1040, 32]], labelAt: [460, 446] }),
+  // The online decline takes the innermost gutter lane and the lowest top lane, so it nests inside the band's eight declines.
+  'SEC_3DS>OUT_DECLINED': R(['b', 50], ['t', DECLINE_LANES.entryX(-1) - PLACE_BOX_DECLINED_CX], {
+    via: [[350, 446], [DECLINE_LANES.gutterX(-1), 446], [DECLINE_LANES.gutterX(-1), DECLINE_LANES.topY(-1)], [DECLINE_LANES.entryX(-1), DECLINE_LANES.topY(-1)]],
+    labelAt: [460, 446],
+  }),
   // Pay-in-4
   'BNPL>LEDGER_DEBIT': R(['r', -14], ['l', 28], { bendX: 676, labelAt: [520, 528] }),
   'BNPL>LEDGER_CREDIT': R(['r', 6], ['l', 28], { bendX: 684 }),
@@ -238,11 +283,22 @@ const ROUTES: Record<string, RouteSpec> = {
   'ATM_CASH>OUT_DECLINED': R(['l', -30], ['r', 20], { via: [[1080, 324], [1080, 170]], quiet: true }),
   'ATM_CASH>OUT_APPROVED': R(['l', 10], ['r', 10], { quiet: true }),
   'ATM_CASH>SUSPENSE': R(['b', -70], ['t', 40], { via: [[1120, 614], [1040, 614]], quiet: true }),
-  // Phase 8 band: declines drop beside the trunk to the floor lane, run to the right-hand gutter and enter Declined from above.
-  ...bandRoutes(BAND_ROW_2D, (y) => ({
-    via: y < BAND_FLOOR_2D ? [[896, y], [896, BAND_FLOOR_2D], [1305, BAND_FLOOR_2D], [1305, 32], [1040, 32]] : [[1305, y], [1305, 32], [1040, 32]],
-    to: ['t', 40],
-  })),
+  // Phase 8 band: declines drop beside the trunk to the floor lane, run to the right-hand gutter and enter Declined from above,
+  // each on its own lane of every run (DECLINE_LANES), so the red dashed wires never merge into one stroke.
+  ...bandRoutes(
+    BAND_ROW_2D,
+    (y, slot) => {
+      const g = DECLINE_LANES.gutterX(slot);
+      const top = DECLINE_LANES.topY(slot);
+      const floor = y < BAND_FLOOR_2D ? DECLINE_LANES.floorY(slot) : y;
+      const tail: Pt[] = [[g, floor], [g, top], [DECLINE_LANES.entryX(slot), top]];
+      return {
+        via: y < BAND_FLOOR_2D ? [[DECLINE_LANES.trunkX(slot), y], [DECLINE_LANES.trunkX(slot), DECLINE_LANES.floorY(slot)], ...tail] : tail,
+        to: ['t', DECLINE_LANES.entryX(slot) - PLACE_BOX_DECLINED_CX],
+      };
+    },
+    DECLINE_LANES.step,
+  ),
 };
 
 function anchor(b: PlaceBox, [side, d = 0]: Port): Pt {

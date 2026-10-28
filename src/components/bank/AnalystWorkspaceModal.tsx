@@ -1386,8 +1386,8 @@ export function auditCsv(log: readonly AuditEntry[], tm: M): string {
     e.station,
     e.caseId,
     auditActionLabel(e.action, m),
-    e.latencySec.toFixed(1),
-    e.slaSec,
+    e.compliance === 'UNVERIFIED' ? 'N/A' : e.latencySec.toFixed(1),
+    e.compliance === 'UNVERIFIED' ? 'N/A' : e.slaSec,
     ledgerEntryCode(e.lines, m('auditMemo')),
     decimal(e.amountCents),
     e.statusCode,
@@ -1577,12 +1577,12 @@ export function AuditReport({ log, m: tm, issued, view = 'advanced' }: { log: re
                 <td className={cell} title={`${m('auditColAction')}: ${auditActionLabel(e.action, m)}`}>
                   {auditActionLabel(e.action, m)}
                 </td>
-                {/* A row restored from the ledger has no timing on record: a dash, never a made-up 0.0. */}
-                <td className={num} title={`${m('auditColSla')}: ${e.compliance === 'UNVERIFIED' ? '—' : e.latencySec.toFixed(1)}`}>
-                  {e.compliance === 'UNVERIFIED' ? '—' : e.latencySec.toFixed(1)}
+                {/* A row restored from the ledger has no timing on record: it says so, never a made-up 0.0. */}
+                <td className={num} title={e.compliance === 'UNVERIFIED' ? m('auditNoTimingHint') : `${m('auditColSla')}: ${e.latencySec.toFixed(1)}`}>
+                  {e.compliance === 'UNVERIFIED' ? m('auditNoTiming') : e.latencySec.toFixed(1)}
                 </td>
-                <td className={num} title={`${m('auditColSlaLimit')}: ${e.compliance === 'UNVERIFIED' ? '—' : e.slaSec}`}>
-                  {e.compliance === 'UNVERIFIED' ? '—' : e.slaSec}
+                <td className={num} title={e.compliance === 'UNVERIFIED' ? m('auditNoTimingHint') : `${m('auditColSlaLimit')}: ${e.slaSec}`}>
+                  {e.compliance === 'UNVERIFIED' ? m('auditNoTiming') : e.slaSec}
                 </td>
                 <td className={cell} title={`${m('auditColLedger')}: ${ledgerEntryCode(e.lines, m('auditMemo'))}`}>
                   {/* One Dr/Cr leg per line, never split inside a leg. */}

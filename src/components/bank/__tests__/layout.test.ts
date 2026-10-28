@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { setActiveLocale } from '../../../i18n/locale';
+import { t } from '../../../i18n/t';
 import { DEPARTMENT_IDS, DEPARTMENTS, EXTERNAL_IDS, STATION_IDS, WIRES, edgeId, type PlaceId } from '../../../sim/topology';
 import { OFFICE_PLACE_BOX } from '../office/officePlan';
 import { deskPose, toWorld } from '../office/layout3d';
@@ -125,7 +127,7 @@ describe('where a desk’s description opens', () => {
 
   it('covers no other desk, except gate-column desks, the compact night grid and the Phase 8 band', () => {
     const crowded = places.filter((id) => cost(id, TIP_SIDE[id]) > 0).sort();
-    expect(crowded).toEqual(['DISPUTE_DESK', 'EOD_VISA', 'GATE_A2A', 'GATE_ECOM', 'GATE_SWIFT', 'GATE_VIRTUAL', 'RECON', 'SEC_FACEPAY', 'SUSPENSE', 'TELLER_CASH']);
+    expect(crowded).toEqual(['DISPUTE_DESK', 'GATE_A2A', 'GATE_ECOM', 'GATE_SWIFT', 'GATE_VIRTUAL', 'RECON', 'SEC_FACEPAY', 'SUSPENSE', 'TELLER_CASH']);
   });
 
   it('opens the everyday-account desk’s description away from the credit-card desk under it', () => {
@@ -207,5 +209,50 @@ describe('Phase 1A compact grid', () => {
     const [x, z] = toWorld(OFFICE_PLACE_BOX.RECON.cx, OFFICE_PLACE_BOX.RECON.cy);
     expect(deskPose('RECON')).toMatchObject({ x, z });
     expect(OFFICE_PLACE_BOX.RECON).not.toEqual(PLACE_BOX.RECON);
+  });
+});
+
+describe('wires and their labels stay legible', () => {
+  type Seg = readonly [readonly [number, number], readonly [number, number]];
+  const segs = (p: readonly (readonly [number, number])[]): Seg[] => p.slice(1).map((b, i) => [p[i]!, b] as const);
+  const overlap = (a0: number, a1: number, b0: number, b1: number): number => Math.min(Math.max(a0, a1), Math.max(b0, b1)) - Math.max(Math.min(a0, a1), Math.min(b0, b1));
+  /** The label pill BankMap draws: 5.4 px a character plus padding, 14 px tall. */
+  const pill = (label: string, [x, y]: readonly [number, number]) => ({ x0: x - label.length * 2.7 - 4, x1: x + label.length * 2.7 + 4, y0: y - 7, y1: y + 7 });
+
+  it('never draws two wires along the same stroke: parallel runs keep a lane of their own', () => {
+    const shared: string[] = [];
+    for (let i = 0; i < BANK_WIRES.length; i++)
+      for (let j = i + 1; j < BANK_WIRES.length; j++)
+        for (const [a, b] of segs(BANK_WIRES[i]!.points))
+          for (const [c, d] of segs(BANK_WIRES[j]!.points)) {
+            const horizontal = a[1] === b[1] && c[1] === d[1] && Math.abs(a[1] - c[1]) < 3 && overlap(a[0], b[0], c[0], d[0]) > 4;
+            const vertical = a[0] === b[0] && c[0] === d[0] && Math.abs(a[0] - c[0]) < 3 && overlap(a[1], b[1], c[1], d[1]) > 4;
+            if (horizontal || vertical) shared.push(`${BANK_WIRES[i]!.id} | ${BANK_WIRES[j]!.id}`);
+          }
+    expect(shared).toEqual([]);
+  });
+
+  it('keeps every wire label off the desks and off the other labels, in both languages', () => {
+    for (const locale of ['en', 'vi'] as const) {
+      setActiveLocale(locale);
+      const labels = BANK_WIRES.filter((w) => w.label && w.showLabel).map((w) => ({ id: w.id, ...pill(t(w.label!), w.labelAt) }));
+      const hits: string[] = [];
+      for (const l of labels) {
+        for (const [id, b] of Object.entries(PLACE_BOX)) if (overlap(l.x0, l.x1, b.cx - b.w / 2, b.cx + b.w / 2) > 0 && overlap(l.y0, l.y1, b.cy - b.h / 2, b.cy + b.h / 2) > 0) hits.push(`${l.id} on ${id}`);
+        for (const o of labels) if (o.id < l.id && overlap(l.x0, l.x1, o.x0, o.x1) > 0 && overlap(l.y0, l.y1, o.y0, o.y1) > 0) hits.push(`${l.id} on ${o.id}`);
+      }
+      expect(hits, locale).toEqual([]);
+    }
+    setActiveLocale('en');
+  });
+
+  it('never gives two wires out of the same desk the same label', () => {
+    const seen = new Map<string, string>();
+    for (const [from, to, label] of WIRES) {
+      if (!label) continue;
+      const key = `${from}|${label}`;
+      expect(seen.get(key), `${from} → ${to} and ${seen.get(key)} are both "${label}"`).toBeUndefined();
+      seen.set(key, to);
+    }
   });
 });

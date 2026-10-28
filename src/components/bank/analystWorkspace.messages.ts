@@ -1321,6 +1321,8 @@ export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
   auditCompliance_SLA_BREACH: { en: 'SLA breach', vi: 'Vi phạm SLA' },
   auditCompliance_SOP_BREACH: { en: 'SOP breach', vi: 'Vi phạm SOP' },
   auditCompliance_UNVERIFIED: { en: 'Restored from ledger (not graded)', vi: 'Khôi phục từ sổ cái (chưa chấm)' },
+  auditNoTiming: { en: 'N/A (not recorded)', vi: 'N/A (không ghi nhận)' },
+  auditNoTimingHint: { en: 'This row was rebuilt from a ledger journal saved before decision times were recorded, so there is no time to show.', vi: 'Dòng này được khôi phục từ bút toán sổ cái lưu trước khi hệ thống ghi nhận thời gian xử lý, nên không có số liệu thời gian.' },
   rptBank: { en: 'ProcessCraft Bank (simulation)', vi: 'Ngân hàng ProcessCraft (mô phỏng)' },
   rptUnit: { en: 'Operations Control Division', vi: 'Khối Kiểm soát Vận hành' },
   rptNo: { en: 'Ref. No.: {no}', vi: 'Số: {no}' },

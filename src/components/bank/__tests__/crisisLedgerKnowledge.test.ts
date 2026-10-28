@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CORE_LEDGER_ARTICLE, INTERMEDIATE_ACCOUNTS, INTERMEDIATE_ROLE } from '../../../data/knowledgeBase';
+import { CORE_LEDGER_ARTICLE, glUsage, INTERMEDIATE_ACCOUNTS, INTERMEDIATE_ROLE } from '../../../data/knowledgeBase';
 import { buildSearchIndex, searchIndex } from '../../../hooks/useSearchIndex';
 import {
   buildTaskCase,
@@ -182,6 +182,37 @@ describe('the Knowledge Base article', () => {
     for (const k of ['CTR', 'STR', 'SWIFT', 'MDR', 'CHARGEBACK', 'NSF', 'BNPL', 'DTI', 'POS', 'EKYC', 'ATM', 'RTP', 'A2A', 'EOD', 'NOSTRO', 'SUSPENSE']) expect(keys).toContain(k);
     const out = renderToStaticMarkup(createElement(CoreLedgerArticle, { highlight: 'term-MDR' }));
     expect(out).toMatch(/id="kb-term-MDR"[^>]*class="[^"]*ring-2/);
+  });
+});
+
+describe('the two views of the account glossary', () => {
+  const kb = knowledgeBaseMessages.messages;
+
+  it('Basic shows code, account, plain words and type; Advanced adds the trigger event and the contra entry', () => {
+    const basic = renderToStaticMarkup(createElement(CoreLedgerArticle, {}));
+    expect(basic).toContain('data-testid="kb-view" data-view="basic"');
+    for (const key of ['colCode', 'colAccount', 'colPlain', 'colType'] as const) expect(basic).toContain(esc(kb[key].en));
+    expect(basic).not.toContain(esc(kb.colTrigger.en));
+    expect(basic).not.toContain('data-col="entry"');
+    const adv = renderToStaticMarkup(createElement(CoreLedgerArticle, { initialView: 'advanced' }));
+    expect(adv).toContain(esc(kb.colTrigger.en));
+    expect(adv).toContain(esc(kb.colEntry.en));
+    const atm = adv.slice(adv.indexOf('id="kb-gl-ATM_SUSPENSE"'), adv.indexOf('</tr>', adv.indexOf('id="kb-gl-ATM_SUSPENSE"')));
+    expect(atm).toContain('Dr 1910 / Cr 2011');
+    expect(atm).toContain(esc(msgs.retail_ATM_JAM_title.en));
+  });
+
+  it('reads every trigger and entry from the simulator, and says so when an account only has its opening balance', () => {
+    const u = glUsage();
+    for (const a of GL_ACCOUNTS) {
+      for (const scene of u[a.id].scenes) if (scene !== 'crisis') expect(`${scene}_title` in msgs, `${a.id} ${scene}`).toBe(true);
+      if (u[a.id].entry) expect(u[a.id].entry).toMatch(/^Dr \d{4}( \/ Dr \d{4})* \/ Cr \d{4}( \/ Cr \d{4})*$/);
+      if (u[a.id].entry) expect(u[a.id].entry).toContain(a.code);
+    }
+    expect(u.EQUITY).toEqual({ scenes: [], entry: null });
+    expect(u.FROZEN_ASSETS.scenes).toContain('crisis');
+    const adv = renderToStaticMarkup(createElement(CoreLedgerArticle, { initialView: 'advanced' }));
+    expect(adv).toContain(esc(kb.triggerOpening.en));
   });
 });
 

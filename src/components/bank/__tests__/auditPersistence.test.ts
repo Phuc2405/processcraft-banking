@@ -5,7 +5,7 @@ import { buildRetailCase, buildTaskCase, RETAIL_TASK, ROLE_STATION, type StaffRo
 import { AUDIT_LOG_KEY, decodeAuditLog, memoryStorage, RETAIL_LEDGER_KEY } from '../../../store/bankPersistence';
 import { AUDIT_LOG_CAP, createBankStore, recoverAuditLog } from '../../../store/bankStore';
 import { analystWorkspaceMessages, type AnalystWorkspaceKey } from '../analystWorkspace.messages';
-import { AuditExportDialog, AuditReport, auditScopeLog, auditSummary } from '../AnalystWorkspaceModal';
+import { auditCsv, AuditExportDialog, AuditReport, auditScopeLog, auditSummary } from '../AnalystWorkspaceModal';
 
 const msgs = analystWorkspaceMessages.messages;
 const en = ((key: AnalystWorkspaceKey, values?: Record<string, string | number>): string => {
@@ -92,7 +92,10 @@ describe('the audit trail stays in step with the ledger', () => {
     expect(sum.ratePct).toBe(100);
     const out = renderToStaticMarkup(createElement(AuditReport, { log: s.getState().auditLog, m: en, issued: AT }));
     expect(out).toContain(esc(msgs.auditCompliance_UNVERIFIED.en));
-    expect(out).toContain('>—<');
+    expect(out).toContain(`>${esc(msgs.auditNoTiming.en)}<`);
+    expect(out).not.toContain('>0.0<');
+    const csv = auditCsv(s.getState().auditLog, en).split('\r\n');
+    expect(csv[1]).toContain(',N/A,N/A,');
   });
 
   it('drops a saved row that does not decode instead of guessing it', () => {

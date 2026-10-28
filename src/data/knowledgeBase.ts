@@ -7,7 +7,23 @@
  */
 
 import type { Localized } from '../i18n/locale';
-import { GL_ACCOUNTS, HOLDING_ACCOUNTS, type GlAccount, type GlSide } from '../sim/staffRoleplay';
+import {
+  buildRetailCase,
+  buildTaskCase,
+  crisisJournalLines,
+  crisisPool,
+  crisisTask,
+  GL_ACCOUNTS,
+  GL_CODE,
+  gradeTaskCase,
+  HOLDING_ACCOUNTS,
+  STAFF_DRILLS,
+  STAFF_ROLES,
+  type GlAccount,
+  type GlSide,
+  type LedgerLine,
+  type StaffDecision,
+} from '../sim/staffRoleplay';
 
 export type ArticleId = 'core-ledger';
 
@@ -217,3 +233,66 @@ export const CORE_LEDGER_ARTICLE = {
 } as const;
 
 export type ArticleSectionId = (typeof CORE_LEDGER_ARTICLE.sections)[number]['id'];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Where each account is used, read from the simulator's own postings
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** What posts to an account: the scenes (a drill, a retail scenario, or the crisis queue) and its most frequent journal. */
+export interface GlUsage {
+  /** Up to three scene ids, routine ones most frequent first ("retail_ATM_JAM", "task_dispute_1"), then "crisis" if the emergency queue posts here too. */
+  scenes: string[];
+  /** The account's most frequent journal, debits first ("Dr 1910 / Cr 2011"), or null if no desk decision posts to it. */
+  entry: string | null;
+}
+
+const entryOf = (lines: readonly LedgerLine[]): string =>
+  [...lines.filter((l) => l.dr > 0), ...lines.filter((l) => l.cr > 0)].map((l) => `${l.dr > 0 ? 'Dr' : 'Cr'} ${GL_CODE[l.gl]}`).join(' / ');
+
+let usage: Readonly<Record<GlAccount, GlUsage>> | null = null;
+
+/**
+ * Every account's usage, found by deciding every drill and retail scenario of every desk both ways (and every crisis of the
+ * emergency queue), and counting the journals. Nothing here is written by hand, so it follows the simulator when it changes.
+ */
+export function glUsage(): Readonly<Record<GlAccount, GlUsage>> {
+  if (usage) return usage;
+  // The crisis queue is counted apart: it replays every crisis per desk, so it would outweigh the routine postings.
+  const scenes = new Map<GlAccount, Map<string, number>>();
+  const entries = new Map<GlAccount, Map<string, number>>();
+  const crisisEntries = new Map<GlAccount, Map<string, number>>();
+  const bump = (m: Map<GlAccount, Map<string, number>>, gl: GlAccount, key: string): void => {
+    const inner = m.get(gl) ?? new Map<string, number>();
+    inner.set(key, (inner.get(key) ?? 0) + 1);
+    m.set(gl, inner);
+  };
+  const record = (scene: string, lines: readonly LedgerLine[]): void => {
+    if (!lines.length) return;
+    const entry = entryOf(lines);
+    for (const gl of new Set(lines.map((l) => l.gl))) {
+      if (scene === 'crisis') bump(crisisEntries, gl, entry);
+      else {
+        bump(scenes, gl, scene);
+        bump(entries, gl, entry);
+      }
+    }
+  };
+  const decisions: StaffDecision[] = ['APPROVE', 'REJECT'];
+  for (const role of STAFF_ROLES) {
+    for (let seq = 0; seq < 24; seq++) {
+      for (const c of [...STAFF_DRILLS.map((d) => buildTaskCase(role, d, seq)), buildRetailCase(role, seq)]) for (const d of decisions) record(c.scene, gradeTaskCase(c, d).journal?.lines ?? []);
+      for (const id of crisisPool(role)) {
+        const c = buildTaskCase(role, crisisTask(id), seq, id);
+        for (const d of decisions) record('crisis', crisisJournalLines(c, d, id));
+      }
+    }
+  }
+  const top = (m: Map<string, number> | undefined, n: number): string[] => [...(m ?? new Map<string, number>()).entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, n).map(([k]) => k);
+  usage = Object.fromEntries(
+    GL_ACCOUNTS.map((a) => {
+      const crisis = crisisEntries.has(a.id);
+      return [a.id, { scenes: [...top(scenes.get(a.id), crisis ? 2 : 3), ...(crisis ? ['crisis'] : [])], entry: top(entries.get(a.id), 1)[0] ?? top(crisisEntries.get(a.id), 1)[0] ?? null }];
+    }),
+  ) as Record<GlAccount, GlUsage>;
+  return usage;
+}

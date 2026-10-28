@@ -17,6 +17,14 @@ export const knowledgeBaseMessages = defineMessages('knowledgeBase', {
   typeIntermediate: { en: 'Intermediate', vi: 'Trung gian' },
   typeIntermediateHint: { en: 'Holds money in between, until a fact is known. A healthy one drains back to zero.', vi: 'Giữ tiền tạm thời cho đến khi có thông tin. Tài khoản lành mạnh sẽ trở về số dư 0.' },
   step: { en: 'Step {n}', vi: 'Bước {n}' },
+  viewLabel: { en: 'Glossary view', vi: 'Chế độ xem bảng' },
+  viewBasic: { en: '🔰 Basic', vi: '🔰 Cơ bản' },
+  viewAdvanced: { en: '🔬 Advanced', vi: '🔬 Chuyên sâu' },
+  viewAdvancedHint: { en: 'Adds when each account is posted and its typical Debit/Credit journal, read from the simulator’s own postings.', vi: 'Thêm thời điểm mỗi tài khoản được hạch toán và bút toán Nợ/Có điển hình, lấy từ chính các bút toán của trình mô phỏng.' },
+  colTrigger: { en: 'When does it happen? (trigger event)', vi: 'Khi nào xảy ra? (Trigger event)' },
+  colEntry: { en: 'Contra entry (Dr/Cr)', vi: 'Bút toán đối ứng (Dr/Cr)' },
+  triggerCrisis: { en: 'Emergency Crisis Queue', vi: 'Hàng chờ Cứu hộ' },
+  triggerOpening: { en: 'Opening balance only: no desk decision posts here', vi: 'Chỉ có số dư đầu kỳ: không quyết định nào tại quầy hạch toán vào đây' },
   close: { en: 'Close', vi: 'Đóng' },
 });
 
