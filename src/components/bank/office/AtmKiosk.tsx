@@ -1,7 +1,8 @@
 import { tr } from '../../../i18n/locale';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import type { Mesh, MeshBasicMaterial } from 'three';
+import type { Group, Mesh, MeshBasicMaterial } from 'three';
+import { useFocusFade } from './useFocusFade';
 import type { StationId } from '../../../sim/topology';
 import { useBankStore } from '../../../store/bankStore';
 import { pickPlace } from './tourHooks';
@@ -71,6 +72,8 @@ export const AtmKiosk = memo(function AtmKiosk({ id }: { id: StationId }) {
   const locked = useBankStore((s) => s.view.kpis.atm.pinLocked);
   const setHoverPlace = useBankStore((s) => s.setHoverPlace);
   const [hover, setHover] = useState(false);
+  const root = useRef<Group>(null);
+  useFocusFade(root, id);
 
   const body = useMemo(() => merge(kioskSolid()), []);
   const lit = useMemo(() => merge(kioskGlow()), []);
@@ -121,7 +124,7 @@ export const AtmKiosk = memo(function AtmKiosk({ id }: { id: StationId }) {
 
   const sign = id === 'ATM_CASH' ? tr({ en: 'ATM · CASH', vi: 'ATM · TIỀN MẶT' }) : 'ATM · PIN';
   return (
-    <group position={[pose.x, 0, pose.z]} name={`atm-${id}`}>
+    <group ref={root} position={[pose.x, 0, pose.z]} name={`atm-${id}`}>
       <group position={[-0.5, 0, 0]}>
         <mesh geometry={body} material={solid} castShadow receiveShadow />
         <mesh geometry={lit} material={glow} />

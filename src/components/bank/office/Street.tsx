@@ -6,8 +6,8 @@ import { Sign, useMerged } from './Dressing';
 import { ATM_ALCOVE, KERB_Z, LAMP, ROAD_END, STREET, STREET_LAMPS } from './layout3d';
 import { box, cyl, tint, type Part } from './kit';
 import { glow, satin, solid } from './materials';
-import { atmosphereAt } from './atmosphere';
-import { weatherStore } from './weather';
+import { atmosphereAt, rainOf } from './atmosphere';
+import { liveMix } from './weather';
 
 /**
  * The street in front of the branch: a paved sidewalk with tiles, a kerb, a strip of road with its markings, the street
@@ -157,8 +157,8 @@ const StreetLamps = memo(function StreetLamps() {
     [lensMaterial, pool],
   );
   useFrame(() => {
-    // On after dusk, and partly on under a rain sky (atmosphere.ts).
-    const lamps = atmosphereAt(bankStore.getState().view.minute, weatherStore.getState().rain).lamps;
+    // On after dusk, and partly on under a rain or storm sky (atmosphere.ts).
+    const lamps = atmosphereAt(bankStore.getState().view.minute, liveMix).lamps;
     pool.opacity = 0.22 + 0.7 * lamps;
     lensMaterial.color.setScalar(0.72 + 0.28 * lamps);
   });
@@ -217,7 +217,7 @@ export const Street = memo(function Street() {
   const dry = useMemo(() => new Color('#ffffff'), []);
   const soaked = useMemo(() => new Color('#9aa3ad'), []);
   useFrame((_, dt) => {
-    const want = weatherStore.getState().rain ? 1 : 0;
+    const want = rainOf(liveMix);
     wet.current += (want - wet.current) * Math.min(1, dt * (want ? 1.2 : 0.4));
     if (!paving.current) return;
     paving.current.roughness = 0.9 - 0.62 * wet.current;

@@ -9,12 +9,14 @@ import { useTerms } from '../useTerms';
 import { CustomerFigure, SeatedAvatar } from './Avatars';
 import { deskGlow, deskSolid, isPodium, SURFACE } from './desks';
 import { box, merge } from './kit';
-import { COUNTER, WING, accentOf, customerShirt, deskPose, hasWing, queueSlots, queueStyle, seatOffsets, surgeLevel, wingPose } from './layout3d';
+import { COUNTER, WING, accentOf, customerShirt, deskPose, hasWing, queueSlots, queueStyle, seatOffsets, surgeLevel, wingPose, type V2 } from './layout3d';
 import { blobMaterial, glow, solid } from './materials';
 import { STATUS_HEX } from './palette';
 import { cursor } from './cursor';
 import { isAutomatedNode } from '../../../sim/nodeKind';
 import { ServerRack3D } from './ServerRack3D';
+import { isOffShift, leaveAt, leaveRoute } from './focus3d';
+import { useFocusFade } from './useFocusFade';
 import { t } from '../../../i18n/t';
 import { routingRules } from '../routingRules';
 import { statusLabel } from '../ui';
@@ -156,7 +158,83 @@ function DeskBody({ id, accent }: { id: StationId; accent: string }) {
  * Who works the desk: people on a human desk, server racks on an automated node (sim/nodeKind.ts). A rack stands in the seat
  * of the thread it represents, so the count follows the engine's workers and clicking a rack selects that thread.
  */
+/** Who is walking home from a desk: their seat, and how long they have been walking (seconds of drawn time). */
+interface Leaver {
+  id: string;
+  seat: V2;
+  t: number;
+  index: number;
+}
+
+/**
+ * Staff going home. When the simulation sends someone off shift (its "Off shift…" or "Desk closed…" words), they get up,
+ * walk along the back of the counter, down the aisle beside the desk and out of the front of the branch onto the pavement,
+ * and are gone. Someone already off shift when the office opens is simply not at their seat.
+ */
+function LeavingStaff({ id, accent, leavers, onGone }: { id: StationId; accent: string; leavers: readonly Leaver[]; onGone: (who: string) => void }) {
+  const pose = useMemo(() => deskPose(id), [id]);
+  return (
+    <>
+      {leavers.map((l) => (
+        <Leaving key={l.id} leaver={l} pose={pose} accent={accent} onGone={onGone} />
+      ))}
+    </>
+  );
+}
+
+function Leaving({ leaver, pose, accent, onGone }: { leaver: Leaver; pose: ReturnType<typeof deskPose>; accent: string; onGone: (who: string) => void }) {
+  const root = useRef<Group>(null);
+  const route = useMemo(() => leaveRoute(pose, leaver.seat), [pose, leaver.seat]);
+  const gone = useRef(false);
+  useFrame((_, dt) => {
+    leaver.t += Math.min(dt, 0.1);
+    const s = leaveAt(route, leaver.t);
+    if (root.current) {
+      // The desk's group is the origin, so the walker is placed relative to it.
+      root.current.position.set(s.at[0] - pose.x, 0, s.at[1] - pose.z);
+      root.current.rotation.y = s.heading;
+    }
+    if (s.done && !gone.current) {
+      gone.current = true;
+      onGone(leaver.id);
+    }
+  });
+  return (
+    <group ref={root} name={`leaving-${leaver.id}`}>
+      <CustomerFigure index={leaver.index + 70} shirt={accent} phase={leaver.index} walking scale={0.8} />
+    </group>
+  );
+}
+
 function DeskStaff({ id, accent }: { id: StationId; accent: string }) {
+  const workers = useBankStore((s) => s.view.stations[id].workers);
+  const automated = isAutomatedNode(id);
+  // Who was on shift at the last look, so someone going off shift now (not already off when the office opened) walks out.
+  const onShift = useRef<Map<string, boolean> | null>(null);
+  const [leavers, setLeavers] = useState<Leaver[]>([]);
+  const seatsNow = useMemo(() => seatOffsets(workers.length), [workers.length]);
+  useEffect(() => {
+    const was = onShift.current;
+    const next = new Map(workers.map((w) => [w.id, automated || !isOffShift(w.activity)]));
+    if (was) {
+      const going = workers.flatMap((w, i) => (was.get(w.id) === true && next.get(w.id) === false && seatsNow[i] ? [{ id: w.id, seat: seatsNow[i]!, t: 0, index: i }] : []));
+      if (going.length) setLeavers((l) => [...l.filter((x) => !going.some((g) => g.id === x.id)), ...going]);
+      // Back on shift (the next morning): no longer walking out.
+      const back = workers.filter((w) => was.get(w.id) === false && next.get(w.id) === true).map((w) => w.id);
+      if (back.length) setLeavers((l) => l.filter((x) => !back.includes(x.id)));
+    }
+    onShift.current = next;
+  }, [workers, automated, seatsNow]);
+  const gone = useMemo(() => (who: string) => setLeavers((l) => l.filter((x) => x.id !== who)), []);
+  return (
+    <>
+      <DeskSeats id={id} accent={accent} />
+      {!automated && leavers.length > 0 && <LeavingStaff id={id} accent={accent} leavers={leavers} onGone={gone} />}
+    </>
+  );
+}
+
+function DeskSeats({ id, accent }: { id: StationId; accent: string }) {
   const workers = useBankStore((s) => s.view.stations[id].workers);
   const surge = useBankStore((s) => surgeLevel(s.view.stations[id].queueLength, s.view.stations[id].status));
   const selectedWorker = useBankStore((s) => (s.selection.kind === 'worker' && s.selection.station === id ? s.selection.workerId : null));
@@ -167,7 +245,8 @@ function DeskStaff({ id, accent }: { id: StationId; accent: string }) {
     <>
       {workers.map((w, i) => {
         const seat = seats[i];
-        if (!seat) return null;
+        // Gone home: the chair is empty (a machine is never off shift).
+        if (!seat || (!automated && isOffShift(w.activity))) return null;
         return (
           <group key={w.id} position={[seat[0], 0, seat[1]]}>
             {automated ? (
@@ -337,8 +416,11 @@ function PinBadge({ id, top, status, queueLength, selected, name }: { id: Statio
 export const Desk3D = memo(function Desk3D({ id }: { id: StationId }) {
   const pose = useMemo(() => deskPose(id), [id]);
   const accent = accentOf(id);
+  const root = useRef<Group>(null);
+  // Fades with the rest of the office when another desk is pointed at, or a guided scenario leaves this one out.
+  useFocusFade(root, id);
   return (
-    <group position={[pose.x, 0, pose.z]}>
+    <group ref={root} position={[pose.x, 0, pose.z]}>
       <DeskBody id={id} accent={accent} />
       <DeskStaff id={id} accent={accent} />
       <DeskQueue id={id} />

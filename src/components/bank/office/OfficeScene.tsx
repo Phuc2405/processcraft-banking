@@ -4,7 +4,7 @@ import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef } from 'react';
 import { t } from '../../../i18n/t';
 import { useLocale } from '../../../i18n/locale';
-import { CanvasTexture, ExtrudeGeometry, MOUSE, Path, RepeatWrapping, ShapeGeometry, SpriteMaterial, SRGBColorSpace, TOUCH, Vector3, type AmbientLight, type DirectionalLight, type HemisphereLight } from 'three';
+import { AdditiveBlending, CanvasTexture, ExtrudeGeometry, MeshBasicMaterial, MOUSE, Path, RepeatWrapping, ShapeGeometry, SpriteMaterial, SRGBColorSpace, TOUCH, Vector3, type AmbientLight, type DirectionalLight, type Group, type HemisphereLight } from 'three';
 import { DEPARTMENTS, STATION_IDS, type DepartmentId } from '../../../sim/topology';
 import { prefersReducedMotion } from '../../canvas/timing';
 import { activeFlowOf, bankStore, useBankStore } from '../../../store/bankStore';
@@ -14,9 +14,13 @@ import { Desk3D } from './Desk3D';
 import { AtmKiosk } from './AtmKiosk';
 import { GateStanchions, Kiosks, Plants, ServerRoom, VaultRoom, Walls } from './Dressing';
 import { Street } from './Street';
-import { atmosphereAt } from './atmosphere';
+import { atmosphereAt, CLEAR, sameMix } from './atmosphere';
 import { Environment3D } from './Environment3D';
-import { weatherStore } from './weather';
+import { liveMix, weatherStore } from './weather';
+import { litLanes, PULSE, pulseDistance } from './focus3d';
+import { pathLength, pointAlongPath } from './tour3d';
+import type { V2 } from './layout3d';
+import { GUIDED_FLOWS } from '../../../sim/guidedFlows';
 import { ribbonGeometry, roundedRect, roundedRectPath, shade, tint } from './kit';
 import {
   CAMERA_DIRECTION,
@@ -28,7 +32,6 @@ import {
   LANES,
   LANE_LABELS,
   laneLabelShown,
-  lanesOf,
   ORBIT_RANGE,
   clampZoom3d,
   isCameraResetKey,
@@ -535,29 +538,90 @@ const Rug = memo(function Rug({ id }: { id: DepartmentId }) {
 
 /**
  * A lane painted on the floor along every wire of the 2D map, with rounded corners: the same path the packets fly. Pointing at
- * a desk lights its own lanes in a brighter, wider stripe and fades the others, as hovering a desk does on the 2D map.
+ * a desk lights its own lanes (a guided scenario lights its route): a bright stripe over a soft additive halo, with pulses of
+ * light running along them, while every other lane fades, as the 2D map does.
  */
 const Lanes = memo(function Lanes() {
   const geometry = useMemo(() => ribbonGeometry(LANES.map((l) => ({ points: smoothLane(l.points, 0.55, 5), color: laneHex(l.to, l.from) })), 0.11, 0.026), []);
-  const hover = useBankStore((s) => (s.spotlight || activeFlowOf(s) ? null : s.hoverPlace));
-  const lit = useMemo(() => lanesOf(hover), [hover]);
-  const glowGeometry = useMemo(() => (lit.size ? ribbonGeometry(LANES.filter((l) => lit.has(l.id)).map((l) => ({ points: smoothLane(l.points, 0.55, 5), color: '#fde047' })), 0.2, 0.034) : null), [lit]);
+  const hover = useBankStore((s) => (s.spotlight ? null : s.hoverPlace));
+  const flow = useBankStore((s) => (s.spotlight ? null : activeFlowOf(s)));
+  const { lanes: lit, dim } = useMemo(() => litLanes(hover, flow), [hover, flow]);
+  const accent = !hover && flow ? GUIDED_FLOWS[flow].accent : '#fde047';
+  const paths = useMemo(() => LANES.filter((l) => lit.has(l.id)).map((l) => smoothLane(l.points, 0.55, 5)), [lit]);
+  const stripe = useMemo(() => (paths.length ? ribbonGeometry(paths.map((points) => ({ points, color: accent })), 0.2, 0.034) : null), [paths, accent]);
+  const halo = useMemo(() => (paths.length ? ribbonGeometry(paths.map((points) => ({ points, color: accent })), 0.62, 0.03) : null), [paths, accent]);
   const material = useMemo(() => {
     const m = tape.clone();
     m.transparent = true;
     return m;
   }, []);
+  const haloMaterial = useMemo(() => new MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.32, depthWrite: false, blending: AdditiveBlending, toneMapped: false }), []);
   useEffect(() => () => geometry.dispose(), [geometry]);
-  useEffect(() => () => glowGeometry?.dispose(), [glowGeometry]);
-  useEffect(() => () => material.dispose(), [material]);
-  material.opacity = lit.size ? 0.28 : 1;
+  useEffect(() => () => stripe?.dispose(), [stripe]);
+  useEffect(() => () => halo?.dispose(), [halo]);
+  useEffect(
+    () => () => {
+      material.dispose();
+      haloMaterial.dispose();
+    },
+    [material, haloMaterial],
+  );
+  material.opacity = lit.size ? dim : 1;
   return (
     <>
       <mesh geometry={geometry} material={material} renderOrder={1} name="office-lanes" />
-      {glowGeometry && <mesh geometry={glowGeometry} material={tape} renderOrder={2} name="office-lanes-lit" />}
+      {halo && <mesh geometry={halo} material={haloMaterial} renderOrder={2} name="office-lanes-halo" />}
+      {stripe && <mesh geometry={stripe} material={tape} renderOrder={2} name="office-lanes-lit" />}
+      {paths.length > 0 && <LanePulses paths={paths} color={accent} />}
     </>
   );
 });
+
+let pulseTex: CanvasTexture | null = null;
+/** A soft round spark, drawn once. */
+function pulseTexture(): CanvasTexture {
+  if (pulseTex) return pulseTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  if (g) {
+    const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.35, 'rgba(255,255,255,0.7)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 64, 64);
+  }
+  pulseTex = new CanvasTexture(c);
+  pulseTex.colorSpace = SRGBColorSpace;
+  return pulseTex;
+}
+
+/** Glowing pulses running along the lit lanes, PULSE.perLane to a lane, looping: the flow of a payment made visible. */
+function LanePulses({ paths, color }: { paths: readonly (readonly V2[])[]; color: string }) {
+  const lengths = useMemo(() => paths.map(pathLength), [paths]);
+  const material = useMemo(() => new SpriteMaterial({ map: pulseTexture(), color, transparent: true, depthWrite: false, blending: AdditiveBlending, toneMapped: false }), [color]);
+  useEffect(() => () => material.dispose(), [material]);
+  const group = useRef<Group>(null);
+  const clock = useRef(0);
+  useFrame((_, dt) => {
+    clock.current += Math.min(dt, 0.1);
+    const g = group.current;
+    if (!g) return;
+    let n = 0;
+    paths.forEach((path, i) => {
+      for (let k = 0; k < PULSE.perLane; k++) {
+        const [x, z] = pointAlongPath(path, pulseDistance(lengths[i]!, k, clock.current));
+        g.children[n++]?.position.set(x, 0.12, z);
+      }
+    });
+  });
+  return (
+    <group ref={group} name="office-lane-pulses">
+      {paths.flatMap((_, i) => Array.from({ length: PULSE.perLane }, (__, k) => <sprite key={`${i}-${k}`} material={material} scale={[0.42, 0.42, 1]} renderOrder={7} />))}
+    </group>
+  );
+}
 
 /** A lane's words as a crisp dark badge: drawn once per text on a canvas, at four times the size it shows. */
 function useBadge(text: string): { material: SpriteMaterial; aspect: number } {
@@ -696,8 +760,8 @@ function Lights() {
   const tour = useRef(0);
   useFrame((_, dt) => {
     const s = bankStore.getState();
-    // Morning, noon, afternoon or night, dry or in rain (atmosphere.ts).
-    const a = atmosphereAt(s.view.minute, weatherStore.getState().rain);
+    // Morning, noon, afternoon or night, under the weather blend (atmosphere.ts).
+    const a = atmosphereAt(s.view.minute, liveMix);
     // A tour turns the daylight right down; a guided flow (Beginner scope) turns it down part of the way.
     const want = s.spotlight ? 1 : activeFlowOf(s) ? 0.6 : 0;
     tour.current += (want - tour.current) * Math.min(1, dt * 3);
@@ -711,6 +775,8 @@ function Lights() {
     if (sun.current) {
       sun.current.intensity = a.sun.intensity * keep(TOUR_DAYLIGHT.sun);
       sun.current.color.set(a.sun.color);
+      // The sun moves across the sky: low in the east in the morning, high at noon, low and raking from the west late on.
+      sun.current.position.set(a.sun.dir[0], a.sun.dir[1], a.sun.dir[2]);
     }
     if (ambient.current) ambient.current.intensity = 0.28 * keep(TOUR_DAYLIGHT.ambient);
     if (fill.current) fill.current.intensity = 0.4 * keep(TOUR_DAYLIGHT.fill);
@@ -786,8 +852,9 @@ function FrameDriver() {
     };
     const loop = (): void => {
       const s = bankStore.getState();
-      // Rain keeps falling, so it keeps the canvas drawing while it lasts.
-      if (s.playing || s.spotlight !== null || weatherStore.getState().rain || performance.now() < awakeUntil) invalidate();
+      // Weather keeps moving (rain, swaying trees, a sky still blending), so it keeps the canvas drawing while it lasts.
+      const weather = weatherStore.getState().weather !== 'clear' || !sameMix(liveMix, CLEAR);
+      if (s.playing || s.spotlight !== null || weather || performance.now() < awakeUntil) invalidate();
       frame = requestAnimationFrame(loop);
     };
     const unsubscribe = bankStore.subscribe(wake);

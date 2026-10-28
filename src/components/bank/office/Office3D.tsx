@@ -6,40 +6,59 @@ import { activeFlowOf, useBankStore } from '../../../store/bankStore';
 import { OfficeScene } from './OfficeScene';
 import { TourLayer3D } from './TourLayer3D';
 import { CAMERA_DIRECTION, CAMERA_DISTANCE } from './layout3d';
-import { atmosphereAt, type DayPart } from './atmosphere';
+import { atmosphereAt, WEATHERS, type DayPart, type Weather } from './atmosphere';
 import { useWeather, weatherStore } from './weather';
+import { skyFlash } from './Environment3D';
+import { SegmentedToggle } from '../../shell/SegmentedToggle';
 import { MapLegend } from '../MapLegend';
 import { useDockInset } from '../ViewportControls';
 
-/** The sky behind the diorama: a gradient from the time-of-day presets, redrawn every ten bank minutes and when the rain changes. */
+/** The sky behind the diorama: a gradient from the time-of-day presets and the weather blend, redrawn every ten bank minutes and as the weather eases. A white layer over it flashes with the storm's lightning. */
 function SkyBackdrop() {
   const slot = useBankStore((s) => Math.floor(s.view.minute / 10));
-  const rain = useWeather((s) => s.rain);
-  const a = atmosphereAt(slot * 10, rain);
-  return <div className="pointer-events-none absolute inset-0 transition-[background] duration-1000" style={{ background: `linear-gradient(180deg, ${a.skyTop} 0%, ${a.skyHorizon} 78%, ${a.fog.color} 100%)` }} data-testid="office-sky" data-part={a.part} aria-hidden="true" />;
+  const mix = useWeather((s) => s.mix);
+  const a = atmosphereAt(slot * 10, mix);
+  return (
+    <>
+      <div className="pointer-events-none absolute inset-0" style={{ background: `linear-gradient(180deg, ${a.skyTop} 0%, ${a.skyHorizon} 78%, ${a.fog.color} 100%)` }} data-testid="office-sky" data-part={a.part} aria-hidden="true" />
+      <div
+        ref={(el) => {
+          skyFlash.el = el;
+        }}
+        className="pointer-events-none absolute inset-0 bg-[#eef3ff] opacity-0"
+        aria-hidden="true"
+      />
+    </>
+  );
 }
 
 const DAY_PART_LABEL: Record<DayPart, string> = { morning: '☀️ Morning', noon: '🌞 Noon', afternoon: '🌇 Afternoon', night: '🌙 Night' };
+const WEATHER_LABEL: Record<Weather, string> = { clear: '🌤️ Clear', harsh: '🔆 Harsh sun', overcast: '☁️ Overcast', rain: '🌧️ Rain', storm: '⛈️ Storm' };
+const WEATHER_HINT: Record<Weather, string> = {
+  clear: 'Clear sky and a light breeze: people stroll and stop to chat',
+  harsh: 'Hard, bright sun with strong contrast and dust in the air',
+  overcast: 'A grey, gloomy sky and soft, shadowless light',
+  rain: 'Rain: people open umbrellas one by one or run for the shelters, and the street turns wet',
+  storm: 'A storm: dark clouds, lightning, heavy rain and trees bending in the wind; people crowd the bus stop calling taxis',
+};
 
-/** The time of day and the rain switch, beside the other 3D controls. */
+/** The time of day and the weather picker, beside the other 3D controls. The sky eases to a new weather over two seconds. */
 function WeatherControls() {
   const part = useBankStore((s) => atmosphereAt(s.view.minute).part);
-  const rain = useWeather((s) => s.rain);
+  const weather = useWeather((s) => s.weather);
   return (
     <div className="flex items-center gap-1.5">
       <span className="rounded-lg border border-white bg-white/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-700 shadow-md" data-testid="office-daypart" data-part={part}>
         {t(DAY_PART_LABEL[part])}
       </span>
-      <button
-        type="button"
-        onClick={() => weatherStore.getState().setRain(!rain)}
-        aria-pressed={rain}
-        data-testid="office-rain"
-        className={`rounded-lg border px-2.5 py-1.5 text-[11.5px] font-semibold shadow-md transition ${rain ? 'border-sky-300 bg-sky-500 text-white' : 'border-white bg-white/90 text-slate-700 hover:bg-white'}`}
-        title={t('Rain: people on the pavement open umbrellas or run for the canopy, and the street turns wet')}
-      >
-        {rain ? t('🌧️ Rain: On') : t('🌤️ Rain: Off')}
-      </button>
+      <SegmentedToggle<Weather>
+        label={t('Weather')}
+        value={weather}
+        onChange={(w) => weatherStore.getState().setWeather(w)}
+        testId="office-weather"
+        stateKey="weather"
+        options={WEATHERS.map((w) => ({ value: w, label: t(WEATHER_LABEL[w]), hint: t(WEATHER_HINT[w]), tone: w === 'storm' ? 'violet' : 'sky' }))}
+      />
     </div>
   );
 }

@@ -1,43 +1,75 @@
 import { useStore } from 'zustand';
 import { createStore } from 'zustand/vanilla';
+import { CLEAR, rainOf, WEATHER_MIX, type Weather, type WeatherMix } from './atmosphere';
 import { KERB_Z, STREET } from './layout3d';
 
 /**
- * The weather over the 3D office, and how the people on the pavement behave in it. The rain is a learner's toggle: the bank
- * simulation does not depend on it. Everything below the store is pure, so the tests can walk a pedestrian through a shower.
+ * The weather over the 3D office, the shelters on the pavement, and how the people there behave. The weather is a learner's
+ * pick: the bank simulation does not depend on it. Everything below the store is pure, so the tests can walk a pedestrian
+ * through a shower.
  */
 
 interface WeatherState {
-  rain: boolean;
-  setRain(on: boolean): void;
+  /** The weather picked. */
+  weather: Weather;
+  /** The blend the sky has reached (eased towards the pick by WeatherDriver), refreshed a few times a second for the page. */
+  mix: WeatherMix;
+  setWeather(weather: Weather): void;
 }
 
 export const weatherStore = createStore<WeatherState>()((set) => ({
-  rain: false,
-  setRain: (rain) => set({ rain }),
+  weather: 'clear',
+  mix: CLEAR,
+  setWeather: (weather) => set({ weather }),
 }));
 export const useWeather = <T>(pick: (s: WeatherState) => T): T => useStore(weatherStore, pick);
+
+/** The blend right now, eased every frame by WeatherDriver: what the scene's lights, rain and trees read. */
+export const liveMix: WeatherMix = { ...CLEAR };
+
+/** Whether it is raining now (any rain in the blend), or about to (the pick brings rain). */
+export const isRaining = (): boolean => rainOf(liveMix) > 0.02 || WEATHER_MIX[weatherStore.getState().weather].rain > 0;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shelters
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface Roof {
+  x0: number;
+  x1: number;
+  z0: number;
+  z1: number;
+  /** Height of the roof's underside. */
+  h: number;
+}
+
+/** The glass overhang along the front of the branch, over the pavement by the entrance. */
+export const OVERHANG: Roof = { x0: -STREET.halfWidth + 2.6, x1: STREET.halfWidth - 0.6, z0: STREET.z0 + 0.02, z1: STREET.z0 + 1.15, h: 2.55 };
+
+/** The glass bus stop and taxi stand by the kerb, on the right of the street. */
+export const BUS_STOP: Roof = { x0: 10.3, x1: 13.7, z0: KERB_Z - 1.45, z1: KERB_Z - 0.18, h: 2.25 };
+
+/** Whether (x, z) is under a roof, inside its edge by `margin`. */
+export const underRoof = (r: Roof, x: number, z: number, margin = 0.15): boolean => x >= r.x0 + margin && x <= r.x1 - margin && z >= r.z0 + margin && z <= r.z1 - margin;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Pedestrians
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Where people walk: two lanes along the pavement, clear of the ATMs against the building. */
+/** Where people walk: a lane near the kerb (through the bus stop) and one nearer the building, clear of the ATMs. */
 export const PAVEMENT = {
   /** The x range they walk, past the ends of the drawn street so they come and go out of the haze. */
   x0: -STREET.halfWidth - 6,
   x1: STREET.halfWidth + 6,
-  /** Walking lanes: nearer the kerb (to the right) and nearer the building (to the left). */
-  lanes: [KERB_Z - 0.55, KERB_Z - 1.25] as const,
-  /** Under the canopy along the facade: where people shelter from the rain. */
-  shelterZ: STREET.z0 + 0.45,
-  shelterX0: -STREET.halfWidth + 3.4,
-  shelterX1: STREET.halfWidth - 1.2,
+  lanes: [KERB_Z - 0.55, KERB_Z - 1.75] as const,
 } as const;
 
 export const WALK = { relaxed: [0.45, 0.75] as const, umbrella: 0.95, sprint: 2.6 } as const;
 
-export type PedestrianPose = 'walk' | 'chat' | 'umbrella' | 'run' | 'shelter';
+/** How long an umbrella takes to open, and the gap between one person opening theirs and the next. */
+export const UMBRELLA = { open: 0.5, stagger: 0.35, first: 0.3 } as const;
+
+export type PedestrianPose = 'walk' | 'chat' | 'umbrella' | 'run' | 'shelter' | 'phone';
 
 export interface Pedestrian {
   /** Stable per person: shirt colour, lane, pace and whether they carry an umbrella. */
@@ -46,7 +78,7 @@ export interface Pedestrian {
   /** +1 walks towards +x, -1 towards -x. */
   dir: 1 | -1;
   pace: number;
-  /** Carries an umbrella and keeps walking in the rain (otherwise runs for the canopy). */
+  /** Carries an umbrella (keeps walking under it in rain; in a storm heads for the bus stop and calls a taxi). */
   umbrella: boolean;
   /** A pair who stop to talk in dry weather, at this x. */
   chatX: number | null;
@@ -70,6 +102,32 @@ export const PEDESTRIANS: readonly Pedestrian[] = Array.from({ length: PEDESTRIA
   chatX: i < 2 ? -4 + i * 0.7 : i === 4 || i === 5 ? 6 + (i - 4) * 0.7 : null,
 }));
 
+/** Who waits at the bus stop in a storm, calling a taxi: the umbrella carriers and the people who were chatting. */
+export const stormGoesToBus = (p: Pedestrian): boolean => p.umbrella || p.chatX !== null;
+
+const BUS_GOERS = PEDESTRIANS.filter(stormGoesToBus);
+
+/** Places in a row under a roof, kept inside it: `n` people, the `k`th of them, at depth `z`. */
+const slot = (r: Roof, k: number, n: number, z: number): [number, number] => {
+  const x0 = r.x0 + 0.35;
+  const x1 = r.x1 - 0.35;
+  return [n <= 1 ? (x0 + x1) / 2 : x0 + ((x1 - x0) * k) / (n - 1), z];
+};
+
+/** A person's spot under the entrance overhang, spread along it. */
+export const overhangSpot = (p: Pedestrian): [number, number] => slot(OVERHANG, PEDESTRIANS.indexOf(p), PEDESTRIANS.length, (OVERHANG.z0 + OVERHANG.z1) / 2);
+
+/** A person's spot in the bus stop, in two rows. */
+export const busSpot = (p: Pedestrian): [number, number] => {
+  const k = Math.max(0, BUS_GOERS.indexOf(p));
+  const perRow = Math.ceil(BUS_GOERS.length / 2);
+  const row = Math.floor(k / perRow);
+  return slot(BUS_STOP, k % perRow, Math.min(perRow, BUS_GOERS.length - row * perRow), BUS_STOP.z0 + 0.45 + row * 0.45);
+};
+
+/** Where a person runs to: in a storm the bus-stop group to the bus stop, everyone else to the entrance overhang. */
+export const shelterSpot = (p: Pedestrian, storm = false): [number, number] => (storm && stormGoesToBus(p) ? busSpot(p) : overhangSpot(p));
+
 export interface PedestrianState {
   x: number;
   z: number;
@@ -78,6 +136,8 @@ export interface PedestrianState {
   pose: PedestrianPose;
   /** Walking speed now, for the leg swing. */
   speed: number;
+  /** How far open the umbrella is, 0-1. */
+  umbrella: number;
 }
 
 const span = PAVEMENT.x1 - PAVEMENT.x0;
@@ -86,35 +146,44 @@ const wrap = (x: number): number => PAVEMENT.x0 + ((((x - PAVEMENT.x0) % span) +
 /** Where a person walking at `pace` since time 0 is at `t` seconds, wrapping round the street's ends. */
 const strollX = (p: Pedestrian, t: number, pace: number): number => wrap(PAVEMENT.x0 + unit(p.index, 3) * span + p.dir * pace * t);
 
-/** A person's own spot under the canopy, spread along the facade. */
-export const shelterSpot = (p: Pedestrian): [number, number] => [PAVEMENT.shelterX0 + ((p.index * 0.618) % 1) * (PAVEMENT.shelterX1 - PAVEMENT.shelterX0), PAVEMENT.shelterZ];
+/** When a person's umbrella starts to open after the rain begins: one after another, not all at once. */
+export const umbrellaDelay = (p: Pedestrian): number => UMBRELLA.first + (PEDESTRIANS.indexOf(p) % 6) * UMBRELLA.stagger;
 
 /**
  * Where person `p` is at `t` seconds, and what they are doing.
  *
  *   Dry      a relaxed stroll along their lane; the two pairs stand and talk at their spot (facing each other).
- *   Rain     umbrella carriers keep walking, a little faster, under their umbrellas; everyone else sprints to their own spot
- *            under the canopy and waits there, facing the street, for as long as it rains.
+ *   Rain     umbrella carriers open their umbrellas one after another and walk on, a little faster; everyone else sprints to
+ *            their spot under the entrance overhang and waits there, facing the street.
+ *   Storm    no one stays out: the umbrella carriers and the chatting pairs run for the bus stop and wait there on their
+ *            phones, calling a taxi; the rest sprint for the overhang.
  *
  * `rainFor` is how long it has been raining (seconds), or null when dry.
  */
-export function pedestrianAt(p: Pedestrian, t: number, rainFor: number | null): PedestrianState {
+export function pedestrianAt(p: Pedestrian, t: number, rainFor: number | null, storm = false): PedestrianState {
   const laneZ = PAVEMENT.lanes[p.lane];
   const along = p.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
   if (rainFor === null) {
     if (p.chatX !== null) {
       // The pair face each other, the first of them to the right.
       const first = p.index % 2 === 0;
-      return { x: p.chatX, z: laneZ, heading: first ? Math.PI / 2 : -Math.PI / 2, pose: 'chat', speed: 0 };
+      return { x: p.chatX, z: laneZ, heading: first ? Math.PI / 2 : -Math.PI / 2, pose: 'chat', speed: 0, umbrella: 0 };
     }
-    return { x: strollX(p, t, p.pace), z: laneZ, heading: along, pose: 'walk', speed: p.pace };
+    return { x: strollX(p, t, p.pace), z: laneZ, heading: along, pose: 'walk', speed: p.pace, umbrella: 0 };
   }
-  if (p.umbrella && p.chatX === null) return { x: strollX(p, t, WALK.umbrella), z: laneZ, heading: along, pose: 'umbrella', speed: WALK.umbrella };
-  // Run from where the shower caught them to their spot under the canopy, then wait there.
+  if (p.umbrella && p.chatX === null && !storm) {
+    const opened = umbrellaDelay(p) + UMBRELLA.open;
+    const open = Math.max(0, Math.min(1, (rainFor - umbrellaDelay(p)) / UMBRELLA.open));
+    // Until it is open they keep their dry pace; from then on they walk a little faster under it.
+    const x = rainFor < opened ? strollX(p, t, p.pace) : wrap(strollX(p, t - rainFor + opened, p.pace) + p.dir * WALK.umbrella * (rainFor - opened));
+    return { x, z: laneZ, heading: along, pose: open > 0 ? 'umbrella' : 'walk', speed: rainFor < opened ? p.pace : WALK.umbrella, umbrella: open };
+  }
+  // Run from where the weather caught them to their shelter, then wait there.
   const start: [number, number] = p.chatX !== null ? [p.chatX, laneZ] : [strollX(p, t - rainFor, p.pace), laneZ];
-  const [sx, sz] = shelterSpot(p);
+  const [sx, sz] = shelterSpot(p, storm);
   const dist = Math.hypot(sx - start[0], sz - start[1]);
   const run = Math.min(1, (rainFor * WALK.sprint) / Math.max(dist, 1e-6));
-  if (run >= 1) return { x: sx, z: sz, heading: 0, pose: 'shelter', speed: 0 };
-  return { x: start[0] + (sx - start[0]) * run, z: start[1] + (sz - start[1]) * run, heading: Math.atan2(sx - start[0], sz - start[1]), pose: 'run', speed: WALK.sprint };
+  const atBus = storm && stormGoesToBus(p);
+  if (run >= 1) return { x: sx, z: sz, heading: atBus ? Math.PI : 0, pose: atBus ? 'phone' : 'shelter', speed: 0, umbrella: 0 };
+  return { x: start[0] + (sx - start[0]) * run, z: start[1] + (sz - start[1]) * run, heading: Math.atan2(sx - start[0], sz - start[1]), pose: 'run', speed: WALK.sprint, umbrella: 0 };
 }
