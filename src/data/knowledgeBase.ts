@@ -7,6 +7,7 @@
  */
 
 import type { Localized } from '../i18n/locale';
+import { AML_POLICY, BIOMETRIC_THRESHOLD_CENTS, CTR_THRESHOLD_CENTS, DISPUTE_SLA_DAYS } from '../sim/amlEngine';
 import {
   buildRetailCase,
   buildTaskCase,
@@ -395,6 +396,97 @@ export const BUFFER_MECHANICS: readonly { gl: GlAccount; fill: Localized<string>
       'Each hold is backed by an STR or a sanctions match on file; it is a liability, because the money still belongs to someone. Savings pledged as loan collateral sit apart, in 2022.',
       'Mỗi khoản phong tỏa phải có báo cáo STR hoặc kết quả trùng danh sách cấm vận lưu hồ sơ; đây là nợ phải trả vì tiền vẫn thuộc về một người nào đó. Tiền gửi cầm cố cho khoản vay được theo dõi riêng ở tài khoản 2022.',
     ),
+  },
+];
+
+/** Where a GL group is reported: the balance sheet (a position) or the income statement (the period's result). */
+export type Statement = 'balance' | 'income';
+export const statementOf = (gl: GlAccount): Statement => (GL_SIDE[gl] === 'income' || GL_SIDE[gl] === 'expense' ? 'income' : 'balance');
+/** A line's effect on its account: up or down, by the account's own direction. */
+export const lineRaises = (line: FlowLine): boolean => (line.side === 'dr') === (GL_SIDE[line.gl] === 'asset' || GL_SIDE[line.gl] === 'expense');
+/** The side an account's balance normally sits on. */
+export const normalSide = (gl: GlAccount): 'dr' | 'cr' => (GL_SIDE[gl] === 'asset' || GL_SIDE[gl] === 'expense' ? 'dr' : 'cr');
+
+/**
+ * Section 3 (Advanced): the thresholds behind the desks. The simulator's own lines come from its policy constants (an amount
+ * in cents, or days); the Vietnamese rules are quoted with their source and should be checked against the current SBV texts.
+ */
+export const REGULATORY_RULES: readonly { id: string; rule: Localized<string>; cents?: number; days?: number; source: Localized<string> }[] = [
+  {
+    id: 'ctr',
+    rule: L('Cash at or above this files a Cash Transaction Report (CTR) at the teller and AML desks.', 'Tiền mặt từ mức này trở lên phải lập Báo cáo giao dịch tiền mặt (CTR) tại quầy giao dịch viên và quầy AML.'),
+    cents: CTR_THRESHOLD_CENTS,
+    source: L('Simulator policy (amlEngine)', 'Chính sách của trình mô phỏng (amlEngine)'),
+  },
+  {
+    id: 'cross-border',
+    rule: L('A cross-border payment this large is held for AML review before SWIFT sends it.', 'Lệnh chuyển tiền quốc tế từ mức này bị giữ lại để AML rà soát trước khi gửi qua SWIFT.'),
+    cents: AML_POLICY.largeCrossBorderCents,
+    source: L('Simulator policy (amlEngine)', 'Chính sách của trình mô phỏng (amlEngine)'),
+  },
+  {
+    id: 'biometric',
+    rule: L('An online transfer above this needs a FacePay biometric match (the 10 million VND rule).', 'Giao dịch chuyển tiền trực tuyến trên mức này phải xác thực sinh trắc học FacePay (quy định 10 triệu đồng).'),
+    cents: BIOMETRIC_THRESHOLD_CENTS,
+    source: L('Simulator policy, after SBV Decision 2345/QD-NHNN', 'Chính sách của trình mô phỏng, theo Quyết định 2345/QĐ-NHNN'),
+  },
+  {
+    id: 'chargeback',
+    rule: L('A card chargeback must be raised within this many days of the transaction.', 'Yêu cầu bồi hoàn thẻ phải được gửi trong số ngày này kể từ ngày giao dịch.'),
+    days: DISPUTE_SLA_DAYS.CHARGEBACK,
+    source: L('Simulator policy, after the card schemes’ rules', 'Chính sách của trình mô phỏng, theo quy định của tổ chức thẻ'),
+  },
+  {
+    id: 'vn-large-value',
+    rule: L(
+      'In Vietnam, a cash transaction of 400,000,000 VND or more in one day is a large-value transaction the bank reports to the SBV.',
+      'Tại Việt Nam, giao dịch tiền mặt từ 400.000.000 đồng trở lên trong một ngày là giao dịch có giá trị lớn mà ngân hàng phải báo cáo Ngân hàng Nhà nước.',
+    ),
+    source: L('Decision 11/2023/QD-TTg', 'Quyết định 11/2023/QĐ-TTg'),
+  },
+  {
+    id: 'vn-wire',
+    rule: L('An international electronic transfer of USD 1,000 or more (or its equivalent) is reported to the SBV.', 'Giao dịch chuyển tiền điện tử quốc tế từ 1.000 USD (hoặc tương đương) trở lên phải báo cáo Ngân hàng Nhà nước.'),
+    source: L('Circular 09/2023/TT-NHNN', 'Thông tư 09/2023/TT-NHNN'),
+  },
+  {
+    id: 'vn-records',
+    rule: L('Customer identification records and transaction documents are kept for at least five years.', 'Hồ sơ nhận biết khách hàng và chứng từ giao dịch được lưu trữ tối thiểu năm năm.'),
+    source: L('Law on Anti-Money Laundering 2022 (14/2022/QH15)', 'Luật Phòng, chống rửa tiền 2022 (14/2022/QH15)'),
+  },
+];
+
+/** Section 3 (Advanced): the internal controls that keep the buffers honest, in the order a day runs them. */
+export const INTERNAL_CONTROLS: readonly { id: string; title: Localized<string>; detail: Localized<string> }[] = [
+  {
+    id: 'screening-list',
+    title: L('Refresh the screening lists', 'Cập nhật danh sách sàng lọc'),
+    detail: L('The sanctions and watch lists are loaded before the first payment is screened; an emergency update re-screens open cases.', 'Danh sách cấm vận và danh sách theo dõi được nạp trước khi sàng lọc giao dịch đầu tiên; bản cập nhật khẩn sẽ sàng lọc lại các hồ sơ đang mở.'),
+  },
+  {
+    id: 'maker-checker',
+    title: L('Maker-checker (four eyes)', 'Kiểm soát hai lớp (maker-checker)'),
+    detail: L('Whoever keys a posting over the desk limit never approves it: a second officer checks it against the evidence first.', 'Người lập bút toán vượt hạn mức quầy không được tự phê duyệt: một cán bộ thứ hai đối chiếu với chứng từ trước.'),
+  },
+  {
+    id: 'segregation',
+    title: L('Segregation of duties', 'Phân tách nhiệm vụ'),
+    detail: L('The teller who counts the cash, the officer who posts it and the one who reconciles the vault are different people.', 'Người kiểm đếm tiền mặt, người hạch toán và người đối chiếu kho quỹ là những người khác nhau.'),
+  },
+  {
+    id: 'reconciliation',
+    title: L('Daily reconciliation', 'Đối chiếu hằng ngày'),
+    detail: L('Every night the ledger is matched against the card network’s files, the correspondent’s nostro statement and the ATM cash counts.', 'Mỗi đêm sổ cái được đối chiếu với tệp của tổ chức thẻ, sao kê nostro của ngân hàng đại lý và kết quả kiểm quỹ ATM.'),
+  },
+  {
+    id: 'suspense-aging',
+    title: L('Suspense ageing review', 'Rà soát tuổi nợ tài khoản treo'),
+    detail: L('Each item left in 1910 or 2912 at the close is listed with its age and an owner; items that do not clear are escalated.', 'Mỗi khoản còn lại trong 1910 hoặc 2912 khi khóa sổ được liệt kê kèm số ngày tồn và người phụ trách; khoản không xử lý được sẽ được báo cáo cấp trên.'),
+  },
+  {
+    id: 'trail',
+    title: L('An audit trail that is never edited', 'Nhật ký kiểm toán không bị chỉnh sửa'),
+    detail: L('Corrections are reversals and new journals, so the auditor can replay every decision with its time, desk and outcome.', 'Mọi điều chỉnh đều bằng bút toán đảo và bút toán mới, nên kiểm toán viên có thể xem lại từng quyết định cùng thời điểm, quầy và kết quả.'),
   },
 ];
 

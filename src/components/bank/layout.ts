@@ -222,17 +222,20 @@ export function bandRoutes(r1: number, decline: DeclineTail, laneStep = 0): Reco
 /**
  * Exclusive (XOR) join gateways: where many wires converge on one place, they end at a diamond and a single trunk goes on.
  *
- *   GATEWAY_XOR_REJECT    the nine long declines (the band's identity, fraud, AML, teller and dispute desks, and 3DS), in the
- *                         right-hand gutter; its trunk enters Declined from above.
+ *   GATEWAY_XOR_REJECT_BAND   the band's eight declines (identity, fraud, AML, teller, disputes), on the floor lanes right
+ *                             under the band; one trunk climbs the right-hand gutter into the reject gateway.
+ *   GATEWAY_XOR_REJECT    the band's trunk and the online (3DS) decline, in the gutter; its trunk enters Declined from above.
  *   GATEWAY_XOR_APPROVE   the band's five clean approvals on the ledger trunk; its trunk enters Debit CASA from the right.
  *   GATEWAY_XOR_NIGHT     the two night handovers (matched, cleared) between Suspense and Recon; its trunk enters Settled.
  *
  * Gateways are drawn on the map, not modelled in the topology: every wire still runs from its desk to its place, through the
  * diamond, so packets, tours and the simulation are unchanged. Each feeder meets the diamond at its own point on the edge.
  */
-export type GatewayId = 'GATEWAY_XOR_REJECT' | 'GATEWAY_XOR_APPROVE' | 'GATEWAY_XOR_NIGHT';
+export type GatewayId = 'GATEWAY_XOR_REJECT_BAND' | 'GATEWAY_XOR_REJECT' | 'GATEWAY_XOR_APPROVE' | 'GATEWAY_XOR_NIGHT';
 
 export const GATEWAY_AT: Readonly<Record<GatewayId, Pt>> = {
+  // Centred on the eight floor lanes (y 960-988), just right of the row-1 drops.
+  GATEWAY_XOR_REJECT_BAND: [940, 974],
   GATEWAY_XOR_REJECT: [1324, 400],
   GATEWAY_XOR_APPROVE: [876, 500],
   GATEWAY_XOR_NIGHT: [1105, 752],
@@ -248,7 +251,9 @@ export interface Gateway {
   to: PlaceId;
   /** The wires it collects. */
   wires: readonly string[];
-  /** The one trunk from the diamond's exit corner to the place. */
+  /** The gateway its trunk feeds instead of a place (a local collector cascading into a bigger one). */
+  into?: GatewayId;
+  /** The one trunk from the diamond's exit corner to the place (or to the next gateway's edge). */
   trunk: Pt[];
   path: string;
 }
@@ -259,11 +264,25 @@ const gw = (id: GatewayId): Pt => GATEWAY_AT[id];
 
 const GATEWAY_SPECS: readonly GatewaySpec[] = [
   {
+    id: 'GATEWAY_XOR_REJECT_BAND',
+    kind: 'reject',
+    half: 16,
+    to: 'OUT_DECLINED',
+    wires: Object.keys(DECLINE_SLOT).map((d) => `${d}>OUT_DECLINED`),
+    into: 'GATEWAY_XOR_REJECT',
+    // Right along the floor to the gutter, then up into the reject gateway's bottom corner.
+    trunk: [
+      [gw('GATEWAY_XOR_REJECT_BAND')[0] + 16, gw('GATEWAY_XOR_REJECT_BAND')[1]],
+      [gw('GATEWAY_XOR_REJECT')[0], gw('GATEWAY_XOR_REJECT_BAND')[1]],
+      [gw('GATEWAY_XOR_REJECT')[0], gw('GATEWAY_XOR_REJECT')[1] + 16],
+    ],
+  },
+  {
     id: 'GATEWAY_XOR_REJECT',
     kind: 'reject',
     half: 16,
     to: 'OUT_DECLINED',
-    wires: ['SEC_3DS>OUT_DECLINED', ...Object.keys(DECLINE_SLOT).map((d) => `${d}>OUT_DECLINED`)],
+    wires: ['SEC_3DS>OUT_DECLINED'],
     // Up the gutter from the top corner, along the top lane and down into Declined beside the virtual-card declines.
     trunk: [
       [gw('GATEWAY_XOR_REJECT')[0], gw('GATEWAY_XOR_REJECT')[1] - 16],
@@ -303,6 +322,11 @@ export const GATEWAYS: readonly Gateway[] = GATEWAY_SPECS.map((g) => {
   return { ...g, cx, cy, trunk, path: roundedPath(trunk) };
 });
 
+const GATEWAY_BY_ID = new Map(GATEWAYS.map((g) => [g.id, g]));
+
+/** Every wire a gateway's trunk carries: its own feeders and those of the collectors that cascade into it. */
+export const gatewayCarries = (g: Gateway): readonly string[] => [...g.wires, ...GATEWAYS.filter((o) => o.into === g.id).flatMap(gatewayCarries)];
+
 /** Drops a point that repeats the one before it (a lane that is already on the gateway's centre line). */
 const dedupe = (points: readonly Pt[]): Pt[] => points.filter((p, i) => i === 0 || p[0] !== points[i - 1]![0] || p[1] !== points[i - 1]![1]);
 
@@ -310,7 +334,7 @@ const dedupe = (points: readonly Pt[]): Pt[] => points.filter((p, i) => i === 0 
  * Re-routes a gateway's wires: each runs as before until its first leg that crosses the diamond's centre line, stops on the
  * diamond's edge there (the feeder that is drawn), passes through the centre under the diamond, and leaves by the trunk.
  */
-function throughGateway(w: Wire, g: Gateway): Wire {
+function throughGateway(w: Wire, g: Gateway, cascade = false): Wire {
   const pts = w.points;
   for (let i = 1; i < pts.length; i++) {
     const [ax, ay] = pts[i - 1]!;
@@ -323,6 +347,8 @@ function throughGateway(w: Wire, g: Gateway): Wire {
     const feeder = dedupe([...pts.slice(0, i), edge]);
     const inside: Pt[] = vertical ? [[ax, g.cy], [g.cx, g.cy]] : [[g.cx, ay], [g.cx, g.cy]];
     const points = dedupe([...feeder, ...inside, ...g.trunk]);
+    // Past a second gateway the wire's own stroke is still the feeder into the first one.
+    if (cascade) return { ...w, points, path: roundedPath(points) };
     return { ...w, points, path: roundedPath(points), gateway: g.id, drawPoints: feeder, drawPath: roundedPath(feeder) };
   }
   throw new Error(`The wire ${w.id} never reaches ${g.id}`);
@@ -331,8 +357,16 @@ function throughGateway(w: Wire, g: Gateway): Wire {
 function withGateways(wires: Wire[], gateways: readonly Gateway[]): Wire[] {
   const byWire = new Map(gateways.flatMap((g) => g.wires.map((id) => [id, g] as const)));
   return wires.map((w) => {
-    const g = byWire.get(w.id);
-    return g ? throughGateway(w, g) : w;
+    const first = byWire.get(w.id);
+    if (!first) return w;
+    let out = throughGateway(w, first);
+    // A cascading collector's trunk ends on the next gateway's edge: carry on through its centre and down its trunk.
+    let next = first.into ? GATEWAY_BY_ID.get(first.into) : undefined;
+    while (next) {
+      out = throughGateway({ ...out, points: [...out.points, [next.cx, next.cy]] }, next, true);
+      next = next.into ? GATEWAY_BY_ID.get(next.into) : undefined;
+    }
+    return out;
   });
 }
 
@@ -369,7 +403,8 @@ const ROUTES: Record<string, RouteSpec> = {
   // Instant account-to-account transfers: out of the A2A gate, up the channel between the columns, along the open corridor
   // above the card-present wire, and straight into the top of the debit CASA ledger. A malformed message takes the lane above.
   'GATE_A2A>LEDGER_DEBIT': R(['r', -10], ['t', -8], { via: [[196, 372], [196, 190], [772, 190]], labelAt: [470, 190] }),
-  'GATE_A2A>OUT_DECLINED': R(['r', 10], ['l', 22], { via: [[204, 392], [204, 172]], labelAt: [800, 172] }),
+  // Its label sits under the vault cards, clear of the Balance & credit frame's title.
+  'GATE_A2A>OUT_DECLINED': R(['r', 10], ['l', 22], { via: [[204, 392], [204, 172]], labelAt: [330, 172] }),
   // Online
   'GATE_ECOM>SEC_3DS': R(['r', -14], ['l'], { bendX: 200 }),
   'GATE_ECOM>BNPL': R(['r', 14], ['l'], { bendX: 204 }),

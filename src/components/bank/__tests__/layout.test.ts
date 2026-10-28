@@ -248,6 +248,20 @@ describe('wires and their labels stay legible', () => {
     setActiveLocale('en');
   });
 
+  it('keeps every wire label off the department titles, in both languages', () => {
+    for (const locale of ['en', 'vi'] as const) {
+      setActiveLocale(locale);
+      const hits: string[] = [];
+      for (const w of BANK_WIRES.filter((x) => x.label && x.showLabel)) {
+        const l = pill(t(w.label!), w.labelAt);
+        // The title chip BankMap draws in each frame's top-left corner: up to two lines, the frame's width less its insets.
+        for (const [id, d] of Object.entries(DEPT_BOX)) if (overlap(l.x0, l.x1, d.x + 8, d.x + d.w - 8) > 0 && overlap(l.y0, l.y1, d.y + 4, d.y + 38) > 0) hits.push(`${w.id} on ${id}`);
+      }
+      expect(hits, locale).toEqual([]);
+    }
+    setActiveLocale('en');
+  });
+
   it('never gives two wires out of the same desk the same label', () => {
     const seen = new Map<string, string>();
     for (const [from, to, label] of WIRES) {

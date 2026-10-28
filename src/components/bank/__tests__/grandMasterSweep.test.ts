@@ -31,7 +31,7 @@ import { knowledgeBaseMessages } from '../../knowledge/knowledgeBase.messages';
 import { SegmentedToggle } from '../../shell/SegmentedToggle';
 import { analystWorkspaceMessages, type AnalystWorkspaceKey } from '../analystWorkspace.messages';
 import { AnalystWorkspaceView, CoreLedgerSheet, type AnalystWorkspaceViewProps } from '../AnalystWorkspaceModal';
-import { BANK_WIRES, connectedWires, GATEWAYS, PLACE_BOX } from '../layout';
+import { BANK_WIRES, connectedWires, gatewayCarries, GATEWAYS, PLACE_BOX } from '../layout';
 import { openingLedger } from '../../../sim/staffRoleplay';
 
 const msgs = analystWorkspaceMessages.messages;
@@ -144,7 +144,26 @@ describe('the emergency queue: batch size and the mixed crisis stream', () => {
     const stream = view({ crisisBatch: 1 });
     expect(stream).toContain('data-stream="true"');
     expect(stream).toContain(esc(msgs.crisisStreamLeft.en));
-    expect(view({ incidentMode: false, incident: null })).not.toContain('workspace-crisis-batch');
+  });
+
+  it('keeps the toolbar and the desk below it in place when Incident Mode switches on', () => {
+    const off = view({ incidentMode: false, incident: null });
+    const on = view({ crisisBatch: 5 });
+    const toolbar = (out: string) => out.slice(out.indexOf('data-testid="workspace-toolbar"'), out.indexOf('</header>'));
+    const ids = (out: string) => [...toolbar(out).matchAll(/data-testid="([^"]+)"/g)].map((x) => x[1]).filter((id) => !id!.startsWith('workspace-crisis-batch-'));
+    // The same controls, in the same order: the batch picker is only disabled while off.
+    expect(ids(off)).toEqual(ids(on));
+    expect(off).toMatch(/<fieldset disabled=""[^>]*data-testid="workspace-crisis-batch-group" data-disabled="true"/);
+    expect(on.indexOf('workspace-crisis-batch-group')).toBeGreaterThan(on.indexOf('workspace-incident-toggle'));
+    // One banner strip of one fixed height either way, and no alarm card pushing the case column down.
+    const strip = (out: string, id: string) => {
+      const at = out.indexOf(`data-testid="${id}"`);
+      return out.slice(out.lastIndexOf('<div', at), out.indexOf('>', at));
+    };
+    expect(strip(off, 'workspace-incident-idle')).toContain('h-[112px]');
+    expect(strip(on, 'workspace-incident')).toContain('h-[112px]');
+    expect(on).toContain('data-testid="workspace-case-column"');
+    expect(on.slice(on.lastIndexOf('<div', on.indexOf('data-testid="workspace-case-column"')))).toMatch(/^<div class="contents"/);
   });
 });
 
@@ -315,13 +334,20 @@ describe('one shared segmented switch', () => {
 describe('BPMN collector gateways on the map', () => {
   it('collects the long declines, the band approvals and the night handovers, each into one trunk', () => {
     const byId = new Map(GATEWAYS.map((g) => [g.id, g]));
-    expect(byId.get('GATEWAY_XOR_REJECT')!.wires).toHaveLength(9);
+    // The band's eight declines meet a local collector under the band; its one trunk joins 3DS at the reject gateway.
+    expect(byId.get('GATEWAY_XOR_REJECT_BAND')!.wires).toHaveLength(8);
+    expect(byId.get('GATEWAY_XOR_REJECT_BAND')!.into).toBe('GATEWAY_XOR_REJECT');
+    expect(byId.get('GATEWAY_XOR_REJECT')!.wires).toEqual(['SEC_3DS>OUT_DECLINED']);
+    expect(gatewayCarries(byId.get('GATEWAY_XOR_REJECT')!)).toHaveLength(9);
     expect(byId.get('GATEWAY_XOR_APPROVE')!.wires).toHaveLength(5);
     expect(byId.get('GATEWAY_XOR_NIGHT')!.wires).toEqual(['RECON>OUT_SETTLED', 'SUSPENSE>OUT_SETTLED']);
     for (const g of GATEWAYS) {
       const end = g.trunk.at(-1)!;
+      const next = g.into ? byId.get(g.into)! : null;
       const b = PLACE_BOX[g.to];
-      expect(end[0] === b.cx - b.w / 2 || end[0] === b.cx + b.w / 2 || end[1] === b.cy - b.h / 2 || end[1] === b.cy + b.h / 2, g.id).toBe(true);
+      if (next) expect(Math.abs(end[0] - next.cx) + Math.abs(end[1] - next.cy), g.id).toBe(next.half);
+      else expect(end[0] === b.cx - b.w / 2 || end[0] === b.cx + b.w / 2 || end[1] === b.cy - b.h / 2 || end[1] === b.cy + b.h / 2, g.id).toBe(true);
+      const last = (next ?? g).trunk.at(-1)!;
       const ends = new Set<string>();
       for (const id of g.wires) {
         const w = BANK_WIRES.find((x) => x.id === id)!;
@@ -331,8 +357,8 @@ describe('BPMN collector gateways on the map', () => {
         // On the diamond's edge, each feeder at its own point.
         expect(Math.abs(tip[0] - g.cx) + Math.abs(tip[1] - g.cy), id).toBe(g.half);
         ends.add(tip.join(','));
-        // The packet's path still runs all the way, through the diamond and down the trunk.
-        expect(w.points.at(-1), id).toEqual(end);
+        // The packet's path still runs all the way, through every diamond and down the last trunk.
+        expect(w.points.at(-1), id).toEqual(last);
       }
       expect(ends.size, g.id).toBe(g.wires.length);
     }
@@ -344,5 +370,69 @@ describe('BPMN collector gateways on the map', () => {
     expect([...lit].sort()).toEqual(BANK_WIRES.filter((w) => w.from === 'SEC_FDS' || w.to === 'SEC_FDS').map((w) => w.id).sort());
     expect(lit.has('SEC_FDS>OUT_DECLINED')).toBe(true);
     expect(lit.has('GATE_ATM>OUT_DECLINED')).toBe(false);
+  });
+});
+
+describe('readability pass: the Knowledge Base cards, balances and Advanced depth', () => {
+  it('gives every ledger account a card in Section 3, with a filter by number or name', () => {
+    const all = renderToStaticMarkup(createElement(CoreLedgerArticle, {}));
+    for (const a of GL_ACCOUNTS) expect(all, a.code).toContain(`data-account-card="${a.id}"`);
+    expect(all).toContain('data-testid="kb-account-filter"');
+    const one = renderToStaticMarkup(createElement(CoreLedgerArticle, { accountQuery: '1011' }));
+    expect(one.match(/data-account-card=/g)).toHaveLength(1);
+    expect(one).toContain('data-account-card="ATM_CASH"');
+    const byName = renderToStaticMarkup(createElement(CoreLedgerArticle, { accountQuery: 'nostro' }));
+    expect(byName).toContain('data-account-card="NOSTRO"');
+    const none = renderToStaticMarkup(createElement(CoreLedgerArticle, { accountQuery: 'zzzz' }));
+    expect(none).not.toContain('data-account-card=');
+    expect(none).toContain(esc(kb.cardsNone.en.replace('{q}', 'zzzz')));
+  });
+
+  it('shows the balance after each step in Basic and Advanced alike', () => {
+    expect(kb.balanceAfter.vi).toContain('Số dư sau bước này');
+    for (const view of ['basic', 'advanced'] as const) expect(renderToStaticMarkup(createElement(CoreLedgerArticle, { view }))).toContain('data-balance="ATM_SUSPENSE"');
+  });
+
+  it('in Advanced, adds statement effects, the regulatory thresholds and the internal controls', () => {
+    const basic = renderToStaticMarkup(createElement(CoreLedgerArticle, {}));
+    const adv = renderToStaticMarkup(createElement(CoreLedgerArticle, { view: 'advanced' }));
+    for (const id of ['kb-regulations', 'kb-controls']) {
+      expect(adv).toContain(`data-testid="${id}"`);
+      expect(basic).not.toContain(`data-testid="${id}"`);
+    }
+    expect(adv).toContain('data-statement="balance"');
+    expect(adv).toContain('data-statement="income"');
+    expect(adv).toContain('$10,000.00');
+    expect(adv).toContain('data-rule="vn-large-value"');
+    expect(basic).not.toContain('data-statement=');
+  });
+});
+
+describe('readability pass: the map legend and one switch for the dock', () => {
+  it('opens a legend of the lines, gateways, frames and wire words', async () => {
+    const { MapLegend } = await import('../BankMap');
+    const closed = renderToStaticMarkup(createElement(MapLegend, {}));
+    expect(closed).toContain('data-testid="map-legend-open"');
+    const open = renderToStaticMarkup(createElement(MapLegend, { initiallyOpen: true }));
+    for (const key of ['lineReject', 'lineApprove', 'lineNight', 'lineOtp', 'gateway', 'frame']) expect(open).toContain(`data-legend="${key}"`);
+    for (const term of ['CTR', 'STR', 'clean', 'released', 'refund']) expect(open).toContain(`data-legend-term="${term}"`);
+  });
+
+  it('passes the bundle checks', async () => {
+    const { bundleProblems } = await import('../../../utils/i18nHelper');
+    const { mapLegendMessages } = await import('../mapLegend.messages');
+    const { viewModeMessages } = await import('../../shell/viewModeToggle.messages');
+    expect(bundleProblems(mapLegendMessages)).toEqual([]);
+    expect(bundleProblems(viewModeMessages)).toEqual([]);
+    expect(bundleProblems(knowledgeBaseMessages)).toEqual([]);
+    expect(bundleProblems(analystWorkspaceMessages)).toEqual([]);
+  });
+
+  it('leaves no hand-made two-way switch behind in the dock or the Build Lab', () => {
+    const sources = import.meta.glob('../*.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+    for (const file of ['../ViewportControls.tsx', '../ViewControls.tsx']) {
+      expect(sources[file], file).toContain('<SegmentedToggle');
+      expect(sources[file], file).not.toMatch(/function (Pill|Segmented)</);
+    }
   });
 });

@@ -1031,6 +1031,11 @@ export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
     vi: 'Mô phỏng Đa luồng Khẩn cấp: mỗi hồ sơ mang một sự cố khác trong nhóm sự cố của quầy này, và hàng chờ không dừng cho đến khi bạn tắt Chế độ Sự cố.',
   },
   crisisBatchLabel: { en: 'Cases per crisis', vi: 'Số hồ sơ mỗi sự cố' },
+  crisisBatchOff: { en: 'Turn Incident Mode on to set how many cases each crisis lasts.', vi: 'Bật Chế độ Sự cố để chọn số hồ sơ cho mỗi sự cố.' },
+  incidentIdle: {
+    en: 'Incident Mode is off: routine step-by-step SOP practice. Turn it on to work the Emergency Crisis Queue.',
+    vi: 'Chế độ Sự cố đang tắt: luyện tập SOP từng bước như thường ngày. Bật lên để xử lý Hàng chờ Cứu hộ.',
+  },
   crisisBatchN: { en: '{n} cases', vi: '{n} ca' },
   crisisBatchCustom: { en: '⚙️ Custom', vi: '⚙️ Tự chọn' },
   crisisBatchCustomHint: { en: 'Cases per crisis, {min} to {max}. 1 switches on the mixed crisis stream.', vi: 'Số hồ sơ mỗi sự cố, từ {min} đến {max}. Chọn 1 để bật Mô phỏng Đa luồng Khẩn cấp.' },

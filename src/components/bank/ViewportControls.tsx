@@ -1,9 +1,10 @@
 import { t } from '../../i18n/t';
-import { memo, useEffect, useState, type ReactNode } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { flowText, GUIDED_FLOWS } from '../../sim/guidedFlows';
 import { FLOW_IDS, type DataDepth, type Dimension, type FlowId, type Scope } from '../../types/viewport';
 import { dataDepthOf, useBankStore } from '../../store/bankStore';
 import { webglAvailable } from './office/webgl';
+import { SegmentedToggle, type SegmentOption } from '../shell/SegmentedToggle';
 
 /**
  * The viewport dock, floating at the top centre of the Living Bank (clear of the walkthrough card, which is placed beside
@@ -16,36 +17,6 @@ import { webglAvailable } from './office/webgl';
  *
  * Over the 3D office the dock is a solid panel: a backdrop blur over a live WebGL canvas makes the browser re-blur every frame.
  */
-
-interface Option<T> {
-  id: T;
-  label: ReactNode;
-  title: string;
-}
-
-/** A two-way switch with a thumb that slides to the chosen side. */
-function Pill<T extends string>({ label, value, options, onChange, testPrefix, accent }: { label: string; value: T; options: readonly [Option<T>, Option<T>]; onChange: (v: T) => void; testPrefix: string; accent?: Partial<Record<T, string>> }) {
-  const index = options[1].id === value ? 1 : 0;
-  const thumb = accent?.[value] ?? '#334155';
-  return (
-    <div className="relative grid grid-cols-2 rounded-xl bg-slate-900 p-0.5 ring-1 ring-slate-800" role="group" aria-label={label}>
-      <span aria-hidden="true" className="absolute bottom-0.5 left-0.5 top-0.5 w-[calc(50%-2px)] rounded-[10px] shadow transition-transform duration-200 ease-out" style={{ transform: `translateX(${index * 100}%)`, background: thumb }} />
-      {options.map((o) => (
-        <button
-          key={o.id}
-          type="button"
-          onClick={() => onChange(o.id)}
-          aria-pressed={value === o.id}
-          title={o.title}
-          data-testid={`${testPrefix}-${o.id}`}
-          className={`relative z-10 flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[10px] px-2.5 py-1 text-[11.5px] font-semibold transition-colors duration-200 ${value === o.id ? 'text-white' : 'text-slate-400 hover:text-slate-100'}`}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 const SchematicIcon = () => (
   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
@@ -64,17 +35,17 @@ const IsoBoxIcon = () => (
 
 const Dot = ({ color }: { color: string }) => <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />;
 
-const SCOPE_OPTIONS = (): readonly [Option<Scope>, Option<Scope>] => [
-  { id: 'beginner', label: <><Dot color="#4ade80" />{t('Beginner')}</>, title: t('Guided: one payment flow at a time is lit, everything else fades back') },
-  { id: 'advanced', label: <><Dot color="#c084fc" />{t('Advanced')}</>, title: t('The whole Living Bank, every desk and wire lit') },
+const SCOPE_OPTIONS = (): readonly SegmentOption<Scope>[] => [
+  { value: 'beginner', label: <><Dot color="#4ade80" />{t('Beginner')}</>, hint: t('Guided: one payment flow at a time is lit, everything else fades back'), tone: 'emerald' },
+  { value: 'advanced', label: <><Dot color="#c084fc" />{t('Advanced')}</>, hint: t('The whole Living Bank, every desk and wire lit'), tone: 'violet' },
 ];
-const DIMENSION_OPTIONS = (): readonly [Option<Dimension>, Option<Dimension>] => [
-  { id: '2d', label: <><SchematicIcon />2D</>, title: t('The flat blueprint map of departments and wires') },
-  { id: '3d', label: <><IsoBoxIcon />3D</>, title: t('The same bank as an isometric office: desks, staff and customers') },
+const DIMENSION_OPTIONS = (): readonly SegmentOption<Dimension>[] => [
+  { value: '2d', label: <><SchematicIcon />2D</>, hint: t('The flat blueprint map of departments and wires') },
+  { value: '3d', label: <><IsoBoxIcon />3D</>, hint: t('The same bank as an isometric office: desks, staff and customers') },
 ];
-const DEPTH_OPTIONS = (): readonly [Option<DataDepth>, Option<DataDepth>] => [
-  { id: 'standard', label: <>{t('Standard')}</>, title: t('Plain-English names and simple facts in the inspector') },
-  { id: 'expert', label: <><span className="font-mono text-[10.5px] text-lime-300">&lt;/&gt;</span>{t('Expert')}</>, title: t('Fintech terms, ISO 8583 response codes, the raw message and the GL journal') },
+const DEPTH_OPTIONS = (): readonly SegmentOption<DataDepth>[] => [
+  { value: 'standard', label: <>{t('Standard')}</>, hint: t('Plain-English names and simple facts in the inspector') },
+  { value: 'expert', label: <><span className="font-mono text-[10.5px]">&lt;/&gt;</span>{t('Expert')}</>, hint: t('Fintech terms, ISO 8583 response codes, the raw message and the GL journal'), tone: 'emerald' },
 ];
 
 /** The guided flows under the dock while the Beginner scope is on: 01-04 on the first row, the Phase 8 flows 05-08 on the second. */
@@ -134,11 +105,11 @@ function ViewportControlsView() {
   return (
     <div className="pointer-events-none absolute top-3 z-40 flex -translate-x-1/2 flex-col items-center transition-[left] duration-200 ease-out" style={{ left }} data-testid="viewport-controls">
       <div className={`pointer-events-auto flex items-center gap-3 rounded-2xl border border-slate-800 p-1.5 px-3 shadow-2xl ${solid ? 'bg-slate-900/95' : 'bg-slate-950/90 backdrop-blur-md'}`} role="toolbar" aria-label={t('Viewport')}>
-        <Pill<Scope> label={t('Scope')} value={scope} options={SCOPE_OPTIONS()} onChange={setScope} testPrefix="scope" accent={{ beginner: '#166534', advanced: '#6b21a8' }} />
+        <SegmentedToggle<Scope> label={t('Scope')} value={scope} options={SCOPE_OPTIONS()} onChange={setScope} testId="scope" stateKey="scope" />
         <span className="h-5 w-px bg-slate-800" aria-hidden="true" />
-        <Pill<Dimension> label={t('Dimension')} value={dimension} options={DIMENSION_OPTIONS()} onChange={chooseDimension} testPrefix="dim" accent={{ '2d': '#0c4a6e', '3d': '#0c4a6e' }} />
+        <SegmentedToggle<Dimension> label={t('Dimension')} value={dimension} options={DIMENSION_OPTIONS()} onChange={chooseDimension} testId="dim" stateKey="dimension" />
         <span className="h-5 w-px bg-slate-800" aria-hidden="true" />
-        <Pill<DataDepth> label={t('Data depth')} value={depth} options={DEPTH_OPTIONS()} onChange={setDepth} testPrefix="depth" accent={{ standard: '#334155', expert: '#3f6212' }} />
+        <SegmentedToggle<DataDepth> label={t('Data depth')} value={depth} options={DEPTH_OPTIONS()} onChange={setDepth} testId="depth" stateKey="depth" />
       </div>
       {noWebgl && (
         <p role="alert" className="pointer-events-auto mt-1.5 w-[270px] rounded-lg border border-amber-400/40 bg-amber-950/95 px-3 py-2 text-center text-[12px] leading-snug text-amber-100 shadow-xl" data-testid="view-no-webgl">

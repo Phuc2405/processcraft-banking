@@ -57,10 +57,10 @@ export function SegmentedToggle<T extends string>({
             onClick={() => onChange(o.value)}
             title={o.hint}
             data-testid={`${testId}-${o.value}`}
-            className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1 text-[11.5px] font-semibold transition ${on ? TONE[o.tone ?? 'sky'] : 'text-slate-300 hover:bg-slate-800'}`}
+            className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1 text-[13.5px] font-semibold transition ${on ? TONE[o.tone ?? 'sky'] : 'text-slate-300 hover:bg-slate-800'}`}
           >
             {o.label}
-            {o.badge !== undefined && <span className={`rounded-full px-1.5 text-[10px] font-bold tabular-nums ${on ? 'bg-slate-950/20' : 'bg-slate-700 text-slate-200'}`}>{o.badge}</span>}
+            {o.badge !== undefined && <span className={`rounded-full px-1.5 text-[12px] font-bold tabular-nums ${on ? 'bg-slate-950/20' : 'bg-slate-700 text-slate-200'}`}>{o.badge}</span>}
           </button>
         );
       })}
@@ -78,7 +78,7 @@ export function ViewModeToggle({ view, onChange, testId, caption = false, hints 
   const m = useMessages(viewModeMessages);
   return (
     <div className="flex shrink-0 items-center gap-1.5" data-testid={`${testId}-group`}>
-      {caption && <span className="whitespace-nowrap text-[11px] font-semibold text-slate-400">{m('label')}:</span>}
+      {caption && <span className="whitespace-nowrap text-[13px] font-semibold text-slate-400">{m('label')}:</span>}
       <SegmentedToggle<ViewMode>
         label={m('label')}
         value={view}
