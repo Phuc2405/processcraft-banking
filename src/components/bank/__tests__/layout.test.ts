@@ -4,7 +4,7 @@ import { t } from '../../../i18n/t';
 import { DEPARTMENT_IDS, DEPARTMENTS, EXTERNAL_IDS, STATION_IDS, WIRES, edgeId, type PlaceId } from '../../../sim/topology';
 import { OFFICE_PLACE_BOX } from '../office/officePlan';
 import { deskPose, toWorld } from '../office/layout3d';
-import { BAND, BANK_WIRES, CARD, DEPT_BOX, GATEWAYS, PLACE_BOX, STAGE, TIP_SIDE, pathOfWire, roundedPath, tipRect, wireById } from '../layout';
+import { BAND, BANK_WIRES, CARD, DEPT_BOX, GATEWAYS, PLACE_BOX, STAGE, TIP_PREFERENCE, TIP_SIDE, pathOfWire, roundedPath, tipRect, wireById } from '../layout';
 
 describe('the bank map', () => {
   it('gives every place on the topology a box on the stage', () => {
@@ -108,30 +108,22 @@ describe('where a desk’s description opens', () => {
     Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
   const places = Object.keys(PLACE_BOX) as PlaceId[];
 
-  const cost = (id: PlaceId, side: 'below' | 'above' | 'right' | 'left'): number => places.filter((o) => o !== id).reduce((n, o) => n + overlap(tipRect(id, side), rect(o)), 0);
-
-  it('stays on the stage and opens on the side that covers the least of the other desks', () => {
+  it('opens above the desk, and on the next side only where above would leave the stage', () => {
     for (const id of places) {
       const r = tipRect(id, TIP_SIDE[id]);
       expect(r.x0, id).toBeGreaterThanOrEqual(0);
       expect(r.y0, id).toBeGreaterThanOrEqual(0);
       expect(r.x1, id).toBeLessThanOrEqual(STAGE.width);
       expect(r.y1, id).toBeLessThanOrEqual(STAGE.height);
-      const onStage = (['below', 'above', 'right', 'left'] as const).filter((side) => {
+      const fits = (side: (typeof TIP_PREFERENCE)[number]) => {
         const t = tipRect(id, side);
         return t.x0 >= 0 && t.y0 >= 0 && t.x1 <= STAGE.width && t.y1 <= STAGE.height;
-      });
-      expect(cost(id, TIP_SIDE[id]), id).toBe(Math.min(...onStage.map((side) => cost(id, side))));
+      };
+      expect(TIP_SIDE[id], id).toBe(TIP_PREFERENCE.find(fits));
     }
-  });
-
-  it('covers no other desk, except gate-column desks, the compact night grid and the Phase 8 band', () => {
-    const crowded = places.filter((id) => cost(id, TIP_SIDE[id]) > 0).sort();
-    expect(crowded).toEqual(['DISPUTE_DESK', 'GATE_A2A', 'GATE_ECOM', 'GATE_SWIFT', 'GATE_VIRTUAL', 'RECON', 'SEC_FACEPAY', 'SUSPENSE', 'TELLER_CASH']);
-  });
-
-  it('opens the everyday-account desk’s description away from the credit-card desk under it', () => {
-    expect(TIP_SIDE.LEDGER_DEBIT).not.toBe('below');
+    // Most desks open above; only the top row and the edge columns fall back.
+    expect(places.filter((id) => TIP_SIDE[id] === 'above').length).toBeGreaterThan(places.length / 2);
+    expect(TIP_SIDE.LEDGER_DEBIT).toBe('above');
     expect(overlap(tipRect('LEDGER_DEBIT', TIP_SIDE.LEDGER_DEBIT), rect('LEDGER_CREDIT'))).toBe(0);
   });
 
@@ -219,9 +211,14 @@ describe('wires and their labels stay legible', () => {
   /** The label pill BankMap draws: 5.4 px a character plus padding, 14 px tall. */
   const pill = (label: string, [x, y]: readonly [number, number]) => ({ x0: x - label.length * 2.7 - 4, x1: x + label.length * 2.7 + 4, y0: y - 7, y1: y + 7 });
 
-  it('never draws two wires along the same stroke: parallel runs keep a lane of their own', () => {
+  it('never draws two wires along the same stroke, except feeders merging into one gateway', () => {
     // What the map strokes: each wire's own run (a gateway's wire up to the diamond) and each gateway's one trunk.
     const strokes = [...BANK_WIRES.map((w) => ({ id: w.id, points: w.drawPoints })), ...GATEWAYS.map((g) => ({ id: g.id, points: g.trunk }))];
+    const gatewayOf = new Map(BANK_WIRES.map((w) => [w.id, w.gateway]));
+    const sameMerge = (a: string, b: string): boolean => {
+      const g = gatewayOf.get(a);
+      return !!g && g === gatewayOf.get(b) && !!GATEWAYS.find((x) => x.id === g)?.merge;
+    };
     const shared: string[] = [];
     for (let i = 0; i < strokes.length; i++)
       for (let j = i + 1; j < strokes.length; j++)
@@ -229,7 +226,9 @@ describe('wires and their labels stay legible', () => {
           for (const [c, d] of segs(strokes[j]!.points)) {
             const horizontal = a[1] === b[1] && c[1] === d[1] && Math.abs(a[1] - c[1]) < 3 && overlap(a[0], b[0], c[0], d[0]) > 4;
             const vertical = a[0] === b[0] && c[0] === d[0] && Math.abs(a[0] - c[0]) < 3 && overlap(a[1], b[1], c[1], d[1]) > 4;
-            if (horizontal || vertical) shared.push(`${strokes[i]!.id} | ${strokes[j]!.id}`);
+            // Feeders of a merging gateway share their last leg on purpose: one stroke into the diamond's corner.
+            const merged = sameMerge(strokes[i]!.id, strokes[j]!.id);
+            if ((horizontal || vertical) && !merged) shared.push(`${strokes[i]!.id} | ${strokes[j]!.id}`);
           }
     expect(shared).toEqual([]);
   });

@@ -370,13 +370,14 @@ describe('BPMN collector gateways on the map', () => {
         expect(w.gateway, id).toBe(g.id);
         expect(w.to, id).toBe(g.to);
         const tip = w.drawPoints.at(-1)!;
-        // On the diamond's edge, each feeder at its own point.
+        // On the diamond's edge: a merging gateway's feeders all meet its corner, the others each at their own point.
         expect(Math.abs(tip[0] - g.cx) + Math.abs(tip[1] - g.cy), id).toBe(g.half);
+        if (g.merge) expect(tip[0] === g.cx || tip[1] === g.cy, id).toBe(true);
         ends.add(tip.join(','));
         // The packet's path still runs all the way, through every diamond and down the last trunk.
         expect(w.points.at(-1), id).toEqual(last);
       }
-      expect(ends.size, g.id).toBe(g.wires.length);
+      expect(ends.size, g.id).toBe(g.merge ? 1 : g.wires.length);
     }
   });
 
@@ -494,5 +495,52 @@ describe('every edge on the map says what it means', () => {
       const a = w.labelAnchor ?? w.labelAt;
       expect(Math.hypot(a[0] - w.labelAt[0], a[1] - w.labelAt[1]), w.id).toBeLessThan(110);
     }
+  });
+});
+
+describe('a calmer map for a first-time learner', () => {
+  type P = readonly [number, number];
+  /** Whether two axis-aligned segments cross (touching at an end does not count). */
+  const cross = ([a, b]: readonly [P, P], [c, d]: readonly [P, P]): boolean => {
+    const h1 = a[1] === b[1];
+    const h2 = c[1] === d[1];
+    if (h1 === h2) return false;
+    const [h, v] = h1 ? [[a, b], [c, d]] : [[c, d], [a, b]];
+    const x = v[0]![0];
+    const y = h[0]![1];
+    return x > Math.min(h[0]![0], h[1]![0]) && x < Math.max(h[0]![0], h[1]![0]) && y > Math.min(v[0]![1], v[1]![1]) && y < Math.max(v[0]![1], v[1]![1]);
+  };
+  const segs = (p: readonly P[]) => p.slice(1).map((b, i) => [p[i]!, b] as const);
+
+  it('routes the OTP out and back on side-by-side channels that never cross', () => {
+    const out = BANK_WIRES.find((w) => w.id === 'SEC_3DS>CUSTOMER_OTP')!;
+    const back = BANK_WIRES.find((w) => w.id === 'CUSTOMER_OTP>SEC_3DS')!;
+    for (const a of segs(out.drawPoints)) for (const b of segs(back.drawPoints)) expect(cross(a, b)).toBe(false);
+  });
+
+  it('merges the row-1 declines and the band approvals into one stroke into their gateway', () => {
+    for (const id of ['GATEWAY_XOR_REJECT_ROW1', 'GATEWAY_XOR_APPROVE'] as const) {
+      const g = GATEWAYS.find((x) => x.id === id)!;
+      expect(g.merge, id).toBe(true);
+      const tips = new Set(g.wires.map((w) => BANK_WIRES.find((x) => x.id === w)!.drawPoints.at(-1)!.join(',')));
+      expect(tips.size, id).toBe(1);
+    }
+    // Their dashes start at the diamond, so the shared stroke reads as one line.
+    for (const w of BANK_WIRES.filter((x) => x.gateway)) expect(w.strokePath, w.id).toBeTruthy();
+  });
+
+  it('hides decline conditions until their line or desk is pointed at, and keeps every other label on show', () => {
+    for (const w of BANK_WIRES) expect(w.revealOnly ?? false, w.id).toBe(w.to === 'OUT_DECLINED');
+    const sources = import.meta.glob('../BankMap.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+    expect(sources['../BankMap.tsx']).toMatch(/if \(w\.revealOnly && !lit && !traced\) return null;/);
+  });
+
+  it('keeps desk icons one size in every vocabulary, and the tooltip opaque with title, definition and status', () => {
+    const src = (import.meta.glob('../BankMap.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)['../BankMap.tsx']!;
+    expect(src).not.toMatch(/long \? 'h-\[\d+px\] w-\[\d+px\]'/);
+    expect(src.match(/className=\{DESK_ICON\}/g)).toHaveLength(2);
+    for (const part of ['title', 'definition', 'status']) expect(src).toContain(`data-tip="${part}"`);
+    expect(src).toMatch(/bk-hovertip [^`]*bg-slate-900[^`]*opacity-100/);
+    expect(src).toContain("'opacity-50 hover:opacity-100 has-[:focus-visible]:opacity-100'");
   });
 });

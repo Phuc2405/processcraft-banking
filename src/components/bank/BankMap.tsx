@@ -131,20 +131,32 @@ const TIP_POSITION: Record<TipSide, string> = {
  * Opens on the side of the desk where it covers no other card (see tipSideFor), and the desk under the pointer is lifted above
  * its neighbours while it shows, so no other card can paint over it.
  */
-function HoverTip({ name, tip, side, caption }: { name: string; tip: string; side: TipSide; caption?: string | null }) {
+function HoverTip({ name, tip, side, caption, status }: { name: string; tip: string; side: TipSide; caption?: string | null; status?: { text: string; className: string } }) {
   return (
     <span
       role="tooltip"
-      className={`bk-hovertip pointer-events-none absolute z-50 w-[236px] rounded-lg border border-slate-500 bg-[#0b1120] px-2.5 py-1.5 text-left shadow-[0_10px_30px_rgba(0,0,0,0.6)] ${TIP_POSITION[side]}`}
+      className={`bk-hovertip pointer-events-none absolute z-50 w-[236px] rounded-lg border border-slate-500 bg-slate-900 px-2.5 py-1.5 text-left opacity-100 shadow-[0_10px_30px_rgba(0,0,0,0.75)] ${TIP_POSITION[side]}`}
       data-testid="hover-tip"
       data-side={side}
     >
-      <span className="block text-[11.5px] font-semibold leading-snug text-slate-50">{name}</span>
+      <span className="block text-[11.5px] font-semibold leading-snug text-slate-50" data-tip="title">
+        {name}
+      </span>
       {caption && <span className="block text-[10px] leading-snug text-sky-300/90" data-testid="hover-tip-caption">{caption}</span>}
-      <span className="mt-0.5 block text-[11.5px] leading-snug text-slate-300">{tip}</span>
+      <span className="mt-0.5 block text-[11.5px] leading-snug text-slate-300" data-tip="definition">
+        {tip}
+      </span>
+      {status && (
+        <span className={`mt-1 inline-block rounded bg-slate-800 px-1.5 py-px text-[10.5px] font-semibold ${status.className}`} data-tip="status">
+          {status.text}
+        </span>
+      )}
     </span>
   );
 }
+
+/** The desk icon (staff workstation or server rack): one compact size in every vocabulary, so a mode switch never resizes it. */
+const DESK_ICON = 'h-[44px] w-[60px] shrink-0';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Departments
@@ -256,7 +268,7 @@ const StationCard = memo(function StationCard({
 
   return (
     <div
-      className={`group absolute z-20 transition-opacity duration-500 hover:z-[45] has-[:focus-visible]:z-[45] ${focus ? '' : dim ? 'opacity-50' : 'opacity-100'} ${dimClass(focus, lit)} ${flowDim(flow, flowLit)} ${here ? 'bk-spot-here' : ''}`}
+      className={`group absolute z-20 transition-opacity duration-500 hover:z-[45] has-[:focus-visible]:z-[45] ${focus ? '' : dim ? 'opacity-50 hover:opacity-100 has-[:focus-visible]:opacity-100' : 'opacity-100'} ${dimClass(focus, lit)} ${flowDim(flow, flowLit)} ${here ? 'bk-spot-here' : ''}`}
       style={{ left: box.cx - CARD.w / 2, top: box.cy - CARD.h / 2, width: CARD.w, height: CARD.h, ...neon(focus), ...flowVar(flow) }}
       data-lit={focus ? lit : flow ? flowLit : undefined}
       data-flow-here={flowHere || undefined}
@@ -288,9 +300,9 @@ const StationCard = memo(function StationCard({
         </div>
         <div className={`flex min-h-0 flex-1 items-center gap-1 ${long ? 'mt-0.5' : 'mt-1'}`}>
           {isAutomatedNode(id) ? (
-            <ServerRackGraphic status={RUN_STATUS[sv.status]} accent={accent} className={`shrink-0 ${long ? 'h-[40px] w-[54px]' : 'h-[52px] w-[70px]'}`} />
+            <ServerRackGraphic status={RUN_STATUS[sv.status]} accent={accent} className={DESK_ICON} />
           ) : (
-            <WorkstationGraphic capability={def.capability ?? 'CORE_LEDGER_CHECK'} status={RUN_STATUS[sv.status]} className={`shrink-0 ${long ? 'h-[40px] w-[54px]' : 'h-[52px] w-[70px]'}`} {...(first ? { profile: first.profile } : {})} />
+            <WorkstationGraphic capability={def.capability ?? 'CORE_LEDGER_CHECK'} status={RUN_STATUS[sv.status]} className={DESK_ICON} {...(first ? { profile: first.profile } : {})} />
           )}
           <div className="min-w-0 flex-1 text-right">
             <div className={`text-[21px] font-bold leading-none tabular-nums ${heat && sv.queueLength > 0 ? HEAT_TEXT[heat] : sv.queueLength > 0 ? (sv.status === 'CONGESTED' || sv.status === 'ALERT' ? 'text-amber-300' : 'text-slate-100') : 'text-slate-600'}`} data-testid={`queue-${id}`}>
@@ -322,7 +334,7 @@ const StationCard = memo(function StationCard({
           +{sv.arrivals}
         </span>
       )}
-      {!focus && (flow && flowLit ? <StepPreviewTip flow={flow.flow} place={id} side={TIP_SIDE[id]} /> : <HoverTip name={title} tip={terms.tip(id)} caption={terms.caption(id)} side={TIP_SIDE[id]} />)}
+      {!focus && (flow && flowLit ? <StepPreviewTip flow={flow.flow} place={id} side={TIP_SIDE[id]} /> : <HoverTip name={title} tip={terms.tip(id)} caption={terms.caption(id)} side={TIP_SIDE[id]} status={{ text: `${statusLabel(sv.status)} · ${sv.queueLength} ${unit}`, className: STATUS_TEXT_CLASS[sv.status] }} />)}
     </div>
   );
 });
@@ -559,7 +571,7 @@ function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; t
         const d = w.drawPath;
         return (
           <g key={w.id} data-wire={w.id} data-lit={focus ? inScope : flow ? inFlow : linked ? on : undefined} data-ridden={ridden || undefined} opacity={shown ? 1 : 0.15} style={focus && !inScope ? { filter: 'blur(1px)' } : flow && !inFlow ? { filter: 'grayscale(1)' } : undefined}>
-            <path d={d} fill="none" stroke={on ? st.glow : focus && inScope ? `${focus.accent}66` : flow && inFlow ? `${flow.accent}88` : st.base} strokeWidth={on ? 2.6 : 2} {...(st.dash ? { strokeDasharray: st.dash } : {})} {...(w.gateway ? {} : { markerEnd: `url(#bk-arrow-${st.base.slice(1)})` })} />
+            <path d={w.strokePath ?? d} fill="none" stroke={on ? st.glow : focus && inScope ? `${focus.accent}66` : flow && inFlow ? `${flow.accent}88` : st.base} strokeWidth={on ? 2.6 : 2} {...(st.dash ? { strokeDasharray: st.dash } : {})} {...(w.gateway ? {} : { markerEnd: `url(#bk-arrow-${st.base.slice(1)})` })} />
             {h > 0.05 && <path d={d} fill="none" stroke={st.glow} strokeWidth={2 + Math.min(h, 6) * 0.3} strokeLinecap="round" opacity={Math.min(0.55, 0.1 + h * 0.07)} style={{ transition: 'opacity 400ms' }} />}
             {focus && ridden && (
               <path
@@ -588,6 +600,9 @@ function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; t
       {BANK_WIRES.filter((w) => w.label && w.showLabel).map((w) => {
         const label = t(w.label as string);
         const lit = linked?.has(w.id) ?? false;
+        // A decline's condition shows only while its line or desk is pointed at, or a tour or guided flow traces it.
+        const traced = (focus?.scope.wires.has(w.id) ?? false) || (flow?.scope.wires.has(w.id) ?? false);
+        if (w.revealOnly && !lit && !traced) return null;
         const anchor = w.labelAnchor ?? w.labelAt;
         const leader = Math.hypot(anchor[0] - w.labelAt[0], anchor[1] - w.labelAt[1]) > 14 ? ([anchor[0] - w.labelAt[0], anchor[1] - w.labelAt[1]] as const) : null;
         return (

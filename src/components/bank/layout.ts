@@ -279,6 +279,8 @@ export interface Gateway {
   wires: readonly string[];
   /** The gateway its trunk feeds instead of a place (a local collector cascading into a bigger one). */
   into?: GatewayId;
+  /** Its feeders run as one merged stroke on their last leg, into the diamond's corner, instead of a lane each. */
+  merge?: boolean;
   /** The one trunk from the diamond's exit corner to the place (or to the next gateway's edge). */
   trunk: Pt[];
   path: string;
@@ -301,6 +303,7 @@ const GATEWAY_SPECS: readonly GatewaySpec[] = [
     to: 'OUT_DECLINED',
     wires: ['GATE_SWIFT>OUT_DECLINED', 'GATE_EKYC>OUT_DECLINED', 'GATE_QR>OUT_DECLINED', 'SEC_FDS>OUT_DECLINED'],
     into: 'GATEWAY_XOR_REJECT_BAND',
+    merge: true,
     // Right to the decline drop beside the ledger trunk, then down into the band collector's top corner.
     trunk: [
       [gw('GATEWAY_XOR_REJECT_ROW1')[0] + H, gw('GATEWAY_XOR_REJECT_ROW1')[1]],
@@ -342,6 +345,7 @@ const GATEWAY_SPECS: readonly GatewaySpec[] = [
     kind: 'approve',
     to: 'LEDGER_DEBIT',
     wires: ['GATE_EKYC>LEDGER_DEBIT', 'SEC_FDS>LEDGER_DEBIT', 'AML_DESK>LEDGER_DEBIT', 'TELLER_CASH>LEDGER_DEBIT', 'DISPUTE_DESK>LEDGER_DEBIT'],
+    merge: true,
     trunk: [
       [gw('GATEWAY_XOR_APPROVE')[0], gw('GATEWAY_XOR_APPROVE')[1] - H],
       [gw('GATEWAY_XOR_APPROVE')[0], PLACE_BOX.LEDGER_DEBIT.cy + 24],
@@ -379,8 +383,18 @@ const dedupe = (points: readonly Pt[]): Pt[] => points.filter((p, i) => i === 0 
  * diamond's edge there (the feeder that is drawn), passes through the centre under the diamond, and leaves by the trunk.
  */
 function throughGateway(w: Wire, g: Gateway, cascade = false): Wire {
-  const pts = w.points;
+  const pts = [...w.points];
   for (let i = 1; i < pts.length; i++) {
+    // A merging gateway pulls the approach leg onto its centre line (with the corner before it), so its feeders share one
+    // stroke into the diamond's corner. A leg that starts at the desk itself keeps its own line.
+    if (g.merge && !cascade && i > 1) {
+      const [px, py] = pts[i - 1]!;
+      const [qx, qy] = pts[i]!;
+      const v = px === qx && Math.abs(px - g.cx) <= g.half && Math.min(py, qy) <= g.cy && Math.max(py, qy) >= g.cy;
+      const h = py === qy && Math.abs(py - g.cy) <= g.half && Math.min(px, qx) <= g.cx && Math.max(px, qx) >= g.cx;
+      if (v) pts.splice(i - 1, 2, [g.cx, py], [g.cx, qy]);
+      else if (h) pts.splice(i - 1, 2, [px, g.cy], [qx, g.cy]);
+    }
     const [ax, ay] = pts[i - 1]!;
     const [bx, by] = pts[i]!;
     const vertical = ax === bx && Math.abs(ax - g.cx) <= g.half && Math.min(ay, by) <= g.cy && Math.max(ay, by) >= g.cy;
@@ -393,7 +407,8 @@ function throughGateway(w: Wire, g: Gateway, cascade = false): Wire {
     const points = dedupe([...feeder, ...inside, ...g.trunk]);
     // Past a second gateway the wire's own stroke is still the feeder into the first one.
     if (cascade) return { ...w, points, path: roundedPath(points) };
-    return { ...w, points, path: roundedPath(points), gateway: g.id, drawPoints: feeder, drawPath: roundedPath(feeder) };
+    // The base stroke runs from the diamond back to the desk, so merged dashed feeders keep the same dash phase and read as one.
+    return { ...w, points, path: roundedPath(points), gateway: g.id, drawPoints: feeder, drawPath: roundedPath(feeder), strokePath: roundedPath([...feeder].reverse()) };
   }
   throw new Error(`The wire ${w.id} never reaches ${g.id}`);
 }
@@ -455,8 +470,10 @@ const ROUTES: Record<string, RouteSpec> = {
   // Online
   'GATE_ECOM>SEC_3DS': R(['r', -14], ['l'], { bendX: 200 }),
   'GATE_ECOM>BNPL': R(['r', 14], ['l'], { bendX: 204 }),
-  'SEC_3DS>CUSTOMER_OTP': R(['r', -30], ['l', -10], { bendX: 407, quiet: true }),
-  'CUSTOMER_OTP>SEC_3DS': R(['l', 10], ['r', -14], { bendX: 396, quiet: true }),
+  // The code goes out on the upper channel and comes back on the lower one; the return bends nearer the phone, so the two
+  // run side by side and never cross.
+  'SEC_3DS>CUSTOMER_OTP': R(['r', -30], ['l', -22], { bendX: 396, quiet: true }),
+  'CUSTOMER_OTP>SEC_3DS': R(['l', 18], ['r', -14], { bendX: 410, quiet: true }),
   'SEC_3DS>LEDGER_DEBIT': R(['r', 4], ['l', 14], { bendX: 652 }),
   'SEC_3DS>LEDGER_CREDIT': R(['r', 20], ['l', 8], { bendX: 664 }),
   // The online decline climbs the gutter just left of the band's trunk, into the reject gateway's left edge.
@@ -575,6 +592,10 @@ export interface Wire {
   gateway?: GatewayId;
   /** What the map strokes: the feeder up to the gateway's edge, or the whole run. */
   drawPath: string;
+  /** The same run drawn from its far end, for a feeder's dashed base stroke (absent: drawPath). */
+  strokePath?: string;
+  /** Its label shows only while the wire is pointed at or traced: decline conditions crowd the map otherwise. */
+  revealOnly?: boolean;
   drawPoints: Pt[];
 }
 
@@ -691,7 +712,7 @@ function placeLabels(wires: Wire[], routes: Record<string, RouteSpec>): Wire[] {
   }
   return wires.map((w) => {
     const spot = at.get(w.id);
-    return spot ? { ...w, labelAt: spot.at, labelAnchor: spot.anchor, showLabel: true } : w;
+    return spot ? { ...w, labelAt: spot.at, labelAnchor: spot.anchor, showLabel: true, revealOnly: w.to === 'OUT_DECLINED' } : w;
   });
 }
 
@@ -726,7 +747,6 @@ interface Rect {
 }
 
 const rectOf = (b: PlaceBox): Rect => ({ x0: b.cx - b.w / 2, y0: b.cy - b.h / 2, x1: b.cx + b.w / 2, y1: b.cy + b.h / 2 });
-const area = (a: Rect, b: Rect): number => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
 
 /** The rectangle a description would cover on each side of a desk. */
 export function tipRect(place: PlaceId, side: TipSide): Rect {
@@ -746,25 +766,20 @@ export function tipRect(place: PlaceId, side: TipSide): Rect {
   }
 }
 
+/** The sides a description may open on, in order of preference: above the desk first. */
+export const TIP_PREFERENCE: readonly TipSide[] = ['above', 'below', 'right', 'left'];
+
 /**
- * The side a desk's description opens on: the first of below, above, right, left where it stays on the stage and covers no
- * other desk or tally; failing that, the side that covers least. Worked out once, from the layout.
+ * The side a desk's description opens on: above the desk wherever it fits on the stage, otherwise the next side in
+ * TIP_PREFERENCE that does (the top row opens below, the first column to the right). The description is opaque and drawn over
+ * everything, so covering the desks around it is fine.
  */
 export function tipSideFor(place: PlaceId): TipSide {
-  const others = (Object.keys(PLACE_BOX) as PlaceId[]).filter((p) => p !== place).map((p) => rectOf(PLACE_BOX[p]));
-  let best: TipSide = 'below';
-  let bestCost = Infinity;
-  for (const side of ['below', 'above', 'right', 'left'] as const) {
+  const fits = (side: TipSide): boolean => {
     const r = tipRect(place, side);
-    const outside = r.x0 < 0 || r.y0 < 0 || r.x1 > STAGE.width || r.y1 > STAGE.height;
-    const cost = (outside ? 1e7 : 0) + others.reduce((n, o) => n + area(r, o), 0);
-    if (cost === 0) return side;
-    if (cost < bestCost) {
-      best = side;
-      bestCost = cost;
-    }
-  }
-  return best;
+    return r.x0 >= 0 && r.y0 >= 0 && r.x1 <= STAGE.width && r.y1 <= STAGE.height;
+  };
+  return TIP_PREFERENCE.find(fits) ?? 'below';
 }
 
 export const TIP_SIDE: Readonly<Record<PlaceId, TipSide>> = Object.fromEntries((Object.keys(PLACE_BOX) as PlaceId[]).map((p) => [p, tipSideFor(p)])) as Record<PlaceId, TipSide>;
