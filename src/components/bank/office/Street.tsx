@@ -117,9 +117,10 @@ function groundParts(): Part[] {
     box([0, -0.3, KERB_Z + STREET.kerbW + (ROAD_END - KERB_Z - STREET.kerbW) / 2], [w, 0.32, ROAD_END - KERB_Z - STREET.kerbW], '#3f4651'),
     box([0, -0.14, KERB_Z + STREET.kerbW + (ROAD_END - KERB_Z - STREET.kerbW) / 2], [w, 0.012, ROAD_END - KERB_Z - STREET.kerbW], '#4b5563'),
   ];
-  // dashed centre line
+  // dashed centre line between the two lanes, and a solid edge line along each side of the avenue
   const lineZ = KERB_Z + STREET.kerbW + (ROAD_END - KERB_Z - STREET.kerbW) / 2;
   for (let x = -HW + 0.9; x < HW - 0.9; x += 2.2) parts.push(box([x, -0.132, lineZ], [1.1, 0.006, 0.1], '#f3efe0'));
+  for (const z of [KERB_Z + STREET.kerbW + 0.18, ROAD_END - 0.18]) parts.push(box([0, -0.132, z], [w, 0.006, 0.07], '#f3efe0'));
   // a zebra crossing, where the customers come in from the left
   const cz = KERB_Z + STREET.kerbW + (ROAD_END - KERB_Z - STREET.kerbW) / 2;
   for (let i = 0; i < 7; i++) parts.push(box([-9.2 + i * 0.52, -0.131, cz], [0.28, 0.006, ROAD_END - KERB_Z - STREET.kerbW - 0.3], '#f3efe0'));

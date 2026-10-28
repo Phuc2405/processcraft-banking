@@ -60,8 +60,12 @@ describe('one Standard / Expert switch everywhere', () => {
 describe('notices in the top-left corner, the legend in the top-right', () => {
   it('stacks the bank notices and the toasts in one column at the top left', () => {
     const bank = src['../LivingBank.tsx']!;
-    expect(bank).toContain('absolute left-4 ${corner} z-50');
+    expect(bank).toContain('absolute left-4 ${corner}');
     expect(NOTICE_CORNER['2d']).toBe('top-4');
+    // In 3D, just under the one-row toolbar, and under its weather menu.
+    expect(NOTICE_CORNER['3d']).toBe('top-16');
+    expect(NOTICE_CORNER['3dSplit']).toBe('top-16');
+    expect(bank).toContain("viewMode === '3d' ? 'z-30' : 'z-50'");
     expect(bank).toContain('<NoticeColumn />');
     expect(bank).not.toContain('left-1/2 z-30');
     expect(src['../HudToasts.tsx']).not.toContain('right-3 top-16');

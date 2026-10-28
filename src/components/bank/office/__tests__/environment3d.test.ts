@@ -5,7 +5,7 @@ import { routingRules } from '../../routingRules';
 import { flowPlaces, flowScope } from '../../../../sim/guidedFlows';
 import { FLOW_IDS } from '../../../../types/viewport';
 import { badgeFocus, badgeOpacity, dashLane, deskFocus, DIM, FLOW_BADGE_DIM, isOffShift, LANE_DIM, leaveAt, leaveRoute, litLanes, neighbours, PULSE, pulseDistance } from '../focus3d';
-import { atmosphereAt, CLEAR, DAY_KEYS, gustOf, MOODS, nextRandomWeather, RANDOM_EVERY_S, RANDOM_WEATHERS, sameMix, stepMix, WEATHER_BLEND_S, WEATHER_MIX, WEATHERS, wetOf, windOf } from '../atmosphere';
+import { atmosphereAt, CLEAR, DAY_KEYS, FOG_LIFT, fogLeft, gustOf, MOODS, sunsetAt, nextRandomWeather, RANDOM_EVERY_S, RANDOM_WEATHERS, sameMix, stepMix, WEATHER_BLEND_S, WEATHER_MIX, WEATHERS, wetOf, windOf } from '../atmosphere';
 import { CITY_BLOCKS, downpourOf, driftAt, DRIFTS, swayAt, TREE_BELTS, TREES, umbrellaWobble, type Tree } from '../Environment3D';
 import { LANE_STYLE, laneKind } from '../palette';
 import { pathLength } from '../tour3d';
@@ -136,7 +136,8 @@ describe('people on the pavement', () => {
   });
 
   it('moves random mode on to a different everyday weather every few minutes, never snow or hail', () => {
-    expect(WEATHERS).toHaveLength(15);
+    expect(WEATHERS).toHaveLength(12);
+    for (const gone of ['golden', 'heatwave', 'rainbow']) expect(WEATHERS).not.toContain(gone);
     expect(RANDOM_WEATHERS).not.toContain('snow');
     expect(RANDOM_WEATHERS).not.toContain('hail');
     for (const w of WEATHERS) for (const r of [0, 0.3, 0.6, 0.999]) {
@@ -182,7 +183,7 @@ describe('people on the pavement', () => {
     expect(downpourOf(WEATHER_MIX.hail)).toBe('hail');
     expect(downpourOf(WEATHER_MIX.storm)).toBe(true);
     expect(downpourOf(WEATHER_MIX.rain)).toBe(false);
-    expect(downpourOf(WEATHER_MIX.rainbow)).toBe(null);
+    expect(downpourOf(WEATHER_MIX.clear)).toBe(null);
   });
 });
 
@@ -231,13 +232,29 @@ describe('weather moods, the two-second blend and the wind', () => {
     expect(WEATHER_BLEND_S).toBe(2);
   });
 
-  it('gives the golden hour an amber sun low in the west even at noon', () => {
-    const noon = 12 * 60;
-    const g = atmosphereAt(noon, WEATHER_MIX.golden);
-    expect(g.sun.color).toBe('#e67e22');
-    expect(g.sun.dir[0]).toBeGreaterThan(20);
-    expect(g.sun.dir[1]).toBeLessThan(atmosphereAt(noon).sun.dir[1] / 2);
-    expect(g.skyHorizon).not.toBe(atmosphereAt(noon).skyHorizon);
+  it('blends a warm sunset into any weather late in the afternoon, and leaves a clear evening as it is', () => {
+    expect(sunsetAt(12 * 60)).toBe(0);
+    expect(sunsetAt(17.75 * 60)).toBeCloseTo(1, 5);
+    expect(sunsetAt(19.5 * 60)).toBe(0);
+    // A cloudy evening still warms: its sun is more orange at 17:45 than the same cloud at noon.
+    const warmth = (hex: string) => parseInt(hex.slice(1, 3), 16) - parseInt(hex.slice(5, 7), 16);
+    const cloudyNoon = atmosphereAt(12 * 60, WEATHER_MIX.cloudy);
+    const cloudyDusk = atmosphereAt(17.75 * 60, WEATHER_MIX.cloudy);
+    expect(warmth(cloudyDusk.sun.color)).toBeGreaterThan(warmth(cloudyNoon.sun.color) + 40);
+    expect(warmth(cloudyDusk.skyHorizon)).toBeGreaterThan(warmth(cloudyNoon.skyHorizon));
+    // A clear evening keeps its own amber (DAY_KEYS).
+    expect(atmosphereAt(17.5 * 60, WEATHER_MIX.clear).sun.color).toBe('#d35400');
+  });
+
+  it('lifts a fog as the bank opens: thick before 9:00, gone by 9:45', () => {
+    expect(fogLeft(8.5 * 60)).toBe(1);
+    expect(fogLeft(9 * 60)).toBe(1);
+    expect(fogLeft(9.4 * 60)).toBeGreaterThan(0);
+    expect(fogLeft(9.4 * 60)).toBeLessThan(1);
+    expect(fogLeft(FOG_LIFT)).toBe(0);
+    expect(atmosphereAt(8.5 * 60, WEATHER_MIX.fog).mist).toBe(1);
+    expect(atmosphereAt(12 * 60, WEATHER_MIX.fog).mist).toBeLessThan(0.3);
+    expect(atmosphereAt(12 * 60, WEATHER_MIX.fog).fog.far).toBeGreaterThan(atmosphereAt(8.5 * 60, WEATHER_MIX.fog).fog.far + 20);
   });
 
   it('blends between ANY two weathers the same way, every mood reaching its target together at two seconds', () => {
@@ -251,31 +268,32 @@ describe('weather moods, the two-second blend and the wind', () => {
       }
   });
 
-  it('gives the new weathers their own look: smog hazes and lights the lamps, a rainbow shows after rain, a heatwave shimmers', () => {
+  it('gives the new weathers their own look: smog hazes and lights the lamps, pollen thickens the air', () => {
     const noon = 12 * 60;
-    const [clear, smog, rainbow, heat, pollen, cloudy] = [WEATHER_MIX.clear, WEATHER_MIX.smog, WEATHER_MIX.rainbow, WEATHER_MIX.heatwave, WEATHER_MIX.pollen, WEATHER_MIX.cloudy].map((w) => atmosphereAt(noon, w));
+    const [clear, smog, pollen, cloudy] = [WEATHER_MIX.clear, WEATHER_MIX.smog, WEATHER_MIX.pollen, WEATHER_MIX.cloudy].map((w) => atmosphereAt(noon, w));
     expect(smog!.fog.far).toBeLessThan(clear!.fog.far - 20);
     expect(smog!.lamps).toBeGreaterThan(0.4);
     const [r, g, b] = [1, 3, 5].map((k) => parseInt(smog!.skyHorizon.slice(k, k + 2), 16));
     expect(r! + g!).toBeGreaterThan(2 * b! + 20);
-    expect(rainbow!.rainbow).toBe(1);
-    expect(atmosphereAt(21 * 60, WEATHER_MIX.rainbow).rainbow).toBe(0);
-    expect(wetOf(WEATHER_MIX.rainbow)).toBeGreaterThan(0.5);
-    expect(heat!.shimmer).toBe(1);
+    expect(wetOf(WEATHER_MIX.hail)).toBeGreaterThan(0.5);
+    expect(wetOf(WEATHER_MIX.clear)).toBe(0);
     expect(pollen!.motes).toBe(1);
     expect(cloudy!.sun.intensity).toBeLessThan(clear!.sun.intensity);
   });
 
   it('settles snow on the ground, closes in the fog, and keeps the sun’s dust out of both', () => {
     const noon = 12 * 60;
-    const [clear, snow, fog] = [WEATHER_MIX.clear, WEATHER_MIX.snow, WEATHER_MIX.fog].map((w) => atmosphereAt(noon, w));
+    const [clear, snow] = [WEATHER_MIX.clear, WEATHER_MIX.snow].map((w) => atmosphereAt(noon, w));
+    // The fog is a morning one (it lifts after 9:00), so it is looked at early.
+    const fog = atmosphereAt(8.5 * 60, WEATHER_MIX.fog);
+    const morning = atmosphereAt(8.5 * 60);
     expect(snow!.snowCover).toBe(1);
     expect(clear!.snowCover).toBe(0);
-    expect(fog!.mist).toBe(1);
-    expect(fog!.fog.far).toBeLessThan(clear!.fog.far - 25);
+    expect(fog.mist).toBe(1);
+    expect(fog.fog.far).toBeLessThan(morning.fog.far - 25);
     expect(snow!.motes).toBe(0);
-    expect(fog!.motes).toBe(0);
-    expect(fog!.lamps).toBeGreaterThan(0.3);
+    expect(fog.motes).toBe(0);
+    expect(fog.lamps).toBeGreaterThan(0.3);
   });
 
   it('blows a breeze in clear weather and a gale in a storm, and the trees lean with it', () => {
@@ -304,7 +322,7 @@ describe('weather moods, the two-second blend and the wind', () => {
           const [x, y] = driftAt(kind, i, t, wind);
           expect(Math.abs(x)).toBeLessThanOrEqual(30 + 1e-6);
           expect(y).toBeGreaterThanOrEqual(0);
-          expect(y).toBeLessThanOrEqual(13);
+          expect(y).toBeLessThanOrEqual(20);
         }
         const [x0, y0] = driftAt(kind, i, 1, wind);
         const [x1, y1] = driftAt(kind, i, 1.05, wind);
@@ -328,8 +346,7 @@ describe('weather moods, the two-second blend and the wind', () => {
     expect(outfitOf('smog')).toBe('mask');
     expect(outfitOf('pollen')).toBe('mask');
     expect(outfitOf('autumn')).toBe('jacket');
-    expect(outfitOf('heatwave')).toBe('summer');
-    expect(carriesDrink('heatwave')).toBe(true);
+    expect(carriesDrink('hot')).toBe(true);
     expect(carriesDrink('clear')).toBe(false);
     expect(outfitOf('snow')).toBe('winter');
     expect(outfitOf('hot')).toBe('summer');
@@ -412,9 +429,12 @@ describe('the 3D view shares the 2D map’s overlays', () => {
     const office = src['../Office3D.tsx']!;
     expect(office).toContain('aria-haspopup="listbox"');
     expect(office).not.toContain('SegmentedToggle');
-    const labels = [...office.matchAll(/^ {2}(?:random|clear|cloudy|golden|hot|heatwave|rain|rainbow|storm|hail|fog|smog|autumn|spring|pollen|snow): '([^']+)',$/gm)].map((m) => m[1]!);
-    // Sixteen labels and sixteen hints.
-    expect(labels).toHaveLength(32);
+    const labels = [...office.matchAll(/^ {2}(?:random|clear|cloudy|hot|rain|storm|hail|fog|smog|autumn|spring|pollen|snow): '([^']+)',$/gm)].map((m) => m[1]!);
+    // Thirteen labels and thirteen hints.
+    expect(labels).toHaveLength(26);
+    expect(office).toContain("autumn: '🍂 Falling leaves',");
+    expect(office).toContain("spring: '🌸 Blossom drift',");
+    expect(office).not.toMatch(/^ {2}(?:golden|heatwave|rainbow):/m);
     for (const l of labels) expect(VI_DICTIONARY[l], l).toBeTruthy();
   });
 });
@@ -469,13 +489,13 @@ describe('focus in 3D: a pointed-at desk and a guided scenario', () => {
     expect(DIM.hover).toBe(0.2);
   });
 
-  it('fades the desks a sub-process leaves out to 15%, and lights its route', () => {
+  it('fades the desks a sub-process leaves out to 10%, and lights its route', () => {
     const flow = FLOW_IDS[0]!;
     const inside = flowPlaces(flow);
     for (const id of STATION_IDS) expect(deskFocus(id, null, flow), id).toBe(inside.has(id) ? 1 : DIM.flow);
     const lit = litLanes(null, flow);
-    expect(lit.dim).toBe(0.15);
-    expect(DIM.flow).toBe(0.15);
+    expect(lit.dim).toBe(0.1);
+    expect(DIM.flow).toBe(0.1);
     expect([...lit.lanes].sort()).toEqual([...flowScope(flow).wires].sort());
     // A pointed-at desk wins over the scenario; nothing in focus leaves everything as it is.
     expect(litLanes('SEC_FDS', flow).dim).toBe(LANE_DIM);

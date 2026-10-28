@@ -59,8 +59,8 @@ export const STREET = {
   z0: FLOOR_SLAB.d / 2,
   /** How deep the pavement is, from the building to the kerb. */
   walk: 3.2,
-  /** The strip of road beyond the kerb that is drawn. */
-  road: 2.5,
+  /** The road beyond the kerb that is drawn: a two-lane avenue, one lane each way. */
+  road: 5.2,
   kerbH: 0.14,
   kerbW: 0.22,
   /** Half the width of the street: past the slab on both sides, so it reads as a street that carries on. */

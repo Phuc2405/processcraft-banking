@@ -33,20 +33,17 @@ function SkyBackdrop() {
 
 const DAY_PART_LABEL: Record<DayPart, string> = { morning: '☀️ Morning', noon: '🌞 Noon', afternoon: '🌇 Afternoon', night: '🌙 Night' };
 export const WEATHER_LABEL: Record<WeatherChoice, string> = {
-  random: '🎲 Random weather (auto-switch)',
+  random: '🎲 Weather: Random (auto-switch)',
   clear: '☀️ Clear / Light sun',
-  cloudy: '☁️ Cloudy / Overcast',
-  golden: '🌅 Golden hour sunset',
+  cloudy: '☁️ Overcast / Cloudy',
   hot: '🔥 Hot & dry',
-  heatwave: '🌡️ Heatwave',
   rain: '🌧️ Rain & drizzle',
-  rainbow: '🌈 Sun after rain & rainbow',
   storm: '🌩️ Heavy storm & lightning',
   hail: '🧊 Hailstorm',
   fog: '🌫️ Fog',
   smog: '😷 Smog / fine dust',
-  autumn: '🍂 Falling leaves (autumn)',
-  spring: '🌸 Blossom drift (spring)',
+  autumn: '🍂 Falling leaves',
+  spring: '🌸 Blossom drift',
   pollen: '🌼 Pollen drift',
   snow: '❄️ Snow & frost',
 };
@@ -54,14 +51,11 @@ export const WEATHER_HINT: Record<WeatherChoice, string> = {
   random: 'Moves on to another everyday weather every few minutes, blending over two seconds (never snow or hail)',
   clear: 'Clear sky and a light breeze: people stroll and stop to chat',
   cloudy: 'A dark, desaturated grey sky, soft diffuse light and a cool breeze: jackets on',
-  golden: 'A low, deep-amber sun with long raking light, whatever the hour',
-  hot: 'Hard, bright sun with strong contrast: T-shirts and sunglasses',
-  heatwave: 'A white-hot sky and heat shimmer over the road: people carry cold drinks',
+  hot: 'Hard, bright sun with strong contrast: T-shirts, sunglasses and cold drinks',
   rain: 'Rain sets in gradually: people look up, raise their umbrellas one by one or run for the shelters, and the street turns wet',
-  rainbow: 'A rainbow over the city and puddles on the street: people fold their umbrellas, shake them off and walk on',
   storm: 'Lightning, heavy slanting rain, wind streaks and trees bending; people crowd the glass bus stop calling taxis',
   hail: 'Ice pellets bouncing on the ground: everyone ducks under the entrance canopy (pick by hand only)',
-  fog: 'Dense fog over the street and the city, the street lamps glowing',
+  fog: 'Dense morning fog over the street, the lamps glowing; it lifts as the bank opens at 9:00',
   smog: 'A heavy yellowish haze with the street lights on: people wear face masks',
   autumn: 'A gusty day with brown and orange leaves blowing across the street: jackets on',
   spring: 'Pink and white blossom petals fluttering on the breeze',
@@ -91,7 +85,7 @@ const CHOICES: readonly WeatherChoice[] = ['random', ...WEATHERS];
  * The weather dropdown: random (the default) or one of the nine weathers. In random mode the button also names the weather
  * now. The sky eases to a new weather over two seconds.
  */
-function WeatherMenu() {
+function WeatherMenu({ compact = false }: { compact?: boolean }) {
   const choice = useWeather((s) => s.choice);
   const weather = useWeather((s) => s.weather);
   const [open, setOpen] = useState(false);
@@ -112,25 +106,33 @@ function WeatherMenu() {
     };
   }, [open]);
   const shown = choice === 'random' ? `🎲 ${t('Random')} · ${t(WEATHER_LABEL[weather])}` : t(WEATHER_LABEL[choice]);
+  // Beside the Academy panel the button shrinks to the weather's own icon, so the toolbar keeps to one row.
+  const icon = `${choice === 'random' ? '🎲 ' : ''}${WEATHER_LABEL[weather].split(' ')[0]}`;
   return (
     <div ref={box} className="relative" data-testid="office-weather" data-weather={weather} data-choice={choice}>
       <button
         type="button"
-        className="flex w-[260px] items-center justify-between gap-2 rounded-lg border border-white bg-white/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-700 shadow-md hover:bg-white"
+        className={`flex ${compact ? 'w-[76px]' : 'w-[250px]'} items-center justify-between gap-2 rounded-lg border border-white bg-white/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-700 shadow-md hover:bg-white`}
         aria-haspopup="listbox"
         aria-expanded={open}
         title={t(WEATHER_HINT[choice])}
         onClick={() => setOpen((o) => !o)}
       >
-        <span className="truncate">
-          <span className="text-slate-500">{t('Weather')}:</span> {shown}
-        </span>
+        {compact ? (
+          <span className="truncate" aria-label={`${t('Weather')}: ${shown}`}>
+            {icon}
+          </span>
+        ) : (
+          <span className="truncate">
+            <span className="text-slate-500">{t('Weather')}:</span> {shown}
+          </span>
+        )}
         <span aria-hidden="true" className="text-slate-400">
           ▾
         </span>
       </button>
       {open && (
-        <ul role="listbox" aria-label={t('Weather')} className="absolute right-0 top-full z-50 mt-1 w-[300px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
+        <ul role="listbox" aria-label={t('Weather')} className="absolute left-0 top-full z-50 mt-1 max-h-[min(560px,70vh)] w-[300px] overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
           {CHOICES.map((c) => (
             <li key={c} role="option" aria-selected={c === choice}>
               <button
@@ -153,18 +155,22 @@ function WeatherMenu() {
 }
 
 /** The time of day and the weather dropdown, beside the other 3D controls. */
-function WeatherControls() {
+function WeatherControls({ compact }: { compact: boolean }) {
   const part = useBankStore((s) => atmosphereAt(s.view.minute).part);
+  const label = t(DAY_PART_LABEL[part]);
   return (
     <div className="flex items-center gap-1.5">
       <RandomWeather />
-      <span className="rounded-lg border border-white bg-white/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-700 shadow-md" data-testid="office-daypart" data-part={part}>
-        {t(DAY_PART_LABEL[part])}
+      <span className="whitespace-nowrap rounded-lg border border-white bg-white/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-700 shadow-md" data-testid="office-daypart" data-part={part} title={label}>
+        {compact ? label.split(' ')[0] : label}
       </span>
-      <WeatherMenu />
+      <WeatherMenu compact={compact} />
     </div>
   );
 }
+
+/** Where the 3D toolbar sits: one row in the top-left corner, always, whatever panel is open beside the map. */
+export const TOOLBAR_CLASS = 'absolute left-4 top-3 z-40 flex flex-row flex-nowrap items-center gap-1.5';
 
 /**
  * The 3D Isometric Office: the same bank as the 2D blueprint, as a bright low-poly diorama. It reads the same store, so
@@ -275,28 +281,30 @@ function Office3DView() {
           <b className="font-semibold text-slate-800">{t('Click')}</b>{t(' a desk or a person to inspect it')}
         </span>
       </div>
-      {/* Beside the Academy panel the map is narrow, so these controls step down below the viewport dock instead of sharing its row. */}
-      <div className={`absolute left-3 z-30 flex flex-col items-start gap-1.5 ${splitOpen ? 'top-[108px]' : 'top-3 xl:flex-row xl:items-center'}`}>
+      {/* One row in the top-left corner, never pushed down into the view: beside the Academy panel, where the map is narrow,
+          the buttons shrink to their icons instead (the full words are in their tooltips). */}
+      <div className={TOOLBAR_CLASS} data-testid="office-toolbar">
         <button
           type="button"
           onClick={() => setResetKey((n) => n + 1)}
           data-testid="office-reset"
-          className="rounded-lg border border-white bg-white/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-700 shadow-md transition hover:bg-white"
+          className="whitespace-nowrap rounded-lg border border-white bg-white/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-700 shadow-md transition hover:bg-white"
           title={touring ? t('Glide back to the desk the tour is at') : t('Glide back to the whole office')}
+          aria-label={t('Reset view')}
         >
-          {t('Reset view')}
+          {splitOpen ? '↺' : t('Reset view')}
         </button>
         <button
           type="button"
           onClick={() => setLabelMode(labelMode === 'always' ? 'hover' : 'always')}
           data-testid="office-labels"
           aria-pressed={labelMode === 'hover'}
-          className="rounded-lg border border-white bg-white/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-700 shadow-md transition hover:bg-white"
+          className="whitespace-nowrap rounded-lg border border-white bg-white/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-700 shadow-md transition hover:bg-white"
           title={labelMode === 'always' ? t('Hide the floating name badges until you point at a workstation') : t('Show a floating name badge over every workstation')}
         >
-          {t('Labels:')} {labelMode === 'always' ? t('Always Show') : t('Hover Only')}
+          {splitOpen ? `🏷 ${labelMode === 'always' ? t('Always Show') : t('Hover Only')}` : `${t('Labels:')} ${labelMode === 'always' ? t('Always Show') : t('Hover Only')}`}
         </button>
-        <WeatherControls />
+        <WeatherControls compact={splitOpen} />
       </div>
       {!touring && <MapLegend top={dockInset + 12} right={legendRight} />}
     </div>

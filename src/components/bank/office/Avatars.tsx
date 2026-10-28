@@ -395,6 +395,43 @@ export const CustomerFigure = memo(function CustomerFigure({ index, shirt, phase
 
 type FigureProps = Required<Omit<CustomerProps, 'walking' | 'raise'>> & { raise?: { current: number } };
 
+/**
+ * Someone sitting (on a park bench), facing +z: knees forward, hands in the lap, rocking gently as they talk. The seat is
+ * at 0.48 in the figure's own units.
+ */
+export const SittingFigure = memo(function SittingFigure({ index, shirt, phase = 0, scale = 0.7, wear = 'none' }: Omit<CustomerProps, 'walking' | 'raise'>) {
+  const geometry = useMemo(() => {
+    const { skin, hair, trousers, style } = customerLook(index);
+    return merge([
+      ...[-0.1, 0.1].flatMap((x) => [
+        box([x, 0.5, 0.16], [0.16, 0.14, 0.38], trousers),
+        box([x, 0.25, 0.33], [0.15, 0.46, 0.16], trousers),
+        box([x, 0.03, 0.38], [0.16, 0.07, 0.24], SET.shoes),
+      ]),
+      box([0, 0.8, -0.02], [0.42, 0.46, 0.25], shirt),
+      box([-0.24, 0.66, 0.12], [0.1, 0.12, 0.36], shirt),
+      box([0.24, 0.66, 0.12], [0.1, 0.12, 0.36], shirt),
+      box([0, 0.62, 0.28], [0.3, 0.08, 0.1], skin),
+      box([0, 1.06, 0], [0.1, 0.1, 0.1], skin),
+      ...headParts(skin, hair, style).map((p) => ({ ...p, geometry: p.geometry.translate(0, 1.02, 0) })),
+    ]);
+  }, [index, shirt]);
+  const root = useRef<Group>(null);
+  useFrame(({ clock }) => {
+    if (root.current) root.current.rotation.x = Math.sin(clock.elapsedTime * 1.1 + phase) * 0.03;
+  });
+  return (
+    <group scale={scale}>
+      <group ref={root}>
+        <mesh geometry={geometry} material={solid} castShadow />
+        <group position={[0, 0.02, 0]}>
+          <Wearables wear={wear} index={index} />
+        </group>
+      </group>
+    </group>
+  );
+});
+
 function Stander({ index, shirt, phase, scale, wear }: Omit<FigureProps, 'raise'>) {
   const geometry = useMemo(() => standerGeometry(index, shirt), [index, shirt]);
   const root = useRef<Group>(null);

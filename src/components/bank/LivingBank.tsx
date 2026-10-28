@@ -79,16 +79,16 @@ const NOTICE_STYLE = {
 /**
  * Every floating message over the map (the bank's notices, the decline and incident toasts) in one column in the top-left
  * corner, away from the legend (top-right), the viewport dock (top-centre) and the preset dock (bottom). In 3D the office's
- * own controls hold the very corner, so the column starts below them.
+ * toolbar holds the very corner in one row, so the column starts just below it, under the weather menu's layer.
  */
-export const NOTICE_CORNER = { '2d': 'top-4', '3d': 'top-[176px] xl:top-[64px]', '3dSplit': 'top-[260px]' } as const;
+export const NOTICE_CORNER = { '2d': 'top-4', '3d': 'top-16', '3dSplit': 'top-16' } as const;
 
 function NoticeColumn() {
   const viewMode = useBankStore((s) => s.viewMode);
   const splitOpen = useAcademyStore((s) => s.isSplitScreenOpen);
   const corner = viewMode === '3d' ? NOTICE_CORNER[splitOpen ? '3dSplit' : '3d'] : NOTICE_CORNER['2d'];
   return (
-    <div className={`pointer-events-none absolute left-4 ${corner} z-50 flex max-w-[min(440px,calc(100%-32px))] flex-col items-start gap-2`} data-testid="notice-column">
+    <div className={`pointer-events-none absolute left-4 ${corner} ${viewMode === '3d' ? 'z-30' : 'z-50'} flex max-w-[min(440px,calc(100%-32px))] flex-col items-start gap-2`} data-testid="notice-column">
       <Notice />
       <HudToasts />
     </div>

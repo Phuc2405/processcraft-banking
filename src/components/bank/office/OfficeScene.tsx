@@ -824,7 +824,11 @@ function Lights() {
       // The sun moves across the sky: low in the east in the morning, high at noon, low and raking from the west late on.
       sun.current.position.set(a.sun.dir[0], a.sun.dir[1], a.sun.dir[2]);
     }
-    if (ambient.current) ambient.current.intensity = 0.28 * keep(TOUR_DAYLIGHT.ambient);
+    // The branch's own lights: as the weather darkens the daylight (cloud, storm, smog), the office lights make up the
+    // difference, so the floor, the desks and their words stay bright however wild it is outside.
+    const clearSun = atmosphereAt(s.view.minute).sun.intensity;
+    const gloom = clearSun > 0 ? Math.max(0, Math.min(1, 1 - a.sun.intensity / clearSun)) : 0;
+    if (ambient.current) ambient.current.intensity = (0.28 + 0.6 * gloom) * keep(TOUR_DAYLIGHT.ambient);
     if (fill.current) fill.current.intensity = 0.4 * keep(TOUR_DAYLIGHT.fill);
   });
   return (

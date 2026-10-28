@@ -46,14 +46,11 @@ export type Outfit = 'everyday' | 'summer' | 'winter' | 'rain' | 'mask' | 'jacke
 
 const OUTFIT_OF: Readonly<Record<Weather, Outfit>> = {
   clear: 'everyday',
-  golden: 'everyday',
   cloudy: 'jacket',
   autumn: 'jacket',
   hot: 'summer',
-  heatwave: 'summer',
   spring: 'summer',
   rain: 'rain',
-  rainbow: 'everyday',
   storm: 'rain',
   hail: 'rain',
   fog: 'jacket',
@@ -63,8 +60,8 @@ const OUTFIT_OF: Readonly<Record<Weather, Outfit>> = {
 };
 export const outfitOf = (w: Weather): Outfit => OUTFIT_OF[w];
 
-/** In a heatwave people carry a cold drink. */
-export const carriesDrink = (w: Weather): boolean => w === 'heatwave';
+/** On a hot day people carry a cold drink. */
+export const carriesDrink = (w: Weather): boolean => w === 'hot';
 
 const OUTFIT_TONES: Readonly<Record<Exclude<Outfit, 'everyday' | 'mask'>, readonly string[]>> = {
   summer: ['#fde68a', '#f9a8d4', '#a7f3d0', '#bae6fd', '#fecaca', '#ffffff'],

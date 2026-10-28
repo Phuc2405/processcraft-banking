@@ -18,6 +18,7 @@ import {
   PointsMaterial,
   RepeatWrapping,
   SRGBColorSpace,
+  Vector3,
   type AmbientLight,
   type Group,
 } from 'three';
@@ -28,6 +29,10 @@ import { box, cyl, mix, type Part } from './kit';
 import { customerShirt, FLOOR_SLAB, KERB_Z, ROAD_END, STATION_POSES, STREET } from './layout3d';
 import { glow, pane, solid } from './materials';
 import { CustomerFigure, type Wear } from './Avatars';
+import { Bubble } from './Bubble3D';
+import { PARK, Park3D } from './Park3D';
+import { Sky3D } from './Sky3D';
+import { Vehicles3D } from './Vehicles3D';
 import {
   BUS_STOP,
   carriesDrink,
@@ -142,17 +147,6 @@ const drawCobbles = (g: CanvasRenderingContext2D, S: number): void => {
   }
 };
 
-/** Concrete paving for the far pavement and the side belts. */
-const drawSlabs = (g: CanvasRenderingContext2D, S: number): void => {
-  g.fillStyle = '#c3bdb2';
-  g.fillRect(0, 0, S, S);
-  for (let r = 0; r < 4; r++)
-    for (let k = 0; k < 4; k++) {
-      g.fillStyle = `hsl(36, 6%, ${74 + rnd(r * 4 + k, 3) * 6}%)`;
-      g.fillRect(k * 64 + 1, r * 64 + 1, 62, 62);
-    }
-};
-
 function roadParts(): Part[] {
   const roadMid = (KERB_Z + STREET.kerbW + ROAD_END) / 2;
   const roadW = ROAD_END - KERB_Z - STREET.kerbW;
@@ -170,23 +164,22 @@ function roadParts(): Part[] {
       box([cx, -0.14, roadMid], [len, 0.012, roadW], '#4b5563'),
     );
     for (let x = x0 + side * 0.9; Math.abs(x) < REACH - 1; x += side * 2.2) parts.push(box([x, -0.132, roadMid], [1.1, 0.006, 0.1], '#f3efe0'));
+    for (const z of [KERB_Z + STREET.kerbW + 0.18, ROAD_END - 0.18]) parts.push(box([cx, -0.132, z], [len, 0.006, 0.07], '#f3efe0'));
   }
-  // The roads down both sides of the block, and the lane behind it.
-  for (const side of [-1, 1]) parts.push(box([side * (HX + 4.6), -0.3, -HZ + (STREET.z0 + HZ) / 2 - 2], [3, 0.32, HZ * 2 + 6], '#3f4651'));
+  // The lane behind the block. (Down both sides of the branch are its parks, Park3D.)
   parts.push(box([0, -0.3, -HZ - 3.2], [REACH * 2, 0.32, 3], '#3f4651'));
   return parts;
 }
 
-/** Belts of ground under the tree rows: cobbles along the far pavement, grass down both sides of the block. */
+/** Belts of ground under the tree rows: cobbles along the far pavement, the parks' lawns down both sides of the block. */
 export const TREE_BELTS = {
   far: { x0: -REACH, x1: REACH, z0: ROAD_END + 0.1, z1: ROAD_END + 2.6 },
-  sides: [-1, 1].map((side) => ({ x0: side < 0 ? -HX - 3.1 : HX + 2.1, x1: side < 0 ? -HX - 2.1 : HX + 3.1, z0: -HZ, z1: STREET.z0 })),
+  sides: [-1, 1].map((side) => ({ x0: side < 0 ? -PARK.x1 : PARK.x0, x1: side < 0 ? -PARK.x0 : PARK.x1, z0: PARK.z0, z1: PARK.z1 })),
 } as const;
 
 function Ground() {
   const grass = useTiled(drawGrass, LAND / 6);
   const cobbles = useTiled(drawCobbles, 1);
-  const slabs = useTiled(drawSlabs, 1);
   const roads = useMerged(roadParts, []);
   const far = TREE_BELTS.far;
   const cobbleTex = useMemo(() => {
@@ -195,19 +188,7 @@ function Ground() {
     t.needsUpdate = true;
     return t;
   }, [cobbles, far]);
-  const slabTex = useMemo(() => {
-    const t = slabs.clone();
-    t.repeat.set(1, (HZ + STREET.z0) / 2);
-    t.needsUpdate = true;
-    return t;
-  }, [slabs]);
-  useEffect(
-    () => () => {
-      cobbleTex.dispose();
-      slabTex.dispose();
-    },
-    [cobbleTex, slabTex],
-  );
+  useEffect(() => () => cobbleTex.dispose(), [cobbleTex]);
   return (
     <group name="office-ground">
       {/* Grass to the horizon, under everything. */}
@@ -220,12 +201,6 @@ function Ground() {
         <planeGeometry args={[far.x1 - far.x0, far.z1 - far.z0]} />
         <meshStandardMaterial map={cobbleTex} roughness={0.95} />
       </mesh>
-      {TREE_BELTS.sides.map((b, i) => (
-        <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} position={[(b.x0 + b.x1) / 2, -0.03, (b.z0 + b.z1) / 2]} receiveShadow name="tree-belt-side">
-          <planeGeometry args={[b.x1 - b.x0, b.z1 - b.z0]} />
-          <meshStandardMaterial map={slabTex} roughness={0.95} />
-        </mesh>
-      ))}
     </group>
   );
 }
@@ -323,7 +298,10 @@ export const TREES: readonly Tree[] = (() => {
   let i = 0;
   for (let x = -REACH + 6; x < REACH - 6; x += 5.2) out.push({ x: x + rnd(i, 9) * 1.2, z: (TREE_BELTS.far.z0 + TREE_BELTS.far.z1) / 2, scale: 1 + rnd(i++, 8) * 0.2 });
   for (const side of [-1, 1]) for (let x = HW + 2; x < REACH - 6; x += 6) out.push({ x: side * x, z: KERB_Z - 0.25, scale: 0.95 });
-  for (const b of TREE_BELTS.sides) for (let z = -HZ + 1; z < STREET.z0; z += 4.5) out.push({ x: (b.x0 + b.x1) / 2, z, scale: 0.9 + rnd(i++, 7) * 0.2 });
+  // Two rows of shade trees in each park, either side of its walk, clear of the crossing path.
+  for (const side of [-1, 1])
+    for (const ax of PARK.trees)
+      for (let z = PARK.z0 + 1.2; z < PARK.z1 - 0.6; z += 4.2) if (Math.abs(z) > 1.2) out.push({ x: side * ax, z, scale: 0.9 + rnd(i++, 7) * 0.2 });
   return out;
 })();
 
@@ -429,9 +407,21 @@ const Shelters = memo(function Shelters() {
 // Haze, mist, motes, rain and lightning
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Distance haze that fades the city into the sky, coloured and pulled in by the time of day and the weather. */
+/** The branch's footprint, floor slab and pavement: no rain, snow or haze ever falls or hangs inside it. */
+export const INDOORS = { x0: -HX, x1: HX, z0: -HZ, z1: STREET.z0 } as const;
+export const indoors = (x: number, z: number): boolean => x > INDOORS.x0 && x < INDOORS.x1 && z > INDOORS.z0 && z < INDOORS.z1;
+
+/** How far beyond the farthest corner of the branch (in depth from the camera) the haze may begin. */
+export const HAZE_CLEARANCE = 2;
+
+/**
+ * Distance haze that fades the city into the sky, coloured and pulled in by the time of day and the weather. However thick
+ * the fog, smog or storm, it never starts before the far side of the branch, so the floor, the desks, the lanes and their
+ * words stay sharp; the weather shows on the street through the mist banks, the rain and the sky.
+ */
 function Haze() {
   const scene = useThree((s) => s.scene);
+  const camera = useThree((s) => s.camera);
   const fog = useMemo(() => new Fog('#e6eef6', 62, 104), []);
   useEffect(() => {
     scene.fog = fog;
@@ -442,11 +432,18 @@ function Haze() {
   useFrame(() => {
     const a = atmosphereAt(bankStore.getState().view.minute, liveMix);
     fog.color.set(a.fog.color);
-    fog.near = a.fog.near;
-    fog.far = a.fog.far;
+    // The depth of the branch's farthest corner from the camera, along the way it looks.
+    camera.getWorldDirection(look);
+    let deepest = 0;
+    for (const x of [INDOORS.x0, INDOORS.x1])
+      for (const z of [INDOORS.z0, KERB_Z]) deepest = Math.max(deepest, corner.set(x, 0, z).sub(camera.position).dot(look));
+    fog.near = Math.max(a.fog.near, deepest + HAZE_CLEARANCE);
+    fog.far = Math.max(a.fog.far, fog.near + 14);
   });
   return null;
 }
+const look = new Vector3();
+const corner = new Vector3();
 
 /** A soft, patchy white wash drawn once, for the mist banks. */
 function useMistTexture(): CanvasTexture {
@@ -541,7 +538,10 @@ function Motes() {
 }
 
 const DROPS = 1800;
-const RAIN_BOX = { x: 30, z0: -HZ - 6, z1: ROAD_END + 6, top: 13 } as const;
+/** Where weather falls: from cloud height, over the whole view. */
+const RAIN_BOX = { x: 30, z0: -HZ - 6, z1: ROAD_END + 6, top: 20 } as const;
+/** Below the ground, where a drop over the branch is parked so it is not drawn. */
+const UNDER = -50;
 
 /**
  * Rain: slanting streaks falling through the whole scene. How many are drawn follows the blend, so a shower starts as a few
@@ -555,7 +555,7 @@ function Rain() {
       const x = (rnd(i, 11) * 2 - 1) * RAIN_BOX.x;
       const y = rnd(i, 12) * RAIN_BOX.top;
       const z = RAIN_BOX.z0 + rnd(i, 13) * (RAIN_BOX.z1 - RAIN_BOX.z0);
-      p.set([x, y, z, x + 0.06, y - 0.42, z + 0.03], i * 6);
+      p.set([x, y, z, x + 0.06, y - 0.42, z], i * 6);
     }
     g.setAttribute('position', new BufferAttribute(p, 3));
     g.setDrawRange(0, 0);
@@ -577,8 +577,9 @@ function Rain() {
     if (lines.current) lines.current.visible = count > 0;
     if (count === 0) return;
     const wind = windOf(liveMix);
-    const fall = Math.min(dt, 0.1) * (16 + 6 * liveMix.storm);
-    const slant = 0.06 + 0.22 * liveMix.storm + 0.04 * wind;
+    const fall = Math.min(dt, 0.1) * (18 + 6 * liveMix.storm);
+    // Rain falls straight down from the clouds; only a storm's wind drives it at a slant.
+    const slant = 0.2 * liveMix.storm + 0.02 * wind * liveMix.storm;
     const len = 0.42 + 0.3 * liveMix.storm;
     const p = geometry.getAttribute('position') as BufferAttribute;
     const a = p.array as Float32Array;
@@ -594,6 +595,11 @@ function Rain() {
       a[o + 1] = y;
       a[o + 3] = x - slant * len * 2;
       a[o + 4] = y - len;
+      // Nothing falls inside the branch: over it, a drop shrinks to a point (draws nothing) until it is out again.
+      if (indoors(x, a[o + 2]!)) {
+        a[o + 3] = x;
+        a[o + 4] = y;
+      }
     }
     p.needsUpdate = true;
     material.opacity = 0.35 + 0.3 * amount;
@@ -685,7 +691,12 @@ function Drift({ kind }: { kind: DriftKind }) {
     const wind = windOf(liveMix);
     const p = geometry.getAttribute('position') as BufferAttribute;
     const arr = p.array as Float32Array;
-    for (let i = 0; i < count; i++) arr.set(driftAt(kind, i, clock.current, wind), i * 3);
+    for (let i = 0; i < count; i++) {
+      const at = driftAt(kind, i, clock.current, wind);
+      // Snow, hail, leaves and petals stay out of the branch.
+      if (indoors(at[0], at[2])) at[1] = UNDER;
+      arr.set(at, i * 3);
+    }
     p.needsUpdate = true;
   });
   return (
@@ -736,67 +747,6 @@ function WindStreaks() {
   return (
     <group ref={lines} visible={false}>
       <lineSegments geometry={geometry} material={material} name="office-wind" frustumCulled={false} />
-    </group>
-  );
-}
-
-/**
- * A rainbow over the city after rain: seven bands in a half circle behind the branch, fading in with the sun. Kept out of the
- * haze so it reads against the sky.
- */
-const RAINBOW_BANDS = ['#ef4444', '#f97316', '#facc15', '#22c55e', '#3b82f6', '#6366f1', '#a855f7'];
-function Rainbow() {
-  const group = useRef<Group>(null);
-  const materials = useMemo(() => RAINBOW_BANDS.map((c) => new MeshBasicMaterial({ color: c, transparent: true, opacity: 0, depthWrite: false, fog: false, toneMapped: false })), []);
-  useEffect(() => () => materials.forEach((m) => m.dispose()), [materials]);
-  useFrame(() => {
-    const a = atmosphereAt(bankStore.getState().view.minute, liveMix).rainbow;
-    if (group.current) group.current.visible = a > 0.01;
-    for (const m of materials) m.opacity = 0.42 * a;
-  });
-  return (
-    <group ref={group} visible={false} position={[6, -2, -HZ - 46]} name="office-rainbow">
-      {materials.map((m, i) => (
-        <mesh key={i} material={m} renderOrder={1}>
-          <torusGeometry args={[34 - i * 0.9, 0.45, 6, 72, Math.PI]} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-/** Wavy lines of light, for the heat shimmer. */
-const drawShimmer = (g: CanvasRenderingContext2D, S: number): void => {
-  g.clearRect(0, 0, S, S);
-  for (let y = 0; y < S; y += 6) {
-    g.strokeStyle = `rgba(255,255,255,${0.12 + 0.18 * ((y / 6) % 2)})`;
-    g.lineWidth = 2;
-    g.beginPath();
-    for (let x = 0; x <= S; x += 4) g.lineTo(x, y + Math.sin((x / S) * Math.PI * 6 + y) * 2.5);
-    g.stroke();
-  }
-};
-
-/** Heat shimmer: wavering bands of light over the road in a heatwave, drifting slowly. */
-function HeatShimmer() {
-  const map = useTiled(drawShimmer, 6);
-  const material = useMemo(() => new MeshBasicMaterial({ map, transparent: true, opacity: 0, depthWrite: false, blending: AdditiveBlending, toneMapped: false }), [map]);
-  const mesh = useRef<Group>(null);
-  useEffect(() => () => material.dispose(), [material]);
-  useFrame((_, dt) => {
-    const a = atmosphereAt(bankStore.getState().view.minute, liveMix).shimmer;
-    material.opacity = 0.35 * a;
-    if (mesh.current) mesh.current.visible = a > 0.01;
-    if (a > 0) {
-      map.offset.y += Math.min(dt, 0.1) * 0.12;
-      map.offset.x = Math.sin(map.offset.y * 9) * 0.01;
-    }
-  });
-  return (
-    <group ref={mesh} visible={false} name="office-heat-shimmer">
-      <mesh position={[0, 0.25, (KERB_Z + ROAD_END) / 2]} rotation={[-Math.PI / 2.4, 0, 0]} material={material} renderOrder={5}>
-        <planeGeometry args={[REACH * 2, ROAD_END - KERB_Z]} />
-      </mesh>
     </group>
   );
 }
@@ -986,11 +936,9 @@ function Passer({ p, clock }: { p: Pedestrian; clock: PavementClock }) {
           </mesh>
         </group>
       )}
-      {pose === 'chat' && (
-        // A small speech bubble over the pair who stop to talk.
-        <mesh position={[0, 1.18, 0]} material={glow}>
-          <sphereGeometry args={[0.07, 8, 6]} />
-        </mesh>
+      {pose === 'chat' && p.index % 2 === 0 && (
+        // A speech (or thought) bubble floating between the pair who stop to talk, over the one who faces the other.
+        <Bubble kind={p.index % 4 === 0 ? 'speech' : 'thought'} position={[0, 1.2, 0.35]} phase={p.index} size={0.36} />
       )}
     </group>
   );
@@ -1032,6 +980,8 @@ export const Environment3D = memo(function Environment3D() {
       <WeatherDriver />
       <Haze />
       <Ground />
+      <Park3D />
+      <Sky3D />
       <City />
       <Trees />
       <Shelters />
@@ -1043,11 +993,10 @@ export const Environment3D = memo(function Environment3D() {
       ))}
       <WindStreaks />
       <SnowCover />
-      <Rainbow />
-      <HeatShimmer />
       <Lightning />
       <DeskLights />
       <Pedestrians />
+      <Vehicles3D />
     </>
   );
 });

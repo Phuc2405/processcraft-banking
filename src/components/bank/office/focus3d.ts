@@ -12,10 +12,10 @@ import { pathLength, pointAlongPath } from './tour3d';
 // Focus: a pointed-at desk, or a guided scenario
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** How strongly the rest of the office fades: to 20% round a pointed-at desk, to 15% outside a sub-process (guided scenario). */
-export const DIM = { hover: 0.2, flow: 0.15 } as const;
+/** How strongly the rest of the office fades: to 20% round a pointed-at desk, to 10% outside a sub-process (guided scenario). */
+export const DIM = { hover: 0.2, flow: 0.1 } as const;
 
-/** How far the unrelated lanes fade (a pointed-at desk or a sub-process), and their hovered-desk badges. */
+/** How far the unrelated lanes and badges fade round a pointed-at desk. */
 export const LANE_DIM = 0.15;
 
 /** How far a condition badge outside the sub-process fades: almost gone, so only the scenario's own words read. */
@@ -41,7 +41,7 @@ export function deskFocus(place: PlaceId, hover: PlaceId | null, flow: FlowId | 
 /** The lanes lit now: the pointed-at desk's own, else the guided scenario's; and how much the others fade. */
 export function litLanes(hover: PlaceId | null, flow: FlowId | null): { lanes: ReadonlySet<string>; dim: number } {
   if (hover) return { lanes: new Set(LANES.filter((l) => l.from === hover || l.to === hover).map((l) => l.id)), dim: LANE_DIM };
-  if (flow) return { lanes: flowScope(flow).wires, dim: LANE_DIM };
+  if (flow) return { lanes: flowScope(flow).wires, dim: DIM.flow };
   return { lanes: new Set(), dim: 1 };
 }
 
