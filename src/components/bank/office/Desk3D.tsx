@@ -1,7 +1,7 @@
 import { Html } from '@react-three/drei';
-import { useFrame, type ThreeEvent } from '@react-three/fiber';
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import type { Group, Mesh } from 'three';
+import { Vector3, type Group, type Mesh } from 'three';
 import { STATIONS, type StationId } from '../../../sim/topology';
 import { bankStore, useBankStore } from '../../../store/bankStore';
 import { pickPlace, useTourLit } from './tourHooks';
@@ -9,13 +9,13 @@ import { useTerms } from '../useTerms';
 import { CustomerFigure, SeatedAvatar } from './Avatars';
 import { deskGlow, deskSolid, isPodium, SURFACE } from './desks';
 import { box, merge } from './kit';
-import { COUNTER, WING, accentOf, customerShirt, deskPose, hasWing, queueSlots, queueStyle, seatOffsets, surgeLevel, wingPose, type V2 } from './layout3d';
+import { COUNTER, LANE_LABELS, WING, accentOf, customerShirt, deskPose, hasWing, queueSlots, queueStyle, seatOffsets, surgeLevel, wingPose, type V2 } from './layout3d';
 import { blobMaterial, glow, solid } from './materials';
 import { STATUS_HEX } from './palette';
 import { cursor } from './cursor';
 import { isAutomatedNode } from '../../../sim/nodeKind';
 import { ServerRack3D } from './ServerRack3D';
-import { isOffShift, leaveAt, leaveRoute } from './focus3d';
+import { badgeRect, isOffShift, leaveAt, leaveRoute, tipSide3d, type TipSide3d } from './focus3d';
 import { useFocusFade } from './useFocusFade';
 import { t } from '../../../i18n/t';
 import { routingRules } from '../routingRules';
@@ -354,14 +354,65 @@ export function DeskPin({ id, height }: { id: StationId; height?: number }) {
  * The description that opens above a desk while it is pointed at, over everything in the scene: its name, what it does, the
  * conditions that pass or decline a case there, and its status. Solid, so no floor, mesh or label shows through it.
  */
+/** The description's size on screen, for placing it (its real height varies a little with the rules it lists). */
+const TIP_3D = { w: 260, h: 176 } as const;
+
+/** How the description is shifted off its anchor point for each side (it is drawn from that point by CSS). */
+const TIP_SHIFT: Record<TipSide3d, string> = {
+  above: 'translate(-50%, calc(-100% - 10px))',
+  below: 'translate(-50%, 10px)',
+  right: 'translate(10px, -50%)',
+  left: 'translate(calc(-100% - 10px), -50%)',
+};
+
+const projected = new Vector3();
+
+/**
+ * Where the description opens: the side (tipSide3d) whose card covers none of this desk's own condition badges on screen,
+ * from an anchor on that side of the desk: its top, its front, or its flanks.
+ */
+function useTipPlacement(id: StationId, top: number): { side: TipSide3d; at: [number, number, number] } {
+  const camera = useThree((s) => s.camera);
+  const size = useThree((s) => s.size);
+  return useMemo(() => {
+    const pose = deskPose(id);
+    const local: Record<TipSide3d, [number, number, number]> = {
+      above: [0, top + 0.35, 0.1],
+      below: [0, 0.1, pose.d / 2 + 0.3],
+      right: [pose.w / 2 + 0.3, top * 0.55, 0],
+      left: [-pose.w / 2 - 0.3, top * 0.55, 0],
+    };
+    const toScreen = (x: number, y: number, z: number) => {
+      projected.set(x, y, z).project(camera);
+      return { x: ((projected.x + 1) / 2) * size.width, y: ((1 - projected.y) / 2) * size.height };
+    };
+    const anchors = Object.fromEntries((Object.keys(local) as TipSide3d[]).map((s) => [s, toScreen(pose.x + local[s][0], local[s][1], pose.z + local[s][2])])) as Record<TipSide3d, { x: number; y: number }>;
+    // CSS pixels to a world unit, from two projected points a unit apart.
+    const a = toScreen(0, 0, 0);
+    const b = toScreen(0, 1, 0);
+    const px = Math.hypot(b.x - a.x, b.y - a.y);
+    const badges = LANE_LABELS.filter((l) => l.from === id || l.to === id).map((l) => badgeRect(toScreen(l.at[0], 0.36, l.at[1]), t(l.text).length, px));
+    const side = tipSide3d(anchors, TIP_3D, badges, { w: size.width, h: size.height });
+    return { side, at: local[side] };
+  }, [id, top, camera, size]);
+}
+
 function DeskTooltip3D({ id, top }: { id: StationId; top: number }) {
   const status = useBankStore((s) => s.view.stations[id].status);
   const queueLength = useBankStore((s) => s.view.stations[id].queueLength);
   const terms = useTerms();
   const rules = routingRules(id);
+  const { side, at } = useTipPlacement(id, top);
   return (
-    <Html position={[0, top + 0.35, 0.1]} zIndexRange={[60, 50]} style={{ pointerEvents: 'none' }}>
-      <div role="tooltip" data-testid={`desk-tip-${id}`} className="w-[260px] -translate-x-1/2 -translate-y-full rounded-lg border border-slate-500 bg-slate-900 px-3 py-2 text-left shadow-[0_10px_30px_rgba(0,0,0,0.6)]">
+    // Above the badges' layer (the canvas) and every other overlay, on the side where it hides none of this desk's badges.
+    <Html position={at} zIndexRange={[60, 50]} style={{ pointerEvents: 'none' }}>
+      <div
+        role="tooltip"
+        data-testid={`desk-tip-${id}`}
+        data-side={side}
+        style={{ transform: TIP_SHIFT[side] }}
+        className="w-[260px] rounded-lg border border-slate-500 bg-slate-900 px-3 py-2 text-left shadow-[0_10px_30px_rgba(0,0,0,0.6)]"
+      >
         <div className="text-[13px] font-semibold leading-snug text-slate-50">{terms.stationTitle(id)}</div>
         <p className="mt-0.5 text-[12px] leading-snug text-slate-300">{terms.tip(id)}</p>
         {(rules.pass.length > 0 || rules.decline.length > 0) && (

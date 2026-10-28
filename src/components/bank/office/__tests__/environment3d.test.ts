@@ -418,9 +418,10 @@ describe('the 3D view shares the 2D map’s overlays', () => {
     expect(src['../Office3D.tsx']).not.toContain('#fdf6e8');
   });
 
-  it('opens an opaque description above a pointed-at desk, with its rules and its status', () => {
+  it('opens an opaque description beside a pointed-at desk (above unless that hides its badges), with its rules and its status', () => {
     const desk = src['../Desk3D.tsx']!;
-    expect(desk).toMatch(/-translate-x-1\/2 -translate-y-full [^"]*bg-slate-900/);
+    expect(desk).toContain("above: 'translate(-50%, calc(-100% - 10px))'");
+    expect(desk).toMatch(/className="w-\[260px\] rounded-lg border border-slate-500 bg-slate-900/);
     expect(desk).toContain('zIndexRange={[60, 50]}');
     for (const key of ["t('Passes when')", "t('Declines when')", "t('waiting')"]) expect(desk).toContain(key);
   });

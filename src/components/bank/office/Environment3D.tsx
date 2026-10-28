@@ -30,7 +30,8 @@ import { customerShirt, FLOOR_SLAB, KERB_Z, ROAD_END, STATION_POSES, STREET } fr
 import { glow, pane, solid } from './materials';
 import { CustomerFigure, type Wear } from './Avatars';
 import { Bubble } from './Bubble3D';
-import { PARK, Park3D } from './Park3D';
+import { LOT, TREE_STRIP } from './parking';
+import { Parking3D } from './Parking3D';
 import { Sky3D } from './Sky3D';
 import { Vehicles3D } from './Vehicles3D';
 import {
@@ -166,15 +167,15 @@ function roadParts(): Part[] {
     for (let x = x0 + side * 0.9; Math.abs(x) < REACH - 1; x += side * 2.2) parts.push(box([x, -0.132, roadMid], [1.1, 0.006, 0.1], '#f3efe0'));
     for (const z of [KERB_Z + STREET.kerbW + 0.18, ROAD_END - 0.18]) parts.push(box([cx, -0.132, z], [len, 0.006, 0.07], '#f3efe0'));
   }
-  // The lane behind the block. (Down both sides of the branch are its parks, Park3D.)
+  // The lane behind the block, which the car parks open onto. (Down both sides of the branch are its car parks, Parking3D.)
   parts.push(box([0, -0.3, -HZ - 3.2], [REACH * 2, 0.32, 3], '#3f4651'));
   return parts;
 }
 
-/** Belts of ground under the tree rows: cobbles along the far pavement, the parks' lawns down both sides of the block. */
+/** Belts of ground under the tree rows: cobbles along the far pavement, the grass strips along the car parks' outer edges. */
 export const TREE_BELTS = {
   far: { x0: -REACH, x1: REACH, z0: ROAD_END + 0.1, z1: ROAD_END + 2.6 },
-  sides: [-1, 1].map((side) => ({ x0: side < 0 ? -PARK.x1 : PARK.x0, x1: side < 0 ? -PARK.x0 : PARK.x1, z0: PARK.z0, z1: PARK.z1 })),
+  sides: [-1, 1].map((side) => ({ x0: side < 0 ? -TREE_STRIP.x1 : TREE_STRIP.x0, x1: side < 0 ? -TREE_STRIP.x0 : TREE_STRIP.x1, z0: LOT.z0, z1: LOT.z1 })),
 } as const;
 
 function Ground() {
@@ -298,10 +299,8 @@ export const TREES: readonly Tree[] = (() => {
   let i = 0;
   for (let x = -REACH + 6; x < REACH - 6; x += 5.2) out.push({ x: x + rnd(i, 9) * 1.2, z: (TREE_BELTS.far.z0 + TREE_BELTS.far.z1) / 2, scale: 1 + rnd(i++, 8) * 0.2 });
   for (const side of [-1, 1]) for (let x = HW + 2; x < REACH - 6; x += 6) out.push({ x: side * x, z: KERB_Z - 0.25, scale: 0.95 });
-  // Two rows of shade trees in each park, either side of its walk, clear of the crossing path.
-  for (const side of [-1, 1])
-    for (const ax of PARK.trees)
-      for (let z = PARK.z0 + 1.2; z < PARK.z1 - 0.6; z += 4.2) if (Math.abs(z) > 1.2) out.push({ x: side * ax, z, scale: 0.9 + rnd(i++, 7) * 0.2 });
+  // A row of shade trees along each car park's outer edge.
+  for (const side of [-1, 1]) for (let z = LOT.z0 + 1.6; z < LOT.z1 - 0.6; z += 4.2) out.push({ x: side * TREE_STRIP.x, z, scale: 0.9 + rnd(i++, 7) * 0.2 });
   return out;
 })();
 
@@ -980,7 +979,7 @@ export const Environment3D = memo(function Environment3D() {
       <WeatherDriver />
       <Haze />
       <Ground />
-      <Park3D />
+      <Parking3D />
       <Sky3D />
       <City />
       <Trees />

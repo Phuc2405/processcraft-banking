@@ -801,17 +801,26 @@ export function tipRect(place: PlaceId, side: TipSide): Rect {
 /** The sides a description may open on, in order of preference: above the desk first. */
 export const TIP_PREFERENCE: readonly TipSide[] = ['above', 'below', 'right', 'left'];
 
+/** The condition labels on a desk's own wires, as the pills BankMap draws: the words hovering it is meant to bring forward. */
+export const ownLabelBoxes = (place: PlaceId): Box[] =>
+  BANK_WIRES.filter((w) => w.label && w.labelAt && (w.from === place || w.to === place)).map((w) => labelPill(labelChars(w.label!), w.labelAt!));
+
 /**
- * The side a desk's description opens on: above the desk wherever it fits on the stage, otherwise the next side in
- * TIP_PREFERENCE that does (the top row opens below, the first column to the right). The description is opaque and drawn over
- * everything, so covering the desks around it is fine.
+ * The side a desk's description opens on: the first side in TIP_PREFERENCE that fits on the stage AND covers none of the
+ * desk's own condition labels (they light up on hover, so the card must never sit on them); failing that, the first side
+ * that fits. The description is opaque and drawn over everything, so covering the desks around it is fine.
  */
 export function tipSideFor(place: PlaceId): TipSide {
   const fits = (side: TipSide): boolean => {
     const r = tipRect(place, side);
     return r.x0 >= 0 && r.y0 >= 0 && r.x1 <= STAGE.width && r.y1 <= STAGE.height;
   };
-  return TIP_PREFERENCE.find(fits) ?? 'below';
+  const labels = ownLabelBoxes(place);
+  const clear = (side: TipSide): boolean => {
+    const r = tipRect(place, side);
+    return !labels.some((b) => hits(r, b));
+  };
+  return TIP_PREFERENCE.find((s) => fits(s) && clear(s)) ?? TIP_PREFERENCE.find(fits) ?? 'below';
 }
 
 export const TIP_SIDE: Readonly<Record<PlaceId, TipSide>> = Object.fromEntries((Object.keys(PLACE_BOX) as PlaceId[]).map((p) => [p, tipSideFor(p)])) as Record<PlaceId, TipSide>;

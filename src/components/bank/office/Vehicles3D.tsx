@@ -7,7 +7,7 @@ import { ball, box, shade, tint, type Part } from './kit';
 import { customerShirt } from './layout3d';
 import { glow, solid } from './materials';
 import { outfitOf, outfitShirt, useWeather, type Outfit } from './weather';
-import { riderAt, VEHICLES, vehicleAt, type Vehicle } from './vehicles';
+import { ALIGHT, riderAt, TrafficSim, VEHICLES, type Vehicle, type VehicleState } from './vehicles';
 
 /**
  * The traffic on the avenue (vehicles.ts says where everything is): motorbikes, many carrying two, cars, green taxis and
@@ -23,7 +23,7 @@ const wheels = (len: number, w: number, r: number): Part[] =>
   [-1, 1].flatMap((sx) => [-1, 1].map((sz) => box([sx * (len / 2 - r * 1.3), r, sz * (w / 2 - 0.04)], [r * 2, r * 2, 0.14], WHEEL)));
 
 /** The bodywork of each kind, facing +x. */
-function bodyParts(v: Vehicle): { body: Part[]; lights: Part[] } {
+export function bodyParts(v: Pick<Vehicle, 'kind' | 'color'>): { body: Part[]; lights: Part[] } {
   const c = v.color;
   switch (v.kind) {
     case 'motorbike':
@@ -81,7 +81,7 @@ const PONCHO = ['#2563eb', '#facc15', '#16a34a', '#e11d48', '#7c3aed'];
  * A rider on a motorbike, at `x` along it: in their own clothes and a helmet, or, in the rain, under a poncho. With
  * `pillion`, the driver's poncho is the big two-person kind that covers the passenger too.
  */
-function Rider({ x, index, rain, wide }: { x: number; index: number; rain: boolean; wide: boolean }) {
+export function Rider({ x, index, rain, wide }: { x: number; index: number; rain: boolean; wide: boolean }) {
   const parts = useMemo(() => {
     const skin = SKIN[index % SKIN.length]!;
     const shirt = customerShirt(index * 3 + 1);
@@ -106,9 +106,10 @@ function Rider({ x, index, rain, wide }: { x: number; index: number; rain: boole
 const WEAR: Readonly<Record<Outfit, Wear>> = { everyday: 'none', summer: 'summer', winter: 'winter', rain: 'rain', mask: 'mask', jacket: 'none' };
 
 /** One vehicle, and the person getting on or off it at the kerb. */
-function Car({ v, index, clock }: { v: Vehicle; index: number; clock: { t: number } }) {
+function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Map<string, VehicleState>; t: number } }) {
   const root = useRef<Group>(null);
   const person = useRef<Group>(null);
+  const door = useRef<Group>(null);
   const parts = useMemo(() => bodyParts(v), [v]);
   const body = useMerged(() => parts.body, [parts]);
   const lights = useMerged(() => parts.lights, [parts]);
@@ -118,7 +119,9 @@ function Car({ v, index, clock }: { v: Vehicle; index: number; clock: { t: numbe
   const [aboard, setAboard] = useState(v.pillion);
   const [rider, setRider] = useState<{ walking: boolean; carrying: boolean } | null>(null);
   useFrame(() => {
-    const s = vehicleAt(v, clock.t);
+    const s = live.states.get(v.id);
+    if (!s) return;
+    const clock = live;
     if (root.current) {
       root.current.position.set(s.x, -0.14, s.z);
       root.current.rotation.y = s.heading;
@@ -126,9 +129,11 @@ function Car({ v, index, clock }: { v: Vehicle; index: number; clock: { t: numbe
       root.current.rotation.x = v.kind === 'motorbike' ? 0.08 * Math.sin(s.pull * Math.PI) : 0;
       root.current.position.y = -0.14 + (s.speed > 0 ? Math.abs(Math.sin(clock.t * 9 + index)) * 0.012 : 0);
     }
-    const on = v.pillion && !(v.stop?.kind === 'pillion' && s.sinceStop !== null && s.sinceStop >= 0.6);
+    const on = v.pillion && !(v.stop?.kind === 'pillion' && s.sinceStop !== null && s.sinceStop >= ALIGHT.door);
     if (on !== aboard) setAboard(on);
-    const r = riderAt(v, clock.t);
+    // The kerbside door swings open while the taxi stands, and shuts before it pulls away.
+    if (door.current) door.current.rotation.y = 1.1 * s.door;
+    const r = riderAt(v, s);
     if (person.current) {
       person.current.visible = r !== null;
       if (r) {
@@ -145,6 +150,15 @@ function Car({ v, index, clock }: { v: Vehicle; index: number; clock: { t: numbe
       <group ref={root} name={`vehicle-${v.id}`}>
         <mesh geometry={body} material={solid} castShadow />
         <mesh geometry={lights} material={glow} />
+        {v.kind === 'taxi' && (
+          // The rear kerbside door, hinged at its front edge. Taxis stop in the near lane, facing -x, so the kerb is on their +z side.
+          <group ref={door} position={[0.25, 0.5, 0.48]}>
+            <mesh position={[-0.3, 0, 0]}>
+              <boxGeometry args={[0.6, 0.42, 0.04]} />
+              <meshStandardMaterial color={v.color} roughness={0.5} />
+            </mesh>
+          </group>
+        )}
         {v.kind === 'motorbike' && (
           <>
             <Rider x={0.05} index={index} rain={rain} wide={rain && aboard} />
@@ -182,16 +196,22 @@ function Car({ v, index, clock }: { v: Vehicle; index: number; clock: { t: numbe
   );
 }
 
-/** The whole fleet. Its clock runs only while the canvas draws, like the pedestrians'. */
+/**
+ * The whole fleet, driven by one TrafficSim (vehicles.ts): stepped once a frame, before the vehicles read where they are.
+ * It runs only while the canvas draws, like the pedestrians.
+ */
 export const Vehicles3D = memo(function Vehicles3D() {
-  const clock = useMemo(() => ({ t: 0 }), []);
+  const sim = useMemo(() => new TrafficSim(), []);
+  const live = useMemo(() => ({ states: sim.states(), t: 0 }), [sim]);
   useFrame((_, dt) => {
-    clock.t += Math.min(dt, 0.1);
-  });
+    sim.step(dt);
+    live.states = sim.states();
+    live.t = sim.t;
+  }, -1);
   return (
     <group name="office-traffic">
       {VEHICLES.map((v, i) => (
-        <Car key={v.id} v={v} index={i} clock={clock} />
+        <Car key={v.id} v={v} index={i} live={live} />
       ))}
     </group>
   );

@@ -122,3 +122,59 @@ export function leaveAt(route: readonly V2[], t: number): { at: V2; heading: num
   const heading = ahead[0] === at[0] && ahead[1] === at[1] ? 0 : Math.atan2(ahead[0] - at[0], ahead[1] - at[1]);
   return { at, heading, done: d >= len };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Where a desk's description opens, clear of its own badges
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type TipSide3d = 'above' | 'below' | 'right' | 'left';
+export const TIP_SIDES_3D: readonly TipSide3d[] = ['above', 'below', 'right', 'left'];
+
+/** A box on the screen, in CSS pixels. */
+export interface ScreenRect {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+/** The gap between the description and the point it opens from. */
+export const TIP_GAP_3D = 10;
+
+/** The description's box when it opens on `side` of its anchor point there (anchors differ per side: top, front, flanks). */
+export function tipRect3d(side: TipSide3d, at: { x: number; y: number }, tip: { w: number; h: number }): ScreenRect {
+  switch (side) {
+    case 'above':
+      return { x0: at.x - tip.w / 2, y0: at.y - TIP_GAP_3D - tip.h, x1: at.x + tip.w / 2, y1: at.y - TIP_GAP_3D };
+    case 'below':
+      return { x0: at.x - tip.w / 2, y0: at.y + TIP_GAP_3D, x1: at.x + tip.w / 2, y1: at.y + TIP_GAP_3D + tip.h };
+    case 'right':
+      return { x0: at.x + TIP_GAP_3D, y0: at.y - tip.h / 2, x1: at.x + TIP_GAP_3D + tip.w, y1: at.y + tip.h / 2 };
+    case 'left':
+      return { x0: at.x - TIP_GAP_3D - tip.w, y0: at.y - tip.h / 2, x1: at.x - TIP_GAP_3D, y1: at.y + tip.h / 2 };
+  }
+}
+
+const overlaps = (a: ScreenRect, b: ScreenRect): boolean => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
+
+/**
+ * The side a pointed-at desk's description opens on in 3D: the first of above, below, right and left that stays on the
+ * screen and covers none of the desk's own condition badges (they light up yellow on hover, so the card must leave them
+ * readable); failing that, the first that covers none of them; failing that, the first on the screen.
+ */
+export function tipSide3d(anchors: Readonly<Record<TipSide3d, { x: number; y: number }>>, tip: { w: number; h: number }, badges: readonly ScreenRect[], view: { w: number; h: number }): TipSide3d {
+  const rect = (s: TipSide3d) => tipRect3d(s, anchors[s], tip);
+  const onScreen = (s: TipSide3d) => {
+    const r = rect(s);
+    return r.x0 >= 0 && r.y0 >= 0 && r.x1 <= view.w && r.y1 <= view.h;
+  };
+  const clear = (s: TipSide3d) => !badges.some((b) => overlaps(rect(s), b));
+  return TIP_SIDES_3D.find((s) => onScreen(s) && clear(s)) ?? TIP_SIDES_3D.find(clear) ?? TIP_SIDES_3D.find(onScreen) ?? 'above';
+}
+
+/** A badge's box on the screen: BADGE_H world units tall, as wide as its words, at `px` CSS pixels to a world unit. */
+export const badgeRect = (at: { x: number; y: number }, chars: number, px: number, h = 0.34): ScreenRect => {
+  const hh = h * px;
+  const w = hh * (0.47 * chars + 1.15);
+  return { x0: at.x - w / 2, y0: at.y - hh / 2, x1: at.x + w / 2, y1: at.y + hh / 2 };
+};

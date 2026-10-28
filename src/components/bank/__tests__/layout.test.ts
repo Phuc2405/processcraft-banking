@@ -4,7 +4,7 @@ import { t } from '../../../i18n/t';
 import { DEPARTMENT_IDS, DEPARTMENTS, EXTERNAL_IDS, STATION_IDS, WIRES, edgeId, type PlaceId } from '../../../sim/topology';
 import { OFFICE_PLACE_BOX } from '../office/officePlan';
 import { deskPose, toWorld } from '../office/layout3d';
-import { BAND, BANK_WIRES, CARD, DEPT_BOX, GATEWAYS, PLACE_BOX, STAGE, TIP_PREFERENCE, TIP_SIDE, pathOfWire, roundedPath, tipRect, wireById } from '../layout';
+import { BAND, BANK_WIRES, CARD, DEPT_BOX, GATEWAYS, ownLabelBoxes, PLACE_BOX, STAGE, TIP_PREFERENCE, TIP_SIDE, pathOfWire, roundedPath, tipRect, wireById } from '../layout';
 
 describe('the bank map', () => {
   it('gives every place on the topology a box on the stage', () => {
@@ -108,7 +108,7 @@ describe('where a desk’s description opens', () => {
     Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
   const places = Object.keys(PLACE_BOX) as PlaceId[];
 
-  it('opens above the desk, and on the next side only where above would leave the stage', () => {
+  it('opens above the desk, and on the next side only where above would leave the stage or cover the desk’s own labels', () => {
     for (const id of places) {
       const r = tipRect(id, TIP_SIDE[id]);
       expect(r.x0, id).toBeGreaterThanOrEqual(0);
@@ -119,11 +119,19 @@ describe('where a desk’s description opens', () => {
         const t = tipRect(id, side);
         return t.x0 >= 0 && t.y0 >= 0 && t.x1 <= STAGE.width && t.y1 <= STAGE.height;
       };
-      expect(TIP_SIDE[id], id).toBe(TIP_PREFERENCE.find(fits));
+      const clear = (side: (typeof TIP_PREFERENCE)[number]) => ownLabelBoxes(id).every((b) => overlap(tipRect(id, side), b) === 0);
+      expect(TIP_SIDE[id], id).toBe(TIP_PREFERENCE.find((s) => fits(s) && clear(s)) ?? TIP_PREFERENCE.find(fits));
     }
-    // Most desks open above; only the top row and the edge columns fall back.
-    expect(places.filter((id) => TIP_SIDE[id] === 'above').length).toBeGreaterThan(places.length / 2);
-    expect(TIP_SIDE.LEDGER_DEBIT).toBe('above');
+    // Wherever a side exists that fits and is clear, the card never covers one of the desk's own condition labels.
+    for (const id of places) {
+      const anyClear = TIP_PREFERENCE.some((s) => {
+        const t = tipRect(id, s);
+        return t.x0 >= 0 && t.y0 >= 0 && t.x1 <= STAGE.width && t.y1 <= STAGE.height && ownLabelBoxes(id).every((b) => overlap(t, b) === 0);
+      });
+      if (anyClear) for (const b of ownLabelBoxes(id)) expect(overlap(tipRect(id, TIP_SIDE[id]), b), id).toBe(0);
+    }
+    // Above is still the first choice; a desk whose own condition labels sit above it opens on another side.
+    expect(places.filter((id) => TIP_SIDE[id] === 'above').length).toBeGreaterThan(places.length / 4);
     expect(overlap(tipRect('LEDGER_DEBIT', TIP_SIDE.LEDGER_DEBIT), rect('LEDGER_CREDIT'))).toBe(0);
   });
 
