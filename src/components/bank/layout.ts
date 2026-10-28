@@ -107,7 +107,7 @@ export const PLACE_BOX: Record<PlaceId, PlaceBox> = {
   CUSTOMER_OTP: { cx: 500, cy: 312, w: 150, h: 62 },
   OUT_DECLINED: { cx: 1000, cy: 150, w: 110, h: 100 },
   OUT_APPROVED: { cx: 1000, cy: 354, w: 110, h: 100 },
-  OUT_SETTLED: { cx: 1105, cy: 802, w: 110, h: 92 },
+  OUT_SETTLED: { cx: 1105, cy: 830, w: 110, h: 92 },
   ...bandBoxes(BAND_ROW_2D),
 };
 
@@ -123,7 +123,7 @@ export const DEPT_BOX: Record<DepartmentId, DeptBox> = {
   SECURITY: { x: 208, y: 36, w: 384, h: 396 },
   LEDGER: { x: 688, y: 160, w: 184, h: 280 },
   BNPL: { x: 208, y: 460, w: 184, h: 140 },
-  EOD: { x: 910, y: 466, w: 390, h: 416 },
+  EOD: { x: 910, y: 466, w: 390, h: 444 },
   ATM: { x: 1094, y: 66, w: 192, h: 366 },
   ...bandDepts(BAND_ROW_2D),
 };
@@ -215,6 +215,127 @@ export function bandRoutes(r1: number, decline: DeclineTail, laneStep = 0): Reco
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// BPMN collector gateways (2D map only)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Exclusive (XOR) join gateways: where many wires converge on one place, they end at a diamond and a single trunk goes on.
+ *
+ *   GATEWAY_XOR_REJECT    the nine long declines (the band's identity, fraud, AML, teller and dispute desks, and 3DS), in the
+ *                         right-hand gutter; its trunk enters Declined from above.
+ *   GATEWAY_XOR_APPROVE   the band's five clean approvals on the ledger trunk; its trunk enters Debit CASA from the right.
+ *   GATEWAY_XOR_NIGHT     the two night handovers (matched, cleared) between Suspense and Recon; its trunk enters Settled.
+ *
+ * Gateways are drawn on the map, not modelled in the topology: every wire still runs from its desk to its place, through the
+ * diamond, so packets, tours and the simulation are unchanged. Each feeder meets the diamond at its own point on the edge.
+ */
+export type GatewayId = 'GATEWAY_XOR_REJECT' | 'GATEWAY_XOR_APPROVE' | 'GATEWAY_XOR_NIGHT';
+
+export const GATEWAY_AT: Readonly<Record<GatewayId, Pt>> = {
+  GATEWAY_XOR_REJECT: [1324, 400],
+  GATEWAY_XOR_APPROVE: [876, 500],
+  GATEWAY_XOR_NIGHT: [1105, 752],
+};
+
+export interface Gateway {
+  id: GatewayId;
+  kind: 'reject' | 'approve' | 'night';
+  cx: number;
+  cy: number;
+  /** Half the diamond's width (and height). */
+  half: number;
+  to: PlaceId;
+  /** The wires it collects. */
+  wires: readonly string[];
+  /** The one trunk from the diamond's exit corner to the place. */
+  trunk: Pt[];
+  path: string;
+}
+
+type GatewaySpec = Omit<Gateway, 'cx' | 'cy' | 'path' | 'trunk'> & { trunk: readonly Pt[] };
+
+const gw = (id: GatewayId): Pt => GATEWAY_AT[id];
+
+const GATEWAY_SPECS: readonly GatewaySpec[] = [
+  {
+    id: 'GATEWAY_XOR_REJECT',
+    kind: 'reject',
+    half: 16,
+    to: 'OUT_DECLINED',
+    wires: ['SEC_3DS>OUT_DECLINED', ...Object.keys(DECLINE_SLOT).map((d) => `${d}>OUT_DECLINED`)],
+    // Up the gutter from the top corner, along the top lane and down into Declined beside the virtual-card declines.
+    trunk: [
+      [gw('GATEWAY_XOR_REJECT')[0], gw('GATEWAY_XOR_REJECT')[1] - 16],
+      [gw('GATEWAY_XOR_REJECT')[0], 44],
+      [PLACE_BOX.OUT_DECLINED.cx + 30, 44],
+      [PLACE_BOX.OUT_DECLINED.cx + 30, PLACE_BOX.OUT_DECLINED.cy - PLACE_BOX.OUT_DECLINED.h / 2],
+    ],
+  },
+  {
+    id: 'GATEWAY_XOR_APPROVE',
+    kind: 'approve',
+    half: 12,
+    to: 'LEDGER_DEBIT',
+    wires: ['GATE_EKYC>LEDGER_DEBIT', 'SEC_FDS>LEDGER_DEBIT', 'AML_DESK>LEDGER_DEBIT', 'TELLER_CASH>LEDGER_DEBIT', 'DISPUTE_DESK>LEDGER_DEBIT'],
+    trunk: [
+      [gw('GATEWAY_XOR_APPROVE')[0], gw('GATEWAY_XOR_APPROVE')[1] - 12],
+      [gw('GATEWAY_XOR_APPROVE')[0], PLACE_BOX.LEDGER_DEBIT.cy + 24],
+      [PLACE_BOX.LEDGER_DEBIT.cx + PLACE_BOX.LEDGER_DEBIT.w / 2, PLACE_BOX.LEDGER_DEBIT.cy + 24],
+    ],
+  },
+  {
+    id: 'GATEWAY_XOR_NIGHT',
+    kind: 'night',
+    half: 11,
+    to: 'OUT_SETTLED',
+    wires: ['RECON>OUT_SETTLED', 'SUSPENSE>OUT_SETTLED'],
+    trunk: [
+      [gw('GATEWAY_XOR_NIGHT')[0], gw('GATEWAY_XOR_NIGHT')[1] + 11],
+      [PLACE_BOX.OUT_SETTLED.cx, PLACE_BOX.OUT_SETTLED.cy - PLACE_BOX.OUT_SETTLED.h / 2],
+    ],
+  },
+];
+
+export const GATEWAYS: readonly Gateway[] = GATEWAY_SPECS.map((g) => {
+  const [cx, cy] = GATEWAY_AT[g.id];
+  const trunk = [...g.trunk];
+  return { ...g, cx, cy, trunk, path: roundedPath(trunk) };
+});
+
+/** Drops a point that repeats the one before it (a lane that is already on the gateway's centre line). */
+const dedupe = (points: readonly Pt[]): Pt[] => points.filter((p, i) => i === 0 || p[0] !== points[i - 1]![0] || p[1] !== points[i - 1]![1]);
+
+/**
+ * Re-routes a gateway's wires: each runs as before until its first leg that crosses the diamond's centre line, stops on the
+ * diamond's edge there (the feeder that is drawn), passes through the centre under the diamond, and leaves by the trunk.
+ */
+function throughGateway(w: Wire, g: Gateway): Wire {
+  const pts = w.points;
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = pts[i - 1]!;
+    const [bx, by] = pts[i]!;
+    const vertical = ax === bx && Math.abs(ax - g.cx) <= g.half && Math.min(ay, by) <= g.cy && Math.max(ay, by) >= g.cy;
+    const horizontal = ay === by && Math.abs(ay - g.cy) <= g.half && Math.min(ax, bx) <= g.cx && Math.max(ax, bx) >= g.cx;
+    if (!vertical && !horizontal) continue;
+    // Where the leg meets the diamond's edge, on the side it comes from.
+    const edge: Pt = vertical ? [ax, g.cy + Math.sign(ay - g.cy) * (g.half - Math.abs(ax - g.cx))] : [g.cx + Math.sign(ax - g.cx) * (g.half - Math.abs(ay - g.cy)), ay];
+    const feeder = dedupe([...pts.slice(0, i), edge]);
+    const inside: Pt[] = vertical ? [[ax, g.cy], [g.cx, g.cy]] : [[g.cx, ay], [g.cx, g.cy]];
+    const points = dedupe([...feeder, ...inside, ...g.trunk]);
+    return { ...w, points, path: roundedPath(points), gateway: g.id, drawPoints: feeder, drawPath: roundedPath(feeder) };
+  }
+  throw new Error(`The wire ${w.id} never reaches ${g.id}`);
+}
+
+function withGateways(wires: Wire[], gateways: readonly Gateway[]): Wire[] {
+  const byWire = new Map(gateways.flatMap((g) => g.wires.map((id) => [id, g] as const)));
+  return wires.map((w) => {
+    const g = byWire.get(w.id);
+    return g ? throughGateway(w, g) : w;
+  });
+}
+
 /** Declined's centre on the 2D map: the entry points are offsets from it. */
 const PLACE_BOX_DECLINED_CX = PLACE_BOX.OUT_DECLINED.cx;
 
@@ -273,9 +394,9 @@ const ROUTES: Record<string, RouteSpec> = {
   'OUT_APPROVED>EOD_BATCH': R(['b'], ['t'], { labelAt: [1000, 428] }),
   'EOD_BATCH>EOD_VISA': R(['r'], ['l']),
   'EOD_VISA>RECON': R(['b'], ['t']),
-  'RECON>OUT_SETTLED': R(['b'], ['r']),
+  'RECON>OUT_SETTLED': R(['b', -40], ['t'], { via: [[GATEWAY_AT.GATEWAY_XOR_NIGHT[0] + 65, GATEWAY_AT.GATEWAY_XOR_NIGHT[1]], GATEWAY_AT.GATEWAY_XOR_NIGHT], labelAt: [1170, 740] }),
   'RECON>SUSPENSE': R(['l'], ['r']),
-  'SUSPENSE>OUT_SETTLED': R(['b'], ['l']),
+  'SUSPENSE>OUT_SETTLED': R(['b', 40], ['t'], { via: [[GATEWAY_AT.GATEWAY_XOR_NIGHT[0] - 65, GATEWAY_AT.GATEWAY_XOR_NIGHT[1]], GATEWAY_AT.GATEWAY_XOR_NIGHT], labelAt: [1040, 740] }),
   // Sidewalk ATM (top-right). Card & PIN declines go straight left into Declined; cash paid out straight left into Approved;
   // a cash jam drops between the night-cycle columns into the top of Suspense.
   'GATE_ATM>ATM_CASH': R(['b'], ['t'], { quiet: true }),
@@ -283,8 +404,8 @@ const ROUTES: Record<string, RouteSpec> = {
   'ATM_CASH>OUT_DECLINED': R(['l', -30], ['r', 20], { via: [[1080, 324], [1080, 170]], quiet: true }),
   'ATM_CASH>OUT_APPROVED': R(['l', 10], ['r', 10], { quiet: true }),
   'ATM_CASH>SUSPENSE': R(['b', -70], ['t', 40], { via: [[1120, 614], [1040, 614]], quiet: true }),
-  // Phase 8 band: declines drop beside the trunk to the floor lane, run to the right-hand gutter and enter Declined from above,
-  // each on its own lane of every run (DECLINE_LANES), so the red dashed wires never merge into one stroke.
+  // Phase 8 band: declines drop beside the trunk to the floor lane and climb the right-hand gutter, each on its own lane of
+  // every run (DECLINE_LANES), until the reject gateway collects them (GATEWAYS) and one trunk carries them into Declined.
   ...bandRoutes(
     BAND_ROW_2D,
     (y, slot) => {
@@ -354,10 +475,16 @@ export interface Wire {
   from: PlaceId;
   to: PlaceId;
   label: string | null;
+  /** The whole run, through any gateway: the path a packet flies along. */
   path: string;
   points: Pt[];
   labelAt: Pt;
   showLabel: boolean;
+  /** The gateway that collects this wire, if any: then only its feeder (`drawPath`) is drawn, and the gateway draws the trunk. */
+  gateway?: GatewayId;
+  /** What the map strokes: the feeder up to the gateway's edge, or the whole run. */
+  drawPath: string;
+  drawPoints: Pt[];
 }
 
 function midOfLongestRun(points: readonly Pt[]): Pt {
@@ -382,11 +509,12 @@ export function buildWires(boxes: Record<PlaceId, PlaceBox>, routes: Record<stri
     const spec = routes[id];
     if (!spec) throw new Error(`No route drawn for the wire ${id}`);
     const points = pointsOf(boxes, from, to, spec);
-    return { id, from, to, label: label ?? null, path: roundedPath(points), points, labelAt: spec.labelAt ?? midOfLongestRun(points), showLabel: !spec.quiet };
+    const path = roundedPath(points);
+    return { id, from, to, label: label ?? null, path, points, labelAt: spec.labelAt ?? midOfLongestRun(points), showLabel: !spec.quiet, drawPath: path, drawPoints: points };
   });
 }
 
-export const BANK_WIRES: Wire[] = buildWires(PLACE_BOX, ROUTES);
+export const BANK_WIRES: Wire[] = withGateways(buildWires(PLACE_BOX, ROUTES), GATEWAYS);
 
 const BY_ID = new Map(BANK_WIRES.map((w) => [w.id, w]));
 
@@ -394,6 +522,11 @@ export const wireById = (id: string): Wire | undefined => BY_ID.get(id);
 
 /** The path a packet takes along a wire, or null if the wire is not on the map. */
 export const pathOfWire = (id: string): string | null => BY_ID.get(id)?.path ?? null;
+
+/** The wires touching `place` (its own, in and out), or null when nothing is pointed at: what hovering a node lights up. */
+export function connectedWires(place: PlaceId | null, wires: readonly Wire[] = BANK_WIRES): ReadonlySet<string> | null {
+  return place ? new Set(wires.filter((w) => w.from === place || w.to === place).map((w) => w.id)) : null;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Where a desk's description opens

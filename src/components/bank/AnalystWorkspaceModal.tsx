@@ -26,6 +26,11 @@ import {
   type ActiveIncident,
   type IncidentId,
   workingTask,
+  CRISIS_BATCH,
+  CRISIS_BATCHES,
+  clampCrisisBatch,
+  crisisCasesLeft,
+  isCrisisStream,
   RANDOM_TASK,
   RETAIL_DESK,
   RETAIL_TASK,
@@ -73,6 +78,7 @@ import { useLocale, useMessages, type Locale, type Translate } from '../../utils
 import { analystWorkspaceMessages, PERSONAS, type AnalystWorkspaceKey } from './analystWorkspace.messages';
 import { InfoTip } from './InfoTip';
 import { LanguageToggle } from '../shell/LanguageToggle';
+import { SegmentedToggle, ViewModeToggle } from '../shell/SegmentedToggle';
 import { useTerms } from './useTerms';
 import { glossText, useGlossary, type Glossary, type ViewMode } from './codeGlossary';
 
@@ -177,52 +183,21 @@ function Kicker({ children }: { children: ReactNode }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ModeToggle({ mode, onChange, m }: { mode: WorkspaceMode; onChange: (mode: WorkspaceMode) => void; m: M }) {
-  const option = (value: WorkspaceMode, label: string) => (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={mode === value}
-      onClick={() => onChange(value)}
-      data-testid={`workspace-mode-${value}`}
-      className={`rounded-md px-3 py-1 text-[12px] font-semibold transition ${mode === value ? (value === 'expert' ? 'bg-violet-500 text-white' : 'bg-sky-400 text-slate-950') : 'text-slate-300 hover:bg-slate-800'}`}
-    >
-      {label}
-    </button>
-  );
   return (
     <div className="flex items-center gap-2">
       <span className="hidden text-[10px] font-semibold uppercase tracking-wider text-slate-500 sm:inline">{m('modeLabel')}</span>
-      <div role="radiogroup" aria-label={m('modeLabel')} className="flex rounded-lg border border-slate-700 bg-slate-900 p-0.5" data-testid="workspace-mode" data-mode={mode} title={m(mode === 'standard' ? 'modeStandardHint' : 'modeExpertHint')}>
-        {option('standard', m('modeStandard'))}
-        {option('expert', m('modeExpert'))}
-      </div>
-    </div>
-  );
-}
-
-/** The Basic / Advanced view of the ledger and the audit report: plain words, or the exact codes with their meaning on hover. */
-export function ViewModeToggle({ view, onChange, testId }: { view: ViewMode; onChange: (view: ViewMode) => void; testId: string }) {
-  const { g } = useGlossary();
-  const option = (value: ViewMode, label: string) => (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={view === value}
-      onClick={() => onChange(value)}
-      title={g(value === 'basic' ? 'viewBasicHint' : 'viewAdvancedHint')}
-      data-testid={`${testId}-${value}`}
-      className={`whitespace-nowrap rounded-md px-2.5 py-1 text-[11.5px] font-semibold transition ${view === value ? (value === 'advanced' ? 'bg-violet-500 text-white' : 'bg-sky-400 text-slate-950') : 'text-slate-300 hover:bg-slate-800'}`}
-    >
-      {label}
-    </button>
-  );
-  return (
-    <div className="flex shrink-0 items-center gap-1.5" data-testid={testId} data-view={view}>
-      <span className="whitespace-nowrap text-[11px] font-semibold text-slate-400">{g('viewLabel')}:</span>
-      <div role="radiogroup" aria-label={g('viewLabel')} className="flex rounded-lg border border-slate-700 bg-slate-900 p-0.5">
-        {option('basic', g('viewBasic'))}
-        {option('advanced', g('viewAdvanced'))}
-      </div>
+      <SegmentedToggle<WorkspaceMode>
+        label={m('modeLabel')}
+        value={mode}
+        onChange={onChange}
+        testId="workspace-mode"
+        stateKey="mode"
+        title={m(mode === 'standard' ? 'modeStandardHint' : 'modeExpertHint')}
+        options={[
+          { value: 'standard', label: m('modeStandard'), tone: 'sky' },
+          { value: 'expert', label: m('modeExpert'), tone: 'violet' },
+        ]}
+      />
     </div>
   );
 }
@@ -267,24 +242,18 @@ export type PointerMode = 'select' | 'pan';
 
 function PointerModeToggle({ mode, onChange, testId }: { mode: PointerMode; onChange: (mode: PointerMode) => void; testId: string }) {
   const { g } = useGlossary();
-  const option = (value: PointerMode, label: string, hint: string) => (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={mode === value}
-      onClick={() => onChange(value)}
-      title={hint}
-      data-testid={`${testId}-${value}`}
-      className={`whitespace-nowrap rounded-md px-2.5 py-1 text-[11.5px] font-semibold transition ${mode === value ? 'bg-sky-400 text-slate-950' : 'text-slate-300 hover:bg-slate-800'}`}
-    >
-      {label}
-    </button>
-  );
   return (
-    <div role="radiogroup" aria-label={g('pointerLabel')} className="flex shrink-0 rounded-lg border border-slate-700 bg-slate-900 p-0.5" data-testid={testId} data-mode={mode}>
-      {option('select', g('pointerSelect'), g('pointerSelectHint'))}
-      {option('pan', g('pointerPan'), g('pointerPanHint'))}
-    </div>
+    <SegmentedToggle<PointerMode>
+      label={g('pointerLabel')}
+      value={mode}
+      onChange={onChange}
+      testId={testId}
+      stateKey="mode"
+      options={[
+        { value: 'select', label: g('pointerSelect'), hint: g('pointerSelectHint') },
+        { value: 'pan', label: g('pointerPan'), hint: g('pointerPanHint') },
+      ]}
+    />
   );
 }
 
@@ -368,7 +337,7 @@ function ZoomFrame({ zoom, width, children }: { zoom: number; width: number; chi
 // Panel A
 // ─────────────────────────────────────────────────────────────────────────────
 
-function MissionPanel({ role, task, mode, m, deskName, sla = STAFF_SLA_SECONDS, crisis = null }: { role: StaffRoleId; task: StaffTaskNo; mode: WorkspaceMode; m: M; deskName: string; sla?: number; crisis?: IncidentId | null }) {
+function MissionPanel({ role, task, mode, m, deskName, sla = STAFF_SLA_SECONDS, crisis = null, crisisBatch = CRISIS_BATCH.default, crisisStream = false }: { role: StaffRoleId; task: StaffTaskNo; mode: WorkspaceMode; m: M; deskName: string; sla?: number; crisis?: IncidentId | null; crisisBatch?: number; crisisStream?: boolean }) {
   const expert = mode === 'expert';
   const gl = useGlossary();
   return (
@@ -399,7 +368,7 @@ function MissionPanel({ role, task, mode, m, deskName, sla = STAFF_SLA_SECONDS, 
         <div className="rounded-lg border border-rose-400/50 bg-rose-500/10 px-2.5 py-2" data-testid="workspace-task" data-task={task} data-crisis={crisis}>
           <Kicker>{m('crisisQueue')}</Kicker>
           <div className="mt-0.5 text-[13px] font-semibold text-rose-100">{m('crisisTaskTitle', { title: m(k(`incident_${crisis}_title`)) })}</div>
-          <p className="mt-1 text-[11px] leading-snug text-slate-400">{m('crisisTaskNote', { n: SHIFT_TARGET.reviews })}</p>
+          <p className="mt-1 text-[11px] leading-snug text-slate-400" data-testid="workspace-crisis-note">{isCrisisStream(crisisBatch, crisisStream) ? m('crisisStreamNote') : m('crisisTaskNote', { n: clampCrisisBatch(crisisBatch) })}</p>
         </div>
       ) : (
         <div className="rounded-lg border border-sky-400/30 bg-sky-400/[0.06] px-2.5 py-2" data-testid="workspace-task" data-task={task}>
@@ -1198,6 +1167,45 @@ const SHEET_SIDES: readonly { side: GlSide; title: AnalystWorkspaceKey }[] = [
   { side: 'expense', title: 'ledgerExpense' },
 ];
 
+/**
+ * The confirmation a reset needs: it erases every posted journal and the whole audit trail, and nothing brings them back.
+ * Escape or Cancel keeps the data; focus starts on Cancel so a stray Enter cannot wipe anything.
+ */
+export function LedgerResetConfirm({ journals, audit, m, onCancel, onConfirm }: { journals: number; audit: number; m: M; onCancel: () => void; onConfirm: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return;
+      // The sheet and the workspace close on Escape too: this one only closes the warning.
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      onCancel();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onCancel]);
+  return (
+    <div role="alertdialog" aria-modal="true" aria-labelledby="workspace-ledger-reset-title" aria-describedby="workspace-ledger-reset-warning" data-testid="workspace-ledger-reset-confirm" className="border-b-2 border-rose-500 bg-rose-950/90 px-5 py-3">
+      <h4 id="workspace-ledger-reset-title" className="text-[14px] font-black tracking-wide text-rose-50">
+        {m('ledgerResetTitle')}
+      </h4>
+      <p id="workspace-ledger-reset-warning" className="mt-1 max-w-3xl text-[12.5px] leading-snug text-rose-100">
+        {m('ledgerResetWarning')}
+      </p>
+      <p className="mt-1 text-[11.5px] font-semibold tabular-nums text-rose-200/90" data-testid="workspace-ledger-reset-counts">
+        {m('ledgerResetCounts', { journals, audit })}
+      </p>
+      <div className="mt-2.5 flex flex-wrap gap-2">
+        <button type="button" autoFocus onClick={onCancel} data-testid="workspace-ledger-reset-cancel" className="rounded-lg border border-slate-500 bg-slate-800 px-3 py-1.5 text-[12px] font-bold text-slate-100 transition hover:bg-slate-700">
+          {m('ledgerResetCancel')}
+        </button>
+        <button type="button" onClick={onConfirm} data-testid="workspace-ledger-reset-ok" className="rounded-lg border border-rose-300 bg-rose-600 px-3 py-1.5 text-[12px] font-bold text-white transition hover:bg-rose-500">
+          {m('ledgerResetConfirm')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** The workspace's core ledger: the four KPIs, the balance sheet and P&L by account, the balance check and the latest journals. */
 export function CoreLedgerSheet({
   ledger,
@@ -1206,16 +1214,23 @@ export function CoreLedgerSheet({
   onReset,
   initialView = 'basic',
   legendOpen: legendInitially = false,
+  auditCount = 0,
+  confirmOpen: confirmInitially = false,
 }: {
   ledger: RetailLedger;
   m: M;
   onClose: () => void;
+  /** Wipes the ledger and the audit trail; only ever called after the learner confirms. */
   onReset: () => void;
   initialView?: ViewMode;
   legendOpen?: boolean;
+  /** Audit trail entries the reset would erase too. */
+  auditCount?: number;
+  confirmOpen?: boolean;
 }) {
   const [view, setView] = useState<ViewMode>(initialView);
   const [legend, setLegend] = useState(legendInitially);
+  const [confirming, setConfirming] = useState(confirmInitially);
   const basic = view === 'basic';
   const gl = useGlossary();
   const sum = ledgerSummary(ledger);
@@ -1243,8 +1258,15 @@ export function CoreLedgerSheet({
             >
               {m('legendButton')}
             </button>
-            <ViewModeToggle view={view} onChange={setView} testId="workspace-ledger-view" />
-            <button type="button" onClick={onReset} data-testid="workspace-ledger-reset" className="rounded-lg border border-slate-600 px-3 py-1.5 text-[12px] font-medium text-slate-300 transition hover:bg-slate-800">
+            <ViewModeToggle view={view} onChange={setView} testId="workspace-ledger-view" caption />
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              aria-haspopup="dialog"
+              aria-expanded={confirming}
+              data-testid="workspace-ledger-reset"
+              className="rounded-lg border border-rose-400/50 px-3 py-1.5 text-[12px] font-medium text-rose-200 transition hover:bg-rose-500/15"
+            >
               {m('ledgerReset')}
             </button>
             <button type="button" onClick={onClose} autoFocus data-testid="workspace-ledger-close" className="rounded-lg border border-emerald-400/60 bg-emerald-400 px-3 py-1.5 text-[12px] font-bold text-slate-950 transition hover:bg-emerald-300">
@@ -1252,6 +1274,18 @@ export function CoreLedgerSheet({
             </button>
           </div>
         </div>
+        {confirming && (
+          <LedgerResetConfirm
+            journals={ledger.posted}
+            audit={auditCount}
+            m={m}
+            onCancel={() => setConfirming(false)}
+            onConfirm={() => {
+              setConfirming(false);
+              onReset();
+            }}
+          />
+        )}
         {legend && <LedgerLegend m={m} onReadMore={() => uiStore.getState().openKnowledge('core-ledger')} />}
         <div className="bk-scroll grid min-h-0 flex-1 gap-4 overflow-y-auto p-5 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]">
           <div className="min-w-0 space-y-3">
@@ -1637,25 +1671,18 @@ export type AuditScope = 'shift' | 'all';
 export const auditScopeLog = (log: readonly AuditEntry[], scope: AuditScope, shift: number): readonly AuditEntry[] => (scope === 'all' ? log : log.filter((e) => e.shift === shift));
 
 function AuditScopeToggle({ scope, onChange, counts, m }: { scope: AuditScope; onChange: (scope: AuditScope) => void; counts: Readonly<Record<AuditScope, number>>; m: M }) {
-  const option = (value: AuditScope, label: string, hint: string) => (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={scope === value}
-      onClick={() => onChange(value)}
-      title={hint}
-      data-testid={`workspace-audit-scope-${value}`}
-      className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1 text-[11.5px] font-semibold transition ${scope === value ? 'bg-emerald-400 text-slate-950' : 'text-slate-300 hover:bg-slate-800'}`}
-    >
-      {label}
-      <span className={`rounded-full px-1.5 text-[10px] font-bold tabular-nums ${scope === value ? 'bg-slate-950/20' : 'bg-slate-700 text-slate-200'}`}>{counts[value]}</span>
-    </button>
-  );
   return (
-    <div role="radiogroup" aria-label={m('auditScopeLabel')} className="flex shrink-0 rounded-lg border border-slate-700 bg-slate-900 p-0.5" data-testid="workspace-audit-scope" data-scope={scope}>
-      {option('shift', m('auditScopeShift'), m('auditScopeShiftHint'))}
-      {option('all', m('auditScopeAll'), m('auditScopeAllHint'))}
-    </div>
+    <SegmentedToggle<AuditScope>
+      label={m('auditScopeLabel')}
+      value={scope}
+      onChange={onChange}
+      testId="workspace-audit-scope"
+      stateKey="scope"
+      options={[
+        { value: 'shift', label: m('auditScopeShift'), hint: m('auditScopeShiftHint'), tone: 'emerald', badge: counts.shift },
+        { value: 'all', label: m('auditScopeAll'), hint: m('auditScopeAllHint'), tone: 'emerald', badge: counts.all },
+      ]}
+    />
   );
 }
 
@@ -1718,7 +1745,7 @@ export function AuditExportDialog({
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900/80 px-5 py-2" data-testid="workspace-audit-controls">
           <div className="flex flex-wrap items-center gap-2">
             {shift !== null && <AuditScopeToggle scope={scope} onChange={setScope} counts={{ shift: shiftCount, all: fullLog.length }} m={m} />}
-            <ViewModeToggle view={view} onChange={setView} testId="workspace-audit-view" />
+            <ViewModeToggle view={view} onChange={setView} testId="workspace-audit-view" caption />
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <PointerModeToggle mode={pointer} onChange={setPointer} testId="workspace-audit-pointer" />
@@ -1984,11 +2011,12 @@ export function IncidentToggle({ on, onToggle, m }: { on: boolean; onToggle: () 
   );
 }
 
-export function IncidentBanner({ incident, reviews, sla, m }: { incident: ActiveIncident; reviews: number; sla: number; m: M }) {
+export function IncidentBanner({ incident, batch = CRISIS_BATCH.default, stream = false, sla, m }: { incident: ActiveIncident; batch?: number; stream?: boolean; sla: number; m: M }) {
   const id = incident.id;
   const audit = id === 'AUDIT_DAY';
   const rate = incidentClockRate(id);
-  const left = SHIFT_TARGET.reviews - (reviews % SHIFT_TARGET.reviews);
+  const mixed = isCrisisStream(batch, stream);
+  const left = crisisCasesLeft(incident, batch);
   return (
     <div
       role="alert"
@@ -2023,7 +2051,9 @@ export function IncidentBanner({ incident, reviews, sla, m }: { incident: Active
         )}
         {sla !== STAFF_SLA_SECONDS && <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-rose-100">{m('incidentSlaCut', { sec: sla })}</span>}
         {rate !== 1 && <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-amber-100">{m('incidentClockFast', { rate })}</span>}
-        <span className="text-[10.5px] font-normal text-slate-400">{m('incidentShiftLeft', { n: left })}</span>
+        <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${mixed ? 'bg-violet-500/25 text-violet-100' : 'bg-slate-800 text-slate-100'}`} data-testid="workspace-crisis-left" data-left={mixed ? undefined : left} data-stream={mixed || undefined}>
+          {mixed ? m('crisisStreamLeft') : m('incidentShiftLeft', { n: left })}
+        </span>
       </div>
     </div>
   );
@@ -2272,6 +2302,63 @@ export function DeskKindBadge({ role, m }: { role: StaffRoleId; m: M }) {
   );
 }
 
+type BatchChoice = `${(typeof CRISIS_BATCHES)[number]}` | 'custom';
+
+/**
+ * [ 3 cases | 5 cases | 10 cases | ⚙️ Custom ] and [ 🌀 Mixed crisis stream ]: how long each crisis of the emergency queue
+ * lasts. A batch of one, or the stream switch, gives every case a different crisis. Shown while Incident Mode is on.
+ */
+export function CrisisBatchPicker({ batch, stream, onBatch, onStream, m }: { batch: number; stream: boolean; onBatch: (n: number) => void; onStream: (on: boolean) => void; m: M }) {
+  const preset = (CRISIS_BATCHES as readonly number[]).includes(batch);
+  const [custom, setCustom] = useState(!preset);
+  const choice: BatchChoice = custom || !preset ? 'custom' : (`${batch}` as BatchChoice);
+  const mixed = isCrisisStream(batch, stream);
+  return (
+    <div className="flex flex-wrap items-center gap-2" data-testid="workspace-crisis-batch-group">
+      <span className="whitespace-nowrap text-[11px] font-semibold text-slate-400">{m('crisisBatchLabel')}:</span>
+      <SegmentedToggle<BatchChoice>
+        label={m('crisisBatchLabel')}
+        value={choice}
+        onChange={(v) => {
+          setCustom(v === 'custom');
+          if (v !== 'custom') onBatch(Number(v));
+        }}
+        testId="workspace-crisis-batch"
+        stateKey="batch"
+        options={[...CRISIS_BATCHES.map((n) => ({ value: `${n}` as BatchChoice, label: m('crisisBatchN', { n }), tone: 'violet' as const })), { value: 'custom', label: m('crisisBatchCustom'), tone: 'violet' }]}
+      />
+      {choice === 'custom' && (
+        <input
+          type="number"
+          min={CRISIS_BATCH.min}
+          max={CRISIS_BATCH.max}
+          value={batch}
+          onChange={(e) => onBatch(clampCrisisBatch(Number(e.target.value)))}
+          aria-label={m('crisisBatchCustomHint', { min: CRISIS_BATCH.min, max: CRISIS_BATCH.max })}
+          title={m('crisisBatchCustomHint', { min: CRISIS_BATCH.min, max: CRISIS_BATCH.max })}
+          data-testid="workspace-crisis-batch-input"
+          className="w-16 rounded-md border border-violet-400/50 bg-slate-950 px-2 py-1 text-[12px] font-semibold tabular-nums text-violet-100"
+        />
+      )}
+      <button
+        type="button"
+        aria-pressed={mixed}
+        onClick={() => {
+          // A batch of one is the stream already; leaving the stream from there falls back to the default batch.
+          if (mixed && clampCrisisBatch(batch) === 1) onBatch(CRISIS_BATCH.default);
+          onStream(!mixed);
+        }}
+        title={m('crisisStreamHint')}
+        data-testid="workspace-crisis-stream"
+        data-on={mixed || undefined}
+        className={`whitespace-nowrap rounded-lg border px-2.5 py-1 text-[11.5px] font-bold transition ${mixed ? 'border-violet-300 bg-violet-500 text-white shadow-[0_0_14px_rgba(167,139,250,0.55)]' : 'border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800'}`}
+      >
+        {m('crisisStream')}
+      </button>
+    </div>
+  );
+}
+
 /** Stands in for the task picker while the emergency queue runs: the routine tasks are locked. */
 export function CrisisQueuePill({ m }: { m: M }) {
   return (
@@ -2348,6 +2435,11 @@ export interface AnalystWorkspaceViewProps {
   incidentMode?: boolean;
   incident?: ActiveIncident | null;
   onToggleIncidentMode?: () => void;
+  /** Cases per crisis in the emergency queue, and the mixed crisis stream (a new crisis every case). */
+  crisisBatch?: number;
+  crisisStream?: boolean;
+  onCrisisBatch?: (n: number) => void;
+  onCrisisStream?: (on: boolean) => void;
   /** Lifetime career (XP, badges) and the badges waiting for their celebration. */
   career?: CareerProgress;
   badgeUnlocks?: readonly BadgeId[];
@@ -2385,6 +2477,10 @@ export function AnalystWorkspaceView({
   incidentMode = true,
   incident = null,
   onToggleIncidentMode = () => undefined,
+  crisisBatch = CRISIS_BATCH.default,
+  crisisStream = false,
+  onCrisisBatch = () => undefined,
+  onCrisisStream = () => undefined,
   career = EMPTY_CAREER,
   badgeUnlocks = NO_UNLOCKS,
   onDismissBadgeUnlock = () => undefined,
@@ -2522,6 +2618,7 @@ export function AnalystWorkspaceView({
           </div>
           <div className="flex flex-wrap items-center gap-3" data-testid="workspace-toolbar">
             <IncidentToggle on={incidentMode} onToggle={onToggleIncidentMode} m={m} />
+            {incidentMode && <CrisisBatchPicker batch={crisisBatch} stream={crisisStream} onBatch={onCrisisBatch} onStream={onCrisisStream} m={m} />}
             <BadgesButton unlocked={career.badges.length} onOpen={() => setBadgesOpen(true)} m={m} />
             <CoreLedgerCard kpis={retailKpis(ledger)} onOpen={() => setLedgerOpen(true)} m={m} />
             <AuditButton count={auditLog.length} onOpen={() => setAuditOpen(true)} m={m} />
@@ -2533,9 +2630,9 @@ export function AnalystWorkspaceView({
             </div>
           </div>
         </header>
-        {incident && <IncidentBanner incident={incident} reviews={shift.reviews} sla={sla} m={m} />}
+        {incident && <IncidentBanner incident={incident} batch={crisisBatch} stream={crisisStream} sla={sla} m={m} />}
         <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(250px,300px)_minmax(0,1fr)_minmax(230px,270px)] lg:overflow-hidden">
-          <MissionPanel role={role} task={working} mode={mode} m={m} deskName={terms.stationTitle(desk)} sla={sla} crisis={crisis} />
+          <MissionPanel role={role} task={working} mode={mode} m={m} deskName={terms.stationTitle(desk)} sla={sla} crisis={crisis} crisisBatch={crisisBatch} crisisStream={crisisStream} />
           <div className={crisis ? 'grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3' : 'contents'} data-testid="workspace-case-column">
           {crisis && <CrisisAlert incident={crisis} m={m} />}
           <ScenarioCard
@@ -2575,7 +2672,7 @@ export function AnalystWorkspaceView({
         {challenge.finished && <ChallengeScorecard tally={challenge.finished} m={m} onAgain={cc.start} onClose={cc.dismiss} onExport={() => setAuditOpen(true)} />}
         {auditOpen && <AuditExportDialog log={auditLog} m={m} onClose={() => setAuditOpen(false)} initialView={mode === 'expert' ? 'advanced' : 'basic'} shift={auditShift} />}
         {badgesOpen && <BadgeDrawer career={career} m={m} onClose={() => setBadgesOpen(false)} />}
-        {ledgerOpen && <CoreLedgerSheet ledger={ledger} m={m} onClose={() => setLedgerOpen(false)} onReset={onResetLedger} initialView={mode === 'expert' ? 'advanced' : 'basic'} />}
+        {ledgerOpen && <CoreLedgerSheet ledger={ledger} m={m} onClose={() => setLedgerOpen(false)} onReset={onResetLedger} initialView={mode === 'expert' ? 'advanced' : 'basic'} auditCount={auditLog.length} />}
         {unlock && <BadgeUnlockModal key={unlock} badge={unlock} m={m} onClose={onDismissBadgeUnlock} />}
         {pendingRole && <SwitchDeskDialog target={pendingRole} m={m} onCancel={() => setPendingRole(null)} onConfirm={confirmSwitch} />}
       </div>
@@ -2607,6 +2704,10 @@ export function AnalystWorkspaceModal() {
   const incidentMode = useBankStore((s) => s.staffIncidentMode);
   const incident = useBankStore((s) => s.staffIncident);
   const setIncidentMode = useBankStore((s) => s.setIncidentMode);
+  const crisisBatch = useBankStore((s) => s.staffCrisisBatch);
+  const crisisStream = useBankStore((s) => s.staffCrisisStream);
+  const setCrisisBatch = useBankStore((s) => s.setCrisisBatch);
+  const setCrisisStream = useBankStore((s) => s.setCrisisStream);
   const incidentId = incident?.id ?? null;
   const cases = useMemo(() => (role ? taskDeck(role, workingTask(task, incidentMode, incidentId), seq, 4, incidentId) : []), [role, task, seq, incidentId, incidentMode]);
   const run = useBankStore((s) => s.staffChallenge);
@@ -2653,6 +2754,10 @@ export function AnalystWorkspaceModal() {
       incidentMode={incidentMode}
       incident={incident}
       onToggleIncidentMode={() => setIncidentMode(!incidentMode)}
+      crisisBatch={crisisBatch}
+      crisisStream={crisisStream}
+      onCrisisBatch={setCrisisBatch}
+      onCrisisStream={setCrisisStream}
       career={career}
       badgeUnlocks={badgeUnlocks}
       onDismissBadgeUnlock={dismissBadgeUnlock}

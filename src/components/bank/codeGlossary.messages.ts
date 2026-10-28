@@ -6,12 +6,7 @@ import { defineMessages } from '../../utils/i18nHelper';
  * meaning on hover. Lookups go through codeGlossary.ts, which skips any code this bundle does not know.
  */
 export const codeGlossaryMessages = defineMessages('codeGlossary', {
-  // ── View toggle and zoom ───────────────────────────────────────────────────
-  viewLabel: { en: '🔰 View', vi: '🔰 Chế độ' },
-  viewBasic: { en: 'Basic', vi: 'Cơ bản' },
-  viewAdvanced: { en: 'Advanced', vi: 'Chuyên sâu' },
-  viewBasicHint: { en: 'Plain-language descriptions instead of banking codes, made for beginners.', vi: 'Mô tả bằng ngôn ngữ đời thường thay cho mã nghiệp vụ, dành cho người mới.' },
-  viewAdvancedHint: { en: 'Exact GL account numbers, Debit/Credit legs and raw system status codes (hover any code for its meaning).', vi: 'Số hiệu tài khoản GL, bút toán Nợ/Có và mã trạng thái gốc của hệ thống (rê chuột lên mã để xem giải thích).' },
+  // ── Zoom and pointer ───────────────────────────────────────────────────
   zoomLabel: { en: 'Preview zoom', vi: 'Thu phóng bản xem trước' },
   zoomOut: { en: '➖ Zoom out', vi: '➖ Thu nhỏ' },
   zoomIn: { en: '➕ Zoom in', vi: '➕ Phóng to' },

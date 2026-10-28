@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CORE_LEDGER_ARTICLE, glUsage, INTERMEDIATE_ACCOUNTS, INTERMEDIATE_ROLE } from '../../../data/knowledgeBase';
+import { CORE_LEDGER_ARTICLE, flowAmount, glUsage, INTERMEDIATE_ACCOUNTS, INTERMEDIATE_ROLE } from '../../../data/knowledgeBase';
 import { buildSearchIndex, searchIndex } from '../../../hooks/useSearchIndex';
 import {
   buildTaskCase,
@@ -171,7 +171,11 @@ describe('the Knowledge Base article', () => {
   });
 
   it('walks balanced flows, with the ATM suspense draining back to zero', () => {
-    for (const f of CORE_LEDGER_ARTICLE.flows) for (const st of f.steps) expect(st.lines.filter((l) => l.side === 'dr')).toHaveLength(st.lines.filter((l) => l.side === 'cr').length);
+    for (const f of CORE_LEDGER_ARTICLE.flows)
+      for (const st of f.steps) {
+        const side = (k: 'dr' | 'cr') => st.lines.filter((l) => l.side === k).reduce((n, l) => n + flowAmount(f, l), 0);
+        expect(side('dr'), f.id).toBe(side('cr'));
+      }
     const atm = CORE_LEDGER_ARTICLE.flows.find((f) => f.id === 'flow-atm-jam')!;
     const net = atm.steps.flatMap((s) => s.lines).filter((l) => l.gl === 'ATM_SUSPENSE').reduce((n, l) => n + (l.side === 'dr' ? 1 : -1), 0);
     expect(net).toBe(0);
@@ -190,11 +194,11 @@ describe('the two views of the account glossary', () => {
 
   it('Basic shows code, account, plain words and type; Advanced adds the trigger event and the contra entry', () => {
     const basic = renderToStaticMarkup(createElement(CoreLedgerArticle, {}));
-    expect(basic).toContain('data-testid="kb-view" data-view="basic"');
+    expect(basic).toContain('data-testid="kb-article" data-article="core-ledger" data-view="basic"');
     for (const key of ['colCode', 'colAccount', 'colPlain', 'colType'] as const) expect(basic).toContain(esc(kb[key].en));
     expect(basic).not.toContain(esc(kb.colTrigger.en));
     expect(basic).not.toContain('data-col="entry"');
-    const adv = renderToStaticMarkup(createElement(CoreLedgerArticle, { initialView: 'advanced' }));
+    const adv = renderToStaticMarkup(createElement(CoreLedgerArticle, { view: 'advanced' }));
     expect(adv).toContain(esc(kb.colTrigger.en));
     expect(adv).toContain(esc(kb.colEntry.en));
     const atm = adv.slice(adv.indexOf('id="kb-gl-ATM_SUSPENSE"'), adv.indexOf('</tr>', adv.indexOf('id="kb-gl-ATM_SUSPENSE"')));
@@ -211,7 +215,7 @@ describe('the two views of the account glossary', () => {
     }
     expect(u.EQUITY).toEqual({ scenes: [], entry: null });
     expect(u.FROZEN_ASSETS.scenes).toContain('crisis');
-    const adv = renderToStaticMarkup(createElement(CoreLedgerArticle, { initialView: 'advanced' }));
+    const adv = renderToStaticMarkup(createElement(CoreLedgerArticle, { view: 'advanced' }));
     expect(adv).toContain(esc(kb.triggerOpening.en));
   });
 });

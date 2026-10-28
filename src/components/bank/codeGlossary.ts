@@ -10,7 +10,7 @@ import { codeGlossaryMessages, type CodeGlossaryKey } from './codeGlossary.messa
  */
 
 /** Basic: plain words instead of codes. Advanced: the exact codes, GL numbers and Dr/Cr legs, meanings on hover. */
-export type ViewMode = 'basic' | 'advanced';
+export type { ViewMode } from '../shell/SegmentedToggle';
 
 const MSGS = codeGlossaryMessages.messages;
 const has = (key: string): key is CodeGlossaryKey => key in MSGS;

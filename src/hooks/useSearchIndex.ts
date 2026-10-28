@@ -206,17 +206,21 @@ export interface SearchResult {
   order: SearchCategory[];
 }
 
+/** A GL account number typed with its usual prefix ("GL 1011", "TK 1011", "tài khoản 1011", "#1011"): the number alone. */
+const GL_PREFIX = /^(?:gl|tk|so tk|tai khoan|so hieu|so hieu tk|account|acct|acc|#)\s*[#:.-]?\s*(\d{1,4})$/;
+export const glCodeQuery = (folded: string): string => GL_PREFIX.exec(folded)?.[1] ?? folded;
+
 export function searchIndex(index: readonly SearchEntry[], query: string, limit: number = SEARCH_LIMIT): SearchResult {
   const groups: SearchGroups = { station: [], lesson: [], gl: [], kb: [] };
   const best: Record<SearchCategory, number> = { station: 0, lesson: 0, gl: 0, kb: 0 };
-  const q = fold(query);
+  const q = glCodeQuery(fold(query));
   if (!q) return { groups, order: [] };
   const numeric = /^\d+$/.test(q);
   const ranked = index
     .map((e, i) => {
       const base = scoreEntry(e, q);
-      // A bare number is a GL code first.
-      return { e, i, s: base > 0 && numeric && (e.category === 'gl' || e.category === 'kb') ? base + 5 : base };
+      // A bare number is a GL code first: the core ledger's account (Knowledge Base) ahead of the map's posting desk.
+      return { e, i, s: base > 0 && numeric && (e.category === 'gl' || e.category === 'kb') ? base + (e.category === 'kb' ? 6 : 5) : base };
     })
     .filter((r) => r.s > 0)
     .sort((a, b) => b.s - a.s || a.i - b.i);

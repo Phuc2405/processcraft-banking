@@ -5,7 +5,7 @@ import { tr } from '../../i18n/locale';
  * A centred dialog over a dark veil: title bar with a close button, a scrolling body and an optional footer. Escape and a click
  * on the veil close it, and focus moves into it when it opens and back where it was when it closes.
  */
-export function Modal({ title, subtitle, icon, onClose, children, footer, width = 'max-w-3xl', testId, z = 'z-50' }: { title: string; subtitle?: string; icon?: string; onClose: () => void; children: ReactNode; footer?: ReactNode; width?: string; testId: string; z?: string }) {
+export function Modal({ title, subtitle, icon, onClose, children, footer, actions, width = 'max-w-3xl', testId, z = 'z-50' }: { title: string; subtitle?: string; icon?: string; onClose: () => void; children: ReactNode; footer?: ReactNode; /** Controls in the title bar, before the close button, that govern the whole dialog. */ actions?: ReactNode; width?: string; testId: string; z?: string }) {
   const titleId = useId();
   const box = useRef<HTMLDivElement>(null);
   // The latest onClose, so the effect below runs once per opening and never steals focus back while the learner types.
@@ -41,6 +41,11 @@ export function Modal({ title, subtitle, icon, onClose, children, footer, width 
             </h2>
             {subtitle && <p className="mt-0.5 text-[12px] leading-snug text-slate-400">{subtitle}</p>}
           </div>
+          {actions && (
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2" data-testid={`${testId}-actions`}>
+              {actions}
+            </div>
+          )}
           <button type="button" onClick={onClose} aria-label={tr({ en: 'Close', vi: 'Đóng' })} data-testid={`${testId}-close`} className="grid h-7 w-7 place-items-center rounded-md text-[18px] leading-none text-slate-400 hover:bg-slate-800 hover:text-white">
             ×
           </button>

@@ -22,7 +22,7 @@ import type { TermMode } from '../sim/terms';
 import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
 import type { BankView, Customer, PacketTrace } from '../sim/types';
-import { addToTally, advanceIncident, buildTaskCase, caseJournal, CHALLENGE, crisisJournalLines, comboXp, STAFF_XP_PER_CORRECT, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, openingLedger, postJournal, recordCareerDecision, rollCrisis, roleForStation, ROLE_STATION, SHIFT_TARGET, startIncident, type ActiveIncident, type IncidentId, type BadgeId, type CareerProgress, type ChallengeTally, type LedgerLine, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo, workingTask } from '../sim/staffRoleplay';
+import { addToTally, advanceIncident, buildTaskCase, caseJournal, CHALLENGE, clampCrisisBatch, CRISIS_BATCH, crisisJournalLines, crisisOver, comboXp, STAFF_XP_PER_CORRECT, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, openingLedger, postJournal, recordCareerDecision, rollCrisis, roleForStation, ROLE_STATION, startIncident, type ActiveIncident, type IncidentId, type BadgeId, type CareerProgress, type ChallengeTally, type LedgerLine, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo, workingTask } from '../sim/staffRoleplay';
 import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
@@ -281,7 +281,7 @@ export interface BankState {
   dismissBadgeUnlock(): void;
   /** The double-entry core ledger every desk decision (training, retail or live queue) posts its journal to, kept in storage. */
   retailLedger: RetailLedger;
-  /** Restarts the core ledger from its opening balances. */
+  /** Back to the opening balances, erasing every posted journal and the whole audit trail. */
   resetRetailLedger(): void;
   /** Every desk decision, oldest first, for the audit export (at most AUDIT_LOG_CAP). Saved, so it survives a reload like the ledger. */
   auditLog: AuditEntry[];
@@ -304,6 +304,12 @@ export interface BankState {
   staffIncident: ActiveIncident | null;
   /** Switches Incident Mode; turning it on rolls for the open desk at once, turning it off ends any incident. */
   setIncidentMode(on: boolean): void;
+  /** Cases one crisis lasts in the emergency queue (3, 5, 10 or a custom size; 1 makes it a mixed stream). */
+  staffCrisisBatch: number;
+  /** The mixed crisis stream: every case of the emergency queue brings a different crisis. */
+  staffCrisisStream: boolean;
+  setCrisisBatch(n: number): void;
+  setCrisisStream(on: boolean): void;
 
   // Clock
   play(): void;
@@ -632,16 +638,22 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       staffChallengeResult: null,
       staffIncidentMode: false,
       staffIncident: null,
+      staffCrisisBatch: CRISIS_BATCH.default,
+      staffCrisisStream: false,
+      setCrisisBatch: (n) => set({ staffCrisisBatch: clampCrisisBatch(n) }),
+      setCrisisStream: (on) => set({ staffCrisisStream: on }),
       career: loadCareer(storage),
       badgeUnlocks: [],
       dismissBadgeUnlock: () => set({ badgeUnlocks: get().badgeUnlocks.slice(1) }),
       retailLedger: openingRetailLedger,
       auditLog: openingAuditLog,
       auditShift: openingShift,
+      // The audit trail goes with the ledger: its rows are the history of the journals being erased.
       resetRetailLedger: () => {
         const retailLedger = openingLedger();
         saveRetailLedger(storage, retailLedger);
-        set({ retailLedger });
+        saveAuditLog(storage, []);
+        set({ retailLedger, auditLog: [] });
       },
 
       // On: the desk leaves its routine task for the emergency queue. Off: back to the task it was on, from its first case.
@@ -701,9 +713,10 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           last: result,
         };
         if (!result.correct) next.xp -= incidentErrorXp(incident?.id);
-        // Every SHIFT_TARGET.reviews decisions close a shift: the incident ends and the next shift rolls again.
-        const shiftOver = next.reviews % SHIFT_TARGET.reviews === 0;
-        const staffIncident = shiftOver ? rollFor(s.staffDesk, s.staffIncidentMode, incident?.id ?? null) : incident && advanceIncident(incident, result.correct);
+        // A crisis lasts its batch of cases (every case in the mixed stream), then the next one rolls at once: the emergency
+        // queue loops until Incident Mode is turned off.
+        const advanced = incident && advanceIncident(incident, result.correct);
+        const staffIncident = advanced && crisisOver(advanced, s.staffCrisisBatch, s.staffCrisisStream) ? rollFor(s.staffDesk, s.staffIncidentMode, advanced.id) : advanced;
         const { career, unlocked } = recordCareerDecision(s.career, { role, drill: head.drill, expected: result.expected, decision, correct: result.correct, latencySec, expert, xp: next.xp - prev.xp });
         saveCareer(storage, career);
         const { retailLedger, auditLog } = book(s, { station: head.station, role, caseId, amountCents: head.amountCents, latencySec, slaSec, expert, assisted }, result);

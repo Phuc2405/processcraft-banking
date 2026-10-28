@@ -47,7 +47,8 @@ describe('searchIndex', () => {
   it('finds a GL account by code and by name', () => {
     const code = searchIndex(EN, '1910');
     expect(code.groups.gl[0]?.id).toBe('gl:RECON_SUSPENSE');
-    expect(code.order[0]).toBe('gl');
+    // The core ledger's own 1910 (Knowledge Base) leads; the map account with the same number follows.
+    expect(code.order.slice(0, 2)).toEqual(['kb', 'gl']);
     expect(searchIndex(EN, 'customer casa').groups.gl.map((e) => e.id)).toContain('gl:CUST_CASA');
     expect(searchIndex(EN, '2010').groups.gl[0]?.action).toEqual({ kind: 'place', place: 'LEDGER_DEBIT' });
   });

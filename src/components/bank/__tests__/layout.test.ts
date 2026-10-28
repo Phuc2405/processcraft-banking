@@ -4,7 +4,7 @@ import { t } from '../../../i18n/t';
 import { DEPARTMENT_IDS, DEPARTMENTS, EXTERNAL_IDS, STATION_IDS, WIRES, edgeId, type PlaceId } from '../../../sim/topology';
 import { OFFICE_PLACE_BOX } from '../office/officePlan';
 import { deskPose, toWorld } from '../office/layout3d';
-import { BAND, BANK_WIRES, CARD, DEPT_BOX, PLACE_BOX, STAGE, TIP_SIDE, pathOfWire, roundedPath, tipRect, wireById } from '../layout';
+import { BAND, BANK_WIRES, CARD, DEPT_BOX, GATEWAYS, PLACE_BOX, STAGE, TIP_SIDE, pathOfWire, roundedPath, tipRect, wireById } from '../layout';
 
 describe('the bank map', () => {
   it('gives every place on the topology a box on the stage', () => {
@@ -220,14 +220,16 @@ describe('wires and their labels stay legible', () => {
   const pill = (label: string, [x, y]: readonly [number, number]) => ({ x0: x - label.length * 2.7 - 4, x1: x + label.length * 2.7 + 4, y0: y - 7, y1: y + 7 });
 
   it('never draws two wires along the same stroke: parallel runs keep a lane of their own', () => {
+    // What the map strokes: each wire's own run (a gateway's wire up to the diamond) and each gateway's one trunk.
+    const strokes = [...BANK_WIRES.map((w) => ({ id: w.id, points: w.drawPoints })), ...GATEWAYS.map((g) => ({ id: g.id, points: g.trunk }))];
     const shared: string[] = [];
-    for (let i = 0; i < BANK_WIRES.length; i++)
-      for (let j = i + 1; j < BANK_WIRES.length; j++)
-        for (const [a, b] of segs(BANK_WIRES[i]!.points))
-          for (const [c, d] of segs(BANK_WIRES[j]!.points)) {
+    for (let i = 0; i < strokes.length; i++)
+      for (let j = i + 1; j < strokes.length; j++)
+        for (const [a, b] of segs(strokes[i]!.points))
+          for (const [c, d] of segs(strokes[j]!.points)) {
             const horizontal = a[1] === b[1] && c[1] === d[1] && Math.abs(a[1] - c[1]) < 3 && overlap(a[0], b[0], c[0], d[0]) > 4;
             const vertical = a[0] === b[0] && c[0] === d[0] && Math.abs(a[0] - c[0]) < 3 && overlap(a[1], b[1], c[1], d[1]) > 4;
-            if (horizontal || vertical) shared.push(`${BANK_WIRES[i]!.id} | ${BANK_WIRES[j]!.id}`);
+            if (horizontal || vertical) shared.push(`${strokes[i]!.id} | ${strokes[j]!.id}`);
           }
     expect(shared).toEqual([]);
   });

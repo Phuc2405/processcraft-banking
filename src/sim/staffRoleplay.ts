@@ -1719,6 +1719,23 @@ export const crisisTask = (incident: IncidentId): StaffTaskNo => (incident in IN
 /** The task a desk is actually working: its routine task, or the crisis queue's while Incident Mode runs one. */
 export const workingTask = (task: StaffTaskNo, incidentMode: boolean, incident: IncidentId | null | undefined): StaffTaskNo => (incidentMode && incident ? crisisTask(incident) : task);
 
+/** How many cases one crisis lasts in the emergency queue: the presets of the batch picker, and the bounds of a custom size. */
+export const CRISIS_BATCHES = [3, 5, 10] as const;
+export const CRISIS_BATCH = { default: SHIFT_TARGET.reviews, min: 1, max: 50 } as const;
+export const clampCrisisBatch = (n: number): number => (Number.isFinite(n) ? Math.min(CRISIS_BATCH.max, Math.max(CRISIS_BATCH.min, Math.round(n))) : CRISIS_BATCH.default);
+
+/** The mixed crisis stream: every case brings a different crisis. Switched on explicitly, or by a batch of one case. */
+export const isCrisisStream = (batch: number, stream: boolean): boolean => stream || clampCrisisBatch(batch) === 1;
+
+/**
+ * Whether the crisis that has just booked a decision (`a`, already advanced) is over, so the next case opens a new one. The
+ * queue itself never stops: a finished crisis is always followed by another until Incident Mode is turned off.
+ */
+export const crisisOver = (a: ActiveIncident, batch: number, stream: boolean): boolean => isCrisisStream(batch, stream) || a.reviews >= clampCrisisBatch(batch);
+
+/** Cases left in the running crisis, this one included. */
+export const crisisCasesLeft = (a: ActiveIncident, batch: number): number => Math.max(1, clampCrisisBatch(batch) - a.reviews);
+
 /** Bank-wide outages during which a payment cannot be confirmed with the other bank, so it waits in suspense. */
 const UNCONFIRMED: ReadonlySet<IncidentId> = new Set<IncidentId>(['NETWORK_LATENCY', 'POWER_GRID_FAILOVER', 'CORRUPTED_PAYLOAD']);
 /** Desks whose refusal during a crisis holds the customer's money instead of simply not moving it. */

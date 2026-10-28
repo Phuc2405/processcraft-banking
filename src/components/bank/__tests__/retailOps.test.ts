@@ -276,9 +276,13 @@ describe('Phase 10 retail operations: the core ledger', () => {
     expect(store.getState().retailLedger.posted).toBe(7);
     expect(store.getState().retailLedger.journal[0]!.scene).toBe('task_dispute_1');
 
+    expect(store.getState().auditLog).toHaveLength(7);
     store.getState().resetRetailLedger();
     expect(store.getState().retailLedger).toEqual(openingLedger());
     expect(decodeRetailLedger(storage.getItem(RETAIL_LEDGER_KEY))).toEqual(openingLedger());
+    // The audit trail is the history of those journals: it goes too, and a reload does not rebuild it.
+    expect(store.getState().auditLog).toEqual([]);
+    expect(createBankStore({ storage, seed: 2026 }).getState().auditLog).toEqual([]);
   });
 });
 

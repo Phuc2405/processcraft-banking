@@ -5,7 +5,7 @@ import { tr } from '../../i18n/locale';
 import { t } from '../../i18n/t';
 import { feedText } from '../../i18n/feedVi';
 import { localizeScenarioText } from '../../sim/scenarios';
-import { memo, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { memo, useEffect, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { beatMs, SPEEDS, type Phase } from '../../sim/clock';
 import { formatMoney } from '../../sim/kpis';
 import { LESSONS, type ProcessId } from '../../sim/learning';
@@ -20,7 +20,7 @@ import { StepPreviewBody } from './StepPreview';
 import { useDockInset } from './ViewportControls';
 import { PathTraveller } from '../canvas/edges/PathTraveller';
 import { WorkstationGraphic } from '../canvas/nodes/WorkstationGraphic';
-import { BANK_WIRES, CARD, DEPT_BOX, pathOfWire, PLACE_BOX, STAGE, TIP_SIDE, type TipSide } from './layout';
+import { BANK_WIRES, CARD, connectedWires, DEPT_BOX, GATEWAYS, pathOfWire, PLACE_BOX, STAGE, TIP_SIDE, type Gateway, type TipSide } from './layout';
 import { SpotlightOverlay, SpotlightToken } from './Spotlight';
 import { StageScaleContext, useStageScale } from './stage';
 import { lookOfKind, RUN_STATUS, STATUS_DOT_CLASS, STATUS_TEXT_CLASS, statusLabel, MachineFace, WorkerFace } from './ui';
@@ -260,6 +260,7 @@ const StationCard = memo(function StationCard({
       data-lit={focus ? lit : flow ? flowLit : undefined}
       data-flow-here={flowHere || undefined}
       data-here={here || undefined}
+      data-place={id}
     >
       <button
         type="button"
@@ -455,6 +456,7 @@ function ExternalNode({ id, focus, flow, flowHere, terms }: { id: ExternalId; fo
         style={style}
         title={focus || (flow && flowLit) ? undefined : t('Chapter 2: the 3DS challenge sends the customer here')}
         data-testid="external-CUSTOMER_OTP-box"
+        data-place={id}
         data-here={here || undefined}
         data-lit={flow ? flowLit : undefined}
       >
@@ -464,7 +466,7 @@ function ExternalNode({ id, focus, flow, flowHere, terms }: { id: ExternalId; fo
     );
   }
   return (
-    <div className={klass} style={style} data-big={big} data-here={here || undefined} data-lit={flow ? flowLit : undefined} data-testid={`place-${id}`}>
+    <div className={klass} style={style} data-big={big} data-here={here || undefined} data-lit={flow ? flowLit : undefined} data-testid={`place-${id}`} data-place={id}>
       {body}
       {!focus && (flow && flowLit ? <StepPreviewTip flow={flow.flow} place={id} side={TIP_SIDE[id]} /> : <HoverTip name={terms.place(id)} tip={terms.externalTip(id)} side={TIP_SIDE[id]} />)}
     </div>
@@ -498,10 +500,38 @@ function wireStyle(to: string, from: string): { base: string; glow: string; dash
   return { base: '#334155', glow: '#38bdf8' };
 }
 
-function Wires({ moves, tick, focus, flow }: { moves: readonly Move[]; tick: number; focus: Focus | null; flow: FlowFocus | null }) {
+const GATEWAY_STYLE: Record<Gateway['kind'], { base: string; glow: string; dash?: string }> = {
+  reject: { base: '#7f1d1d', glow: '#fb7185', dash: '5 4' },
+  approve: { base: '#334155', glow: '#38bdf8' },
+  night: { base: '#78350f', glow: '#fbbf24' },
+};
+
+/**
+ * A collector gateway: the trunk it sends on to its place, and the XOR diamond the feeders end at. The trunk lights, glows and
+ * fades with the wires it carries.
+ */
+function GatewayMark({ g, opacity, glow, active, accent, ridden }: { g: Gateway; opacity: number; glow: number; active: boolean; accent: string | null; ridden: boolean }) {
+  const st = GATEWAY_STYLE[g.kind];
+  const stroke = active ? st.glow : (accent ?? st.base);
+  const d = `M${g.cx} ${g.cy - g.half}L${g.cx + g.half} ${g.cy}L${g.cx} ${g.cy + g.half}L${g.cx - g.half} ${g.cy}Z`;
+  const x = g.half * 0.36;
+  return (
+    <g data-gateway={g.id} data-active={active || undefined} opacity={opacity}>
+      <path d={g.path} fill="none" stroke={stroke} strokeWidth={active ? 2.6 : 2} {...(st.dash ? { strokeDasharray: st.dash } : {})} markerEnd={`url(#bk-arrow-${st.base.slice(1)})`} />
+      {glow > 0.05 && <path d={g.path} fill="none" stroke={st.glow} strokeWidth={2 + Math.min(glow, 6) * 0.3} strokeLinecap="round" opacity={Math.min(0.55, 0.1 + glow * 0.07)} />}
+      {ridden && accent && <path d={g.path} fill="none" stroke={accent} strokeWidth={2.6} strokeLinecap="round" className="bk-tour-path" style={{ filter: `drop-shadow(0 0 5px ${accent})` }} />}
+      <path d={d} fill="#0b1120" stroke={active ? st.glow : st.glow + 'aa'} strokeWidth="1.6" />
+      <path d={`M${g.cx - x} ${g.cy - x}L${g.cx + x} ${g.cy + x}M${g.cx + x} ${g.cy - x}L${g.cx - x} ${g.cy + x}`} stroke={st.glow} strokeWidth="1.8" strokeLinecap="round" />
+    </g>
+  );
+}
+
+function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; tick: number; focus: Focus | null; flow: FlowFocus | null; active: PlaceId | null }) {
   const heat = useWireHeat(moves, tick);
   // The wires the token is on right now glow brightest; the ones it has already ridden stay lit.
   const current = new Set(focus && !focus.tour.intro ? wiresOfRoute(focus.current.route) : []);
+  // Hovering or selecting a node lights only its own paths; a tour or a guided flow keeps its own dimming instead.
+  const linked = focus || flow ? null : connectedWires(active);
 
   return (
     <svg className="pointer-events-none absolute inset-0 z-10" width={STAGE.width} height={STAGE.height} aria-hidden="true">
@@ -518,13 +548,17 @@ function Wires({ moves, tick, focus, flow }: { moves: readonly Move[]; tick: num
         const inScope = !focus || focus.scope.wires.has(w.id);
         const inFlow = !flow || flow.scope.wires.has(w.id);
         const ridden = focus?.trail.has(w.id) ?? false;
+        const on = linked?.has(w.id) ?? false;
+        const shown = inScope && inFlow && (!linked || on);
+        // A gateway's wire draws only its feeder: the gateway draws the trunk once for all of them.
+        const d = w.drawPath;
         return (
-          <g key={w.id} data-wire={w.id} data-lit={focus ? inScope : flow ? inFlow : undefined} data-ridden={ridden || undefined} opacity={inScope && inFlow ? 1 : 0.15} style={focus && !inScope ? { filter: 'blur(1px)' } : flow && !inFlow ? { filter: 'grayscale(1)' } : undefined}>
-            <path d={w.path} fill="none" stroke={focus && inScope ? `${focus.accent}66` : flow && inFlow ? `${flow.accent}88` : st.base} strokeWidth="2" {...(st.dash ? { strokeDasharray: st.dash } : {})} markerEnd={`url(#bk-arrow-${st.base.slice(1)})`} />
-            {h > 0.05 && <path d={w.path} fill="none" stroke={st.glow} strokeWidth={2 + Math.min(h, 6) * 0.3} strokeLinecap="round" opacity={Math.min(0.55, 0.1 + h * 0.07)} style={{ transition: 'opacity 400ms' }} />}
+          <g key={w.id} data-wire={w.id} data-lit={focus ? inScope : flow ? inFlow : linked ? on : undefined} data-ridden={ridden || undefined} opacity={shown ? 1 : 0.15} style={focus && !inScope ? { filter: 'blur(1px)' } : flow && !inFlow ? { filter: 'grayscale(1)' } : undefined}>
+            <path d={d} fill="none" stroke={on ? st.glow : focus && inScope ? `${focus.accent}66` : flow && inFlow ? `${flow.accent}88` : st.base} strokeWidth={on ? 2.6 : 2} {...(st.dash ? { strokeDasharray: st.dash } : {})} {...(w.gateway ? {} : { markerEnd: `url(#bk-arrow-${st.base.slice(1)})` })} />
+            {h > 0.05 && <path d={d} fill="none" stroke={st.glow} strokeWidth={2 + Math.min(h, 6) * 0.3} strokeLinecap="round" opacity={Math.min(0.55, 0.1 + h * 0.07)} style={{ transition: 'opacity 400ms' }} />}
             {focus && ridden && (
               <path
-                d={w.path}
+                d={d}
                 fill="none"
                 stroke={focus.accent}
                 strokeWidth={current.has(w.id) ? 3.6 : 2.6}
@@ -537,10 +571,19 @@ function Wires({ moves, tick, focus, flow }: { moves: readonly Move[]; tick: num
           </g>
         );
       })}
+      {GATEWAYS.map((g) => {
+        const members = g.wires;
+        const inScope = !focus || members.some((id) => focus.scope.wires.has(id));
+        const inFlow = !flow || members.some((id) => flow.scope.wires.has(id));
+        const on = linked ? members.some((id) => linked.has(id)) : false;
+        const glow = focus ? 0 : Math.max(0, ...members.map((id) => heat[id] ?? 0));
+        const ridden = focus ? members.some((id) => focus.trail.has(id)) : false;
+        return <GatewayMark key={g.id} g={g} opacity={inScope && inFlow && (!linked || on) ? 1 : 0.15} glow={glow} active={on} accent={focus && inScope ? focus.accent : flow && inFlow ? flow.accent : null} ridden={ridden} />;
+      })}
       {BANK_WIRES.filter((w) => w.label && w.showLabel).map((w) => {
         const label = t(w.label as string);
         return (
-          <g key={`label-${w.id}`} transform={`translate(${w.labelAt[0]} ${w.labelAt[1]})`} opacity={(!focus || focus.scope.wires.has(w.id)) && (!flow || flow.scope.wires.has(w.id)) ? 1 : 0.15}>
+          <g key={`label-${w.id}`} transform={`translate(${w.labelAt[0]} ${w.labelAt[1]})`} opacity={(!focus || focus.scope.wires.has(w.id)) && (!flow || flow.scope.wires.has(w.id)) && (!linked || linked.has(w.id)) ? 1 : 0.15}>
             <rect x={-label.length * 2.7 - 4} y="-7" width={label.length * 5.4 + 8} height="14" rx="4" fill="#060912" stroke="#1e293b" />
             <text textAnchor="middle" y="3.2" fontSize="9" fill="#94a3b8" style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
               {label}
@@ -634,6 +677,12 @@ function BankMapView() {
 
   const night = view.phase === 'EOD';
   const selectedStation = selection.kind === 'station' ? selection.id : selection.kind === 'worker' ? selection.station : null;
+  // The node under the pointer (or, failing that, the selected desk) has its paths lit and every other wire dimmed.
+  const [hovered, setHovered] = useState<PlaceId | null>(null);
+  const onPointerOver = (e: ReactPointerEvent): void => {
+    const id = ((e.target as Element).closest?.('[data-place]')?.getAttribute('data-place') ?? null) as PlaceId | null;
+    if (id !== hovered) setHovered(id);
+  };
   const spotlit: PlaceId | null = focus ? focus.current.place : null;
 
   return (
@@ -646,12 +695,15 @@ function BankMapView() {
             style={{ width: STAGE.width, height: STAGE.height, transform: `scale(${scale})`, transformOrigin: 'top left' }}
             data-testid="bank-stage"
             data-phase={view.phase}
+            data-active-place={hovered ?? selectedStation ?? undefined}
             onClick={(e) => e.target === e.currentTarget && !panned.current && clearSelection()}
+            onPointerOver={onPointerOver}
+            onPointerLeave={() => setHovered(null)}
           >
             {DEPARTMENT_IDS.map((id) => (
               <DepartmentFrame key={id} id={id} focus={focus} flow={flow} terms={terms} />
             ))}
-            <Wires moves={view.moves} tick={view.tick} focus={focus} flow={flow} />
+            <Wires moves={view.moves} tick={view.tick} focus={focus} flow={flow} active={panning ? null : (hovered ?? selectedStation)} />
             {!focus && <Travellers moves={litMoves} tick={view.tick} phase={view.phase} speedIndex={speedIndex} />}
             {!focus && dimMoves.length > 0 && <Travellers moves={dimMoves} tick={view.tick} phase={view.phase} speedIndex={speedIndex} className="opacity-15 grayscale" />}
             {STATION_LIST.map((def) => (
