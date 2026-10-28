@@ -1,6 +1,7 @@
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import { CanvasTexture, SpriteMaterial, SRGBColorSpace, type Sprite } from 'three';
+import { motion } from './motion';
 
 /**
  * A speech bubble (💬) or a thought bubble (💭) floating over people who are talking, drawn once on a canvas and shown as
@@ -66,10 +67,10 @@ export function Bubble({ kind, position, phase = 0, size = 0.42 }: { kind: Bubbl
   const material = useMemo(() => new SpriteMaterial({ map: bubbleTexture(kind), transparent: true, depthWrite: false, toneMapped: false }), [kind]);
   useEffect(() => () => material.dispose(), [material]);
   const sprite = useRef<Sprite>(null);
-  useFrame(({ clock }) => {
+  useFrame(() => {
     const s = sprite.current;
     if (!s) return;
-    const t = clock.elapsedTime + phase;
+    const t = motion.t + phase;
     s.position.set(position[0], position[1] + Math.sin(t * 1.8) * 0.05, position[2]);
     // A little pop every few seconds, as if someone just spoke.
     const pop = 1 + 0.12 * Math.max(0, Math.sin(t * 1.3)) ** 8;

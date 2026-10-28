@@ -26,12 +26,13 @@ import { bankStore } from '../../../store/bankStore';
 import { atmosphereAt, gustOf, rainOf, sameMix, stepMix, WEATHER_MIX, windOf, type WeatherMix } from './atmosphere';
 import { useMerged } from './Dressing';
 import { box, cyl, mix, type Part } from './kit';
-import { customerShirt, FLOOR_SLAB, KERB_Z, ROAD_END, STATION_POSES, STREET } from './layout3d';
+import { avenueMarkings, customerShirt, FLOOR_SLAB, KERB_Z, ROAD_END, SIDE_DOORS_RIGHT, STATION_POSES, STREET } from './layout3d';
 import { glow, pane, solid } from './materials';
 import { CustomerFigure, type Wear } from './Avatars';
 import { Bubble } from './Bubble3D';
 import { LOT, TREE_STRIP } from './parking';
 import { Parking3D } from './Parking3D';
+import { FOUNTAIN, LOOP, PARK, Park3D } from './Park3D';
 import { Sky3D } from './Sky3D';
 import { Vehicles3D } from './Vehicles3D';
 import {
@@ -52,6 +53,7 @@ import {
   type PedestrianPose,
   type Roof,
 } from './weather';
+import { motion } from './motion';
 
 /**
  * The world around the branch in the 3D office: the city it stands in, the sky light and the haze, the morning mist, the
@@ -164,8 +166,7 @@ function roadParts(): Part[] {
       box([cx, -0.3, roadMid], [len, 0.32, roadW], '#3f4651'),
       box([cx, -0.14, roadMid], [len, 0.012, roadW], '#4b5563'),
     );
-    for (let x = x0 + side * 0.9; Math.abs(x) < REACH - 1; x += side * 2.2) parts.push(box([x, -0.132, roadMid], [1.1, 0.006, 0.1], '#f3efe0'));
-    for (const z of [KERB_Z + STREET.kerbW + 0.18, ROAD_END - 0.18]) parts.push(box([cx, -0.132, z], [len, 0.006, 0.07], '#f3efe0'));
+    for (const m of avenueMarkings(Math.min(x0, x0 + side * len), Math.max(x0, x0 + side * len), -0.132)) parts.push(box(m.at, m.size, m.color));
   }
   // The lane behind the block, which the car parks open onto. (Down both sides of the branch are its car parks, Parking3D.)
   parts.push(box([0, -0.3, -HZ - 3.2], [REACH * 2, 0.32, 3], '#3f4651'));
@@ -175,7 +176,11 @@ function roadParts(): Part[] {
 /** Belts of ground under the tree rows: cobbles along the far pavement, the grass strips along the car parks' outer edges. */
 export const TREE_BELTS = {
   far: { x0: -REACH, x1: REACH, z0: ROAD_END + 0.1, z1: ROAD_END + 2.6 },
-  sides: [-1, 1].map((side) => ({ x0: side < 0 ? -TREE_STRIP.x1 : TREE_STRIP.x0, x1: side < 0 ? -TREE_STRIP.x0 : TREE_STRIP.x1, z0: LOT.z0, z1: LOT.z1 })),
+  // The left: the strip along the car park. The right: the whole park, lawn and strip.
+  sides: [
+    { x0: -TREE_STRIP.x1, x1: -TREE_STRIP.x0, z0: LOT.z0, z1: LOT.z1 },
+    { x0: PARK.x0, x1: TREE_STRIP.x1, z0: LOT.z0, z1: LOT.z1 },
+  ],
 } as const;
 
 function Ground() {
@@ -235,18 +240,73 @@ export const CITY_BLOCKS: readonly Block[] = (() => {
   };
   row(-REACH + 4, REACH - 4, -HZ - 9, 7, 7);
   row(-REACH + 4, REACH - 4, -HZ - 17.5, 7, 10);
-  // Beside the branch, past the side streets.
-  for (const side of [-1, 1]) {
-    for (let z = -HZ - 1; z < STREET.z0 - 1; z += 5.5) {
-      const w = 4 + rnd(n, 4) * 3;
-      out.push({ x: side * (HX + 6.2 + w / 2), z: z + 2.5, w, d: 4.8, h: 2.2 + rnd(n, 5) * 5, color: CITY_TONES[n % CITY_TONES.length]! });
-      n++;
-    }
-  }
   // Across the road: low shops, so the view over them stays open.
   row(-REACH + 4, REACH - 4, ROAD_END + 5.6, 5, 3.2);
   return out;
 })();
+
+/**
+ * The houses beyond the car park and the park, on both sides: the town's residential streets. The zoning runs, from the
+ * outside in: houses, then the park (right) or the car park (left), then the branch.
+ */
+export interface House {
+  x: number;
+  z: number;
+  w: number;
+  d: number;
+  h: number;
+  wall: string;
+  roof: string;
+}
+const HOUSE_WALLS = ['#fef3c7', '#e0f2fe', '#fce7f3', '#ecfccb', '#f5f5f4', '#ffedd5'];
+const HOUSE_ROOFS = ['#b45309', '#9a3412', '#475569', '#7f1d1d', '#57534e'];
+export const HOUSES: readonly House[] = (() => {
+  const out: House[] = [];
+  let n = 0;
+  for (const side of [-1, 1])
+    for (let z = LOT.z0 + 0.5; z < STREET.z0 - 2; z += 4.6) {
+      const w = 3.2 + rnd(n, 41) * 0.9;
+      out.push({ x: side * (TREE_STRIP.x1 + 0.9 + w / 2), z: z + 2, w, d: 3.6, h: 1.8 + rnd(n, 42) * 0.7, wall: HOUSE_WALLS[n % HOUSE_WALLS.length]!, roof: HOUSE_ROOFS[n % HOUSE_ROOFS.length]! });
+      n++;
+    }
+  return out;
+})();
+
+function houseParts(): { body: Part[]; windows: Part[] } {
+  const body: Part[] = [];
+  const windows: Part[] = [];
+  for (const [i, h] of HOUSES.entries()) {
+    const roofR = (Math.max(h.w, h.d) / Math.SQRT2) * 1.12;
+    body.push(
+      box([h.x, h.h / 2 - 0.62, h.z], [h.w, h.h, h.d], h.wall),
+      // A hipped roof: a four-sided pyramid, square to the walls.
+      cyl([h.x, h.h - 0.62 + 0.55, h.z], 0.02, roofR, 1.1, h.roof, 4, [0, Math.PI / 4, 0]),
+      // The front door (towards the street) and a step.
+      box([h.x, 0.4 - 0.62 + 0.62, h.z + h.d / 2 + 0.01], [0.55, 0.85, 0.03], '#7c2d12'),
+      box([h.x, 0.04, h.z + h.d / 2 + 0.2], [0.9, 0.08, 0.4], '#d6d3cd'),
+    );
+    for (const dx of [-0.95, 0.95]) if (rnd(i, dx + 3) > 0.15) windows.push(box([h.x + dx, 0.7, h.z + h.d / 2 + 0.02], [0.55, 0.45, 0.02], '#ffffff'));
+  }
+  return { body, windows };
+}
+
+/** The houses, their windows lighting up in the evening like the city's. */
+const Houses = memo(function Houses() {
+  const { body, windows } = useMemo(houseParts, []);
+  const walls = useMerged(() => body, [body]);
+  const glass = useMerged(() => windows, [windows]);
+  const lit = useMemo(() => new MeshStandardMaterial({ color: '#cbd5e1', emissive: new Color('#ffd27a'), emissiveIntensity: 0, roughness: 0.4 }), []);
+  useEffect(() => () => lit.dispose(), [lit]);
+  useFrame(() => {
+    lit.emissiveIntensity = 1.3 * atmosphereAt(bankStore.getState().view.minute, liveMix).windows;
+  });
+  return (
+    <group name="office-houses">
+      <mesh geometry={walls} material={solid} castShadow receiveShadow />
+      <mesh geometry={glass} material={lit} />
+    </group>
+  );
+});
 
 function cityParts(): { body: Part[]; windows: Part[] } {
   const body: Part[] = [];
@@ -299,8 +359,10 @@ export const TREES: readonly Tree[] = (() => {
   let i = 0;
   for (let x = -REACH + 6; x < REACH - 6; x += 5.2) out.push({ x: x + rnd(i, 9) * 1.2, z: (TREE_BELTS.far.z0 + TREE_BELTS.far.z1) / 2, scale: 1 + rnd(i++, 8) * 0.2 });
   for (const side of [-1, 1]) for (let x = HW + 2; x < REACH - 6; x += 6) out.push({ x: side * x, z: KERB_Z - 0.25, scale: 0.95 });
-  // A row of shade trees along each car park's outer edge.
+  // A row of shade trees along the outer edge of the car park and of the park.
   for (const side of [-1, 1]) for (let z = LOT.z0 + 1.6; z < LOT.z1 - 0.6; z += 4.2) out.push({ x: side * TREE_STRIP.x, z, scale: 0.9 + rnd(i++, 7) * 0.2 });
+  // Shade trees in the park, along the inside of its loop path, clear of the paths in from the side doors.
+  for (let z = LOOP.z0 + 1.6; z < LOOP.z1 - 1; z += 3.6) if (SIDE_DOORS_RIGHT.every((d) => Math.abs(d - z) > 1.2) && Math.abs(z - FOUNTAIN.z) > 3.2) out.push({ x: LOOP.x0 + 1.3, z, scale: 0.85 + rnd(i++, 7) * 0.2 });
   return out;
 })();
 
@@ -946,8 +1008,9 @@ function Passer({ p, clock }: { p: Pedestrian; clock: PavementClock }) {
 /** The passers-by: their own clock runs only while the canvas draws, so a resting office never makes them jump. */
 function Pedestrians() {
   const clock = useMemo<PavementClock>(() => ({ t: 0, rainFor: null, storm: false, after: null }), []);
-  useFrame((_, dt) => {
-    const step = Math.min(dt, 0.1);
+  useFrame(() => {
+    // On the motion clock: frozen while the bank is paused, and at the bank's speed while it runs.
+    const step = motion.dt;
     clock.t += step;
     // The weather they react to is the one picked, so they move as the first drops fall rather than when the blend is done.
     const wet = downpourOf(WEATHER_MIX[weatherStore.getState().weather]);
@@ -980,6 +1043,8 @@ export const Environment3D = memo(function Environment3D() {
       <Haze />
       <Ground />
       <Parking3D />
+      <Park3D />
+      <Houses />
       <Sky3D />
       <City />
       <Trees />

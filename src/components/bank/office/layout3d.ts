@@ -60,7 +60,7 @@ export const STREET = {
   /** How deep the pavement is, from the building to the kerb. */
   walk: 3.2,
   /** The road beyond the kerb that is drawn: a two-lane avenue, one lane each way. */
-  road: 5.2,
+  road: 8.6,
   kerbH: 0.14,
   kerbW: 0.22,
   /** Half the width of the street: past the slab on both sides, so it reads as a street that carries on. */
@@ -71,6 +71,27 @@ export const STREET = {
 export const KERB_Z = STREET.z0 + STREET.walk;
 /** The far edge of the road that is drawn. */
 export const ROAD_END = KERB_Z + STREET.road;
+
+/**
+ * The avenue's markings, shared by the drawn street and its continuation: four lanes, a motorbike lane along each kerb
+ * (tinted) and a car lane inside it, dashed lines between them, a double line down the middle and an edge line each side.
+ */
+export function avenueMarkings(x0: number, x1: number, y: number): Array<{ at: [number, number, number]; size: [number, number, number]; color: string }> {
+  const z0 = KERB_Z + STREET.kerbW;
+  const lane = (ROAD_END - z0) / 4;
+  const len = x1 - x0;
+  const cx = (x0 + x1) / 2;
+  const out: Array<{ at: [number, number, number]; size: [number, number, number]; color: string }> = [];
+  // The motorbike lanes, a shade warmer than the car lanes.
+  for (const z of [z0 + lane / 2, ROAD_END - lane / 2]) out.push({ at: [cx, y - 0.002, z], size: [len, 0.004, lane - 0.1], color: '#535a66' });
+  // The double centre line.
+  for (const dz of [-0.09, 0.09]) out.push({ at: [cx, y, z0 + lane * 2 + dz], size: [len, 0.006, 0.07], color: '#facc15' });
+  // Dashed lines between the motorbike and car lanes.
+  for (const z of [z0 + lane, ROAD_END - lane]) for (let x = x0 + 0.6; x < x1 - 0.6; x += 2.2) out.push({ at: [x + 0.55, y, z], size: [1.1, 0.006, 0.08], color: '#f3efe0' });
+  // The edge lines.
+  for (const z of [z0 + 0.18, ROAD_END - 0.18]) out.push({ at: [cx, y, z], size: [len, 0.006, 0.07], color: '#f3efe0' });
+  return out;
+}
 
 /** The part of the world the home view fits: the whole office and the pavement out to the kerb. */
 export const SCENE = (() => {
@@ -149,13 +170,34 @@ export function seatOffsets(count: number): V2[] {
 export const QUEUE_VISIBLE = 5;
 export const QUEUE_GAP = 0.34;
 
-/** Where the customers of a queue stand, head of the queue first: in front of the counter, in a slightly zig-zag line. */
+/**
+ * Where the customers of a queue stand, head of the queue first: in front of the counter, in a slightly zig-zag line. At a
+ * sidewalk ATM they stand inside its glass booth (atmBooth): the one using the machine at it, the rest in a short line
+ * across the booth behind the rope, never out on the open pavement.
+ */
 export function queueSlots(id: StationId, count: number): V2[] {
   const pose = STATION_POSES[id];
   const n = Math.min(count, QUEUE_VISIBLE);
   const out: V2[] = [];
+  if (STATIONS[id].kind === 'ATM') {
+    const b = atmBooth(id);
+    const kx = (b.x0 + b.x1) / 2;
+    for (let i = 0; i < n; i++) out.push(i === 0 ? [kx, b.head] : [kx - 0.75 + (i - 1) * 0.5, b.line]);
+    return out;
+  }
   for (let i = 0; i < n; i++) out.push([pose.x + (i % 2 === 0 ? -0.18 : 0.18) - 0.5, pose.z + pose.d / 2 + 0.42 + i * QUEUE_GAP]);
   return out;
+}
+
+/**
+ * The glass booth round a sidewalk ATM: from the alcove wall behind the machine to a rope across its open front, as wide
+ * as the machine's paved pad. `head` is where the customer at the machine stands; `line`, where the others wait.
+ */
+export function atmBooth(id: StationId): Rect & { head: number; line: number; front: number } {
+  const pose = STATION_POSES[id];
+  const kx = pose.x - 0.5;
+  const front = pose.z + pose.d / 2 + 1.1;
+  return { x0: kx - 1.15, x1: kx + 1.15, z0: STREET.z0 + 0.05, z1: front, head: pose.z + 0.78, line: pose.z + 1.2, front };
 }
 
 /** A gate whose customers arrive as messages from a phone (A2A, VietQR, SWIFT, eKYC): no door, and a queue of phones. */
@@ -193,6 +235,15 @@ export function arrivalPath(id: StationId, queued: number): V2[] {
 
 /** The doors drawn on the wall: one per shop gate. */
 export const ENTRANCES: ReadonlyArray<{ id: StationId; at: V2 }> = WALK_IN_GATES.map((id) => ({ id, at: entrancePoint(id) }));
+
+/**
+ * The ways in and out of the branch: the grand main entrance in the front, on the clear aisle that runs from the back of
+ * the hall to the street (no desk stands on it); the three side doors in the left wall (the shop gates' doors, onto the car
+ * park); and three side doors in the right wall, onto the park, placed clear of its windows and the server room.
+ */
+export const MAIN_GATE = { x: -3.25, width: 3.0 } as const;
+export const SIDE_DOOR_W = 1.5;
+export const SIDE_DOORS_RIGHT: readonly number[] = [-11.75, 7.6, 11.4];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Lanes and packets
@@ -530,6 +581,15 @@ export const QUEUE_HALF = 0.58;
  */
 export function stanchionLine(id: StationId): { posts: V2[]; ropes: Array<[V2, V2]> } {
   const pose = STATION_POSES[id];
+  if (STATIONS[id].kind === 'ATM') {
+    // Across the booth's open front, with a gap at one end to walk in.
+    const b = atmBooth(id);
+    const posts: V2[] = [
+      [b.x0 + 0.08, b.front - 0.08],
+      [b.x1 - 0.65, b.front - 0.08],
+    ];
+    return { posts, ropes: [[posts[0]!, posts[1]!]] };
+  }
   const cx = pose.x - 0.5;
   const front = pose.z + pose.d / 2;
   const zs = [front + 0.45, front + 1.25];
@@ -559,9 +619,9 @@ export const kioskCentre = (id: StationId): V2 => [STATION_POSES[id].x - 0.5, ST
 
 /** The paved pad a kiosk stands on: from just in front of the building to the end of the longest queue. */
 export function bayRect(id: StationId): Rect {
-  const [x] = kioskCentre(id);
-  const tail = STATION_POSES[id].z + STATION_POSES[id].d / 2 + 0.42 + (QUEUE_VISIBLE - 1) * QUEUE_GAP;
-  return { x0: x - 1.15, x1: x + 1.15, z0: STREET.z0 + 0.05, z1: Math.min(KERB_Z - 0.05, tail + 0.35) };
+  // The booth's floor.
+  const b = atmBooth(id);
+  return { x0: b.x0, x1: b.x1, z0: b.z0, z1: Math.min(KERB_Z - 0.05, b.front + 0.1) };
 }
 
 /** The desks that are machines on the pavement. */

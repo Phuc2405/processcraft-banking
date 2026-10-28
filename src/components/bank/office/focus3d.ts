@@ -95,7 +95,7 @@ export const pulseDistance = (len: number, k: number, t: number): number => (len
 export const isOffShift = (activity: string): boolean => /^(Off shift|Desk closed)/.test(activity);
 
 /** How fast staff walk out, in world units a second. */
-export const LEAVE_SPEED = 1.15;
+export const LEAVE_SPEED = 1.4;
 
 /**
  * The way out for someone seated at `seat` (relative to the desk at `pose`): up from the chair, along the back of the counter

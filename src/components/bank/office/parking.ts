@@ -1,72 +1,89 @@
-import { FLOOR_SLAB, smoothLane, STREET, type V2 } from './layout3d';
+import { ENTRANCES, FLOOR_SLAB, smoothLane, type V2 } from './layout3d';
 import { pathLength, pointAlongPath } from './tour3d';
 
 /**
- * The two car parks beside the branch, reached from the quiet lane behind the block: cars on the left (-x), motorbikes on
- * the right (+x), each with a gate, a barrier, a booth and a guard waving people in. Pure and deterministic, so the tests
- * can run a lot for an hour and check that no two vehicles ever touch.
+ * The car park on the left of the branch (the park is on the right, Park3D), reached from the quiet lane behind the
+ * block: two rows of car bays either side of a wide aisle, and a sheltered section of motorbike slots, with a gate, a
+ * barrier, a booth and a guard. Walkways cross the inner row in front of each of the branch's side doors, so drivers walk
+ * straight in. Pure and deterministic, so the tests can run it for twenty minutes and check that no two vehicles ever touch.
  *
  * How nothing ever overlaps:
  *   - a bay is reserved (occupiedBy) the moment a vehicle is sent for it, and freed only once that vehicle has driven
  *     away, so no two vehicles are ever given the same bay;
- *   - only one vehicle moves in a lot at a time (the "mover"): arriving, or reversing out and driving away. Everyone else
- *     is parked, each in its own bay, and bays are wider and deeper than what parks in them;
+ *   - only one vehicle moves in the lot at a time (the "mover"): arriving, or reversing out and driving away. Everyone
+ *     else is parked, each in its own bay, and bays are wider and deeper than what parks in them;
  *   - a vehicle only turns in when a bay is free; when the lot is full nobody is sent.
  */
 
 const HX = FLOOR_SLAB.w / 2;
 const HZ = FLOOR_SLAB.d / 2;
 
-/** One lot, as |x| (mirrored on the left) and z. */
+/** The lot, as |x| (it is on the left, so x = -|x|) and z. */
 export const LOT = {
   x0: HX + 0.4,
-  x1: HX + 5.6,
+  x1: HX + 8.6,
   z0: -HZ - 1.6,
-  z1: STREET.z0,
+  z1: FLOOR_SLAB.d / 2,
   /** Where the gate barrier crosses the drive in. */
   gateZ: -HZ - 0.4,
 } as const;
+/** The lot is on the left of the branch. */
+export const LOT_SIDE = -1;
 
-/** The strip of shade trees along each lot's outer edge, as |x|. */
-export const TREE_STRIP = { x0: HX + 5.6, x1: HX + 6.1, x: HX + 5.85 } as const;
+/** The strip of shade trees along the lot's outer edge, as |x|. */
+export const TREE_STRIP = { x0: LOT.x1, x1: LOT.x1 + 0.6, x: LOT.x1 + 0.3 } as const;
 
-/** The lane behind the block that the lots open onto: in towards the lot, out on the far side. */
+/** The lane behind the block that the lot opens onto: in towards the lot, out on the far side. */
 export const BACK_LANE = { in: -HZ - 2.45, out: -HZ - 3.95, far: 62 } as const;
 
 export type LotKind = 'car' | 'moto';
 
-/** Each lot's layout: its aisle (as |x|), its rows of bays (where along |x| a parked vehicle stands, and which way it faces). */
-export const LOT_PLAN: Readonly<Record<LotKind, { side: -1 | 1; aisle: number; rows: ReadonlyArray<{ a0: number; a1: number; facing: 1 | -1 }>; bay: number; first: number }>> = {
-  // Cars nose-in along the outer side, an aisle down the building side.
-  car: { side: -1, aisle: HX + 1.7, rows: [{ a0: HX + 3.2, a1: HX + 5.55, facing: 1 }], bay: 1.4, first: LOT.gateZ + 2.2 },
-  // Motorbikes in two rows of narrow slots either side of the aisle; a shelter roof over the outer row.
-  moto: {
-    side: 1,
-    aisle: HX + 2.95,
-    rows: [
-      { a0: HX + 0.5, a1: HX + 1.85, facing: -1 },
-      { a0: HX + 4.05, a1: HX + 5.4, facing: 1 },
-    ],
-    bay: 0.78,
-    first: LOT.gateZ + 2.2,
-  },
-};
+export interface Row {
+  kind: LotKind;
+  /** Where along |x| the row's bays run, and which way the vehicles in them face (+1 away from the branch). */
+  a0: number;
+  a1: number;
+  facing: 1 | -1;
+  /** The stretch of z the row covers. */
+  z0: number;
+  z1: number;
+  bay: number;
+}
+
+/** The middle of the drive down the lot, as |x|: wide enough for a car to pass a car backing out. */
+export const AISLE = HX + 4.45;
+/** Where people walk down the lot, as |x|: between the inner row and the drive. */
+export const FOOTWAY = HX + 3.5;
+
+const FIRST = LOT.gateZ + 2.3;
+const SPLIT = 4.5;
+
+/** The rows: cars nose-in along the branch side; cars, then a sheltered run of motorbike slots, along the outer side. */
+export const ROWS: readonly Row[] = [
+  { kind: 'car', a0: HX + 0.5, a1: HX + 3.1, facing: -1, z0: FIRST, z1: LOT.z1 - 0.3, bay: 1.5 },
+  { kind: 'car', a0: HX + 5.8, a1: HX + 8.4, facing: 1, z0: FIRST, z1: SPLIT, bay: 1.5 },
+  { kind: 'moto', a0: HX + 6.3, a1: HX + 7.8, facing: 1, z0: SPLIT + 0.4, z1: LOT.z1 - 0.3, bay: 0.8 },
+];
+
+/** The branch's side doors on the lot's side (the doorways in its left wall), on z. */
+export const SIDE_DOORS_LEFT: readonly number[] = ENTRANCES.map((e) => e.at[1]);
+/** How wide the walkway across the inner row is at each side door. */
+export const WALKWAY = 1.6;
 
 /** The vehicles: their length and width, and how fast they move in the lot and on the lane. */
 export const SIZE: Readonly<Record<LotKind, { len: number; wid: number }>> = { car: { len: 2.1, wid: 0.97 }, moto: { len: 1.2, wid: 0.34 } };
-const SPEED = 3.6;
-/** How long someone takes to walk between their bay and the front of the lot, and back. */
-export const WALK_PACE = 0.85;
+const SPEED = 4.4;
+/** How fast people walk between their bay and the branch. */
+export const WALK_PACE = 1.05;
 
 export interface Slot {
   index: number;
+  kind: LotKind;
   /** World x and z of the parked vehicle's centre. */
   x: number;
   z: number;
   /** Yaw of a vehicle parked there (radians about y; 0 faces +x). */
   yaw: number;
-  /** The aisle point in front of the bay. */
-  aisleX: number;
   /** Who has the bay (parked, or on the way to it, or leaving it). */
   occupiedBy: string | null;
 }
@@ -74,14 +91,19 @@ export interface Slot {
 /** Yaw (about y) of something facing along (dx, dz): 0 faces +x. */
 export const yawOf = (dx: number, dz: number): number => Math.atan2(-dz, dx);
 
-/** Every bay of a lot. */
-export function slotsOf(kind: LotKind): Slot[] {
-  const plan = LOT_PLAN[kind];
+/** The row a bay belongs to. */
+const rowOf = (s: Pick<Slot, 'x' | 'kind'>): Row => ROWS.find((r) => r.kind === s.kind && Math.abs(s.x) >= r.a0 && Math.abs(s.x) <= r.a1)!;
+
+/** Every bay, leaving the walkways in front of the side doors clear. */
+export function slotsOf(): Slot[] {
   const out: Slot[] = [];
-  for (const row of plan.rows) {
+  for (const row of ROWS) {
     const a = (row.a0 + row.a1) / 2;
-    for (let z = plan.first; z + plan.bay / 2 <= LOT.z1 - 0.3; z += plan.bay)
-      out.push({ index: out.length, x: plan.side * a, z, yaw: yawOf(plan.side * row.facing, 0), aisleX: plan.side * plan.aisle, occupiedBy: null });
+    for (let z = row.z0; z + row.bay / 2 <= row.z1; z += row.bay) {
+      const onWalkway = row.a0 < FOOTWAY && SIDE_DOORS_LEFT.some((d) => Math.abs(z - d) < row.bay / 2 + WALKWAY / 2);
+      if (onWalkway) continue;
+      out.push({ index: out.length, kind: row.kind, x: LOT_SIDE * a, z, yaw: yawOf(LOT_SIDE * row.facing, 0), occupiedBy: null });
+    }
   }
   return out;
 }
@@ -100,28 +122,35 @@ export interface LotVehicle {
   stay: number;
 }
 
-/** Where someone walks between their bay and the front of the lot (then on to the branch's front door). */
-function walkPath(kind: LotKind, s: Slot): V2[] {
-  const side = LOT_PLAN[kind].side;
-  const off = (SIZE[kind].len / 2 + 0.25) * Math.sign(s.aisleX - s.x);
-  // Beside the vehicle, inside its own bay.
-  const z = s.z + LOT_PLAN[kind].bay / 2 - 0.1;
+const ax = LOT_SIDE * AISLE;
+const fx = LOT_SIDE * FOOTWAY;
+
+/** The side door nearest `z`. */
+export const nearestDoor = (z: number): number => SIDE_DOORS_LEFT.reduce((best, d) => (Math.abs(d - z) < Math.abs(best - z) ? d : best), SIDE_DOORS_LEFT[0]!);
+
+/** Where someone walks between their bay and the branch: out of the bay, down the footway, across the walkway and in at the side door. */
+export function walkPath(s: Slot): V2[] {
+  const len = SIZE[s.kind].len;
+  // Beside the vehicle, inside its own bay, at its aisle end.
+  const z = s.z + rowOf(s).bay / 2 - 0.1;
+  const end = s.x + Math.sign(ax - s.x) * (len / 2 - 0.2);
+  const door = nearestDoor(s.z);
   return [
-    [s.x + off * 0.6, z],
-    [s.aisleX - side * 0.6, z],
-    [s.aisleX - side * 0.6, LOT.z1 - 0.15],
-    [s.aisleX - side * 0.6, STREET.z0 + 0.5],
+    [end, z],
+    [fx, z],
+    [fx, door],
+    [-HX - 0.1, door],
+    [-HX + 0.7, door],
   ];
 }
 
-/** The drive in: along the lane behind the block, into the gate, down the aisle, and nose into the bay. */
-export function arrivalPath(kind: LotKind, s: Slot): V2[] {
-  const side = LOT_PLAN[kind].side;
+/** The drive in: along the lane behind the block, through the gate, down the aisle, and nose into the bay. */
+export function arrivalPath(s: Slot): V2[] {
   return smoothLane(
     [
-      [side * BACK_LANE.far, BACK_LANE.in],
-      [s.aisleX, BACK_LANE.in],
-      [s.aisleX, s.z],
+      [LOT_SIDE * BACK_LANE.far, BACK_LANE.in],
+      [ax, BACK_LANE.in],
+      [ax, s.z],
       [s.x, s.z],
     ],
     0.9,
@@ -130,18 +159,17 @@ export function arrivalPath(kind: LotKind, s: Slot): V2[] {
 }
 
 /** The drive out: reverse out of the bay to the aisle, then forward to the gate, out onto the lane and away. */
-export function leavingPaths(kind: LotKind, s: Slot): { reverse: V2[]; forward: V2[] } {
-  const side = LOT_PLAN[kind].side;
+export function leavingPaths(s: Slot): { reverse: V2[]; forward: V2[] } {
   return {
     reverse: [
       [s.x, s.z],
-      [s.aisleX, s.z],
+      [ax, s.z],
     ],
     forward: smoothLane(
       [
-        [s.aisleX, s.z],
-        [s.aisleX, BACK_LANE.out],
-        [side * BACK_LANE.far, BACK_LANE.out],
+        [ax, s.z],
+        [ax, BACK_LANE.out],
+        [LOT_SIDE * BACK_LANE.far, BACK_LANE.out],
       ],
       0.9,
       6,
@@ -149,9 +177,10 @@ export function leavingPaths(kind: LotKind, s: Slot): { reverse: V2[]; forward: 
   };
 }
 
-/** The vehicle moving in a lot, wherever it is on its way. */
+/** The vehicle moving in the lot, wherever it is on its way. */
 export interface MoverPose {
   id: string;
+  kind: LotKind;
   x: number;
   z: number;
   yaw: number;
@@ -172,9 +201,8 @@ const rnd = (i: number, k: number): number => {
 const CAR_TONES = ['#e5e7eb', '#111827', '#991b1b', '#1e40af', '#6b7280', '#f8fafc', '#065f46', '#b45309'];
 const MOTO_TONES = ['#dc2626', '#1d4ed8', '#111827', '#f59e0b', '#0f766e', '#7c3aed', '#e5e7eb'];
 
-/** One car park and everything in it. Step it with the frame time. */
+/** The car park and everything in it. Step it with the motion clock. */
 export class ParkingLot {
-  readonly kind: LotKind;
   readonly slots: Slot[];
   vehicles: LotVehicle[] = [];
   /** The one vehicle allowed to move in the lot, or null. */
@@ -185,18 +213,17 @@ export class ParkingLot {
   /** The last vehicle given the lot was leaving: the next turn goes to a newcomer, so the two take turns. */
   private lastLeft = false;
 
-  constructor(kind: LotKind, fill = 0.55) {
-    this.kind = kind;
-    this.slots = slotsOf(kind);
+  constructor(fill = 0.5) {
+    this.slots = slotsOf();
     // Start part full, staying for different lengths of time.
-    for (const s of this.slots) if (rnd(s.index, kind === 'car' ? 3 : 4) < fill) this.park(s, 'parked', 15 + rnd(s.index, 5) * 160);
+    for (const s of this.slots) if (rnd(s.index, 3) < fill) this.park(s, 'parked', 15 + rnd(s.index, 5) * 160);
     this.nextArrival = 4;
   }
 
   private park(s: Slot, phase: Phase, stay: number): LotVehicle {
     const n = this.serial++;
-    const tones = this.kind === 'car' ? CAR_TONES : MOTO_TONES;
-    const v: LotVehicle = { id: `${this.kind}-${n}`, kind: this.kind, color: tones[n % tones.length]!, slot: s.index, phase, t: 0, stay };
+    const tones = s.kind === 'car' ? CAR_TONES : MOTO_TONES;
+    const v: LotVehicle = { id: `${s.kind}-${n}`, kind: s.kind, color: tones[n % tones.length]!, slot: s.index, phase, t: 0, stay };
     s.occupiedBy = v.id;
     this.vehicles.push(v);
     return v;
@@ -207,31 +234,30 @@ export class ParkingLot {
     return this.slots[i]!.occupiedBy !== null;
   }
 
-  /** The free bays. */
-  vacant(): Slot[] {
-    return this.slots.filter((s) => s.occupiedBy === null);
+  /** The free bays (of one kind). */
+  vacant(kind?: LotKind): Slot[] {
+    return this.slots.filter((s) => s.occupiedBy === null && (!kind || s.kind === kind));
   }
 
   step(dt: number): void {
     const h = Math.min(Math.max(dt, 0), 0.1);
     this.t += h;
     for (const v of this.vehicles) v.t += h;
-    const slot = (v: LotVehicle) => this.slots[v.slot]!;
     for (const v of [...this.vehicles]) {
-      const s = slot(v);
-      if (v.phase === 'arriving' && v.t >= driveTime(pathLength(arrivalPath(this.kind, s)))) {
+      const s = this.slots[v.slot]!;
+      if (v.phase === 'arriving' && v.t >= driveTime(pathLength(arrivalPath(s)))) {
         // In the bay: the lot is free for the next vehicle, and the driver walks off to the branch.
         v.phase = 'walkingIn';
         v.t = 0;
         this.mover = null;
-      } else if (v.phase === 'walkingIn' && v.t >= pathLength(walkPath(this.kind, s)) / WALK_PACE) {
+      } else if (v.phase === 'walkingIn' && v.t >= pathLength(walkPath(s)) / WALK_PACE) {
         v.phase = 'parked';
         v.t = 0;
-      } else if (v.phase === 'walkingOut' && v.t >= pathLength(walkPath(this.kind, s)) / WALK_PACE) {
+      } else if (v.phase === 'walkingOut' && v.t >= pathLength(walkPath(s)) / WALK_PACE) {
         v.phase = 'leaving';
         v.t = 0;
       } else if (v.phase === 'leaving') {
-        const { reverse, forward } = leavingPaths(this.kind, s);
+        const { reverse, forward } = leavingPaths(s);
         if (v.t >= driveTime(pathLength(reverse)) + driveTime(pathLength(forward))) {
           // Gone down the lane and out of sight: only now is the bay free again.
           s.occupiedBy = null;
@@ -242,11 +268,9 @@ export class ParkingLot {
     }
     if (this.mover !== null) return;
     // The lot is still: someone whose stay is up walks back to their vehicle and drives off (they have the lot until they
-    // are gone), or else a newcomer is sent to a free bay.
+    // are gone), or else a newcomer is sent to a free bay. Leavers and newcomers take turns at the gate.
     const due = this.vehicles.find((v) => v.phase === 'parked' && v.t >= v.stay);
-    const free = this.vacant();
-    const arrivalDue = this.t >= this.nextArrival && free.length > 0;
-    // Leavers and newcomers take turns at the gate, so a busy lot neither empties nor locks out new arrivals.
+    const arrivalDue = this.t >= this.nextArrival && this.vacant().length > 0;
     if (due && !(arrivalDue && this.lastLeft)) {
       due.phase = 'walkingOut';
       due.t = 0;
@@ -255,7 +279,10 @@ export class ParkingLot {
       return;
     }
     if (this.t < this.nextArrival) return;
-    this.nextArrival = this.t + 6 + rnd(this.serial, 7) * 10;
+    this.nextArrival = this.t + 5 + rnd(this.serial, 7) * 9;
+    // A car or a motorbike, to a free bay of its kind (or of the other kind, if its own are all taken).
+    const want: LotKind = rnd(this.serial, 6) < 0.55 ? 'car' : 'moto';
+    const free = this.vacant(want).length ? this.vacant(want) : this.vacant();
     if (free.length === 0) return;
     const s = free[Math.floor(rnd(this.serial, 8) * free.length)]!;
     const v = this.park(s, 'arriving', 60 + rnd(this.serial, 9) * 120);
@@ -272,13 +299,13 @@ export class ParkingLot {
       const len = pathLength(path);
       const d = len * ease(Math.min(1, t / driveTime(len)));
       const [x, z] = pointAlongPath(path, d);
-      const [ax, az] = pointAlongPath(path, Math.min(len, d + 0.05));
+      const [px, pz] = pointAlongPath(path, Math.min(len, d + 0.05));
       const [bx, bz] = pointAlongPath(path, Math.max(0, d - 0.05));
-      const yaw = yawOf(ax - bx, az - bz) + (back ? Math.PI : 0);
-      return { id: v.id, x, z, yaw, reversing: back };
+      const yaw = yawOf(px - bx, pz - bz) + (back ? Math.PI : 0);
+      return { id: v.id, kind: v.kind, x, z, yaw, reversing: back };
     };
-    if (v.phase === 'arriving') return on(arrivalPath(this.kind, s), v.t, false);
-    const { reverse, forward } = leavingPaths(this.kind, s);
+    if (v.phase === 'arriving') return on(arrivalPath(s), v.t, false);
+    const { reverse, forward } = leavingPaths(s);
     const tr = driveTime(pathLength(reverse));
     return v.t < tr ? on(reverse, v.t, true) : on(forward, v.t - tr, false);
   }
@@ -293,13 +320,13 @@ export class ParkingLot {
     const out: Array<{ id: string; x: number; z: number; heading: number }> = [];
     for (const v of this.vehicles) {
       if (v.phase !== 'walkingIn' && v.phase !== 'walkingOut') continue;
-      const path = walkPath(this.kind, this.slots[v.slot]!);
+      const path = walkPath(this.slots[v.slot]!);
       const p = v.phase === 'walkingIn' ? path : [...path].reverse();
       const len = pathLength(p);
       const d = Math.min(len, v.t * WALK_PACE);
       const [x, z] = pointAlongPath(p, d);
-      const [ax, az] = pointAlongPath(p, Math.min(len, d + 0.05));
-      out.push({ id: v.id, x, z, heading: Math.atan2(ax - x, az - z) });
+      const [px, pz] = pointAlongPath(p, Math.min(len, d + 0.05));
+      out.push({ id: v.id, x, z, heading: Math.atan2(px - x, pz - z) });
     }
     return out;
   }
@@ -308,6 +335,47 @@ export class ParkingLot {
   barrier(): number {
     const m = this.moverPose();
     if (!m) return 0;
-    return Math.abs(m.z - LOT.gateZ) < 3.2 && Math.abs(Math.abs(m.x) - Math.abs(this.slots[0]!.aisleX)) < 3 ? 1 : 0;
+    return Math.abs(m.z - LOT.gateZ) < 3.2 && Math.abs(Math.abs(m.x) - AISLE) < 3 ? 1 : 0;
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The guards' shifts
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Three eight-hour shifts a day: 06:00-14:00, 14:00-22:00 and 22:00-06:00. */
+export const SHIFT_HOURS = 8;
+export const shiftOf = (minute: number): 0 | 1 | 2 => (Math.floor(((((minute / 60 - 6) % 24) + 24) % 24) / SHIFT_HOURS) % 3) as 0 | 1 | 2;
+
+/** How long a handover takes on the motion clock: the new guard walks in from the lane, the old one walks off. */
+export const HANDOVER_S = 9;
+
+/** The guard's post by the gate, beside the drive, and where guards come and go (the lane behind the block). */
+export const GUARD_POST: V2 = [LOT_SIDE * (AISLE + 1.75), LOT.gateZ + 0.6];
+export const GUARD_DOOR: V2 = [LOT_SIDE * (AISLE + 1.75), BACK_LANE.out - 0.6];
+
+/**
+ * Where a guard on post is at time `t`: standing at the post facing the lane, now and then pacing along the front of the
+ * lot towards its outer edge and back (a slow patrol, clear of the drive and of the bays).
+ */
+export function guardPatrol(t: number): { at: V2; heading: number; walking: boolean } {
+  const cycle = 24;
+  const u = ((t % cycle) + cycle) % cycle;
+  // Stand for 14 s, walk 1.6 m towards the lot's edge for 5 s, and back for 5 s.
+  if (u < 14) return { at: GUARD_POST, heading: Math.PI, walking: false };
+  const out = u < 19;
+  const k = out ? (u - 14) / 5 : 1 - (u - 19) / 5;
+  return { at: [GUARD_POST[0] + LOT_SIDE * PATROL * k, GUARD_POST[1]], heading: (out ? LOT_SIDE : -LOT_SIDE) * (Math.PI / 2), walking: true };
+}
+/** How far the patrol goes. */
+export const PATROL = 1.6;
+
+/** A handover `t` seconds in: the incoming guard walking from the lane to the post, the outgoing one walking away. */
+export function handoverAt(t: number): { incoming: V2; outgoing: V2; done: boolean } {
+  const k = Math.max(0, Math.min(1, t / HANDOVER_S));
+  // The new guard arrives over the first two thirds; the old one stays to hand over, then leaves over the last two thirds.
+  const inK = Math.min(1, k * 1.5);
+  const outK = Math.max(0, (k - 1 / 3) * 1.5);
+  const lerp = (a: V2, b: V2, u: number): V2 => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
+  return { incoming: lerp(GUARD_DOOR, GUARD_POST, inK), outgoing: lerp([GUARD_POST[0] - LOT_SIDE * 0.7, GUARD_POST[1]], GUARD_DOOR, outK), done: k >= 1 };
 }

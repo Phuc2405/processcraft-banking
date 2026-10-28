@@ -20,6 +20,8 @@ import { useFocusFade } from './useFocusFade';
 import { t } from '../../../i18n/t';
 import { routingRules } from '../routingRules';
 import { statusLabel } from '../ui';
+import { motion } from './motion';
+import { CUSTOMER_DESKS, isClosed } from './evacuation';
 
 export { cursor } from './cursor';
 
@@ -186,8 +188,8 @@ function Leaving({ leaver, pose, accent, onGone }: { leaver: Leaver; pose: Retur
   const root = useRef<Group>(null);
   const route = useMemo(() => leaveRoute(pose, leaver.seat), [pose, leaver.seat]);
   const gone = useRef(false);
-  useFrame((_, dt) => {
-    leaver.t += Math.min(dt, 0.1);
+  useFrame(() => {
+    leaver.t += motion.dt;
     const s = leaveAt(route, leaver.t);
     if (root.current) {
       // The desk's group is the origin, so the walker is placed relative to it.
@@ -287,8 +289,8 @@ function PhoneToken({ phase }: { phase: number }) {
   );
   const lit = useMemo(() => merge([box([0, 0.5, 0.019], [0.17, 0.3, 0.004], '#ccfbf1'), box([0, 0.56, 0.023], [0.05, 0.1, 0.004], '#14b8a6', [0, 0, 0.5]), box([0, 0.46, 0.023], [0.05, 0.08, 0.004], '#14b8a6', [0, 0, -0.5])]), []);
   const group = useRef<Group>(null);
-  useFrame(({ clock }) => {
-    if (group.current) group.current.position.y = 0.32 + Math.sin(clock.elapsedTime * 1.8 + phase) * 0.04;
+  useFrame(() => {
+    if (group.current) group.current.position.y = 0.32 + Math.sin(motion.t * 1.8 + phase) * 0.04;
   });
   useEffect(
     () => () => {
@@ -307,7 +309,10 @@ function PhoneToken({ phase }: { phase: number }) {
 
 /** The customers waiting at the front of the counter. Each takes the look of whoever is next in line, so the line seems to move up. */
 export function DeskQueue({ id }: { id: StationId }) {
-  const queueLength = useBankStore((s) => s.view.stations[id].queueLength);
+  // After closing time nobody queues at a customer desk (they walked out at 17:00: see Evacuation).
+  const closedHere = useBankStore((s) => CUSTOMER_DESKS.includes(id) && isClosed(s.view.minute));
+  const simQueue = useBankStore((s) => s.view.stations[id].queueLength);
+  const queueLength = closedHere ? 0 : simQueue;
   const processed = useBankStore((s) => s.view.stations[id].stats.processedToday);
   const pose = useMemo(() => deskPose(id), [id]);
   const phones = queueStyle(id) === 'phones';

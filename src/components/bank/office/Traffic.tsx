@@ -11,6 +11,9 @@ import { box, cyl, merge, shade, tint, type Part } from './kit';
 import { arrivalPath, customerShirt, hopHeight, hopTiming, laneAt, laneLength, packetLane, WALKER_STATIONS, type V2 } from './layout3d';
 import { glow } from './materials';
 import { PACKET_HEX } from './palette';
+import { motion, motionNow } from './motion';
+import { isClosed } from './evacuation';
+import { ATM_STATIONS } from './layout3d';
 
 const MAX_WALKERS = 14;
 const HEIGHT = 0.62;
@@ -81,7 +84,8 @@ interface Flight {
 /** How many payments can wear a name tag at once. More than a handful would only hide the office. */
 const TAGS = 6;
 
-const now = (): number => performance.now();
+/** The payments' clock: it stops while the bank is paused, so a payment in flight hangs where it is to be looked at. */
+const now = (): number => motionNow();
 
 /**
  * The payments on their way between desks. Every move the simulation reports in a beat becomes a small glowing card,
@@ -121,7 +125,7 @@ export const Packets = memo(function Packets() {
     }
   }, [tick]);
 
-  useFrame(({ clock }) => {
+  useFrame(() => {
     const t = now();
     const tagged: Array<{ x: number; y: number; z: number; label: string; kind: PacketKind }> = [];
     for (const kind of KINDS) {
@@ -143,7 +147,7 @@ export const Packets = memo(function Packets() {
         g.visible = true;
         g.position.set(p.x, HEIGHT + lift, p.z);
         if (f.label && tagged.length < TAGS) tagged.push({ x: p.x, y: HEIGHT + lift + 0.5, z: p.z, label: f.label, kind });
-        g.rotation.y = spin ? clock.elapsedTime * 5 + i : p.heading;
+        g.rotation.y = spin ? motion.t * 5 + i : p.heading;
         g.rotation.z = Math.sin(u * Math.PI * 2) * 0.12;
         const d = discs.current[kind][i];
         if (d) {
@@ -242,7 +246,10 @@ export const Arrivals = memo(function Arrivals() {
     const beat = beatMs(state.view.phase, SPEEDS[state.speedIndex]?.factor ?? 1);
     const t0 = now();
     // Customers walk in at the shop gates and up the pavement to the ATM; a transfer is a message, so its gate sees no one walk in.
+    // After closing time customers only come for the sidewalk ATMs.
+    const closed = isClosed(state.view.minute);
     for (const id of WALKER_STATIONS) {
+      if (closed && !ATM_STATIONS.includes(id)) continue;
       const sv = state.view.stations[id];
       const count = Math.min(2, sv.arrivals);
       for (let k = 0; k < count; k++) {

@@ -1,7 +1,7 @@
 import { ContactShadows, OrbitControls } from '@react-three/drei';
 import { ZOOM_STEP, zoomStore } from '../../../store/zoomStore';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../../../i18n/t';
 import { useLocale } from '../../../i18n/locale';
 import { AdditiveBlending, CanvasTexture, Color, ExtrudeGeometry, MeshBasicMaterial, MOUSE, Path, RepeatWrapping, ShapeGeometry, SpriteMaterial, SRGBColorSpace, TOUCH, Vector3, type AmbientLight, type DirectionalLight, type Group, type HemisphereLight } from 'three';
@@ -19,7 +19,7 @@ import { Environment3D } from './Environment3D';
 import { liveMix, weatherStore } from './weather';
 import { badgeFocus, badgeOpacity, dashLane, litLanes, PULSE, pulseDistance, type BadgeFocus } from './focus3d';
 import { pathLength, pointAlongPath } from './tour3d';
-import type { V2 } from './layout3d';
+import { customerShirt, type V2 } from './layout3d';
 import { ribbonGeometry, roundedRect, roundedRectPath, shade, tint } from './kit';
 import {
   CAMERA_DIRECTION,
@@ -50,6 +50,11 @@ import { LANE_STYLE, laneKind, SET } from './palette';
 import { Arrivals, Packets } from './Traffic';
 import { TOUR_DAYLIGHT, TOUR_GLIDE_MS, type CamFocus } from './tour3d';
 import { TourStage, useTourCamera } from './TourStage';
+import { advanceMotion } from './motion';
+import { SPEEDS } from '../../../sim/clock';
+import { evacuees, EXIT_PACE, isClosed } from './evacuation';
+import { motion } from './motion';
+import { CustomerFigure } from './Avatars';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Camera
@@ -856,6 +861,8 @@ export function OfficeScene({ resetKey }: { resetKey: number }) {
       <CameraRig resetKey={resetKey} focus={tourCamera ?? academyCamera} />
       <Probe />
       <Floor />
+      <MotionDriver />
+      <Evacuation />
       <FrameDriver />
       <Environment3D />
       <ContactShadows position={[0, -0.66, 0]} scale={[FLOOR_SLAB.w + 6, FLOOR_SLAB.d + 6]} far={0.9} blur={2.8} opacity={0.4} resolution={512} frames={1} color="#6b4f35" />
@@ -891,6 +898,74 @@ const AWAKE_MS = 1600;
  * while the bank clock runs, while a tour plays, and for a moment after any change or any pointer move over the office, and
  * otherwise lets it rest, so a paused office costs the graphics card nothing.
  */
+/**
+ * Closing time: when the bank clock passes 17:00 (never on a pause), everyone queuing at a customer desk walks out through
+ * the nearest way out, the main entrance or a side door, on the motion clock (evacuation.ts).
+ */
+function Evacuation() {
+  const closed = useBankStore((s) => isClosed(s.view.minute));
+  const was = useRef(closed);
+  const [walkers, setWalkers] = useState<ReturnType<typeof evacuees>>([]);
+  const since = useRef(0);
+  const pool = useRef<Array<Group | null>>([]);
+  useEffect(() => {
+    if (closed && !was.current) {
+      const st = bankStore.getState();
+      setWalkers(evacuees((id) => st.view.stations[id].queueLength));
+      since.current = 0;
+    }
+    if (!closed) setWalkers([]);
+    was.current = closed;
+  }, [closed]);
+  useFrame(() => {
+    if (!walkers.length) return;
+    since.current += motion.dt;
+    let out = 0;
+    walkers.forEach((w, i) => {
+      const g = pool.current[i];
+      if (!g) return;
+      const len = pathLength(w.path);
+      // They set off a moment apart, the head of each queue first.
+      const d = (since.current - w.k * 0.35) * EXIT_PACE;
+      if (d >= len) {
+        g.visible = false;
+        out++;
+        return;
+      }
+      const [x, z] = pointAlongPath(w.path, Math.max(0, d));
+      const [ax, az] = pointAlongPath(w.path, Math.min(len, Math.max(0, d) + 0.05));
+      g.visible = true;
+      g.position.set(x, 0, z);
+      g.rotation.y = Math.atan2(ax - x, az - z);
+    });
+    if (out === walkers.length) setWalkers([]);
+  });
+  return (
+    <group name="office-evacuation">
+      {walkers.map((w, i) => (
+        <group
+          key={`${w.id}-${w.k}`}
+          ref={(g) => {
+            pool.current[i] = g;
+          }}
+          visible={false}
+        >
+          <CustomerFigure index={i * 7 + 3} shirt={customerShirt(i * 3 + 1)} phase={i} walking scale={0.72} />
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** Moves the motion clock (motion.ts) on every frame, before anything reads it: frozen on pause, at the bank's speed in play. */
+function MotionDriver() {
+  useFrame((_, dt) => {
+    const s = bankStore.getState();
+    advanceMotion(dt, s.playing && s.spotlight === null, SPEEDS[s.speedIndex]?.factor ?? 1);
+  }, -10);
+  return null;
+}
+
 function FrameDriver() {
   const invalidate = useThree((s) => s.invalidate);
   const gl = useThree((s) => s.gl);

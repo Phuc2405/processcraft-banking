@@ -7,6 +7,7 @@ import {
   ATM_ALCOVE,
   ATM_KIOSK,
   ATM_STATIONS,
+  atmBooth,
   bayRect,
   frontPlinth,
   HOME_TARGET,
@@ -550,13 +551,18 @@ describe('desks and gates', () => {
       expect(z - ATM_KIOSK.d / 2).toBeGreaterThan(STREET.z0);
       expect(z + ATM_KIOSK.d / 2).toBeLessThan(KERB_Z);
       expect(Math.abs(x) + ATM_KIOSK.w / 2).toBeLessThan(STREET.halfWidth);
-      // The line of customers points straight at the kiosk and ends before the kerb.
+      // The customer at the machine stands straight in front of it; the rest wait in a line across its glass booth, every
+      // one inside the booth, behind its rope, never out on the open pavement.
       const slots = queueSlots(id, 40);
+      const booth = atmBooth(id);
+      expect(Math.abs(slots[0]![0] - x)).toBeLessThanOrEqual(0.01);
       for (const [sx, sz] of slots) {
-        expect(Math.abs(sx - x)).toBeLessThanOrEqual(0.2);
         expect(sz).toBeGreaterThan(z + ATM_KIOSK.d / 2);
-        expect(sz).toBeLessThan(KERB_Z - 0.2);
+        expect(sx).toBeGreaterThan(booth.x0 + 0.15);
+        expect(sx).toBeLessThan(booth.x1 - 0.15);
+        expect(sz).toBeLessThan(booth.front - 0.2);
       }
+      expect(booth.front).toBeLessThan(KERB_Z - 0.9);
       // The paved bay covers the kiosk and the whole queue.
       const bay = bayRect(id);
       expect(bay.x0).toBeLessThan(x - ATM_KIOSK.w / 2);
@@ -589,9 +595,18 @@ describe('desks and gates', () => {
   it('roped queues cover the shop gates and both ATMs', () => {
     expect([...ROPED_QUEUES].sort()).toEqual(['ATM_CASH', 'GATE_ATM', 'GATE_ECOM', 'GATE_POS', 'GATE_VIRTUAL']);
     for (const id of ATM_STATIONS) {
-      const { posts } = stanchionLine(id);
-      expect(posts).toHaveLength(4);
-      for (const [, z] of posts) expect(z).toBeLessThan(KERB_Z);
+      // A rope across the booth's open front, with a gap at one end to walk in.
+      const { posts, ropes } = stanchionLine(id);
+      expect(posts).toHaveLength(2);
+      expect(ropes).toHaveLength(1);
+      const booth = atmBooth(id);
+      for (const [px, z] of posts) {
+        expect(z).toBeLessThan(KERB_Z);
+        expect(z).toBeGreaterThan(booth.front - 0.2);
+        expect(px).toBeGreaterThanOrEqual(booth.x0);
+        expect(px).toBeLessThanOrEqual(booth.x1);
+      }
+      expect(booth.x1 - Math.max(...posts.map(([px]) => px))).toBeGreaterThan(0.5);
     }
   });
 

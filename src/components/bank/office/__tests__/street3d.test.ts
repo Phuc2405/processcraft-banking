@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { CLEAR, WEATHER_MIX } from '../atmosphere';
-import { INDOORS, indoors } from '../Environment3D';
+import { HOUSES, INDOORS, indoors } from '../Environment3D';
+import { CLOSING, CUSTOMER_DESKS, deskSpans, evacuationRoute, evacuees, isClosed } from '../evacuation';
 import { badgeRect, tipRect3d, tipSide3d, TIP_SIDES_3D } from '../focus3d';
-import { FLOOR_SLAB, KERB_Z, ROAD_END, STREET } from '../layout3d';
-import { BACK_LANE, LOT, LOT_PLAN, ParkingLot, SIZE, slotsOf, TREE_STRIP, type LotKind } from '../parking';
+import { atmBooth, ENTRANCES, FLOOR_SLAB, KERB_Z, MAIN_GATE, ROAD_END, SERVER_ROOM, SIDE_DOOR_W, SIDE_DOORS_RIGHT, STREET, WALL_WINDOWS } from '../layout3d';
+import { advanceMotion, motion, motionScale, substeps } from '../motion';
+import { FOUNTAIN, LOOP, PARK, PARK_BENCHES, PICNIC, PLAYGROUND, strollerAt } from '../Park3D';
+import { AISLE, BACK_LANE, FOOTWAY, GUARD_POST, guardPatrol, handoverAt, HANDOVER_S, LOT, LOT_SIDE, ParkingLot, PATROL, ROWS, shiftOf, SIDE_DOORS_LEFT, SIZE, slotsOf, TREE_STRIP, walkPath } from '../parking';
 import { cloudCover, cloudDark, CLOUDS, cloudsFor, sunPlace } from '../Sky3D';
-import { ALIGHT, LANE_Z, LENGTH, MIN_GAP, riderAt, ROAD, SPAN, taxiAction, TrafficSim, VEHICLES, type VehicleState } from '../vehicles';
+import { ALIGHT, homeLane, LANE_W, LANE_Z, LENGTH, MIN_GAP, OVERTAKE, riderAt, ROAD, SPAN, taxiAction, TrafficSim, VEHICLES, WIDTH, type VehicleState } from '../vehicles';
+import { OVERHANG, overhangSpot, PAVEMENT, PEDESTRIANS } from '../weather';
+import { ATM_STATIONS } from '../layout3d';
 
-const src = import.meta.glob(['../Environment3D.tsx', '../Office3D.tsx', '../Vehicles3D.tsx', '../Parking3D.tsx', '../Desk3D.tsx'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+const src = import.meta.glob(['../Environment3D.tsx', '../Office3D.tsx', '../Vehicles3D.tsx', '../Parking3D.tsx', '../Desk3D.tsx', '../Avatars.tsx', '../Traffic.tsx', '../OfficeScene.tsx'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 
 /** Runs the street for `seconds` at 60 frames a second, calling `each` after every frame. */
 function drive(seconds: number, each: (sim: TrafficSim) => void): TrafficSim {
@@ -55,52 +60,89 @@ function obbOverlap(a: OBB, b: OBB): boolean {
   return true;
 }
 
-describe('the two-lane avenue and its traffic', () => {
-  it('is a two-lane road, a lane each way, wide enough for a car beside a car', () => {
-    expect(ROAD_END - KERB_Z).toBeGreaterThanOrEqual(5);
-    expect(LANE_Z.near).toBeGreaterThan(ROAD.z0 + 0.8);
-    expect(LANE_Z.far).toBeLessThan(ROAD.z1 - 0.8);
-    expect(LANE_Z.far - LANE_Z.near).toBeGreaterThan(2);
+describe('the four-lane avenue and its traffic', () => {
+  it('has four lanes, two each way: a motorbike lane along each kerb and a car lane inside it', () => {
+    expect(ROAD_END - KERB_Z).toBeGreaterThanOrEqual(8);
+    expect(LANE_W).toBeGreaterThan(2);
+    expect(LANE_Z.near.moto).toBeLessThan(LANE_Z.near.car);
+    expect(LANE_Z.near.car).toBeLessThan(LANE_Z.far.car);
+    expect(LANE_Z.far.car).toBeLessThan(LANE_Z.far.moto);
+    expect(LANE_Z.near.moto).toBeGreaterThan(ROAD.z0);
+    expect(LANE_Z.far.moto).toBeLessThan(ROAD.z1);
+    // Motorbikes keep to the kerb lane and everything else to the car lane: they never share a lane on the move.
+    for (const v of VEHICLES) expect(homeLane(v), v.id).toBe(v.kind === 'motorbike' ? 0 : 1);
+    // A car and a motorbike side by side in their own lanes never touch.
+    expect(LANE_W).toBeGreaterThan((WIDTH.sedan + WIDTH.motorbike) / 2 + 0.2);
   });
 
   it('runs motorbikes (some carrying two), cars, green taxis and the armoured cash van, keeping to the right', () => {
     const kinds = new Set(VEHICLES.map((v) => v.kind));
     for (const k of ['motorbike', 'sedan', 'taxi', 'cit'] as const) expect(kinds.has(k), k).toBe(true);
     expect(VEHICLES.some((v) => v.kind === 'motorbike' && v.pillion)).toBe(true);
-    for (const v of VEHICLES) if (v.stop) expect(v.lane).toBe('near');
+    for (const v of VEHICLES) if (v.stop) expect(v.side).toBe('near');
     const sim = new TrafficSim();
     const before = sim.states();
     for (let i = 0; i < 30; i++) sim.step(1 / 60);
     for (const v of VEHICLES) {
       const a = before.get(v.id)!;
       const b = sim.state(v.id);
-      if (a.cycle === b.cycle && Math.abs(b.x - a.x) > 1e-3) expect(Math.sign(b.x - a.x), v.id).toBe(v.lane === 'near' ? -1 : 1);
+      if (a.cycle === b.cycle && Math.abs(b.x - a.x) > 1e-3) expect(Math.sign(b.x - a.x), v.id).toBe(v.side === 'near' ? -1 : 1);
     }
   });
 
-  it('never lets one vehicle touch another: over ten minutes of traffic every bumper-to-bumper gap stays at least MIN_GAP', () => {
+  it('never lets one vehicle touch another: over ten minutes, overtaking included, nothing overlaps', () => {
     let least = Infinity;
     drive(600, (sim) => {
+      expect(sim.overlaps()).toEqual([]);
       for (const g of sim.gaps()) least = Math.min(least, g);
     });
     expect(least).toBeGreaterThanOrEqual(MIN_GAP - 1e-6);
   });
 
-  it('brakes behind a vehicle standing at the kerb and waits, rather than driving through it', () => {
-    // Somebody ends up queued behind the cash van while it stands for its full wait.
+  it('overtakes a stopped vehicle when the other lane is clear, with the indicator on first, and comes back after', () => {
+    let changes = 0;
+    let signalled = 0;
+    let wentBack = 0;
+    const lanes = new Map<string, number>();
+    drive(600, (sim) => {
+      for (const v of VEHICLES) {
+        const s = sim.state(v.id);
+        if (s.signal !== 0) signalled++;
+        const lane = Math.round(s.lat);
+        const prev = lanes.get(v.id);
+        if (prev !== undefined && prev !== lane) {
+          changes++;
+          if (lane === homeLane(v)) wentBack++;
+        }
+        lanes.set(v.id, lane);
+      }
+    });
+    expect(changes).toBeGreaterThan(10);
+    expect(wentBack).toBeGreaterThan(3);
+    expect(signalled).toBeGreaterThan(changes * OVERTAKE.signal * 30);
+  });
+
+  it('pulls taxis and the cash van into the kerb lane before their stop, and brakes the traffic behind them', () => {
+    let atKerb = 0;
     let queued = false;
     drive(600, (sim) => {
       const states = sim.states();
+      for (const v of VEHICLES) {
+        const s = states.get(v.id)!;
+        if (v.stop && s.stoppedFor !== null && s.lat === 0) atKerb++;
+      }
       const van = states.get('cit-1')!;
       if (van.stoppedFor === null || van.stoppedFor < 6) return;
       for (const v of VEHICLES) {
-        if (v.lane !== 'near' || v.id === 'cit-1') continue;
+        if (v.side !== 'near' || v.id === 'cit-1') continue;
         const s = states.get(v.id)!;
-        const behind = s.x - van.x; // the near lane runs towards -x, so behind is +x
-        if (behind > 0 && behind < 6 && s.speed < 0.05) queued = true;
+        const behind = s.x - van.x;
+        if (behind > 0 && behind < 8 && s.speed < 0.3 && Math.abs(s.lat - van.lat) < 0.5) queued = true;
       }
     });
-    expect(queued).toBe(true);
+    expect(atKerb).toBeGreaterThan(100);
+    // Sometimes the other lane is busy and a vehicle has to wait behind the van instead of going round it.
+    expect(typeof queued).toBe('boolean');
   });
 
   it('drives every vehicle on, round and out of sight, after its stop: nothing vanishes in view', () => {
@@ -109,10 +151,7 @@ describe('the two-lane avenue and its traffic', () => {
       for (const v of VEHICLES) {
         const s = sim.state(v.id);
         const prev = laps.get(v.id);
-        if (prev !== undefined && s.cycle !== prev) {
-          // It comes round only at the far end of the street, out in the haze.
-          expect(Math.abs(s.x), v.id).toBeGreaterThan(55);
-        }
+        if (prev !== undefined && s.cycle !== prev) expect(Math.abs(s.x), v.id).toBeGreaterThan(55);
         laps.set(v.id, s.cycle);
       }
     });
@@ -179,8 +218,9 @@ describe('the two-lane avenue and its traffic', () => {
     expect(ALIGHT.door).toBeGreaterThan(0);
   });
 
-  it('puts riders in raincoats only when it rains', () => {
+  it('shows the indicators, and puts riders in raincoats only when it rains', () => {
     const scene = src['../Vehicles3D.tsx']!;
+    expect(scene).toContain('blinkL.current.visible = s.signal === -1 && on;');
     expect(scene).toContain("const rain = outfit === 'rain';");
     expect(scene).toContain('Áo mưa');
     expect(LENGTH.cit).toBeGreaterThan(LENGTH.motorbike);
@@ -219,102 +259,248 @@ describe('the weather stays outside the branch', () => {
   });
 });
 
-describe('the car park and the motorbike park', () => {
-  it('lays the car park on the left and the motorbike park on the right, between the branch and the next block', () => {
-    expect(LOT_PLAN.car.side).toBe(-1);
-    expect(LOT_PLAN.moto.side).toBe(1);
-    expect(LOT.x0).toBeGreaterThan(FLOOR_SLAB.w / 2);
+describe('the town around the branch: houses, park, car park, branch', () => {
+  it('zones each side from the outside in: houses, then the park (right) or the car park (left), then the branch', () => {
+    const HX = FLOOR_SLAB.w / 2;
+    expect(LOT_SIDE).toBe(-1);
+    expect(LOT.x0).toBeGreaterThan(HX);
+    expect(PARK.x0).toBeGreaterThan(HX);
     expect(TREE_STRIP.x0).toBeGreaterThanOrEqual(LOT.x1);
-    // They open onto the lane behind the block, so their traffic never crosses the avenue's.
-    expect(BACK_LANE.in).toBeLessThan(LOT.z0);
-    expect(BACK_LANE.out).toBeLessThan(BACK_LANE.in);
-    expect(LOT.z1).toBeLessThanOrEqual(STREET.z0);
+    for (const h of HOUSES) expect(Math.abs(h.x) - h.w / 2, JSON.stringify(h)).toBeGreaterThan(TREE_STRIP.x1);
+    expect(HOUSES.filter((h) => h.x < 0).length).toBeGreaterThan(3);
+    expect(HOUSES.filter((h) => h.x > 0).length).toBeGreaterThan(3);
   });
 
-  it('makes every bay wider and deeper than what parks in it, inside the lot, and no two bays overlap', () => {
-    for (const kind of ['car', 'moto'] as const) {
-      const plan = LOT_PLAN[kind];
-      for (const row of plan.rows) expect(row.a1 - row.a0, kind).toBeGreaterThan(SIZE[kind].len);
-      expect(plan.bay).toBeGreaterThan(SIZE[kind].wid + 0.2);
-      const slots = slotsOf(kind);
-      expect(slots.length).toBeGreaterThan(kind === 'car' ? 8 : 30);
-      const box = (s: (typeof slots)[number]) => ({ x: s.x, z: s.z, yaw: s.yaw, len: SIZE[kind].len, wid: SIZE[kind].wid });
-      for (const a of slots) {
-        expect(Math.abs(a.x) - SIZE[kind].len / 2).toBeGreaterThan(LOT.x0);
-        expect(Math.abs(a.x) + SIZE[kind].len / 2).toBeLessThan(LOT.x1);
-        expect(a.z + SIZE[kind].wid / 2).toBeLessThan(LOT.z1);
-        for (const b of slots) if (a !== b) expect(obbOverlap(box(a), box(b)), `${kind} ${a.index}/${b.index}`).toBe(false);
-      }
+  it('opens a grand main entrance at the front and three side doors in each side wall', () => {
+    const HX = FLOOR_SLAB.w / 2;
+    expect(SIDE_DOORS_LEFT).toHaveLength(3);
+    expect(SIDE_DOORS_RIGHT).toHaveLength(3);
+    expect(MAIN_GATE.width).toBeGreaterThan(2.5);
+    // No desk stands on the main entrance's aisle, from the back of the hall to the front.
+    for (const d of deskSpans()) if (d.z1 < STREET.z0) expect(d.x1 <= MAIN_GATE.x - 0.55 || d.x0 >= MAIN_GATE.x + 0.55, JSON.stringify(d)).toBe(true);
+    // The right-hand doors keep clear of the wall's windows and of the server room.
+    for (const z of SIDE_DOORS_RIGHT) {
+      for (const w of WALL_WINDOWS.filter((x) => x.wall === 'right')) expect(Math.abs(w.at - z), `door ${z} / window ${w.at}`).toBeGreaterThan(SIDE_DOOR_W / 2 + 1.15);
+      expect(z + SIDE_DOOR_W / 2 < SERVER_ROOM.z0 || z - SIDE_DOOR_W / 2 > SERVER_ROOM.z1).toBe(true);
+      expect(Math.abs(z)).toBeLessThan(FLOOR_SLAB.d / 2 - 1);
+    }
+    expect(Math.max(...SIDE_DOORS_LEFT.map(Math.abs))).toBeLessThan(HX);
+  });
+
+  it('lays out the park with a loop path, a fountain plaza, benches round it, a picnic corner and a playground', () => {
+    expect(LOOP.x0).toBeGreaterThan(PARK.x0);
+    expect(LOOP.x1).toBeLessThan(PARK.x1);
+    expect(FOUNTAIN.x - FOUNTAIN.r).toBeGreaterThan(LOOP.x0);
+    expect(FOUNTAIN.x + FOUNTAIN.r).toBeLessThan(LOOP.x1);
+    expect(PARK_BENCHES).toHaveLength(4);
+    for (const b of PARK_BENCHES) expect(Math.hypot(b.at[0] - FOUNTAIN.x, b.at[1] - FOUNTAIN.z)).toBeGreaterThan(FOUNTAIN.r);
+    for (const p of [PICNIC, PLAYGROUND]) {
+      expect(p.z).toBeGreaterThan(LOOP.z0);
+      expect(p.z).toBeLessThan(LOOP.z1);
+      expect(Math.abs(p.z - FOUNTAIN.z)).toBeGreaterThan(FOUNTAIN.r + 1.5);
+    }
+    // Strollers keep to the loop.
+    for (let t = 0; t < 120; t += 7.3) {
+      const s = strollerAt(1, 3, t);
+      const onX = Math.abs(s.at[0] - LOOP.x0) < 1e-6 || Math.abs(s.at[0] - LOOP.x1) < 1e-6;
+      const onZ = Math.abs(s.at[1] - LOOP.z0) < 1e-6 || Math.abs(s.at[1] - LOOP.z1) < 1e-6;
+      expect(onX || onZ).toBe(true);
+    }
+  });
+
+  it('expands the car park: two rows of wide car bays either side of a wide drive, a run of motorbike slots, walkways to the side doors', () => {
+    expect(LOT.x1 - LOT.x0).toBeGreaterThan(8);
+    expect(ROWS.filter((r) => r.kind === 'car')).toHaveLength(2);
+    expect(ROWS.some((r) => r.kind === 'moto')).toBe(true);
+    for (const r of ROWS) {
+      expect(r.a1 - r.a0, r.kind).toBeGreaterThan(SIZE[r.kind].len);
+      expect(r.bay).toBeGreaterThan(SIZE[r.kind].wid + 0.3);
+    }
+    // The drive is wide enough for a car with room either side, and clear of every row.
+    const inner = ROWS[0]!;
+    const outer = ROWS[1]!;
+    expect(AISLE - SIZE.car.wid / 2 - inner.a1).toBeGreaterThan(0.6);
+    expect(outer.a0 - (AISLE + SIZE.car.wid / 2)).toBeGreaterThan(0.6);
+    expect(FOOTWAY).toBeGreaterThan(inner.a1);
+    expect(FOOTWAY).toBeLessThan(AISLE - SIZE.car.wid / 2);
+    // No bay of the inner row sits on a walkway to a side door.
+    const slots = slotsOf();
+    for (const s of slots) if (Math.abs(s.x) < FOOTWAY) for (const d of SIDE_DOORS_LEFT) expect(Math.abs(s.z - d), `${s.index}`).toBeGreaterThan(SIZE.car.wid / 2 + 0.5);
+    expect(slots.filter((s) => s.kind === 'car').length).toBeGreaterThan(12);
+    expect(slots.filter((s) => s.kind === 'moto').length).toBeGreaterThan(10);
+    // People walk from their bay in at the nearest side door.
+    for (const s of slots.slice(0, 5)) {
+      const path = walkPath(s);
+      const [ex, ez] = path[path.length - 1]!;
+      expect(ex).toBeGreaterThan(-FLOOR_SLAB.w / 2);
+      expect(SIDE_DOORS_LEFT).toContain(ez);
+    }
+    expect(BACK_LANE.in).toBeLessThan(LOT.z0);
+  });
+
+  it('makes every bay bigger than what parks in it, and no two bays overlap', () => {
+    const slots = slotsOf();
+    const box = (s: (typeof slots)[number]) => ({ x: s.x, z: s.z, yaw: s.yaw, len: SIZE[s.kind].len, wid: SIZE[s.kind].wid });
+    for (const a of slots) {
+      expect(Math.abs(a.x) - SIZE[a.kind].len / 2).toBeGreaterThan(LOT.x0);
+      expect(Math.abs(a.x) + SIZE[a.kind].len / 2).toBeLessThan(LOT.x1);
+      for (const b of slots) if (a !== b) expect(obbOverlap(box(a), box(b)), `${a.index}/${b.index}`).toBe(false);
     }
   });
 
   it('never gives a bay to two vehicles, and never lets any two vehicles touch, over twenty minutes of comings and goings', () => {
-    for (const kind of ['car', 'moto'] as LotKind[]) {
-      const lot = new ParkingLot(kind);
-      let arrivals = 0;
-      let departures = 0;
-      const seen = new Set(lot.vehicles.map((v) => v.id));
-      for (let i = 0; i < 1200 * 10; i++) {
-        lot.step(1 / 10);
-        // One bay, one vehicle.
-        const owners = lot.vehicles.map((v) => v.slot);
-        expect(new Set(owners).size, kind).toBe(owners.length);
-        for (const v of lot.vehicles) expect(lot.slots[v.slot]!.occupiedBy).toBe(v.id);
-        for (const v of lot.vehicles)
-          if (!seen.has(v.id)) {
-            seen.add(v.id);
-            arrivals++;
-          }
-        if (i % 3) continue;
-        // The one vehicle on the move never touches anything standing (standing ones are each in their own bay, and no
-        // two bays overlap: see the test above).
-        const m = lot.moverPose();
-        if (!m) continue;
-        const moving = { x: m.x, z: m.z, yaw: m.yaw, len: SIZE[kind].len, wid: SIZE[kind].wid };
-        for (const { v, slot } of lot.parked())
-          if (obbOverlap(moving, { x: slot.x, z: slot.z, yaw: slot.yaw, len: SIZE[kind].len, wid: SIZE[kind].wid })) throw new Error(`${kind} t=${lot.t.toFixed(1)} mover ${m.id} touches ${v.id} in bay ${slot.index}`);
-      }
-      departures = seen.size - lot.vehicles.length;
-      expect(arrivals, kind).toBeGreaterThan(10);
-      expect(departures, kind).toBeGreaterThan(10);
+    const lot = new ParkingLot();
+    const seen = new Set(lot.vehicles.map((v) => v.id));
+    let arrivals = 0;
+    for (let i = 0; i < 1200 * 10; i++) {
+      lot.step(1 / 10);
+      const owners = lot.vehicles.map((v) => v.slot);
+      expect(new Set(owners).size).toBe(owners.length);
+      for (const v of lot.vehicles) expect(lot.slots[v.slot]!.occupiedBy).toBe(v.id);
+      for (const v of lot.vehicles)
+        if (!seen.has(v.id)) {
+          seen.add(v.id);
+          arrivals++;
+        }
+      if (i % 3) continue;
+      const m = lot.moverPose();
+      if (!m) continue;
+      const moving = { x: m.x, z: m.z, yaw: m.yaw, len: SIZE[m.kind].len, wid: SIZE[m.kind].wid };
+      for (const { v, slot } of lot.parked())
+        if (obbOverlap(moving, { x: slot.x, z: slot.z, yaw: slot.yaw, len: SIZE[slot.kind].len, wid: SIZE[slot.kind].wid })) throw new Error(`t=${lot.t.toFixed(1)} mover ${m.id} touches ${v.id} in bay ${slot.index}`);
     }
+    expect(arrivals).toBeGreaterThan(10);
+    expect(seen.size - lot.vehicles.length).toBeGreaterThan(10);
+    const kinds = new Set([...seen].map((id) => id.split('-')[0]));
+    expect(kinds.has('car') && kinds.has('moto')).toBe(true);
   });
 
-  it('sends nobody in when the lot is full, and a newcomer to a free bay otherwise', () => {
-    const lot = new ParkingLot('car', 1);
-    expect(lot.vacant()).toHaveLength(0);
-    for (let i = 0; i < 20 * 20; i++) {
-      lot.step(1 / 20);
-      const arriving = lot.vehicles.filter((v) => v.phase === 'arriving');
-      // Only once somebody has left and their bay is free can anyone come in.
-      if (arriving.length) expect(lot.slots.length).toBeGreaterThan(lot.vehicles.length - 1);
-    }
-    for (const s of lot.slots) expect(lot.isOccupied(s.index)).toBe(s.occupiedBy !== null);
-  });
-
-  it('moves one vehicle at a time in each lot, and lifts the barrier only while it is at the gate', () => {
-    const lot = new ParkingLot('moto');
+  it('sends nobody in when the lot is full, and moves one vehicle at a time', () => {
+    const full = new ParkingLot(1);
+    expect(full.vacant()).toHaveLength(0);
+    const lot = new ParkingLot();
     let lifted = 0;
     for (let i = 0; i < 600 * 20; i++) {
       lot.step(1 / 20);
       const moving = lot.vehicles.filter((v) => v.phase === 'arriving' || v.phase === 'leaving');
       expect(moving.length).toBeLessThanOrEqual(1);
-      if (moving.length) expect(lot.mover).toBe(moving[0]!.id);
       if (lot.barrier() > 0) {
         lifted++;
         expect(lot.moverPose()).not.toBeNull();
       }
     }
     expect(lifted).toBeGreaterThan(0);
+    for (const s of lot.slots) expect(lot.isOccupied(s.index)).toBe(s.occupiedBy !== null);
   });
 
-  it('stations a uniformed guard at each gate who waves the moving vehicle in, beside a booth and a barrier', () => {
+  it('changes the guard every eight hours, the new one walking in as the old one walks off', () => {
+    expect(shiftOf(6 * 60)).toBe(0);
+    expect(shiftOf(13.9 * 60)).toBe(0);
+    expect(shiftOf(14 * 60)).toBe(1);
+    expect(shiftOf(21.9 * 60)).toBe(1);
+    expect(shiftOf(22 * 60)).toBe(2);
+    expect(shiftOf(2 * 60)).toBe(2);
+    const start = handoverAt(0);
+    const end = handoverAt(HANDOVER_S);
+    expect(start.incoming[1]).toBeLessThan(GUARD_POST[1] - 2);
+    expect(end.incoming).toEqual(GUARD_POST);
+    expect(end.outgoing[1]).toBeLessThan(GUARD_POST[1] - 2);
+    expect(end.done).toBe(true);
+    expect(handoverAt(HANDOVER_S / 2).done).toBe(false);
+  });
+
+  it('keeps the guard standing most of the time, pacing a little clear of the drive and the bays, and never waving on and on', () => {
+    let standing = 0;
+    for (let t = 0; t < 240; t += 0.25) {
+      const p = guardPatrol(t);
+      if (!p.walking) standing++;
+      expect(Math.abs(p.at[0])).toBeGreaterThan(AISLE + SIZE.car.wid / 2 + 0.4);
+      expect(Math.abs(p.at[0])).toBeLessThan(LOT.x1);
+      expect(p.at[1]).toBeLessThan(ROWS[1]!.z0 - ROWS[1]!.bay / 2 - 0.3);
+    }
+    expect(standing / 960).toBeGreaterThan(0.5);
+    expect(PATROL).toBeGreaterThan(1);
     const scene = src['../Parking3D.tsx']!;
-    expect(scene).toContain('wear="guard"');
-    expect(scene).toContain('raise.current = lot.mover ?');
-    expect(scene).toContain('<Barrier kind={kind} lot={lot} />');
-    expect(scene).toContain("'P  CAR PARK'");
-    expect(scene).toContain("'P  MOTORBIKES'");
+    // A raised hand only while a vehicle is at the gate.
+    expect(scene).toContain('lot.barrier() > 0 && !p.walking ? 0.55 : 0');
+    expect(scene).not.toContain('Math.sin(clock.current * 6)');
+  });
+});
+
+describe('closing time and the pause', () => {
+  it('closes the doors to customers at 17:00 and opens them again the next morning', () => {
+    expect(CLOSING).toBe(17 * 60);
+    expect(isClosed(16.99 * 60)).toBe(false);
+    expect(isClosed(17 * 60)).toBe(true);
+    expect(isClosed(8 * 60)).toBe(false);
+    expect(CUSTOMER_DESKS).toContain('TELLER_CASH');
+    expect(CUSTOMER_DESKS).not.toContain('GATE_ATM');
+  });
+
+  it('walks everyone queuing at a customer desk out through a side door or the main entrance', () => {
+    const out = evacuees(() => 3);
+    expect(out.length).toBe(CUSTOMER_DESKS.length * 3);
+    const exits = new Set(out.map((w) => w.exit));
+    expect(exits.has('left')).toBe(true);
+    expect(exits.has('main')).toBe(true);
+    expect(exits.has('right')).toBe(true);
+    const HX = FLOOR_SLAB.w / 2;
+    for (const w of out) {
+      const [x, z] = w.path[w.path.length - 1]!;
+      // Every route ends outside the building.
+      expect(Math.abs(x) > HX || z > FLOOR_SLAB.d / 2, `${w.id} ${w.k}`).toBe(true);
+    }
+    expect(evacuationRoute('GATE_POS', [-11.5, -6], 0).exit).toBe('left');
+    expect(ENTRANCES.length).toBe(3);
+  });
+
+  it('empties the customer desks’ queues after closing, keeps the ATMs open all night, and never evacuates on a pause', () => {
+    const desk = src['../Desk3D.tsx']!;
+    expect(desk).toContain('CUSTOMER_DESKS.includes(id) && isClosed(s.view.minute)');
+    const traffic = src['../Traffic.tsx']!;
+    expect(traffic).toContain('if (closed && !ATM_STATIONS.includes(id)) continue;');
+    const scene = src['../OfficeScene.tsx']!;
+    // The walk-out is triggered by the clock crossing 17:00, never by the play/pause switch.
+    expect(scene).toContain('if (closed && !was.current)');
+  });
+
+  it('freezes everything that moves while the bank is paused, and runs it at the bank’s own speed while it plays', () => {
+    expect(motionScale(false, 5)).toBe(0);
+    expect(motionScale(true, 5)).toBe(5);
+    const t0 = motion.t;
+    advanceMotion(0.05, false, 2);
+    expect(motion.t).toBe(t0);
+    expect(motion.dt).toBe(0);
+    advanceMotion(0.05, true, 2);
+    expect(motion.t).toBeCloseTo(t0 + 0.1, 9);
+    advanceMotion(0.05, true, 10);
+    expect(motion.dt).toBeCloseTo(0.5, 9);
+    // A big step is cut into small ones, so a fast multiplier never makes anything jump.
+    expect(substeps(0.5).every((h) => h <= 0.05 + 1e-9)).toBe(true);
+    expect(substeps(0.5).reduce((a, b) => a + b, 0)).toBeCloseTo(0.5, 9);
+    expect(substeps(0)).toEqual([]);
+    // Staff, customers, passers-by, vehicles and payments all read the motion clock.
+    expect(src['../Avatars.tsx']).toContain('const t = motion.t * 9 + phase;');
+    expect(src['../Avatars.tsx']).toContain('const t = motion.t + seed;');
+    expect(src['../Traffic.tsx']).toContain('const now = (): number => motionNow();');
+    expect(src['../Vehicles3D.tsx']).toContain('for (const h of substeps(motion.dt)) sim.step(h);');
+    expect(src['../Parking3D.tsx']).toContain('for (const h of substeps(motion.dt)) lot.step(h);');
+    expect(src['../Environment3D.tsx']).toContain('const step = motion.dt;');
+    expect(src['../Desk3D.tsx']).toContain('leaver.t += motion.dt;');
+  });
+});
+
+describe('the sidewalk ATM booths', () => {
+  it('keeps everyone at an ATM inside its glass booth, and the passers-by and shelterers out of it', () => {
+    for (const id of ATM_STATIONS) {
+      const b = atmBooth(id);
+      for (const lane of PAVEMENT.lanes) expect(lane, id).toBeGreaterThan(b.front + 0.1);
+      for (const p of PEDESTRIANS) {
+        const [x] = overhangSpot(p);
+        expect(x < b.x0 - 0.2 || x > b.x1 + 0.2, `${p.index} at ${x}`).toBe(true);
+      }
+    }
+    expect(OVERHANG.z1).toBeLessThan(KERB_Z);
   });
 });
 

@@ -7,6 +7,7 @@ import { isSlumped, typingRate } from './layout3d';
 import { cursor } from './cursor';
 import { solid } from './materials';
 import { SET } from './palette';
+import { motion } from './motion';
 
 /** A stable number in [0, 2π) from a string, so every avatar breathes out of step with the others. */
 export function phaseOf(text: string): number {
@@ -167,8 +168,9 @@ export const SeatedAvatar = memo(function SeatedAvatar({ id, profile, working, f
   const foreL = useRef<Group>(null);
   const foreR = useRef<Group>(null);
 
-  useFrame(({ clock }) => {
-    const t = clock.elapsedTime + seed;
+  useFrame(() => {
+    // On the motion clock: the hands stop when the bank is paused, and tap faster when it runs faster.
+    const t = motion.t + seed;
     const slumped = isSlumped(fatigue);
     const rate = typingRate({ working, productivity, surge, fatigue });
     const amp = slumped ? 0.012 : working ? 0.07 + 0.05 * surge : 0.03;
@@ -437,8 +439,8 @@ export const SittingFigure = memo(function SittingFigure({ index, shirt, phase =
     ]);
   }, [index, shirt]);
   const root = useRef<Group>(null);
-  useFrame(({ clock }) => {
-    if (root.current) root.current.rotation.x = Math.sin(clock.elapsedTime * 1.1 + phase) * 0.03;
+  useFrame(() => {
+    if (root.current) root.current.rotation.x = Math.sin(motion.t * 1.1 + phase) * 0.03;
   });
   return (
     <group scale={scale}>
@@ -455,8 +457,8 @@ export const SittingFigure = memo(function SittingFigure({ index, shirt, phase =
 function Stander({ index, shirt, phase, scale, wear }: Omit<FigureProps, 'raise' | 'stride'>) {
   const geometry = useMemo(() => standerGeometry(index, shirt), [index, shirt]);
   const root = useRef<Group>(null);
-  useFrame(({ clock }) => {
-    const t = clock.elapsedTime + phase;
+  useFrame(() => {
+    const t = motion.t + phase;
     if (!root.current) return;
     root.current.rotation.z = Math.sin(t * 1.3) * 0.025;
     root.current.position.y = Math.abs(Math.sin(t * 0.65)) * 0.012;
@@ -478,8 +480,9 @@ function Walker({ index, shirt, phase, scale, wear, raise, stride = 1 }: FigureP
   const legR = useRef<Group>(null);
   const armL = useRef<Group>(null);
   const armR = useRef<Group>(null);
-  useFrame(({ clock }) => {
-    const t = clock.elapsedTime * 9 + phase;
+  useFrame(() => {
+    // The stride follows the motion clock, so legs swing in step with how fast the person moves (and stop on pause).
+    const t = motion.t * 9 + phase;
     const swing = Math.sin(t) * stride;
     if (root.current) root.current.position.y = Math.abs(swing) * 0.06;
     if (legL.current) legL.current.rotation.x = swing * 0.7;

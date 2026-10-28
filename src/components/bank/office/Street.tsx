@@ -3,9 +3,9 @@ import { memo, useEffect, useMemo, useRef } from 'react';
 import { CanvasTexture, Color, MeshBasicMaterial, RepeatWrapping, SRGBColorSpace, type MeshStandardMaterial } from 'three';
 import { bankStore } from '../../../store/bankStore';
 import { Sign, useMerged } from './Dressing';
-import { ATM_ALCOVE, KERB_Z, LAMP, ROAD_END, STREET, STREET_LAMPS } from './layout3d';
+import { ATM_ALCOVE, ATM_STATIONS, atmBooth, avenueMarkings, KERB_Z, LAMP, ROAD_END, STREET, STREET_LAMPS } from './layout3d';
 import { box, cyl, tint, type Part } from './kit';
-import { glow, satin, solid } from './materials';
+import { glow, pane, satin, solid } from './materials';
 import { atmosphereAt, wetOf } from './atmosphere';
 import { liveMix } from './weather';
 
@@ -117,10 +117,8 @@ function groundParts(): Part[] {
     box([0, -0.3, KERB_Z + STREET.kerbW + (ROAD_END - KERB_Z - STREET.kerbW) / 2], [w, 0.32, ROAD_END - KERB_Z - STREET.kerbW], '#3f4651'),
     box([0, -0.14, KERB_Z + STREET.kerbW + (ROAD_END - KERB_Z - STREET.kerbW) / 2], [w, 0.012, ROAD_END - KERB_Z - STREET.kerbW], '#4b5563'),
   ];
-  // dashed centre line between the two lanes, and a solid edge line along each side of the avenue
-  const lineZ = KERB_Z + STREET.kerbW + (ROAD_END - KERB_Z - STREET.kerbW) / 2;
-  for (let x = -HW + 0.9; x < HW - 0.9; x += 2.2) parts.push(box([x, -0.132, lineZ], [1.1, 0.006, 0.1], '#f3efe0'));
-  for (const z of [KERB_Z + STREET.kerbW + 0.18, ROAD_END - 0.18]) parts.push(box([0, -0.132, z], [w, 0.006, 0.07], '#f3efe0'));
+  // four lanes: motorbike lanes along the kerbs, car lanes inside, a double line down the middle (avenueMarkings)
+  for (const m of avenueMarkings(-HW, HW, -0.132)) parts.push(box(m.at, m.size, m.color));
   // a zebra crossing, where the customers come in from the left
   const cz = KERB_Z + STREET.kerbW + (ROAD_END - KERB_Z - STREET.kerbW) / 2;
   for (let i = 0; i < 7; i++) parts.push(box([-9.2 + i * 0.52, -0.131, cz], [0.28, 0.006, ROAD_END - KERB_Z - STREET.kerbW - 0.3], '#f3efe0'));
@@ -208,6 +206,34 @@ const Alcove = memo(function Alcove() {
   );
 });
 
+/** A glass booth round each sidewalk ATM: glass sides, a glass roof on a slim frame, open at the front behind the rope. */
+const AtmBooths = memo(function AtmBooths() {
+  const H = 2.15;
+  const frame = useMerged(
+    () =>
+      ATM_STATIONS.flatMap((id) => {
+        const b = atmBooth(id);
+        const posts = [b.x0, b.x1].flatMap((x) => [box([x, H / 2, b.front], [0.08, H, 0.08], '#475569'), box([x, H / 2, b.z0 + 0.12], [0.08, H, 0.08], '#475569')]);
+        return [...posts, box([(b.x0 + b.x1) / 2, H, b.front], [b.x1 - b.x0 + 0.1, 0.1, 0.1], '#1d4ed8'), ...[b.x0, b.x1].map((x) => box([x, H, (b.z0 + b.front) / 2], [0.1, 0.1, b.front - b.z0], '#475569'))];
+      }),
+    [],
+  );
+  const panes = useMerged(
+    () =>
+      ATM_STATIONS.flatMap((id) => {
+        const b = atmBooth(id);
+        return [...[b.x0, b.x1].map((x) => box([x, H / 2 + 0.05, (b.z0 + b.front) / 2], [0.03, H - 0.2, b.front - b.z0 - 0.1], '#bfdbfe')), box([(b.x0 + b.x1) / 2, H + 0.07, (b.z0 + b.front) / 2], [b.x1 - b.x0, 0.03, b.front - b.z0], '#dbeafe')];
+      }),
+    [],
+  );
+  return (
+    <group name="atm-booths">
+      <mesh geometry={frame} material={satin} castShadow />
+      <mesh geometry={panes} material={pane} />
+    </group>
+  );
+});
+
 export const Street = memo(function Street() {
   // The tiles lie on the pavement, from the building to the kerb: four to a texture.
   const tiles = usePavers((HW * 2) / 4, STREET.walk / 4);
@@ -233,6 +259,7 @@ export const Street = memo(function Street() {
         <meshStandardMaterial ref={paving} map={tiles} roughness={0.9} />
       </mesh>
       <Alcove />
+      <AtmBooths />
       <StreetLamps />
     </group>
   );

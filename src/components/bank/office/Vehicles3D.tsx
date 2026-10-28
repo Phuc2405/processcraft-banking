@@ -7,7 +7,9 @@ import { ball, box, shade, tint, type Part } from './kit';
 import { customerShirt } from './layout3d';
 import { glow, solid } from './materials';
 import { outfitOf, outfitShirt, useWeather, type Outfit } from './weather';
-import { ALIGHT, riderAt, TrafficSim, VEHICLES, type Vehicle, type VehicleState } from './vehicles';
+import { MeshBasicMaterial } from 'three';
+import { ALIGHT, LENGTH, riderAt, TrafficSim, WIDTH, VEHICLES, type Vehicle, type VehicleState } from './vehicles';
+import { motion, substeps } from './motion';
 
 /**
  * The traffic on the avenue (vehicles.ts says where everything is): motorbikes, many carrying two, cars, green taxis and
@@ -15,6 +17,8 @@ import { ALIGHT, riderAt, TrafficSim, VEHICLES, type Vehicle, type VehicleState 
  */
 
 const WHEEL = '#1f2937';
+/** The amber of an indicator lamp, lit. */
+const BLINKER = new MeshBasicMaterial({ color: '#fbbf24', toneMapped: false });
 const GLASS = '#1e293b';
 const SKIN = ['#f1c27d', '#e0ac82', '#c68642', '#f5d0b0'];
 
@@ -110,6 +114,10 @@ function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Ma
   const root = useRef<Group>(null);
   const person = useRef<Group>(null);
   const door = useRef<Group>(null);
+  const blinkL = useRef<Group>(null);
+  const blinkR = useRef<Group>(null);
+  const len = LENGTH[v.kind];
+  const wid = WIDTH[v.kind];
   const parts = useMemo(() => bodyParts(v), [v]);
   const body = useMerged(() => parts.body, [parts]);
   const lights = useMerged(() => parts.lights, [parts]);
@@ -129,8 +137,12 @@ function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Ma
       root.current.rotation.x = v.kind === 'motorbike' ? 0.08 * Math.sin(s.pull * Math.PI) : 0;
       root.current.position.y = -0.14 + (s.speed > 0 ? Math.abs(Math.sin(clock.t * 9 + index)) * 0.012 : 0);
     }
-    const on = v.pillion && !(v.stop?.kind === 'pillion' && s.sinceStop !== null && s.sinceStop >= ALIGHT.door);
-    if (on !== aboard) setAboard(on);
+    const seated = v.pillion && !(v.stop?.kind === 'pillion' && s.sinceStop !== null && s.sinceStop >= ALIGHT.door);
+    if (seated !== aboard) setAboard(seated);
+    // The indicator blinks on the side it is moving to (the kerb is always on a vehicle's own +z side).
+    const on = Math.floor(live.t * 3) % 2 === 0;
+    if (blinkL.current) blinkL.current.visible = s.signal === -1 && on;
+    if (blinkR.current) blinkR.current.visible = s.signal === 1 && on;
     // The kerbside door swings open while the taxi stands, and shuts before it pulls away.
     if (door.current) door.current.rotation.y = 1.1 * s.door;
     const r = riderAt(v, s);
@@ -150,6 +162,19 @@ function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Ma
       <group ref={root} name={`vehicle-${v.id}`}>
         <mesh geometry={body} material={solid} castShadow />
         <mesh geometry={lights} material={glow} />
+        {/* Indicators: amber lamps at the front and back corners, kerb side (+z) and road side (-z). */}
+        {([
+          [blinkL, 1],
+          [blinkR, -1],
+        ] as const).map(([ref, side]) => (
+          <group key={side} ref={ref} visible={false}>
+            {[-1, 1].map((end) => (
+              <mesh key={end} position={[end * (len / 2 + 0.01), v.kind === 'motorbike' ? 0.62 : 0.46, side * (wid / 2 - 0.06)]} material={BLINKER}>
+                <boxGeometry args={[0.04, 0.07, 0.12]} />
+              </mesh>
+            ))}
+          </group>
+        ))}
         {v.kind === 'taxi' && (
           // The rear kerbside door, hinged at its front edge. Taxis stop in the near lane, facing -x, so the kerb is on their +z side.
           <group ref={door} position={[0.25, 0.5, 0.48]}>
@@ -203,8 +228,8 @@ function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Ma
 export const Vehicles3D = memo(function Vehicles3D() {
   const sim = useMemo(() => new TrafficSim(), []);
   const live = useMemo(() => ({ states: sim.states(), t: 0 }), [sim]);
-  useFrame((_, dt) => {
-    sim.step(dt);
+  useFrame(() => {
+    for (const h of substeps(motion.dt)) sim.step(h);
     live.states = sim.states();
     live.t = sim.t;
   }, -1);

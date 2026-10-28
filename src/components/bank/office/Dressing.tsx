@@ -10,6 +10,9 @@ import { ball, blob, box, cyl, merge, ring, rope, shade, tint, xform, type Part,
 import {
   ENTRANCES,
   FLOOR_SLAB,
+  MAIN_GATE,
+  SIDE_DOOR_W,
+  SIDE_DOORS_RIGHT,
   KERB_H,
   LANES,
   PLANTS,
@@ -112,13 +115,44 @@ const DOOR = 1.5;
 const BACK_WINDOWS = WALL_WINDOWS.filter((w) => w.wall === 'back').map((w) => w.at);
 const RIGHT_WINDOWS = WALL_WINDOWS.filter((w) => w.wall === 'right').map((w) => w.at - WALL_T / 2);
 
+/**
+ * The right-hand wall, in pieces between its side doors onto the park: each piece keeps the windows that fall on it, and
+ * over each doorway the wall carries on above a lintel.
+ */
+function rightWall(windows: readonly number[]): { body: Part[]; lights: Part[] } {
+  const len = FLOOR_SLAB.d - WALL_T;
+  // Along the wall's own x, which is world z less half a wall's thickness.
+  const doors = SIDE_DOORS_RIGHT.map((z) => z - WALL_T / 2).sort((a, c) => a - c);
+  const pieces: Array<[number, number]> = [];
+  let from = -len / 2;
+  for (const d of doors) {
+    pieces.push([from, d - SIDE_DOOR_W / 2]);
+    from = d + SIDE_DOOR_W / 2;
+  }
+  pieces.push([from, len / 2]);
+  const body: Part[] = [];
+  const lights: Part[] = [];
+  const place = (parts: Part[], mid: number): Part[] => xform(parts, [HX - WALL_T / 2, 0, mid + WALL_T / 2], -Math.PI / 2);
+  for (const [a, c] of pieces) {
+    const mid = (a + c) / 2;
+    const w = wallParts(
+      c - a,
+      windows.filter((x) => x > a + 1.1 && x < c - 1.1).map((x) => x - mid),
+    );
+    body.push(...place(w.body, mid));
+    lights.push(...place(w.lights, mid));
+  }
+  // Above each doorway, the wall from the lintel up.
+  for (const d of doors) body.push(...place([box([0, (2.3 + WALL_H) / 2, 0], [SIDE_DOOR_W, WALL_H - 2.3, WALL_T], SET.wall)], d));
+  return { body, lights };
+}
+
 export const Walls = memo(function Walls() {
   const back = BACK_WINDOWS;
   const right = RIGHT_WINDOWS;
   const body = useMerged(() => {
     const b = wallParts(FLOOR_SLAB.w, back);
-    const r = wallParts(FLOOR_SLAB.d - WALL_T, right);
-    const parts = [...xform(b.body, [0, 0, -HZ + WALL_T / 2]), ...xform(r.body, [HX - WALL_T / 2, 0, WALL_T / 2], -Math.PI / 2)];
+    const parts = [...xform(b.body, [0, 0, -HZ + WALL_T / 2]), ...rightWall(right).body];
     // The kerb on the left, in pieces between the doors.
     const cuts = ENTRANCES.map((e) => e.at[1]).sort((a, c) => a - c);
     const pieces: Array<[number, number]> = [];
@@ -129,11 +163,30 @@ export const Walls = memo(function Walls() {
     }
     if (HZ > from) pieces.push([from, HZ]);
     for (const [a, c] of pieces) parts.push(box([-HX + WALL_T / 2, KERB_H / 2, (a + c) / 2], [WALL_T, KERB_H, c - a], SET.wainscot), box([-HX + WALL_T / 2, KERB_H + 0.02, (a + c) / 2], [WALL_T + 0.06, 0.04, c - a + 0.04], SET.wallCap));
-    // The front of the building, towards the street: a low plinth, open wherever a lane runs out to the pavement.
+    // The front of the building, towards the street: a low plinth, open wherever a lane runs out to the pavement, and at
+    // the main entrance.
+    const g0 = MAIN_GATE.x - MAIN_GATE.width / 2;
+    const g1 = MAIN_GATE.x + MAIN_GATE.width / 2;
     for (const r of frontPlinth().runs) {
-      const mid = (r.from + r.to) / 2;
-      const len = r.to - r.from;
-      parts.push(box([mid, KERB_H / 2, HZ - WALL_T / 2], [len, KERB_H, WALL_T], SET.wainscot), box([mid, KERB_H + 0.02, HZ - WALL_T / 2], [len + 0.04, 0.04, WALL_T + 0.06], SET.wallCap));
+      for (const [from, to] of [
+        [r.from, Math.min(r.to, g0)],
+        [Math.max(r.from, g1), r.to],
+      ] as const) {
+        if (to - from < 0.05) continue;
+        const mid = (from + to) / 2;
+        const len = to - from;
+        parts.push(box([mid, KERB_H / 2, HZ - WALL_T / 2], [len, KERB_H, WALL_T], SET.wainscot), box([mid, KERB_H + 0.02, HZ - WALL_T / 2], [len + 0.04, 0.04, WALL_T + 0.06], SET.wallCap));
+      }
+    }
+    // The main entrance: two stone pillars, a beam with a lit edge, and a wide mat.
+    const gz = HZ - WALL_T / 2;
+    for (const e of [-1, 1]) parts.push(box([MAIN_GATE.x + e * (MAIN_GATE.width / 2 + 0.15), 1.4, gz], [0.36, 2.8, 0.42], '#e7e2d6'), box([MAIN_GATE.x + e * (MAIN_GATE.width / 2 + 0.15), 0.08, gz], [0.46, 0.16, 0.52], '#a8a29e'));
+    parts.push(box([MAIN_GATE.x, 2.9, gz], [MAIN_GATE.width + 0.9, 0.3, 0.5], '#1e3a8a'), box([MAIN_GATE.x, 0.012, gz - 0.9], [MAIN_GATE.width - 0.2, 0.024, 1.6], '#7a5b45'));
+    // The side doors onto the park: a frame and a mat for each.
+    for (const z of SIDE_DOORS_RIGHT) {
+      const x = HX - WALL_T / 2;
+      for (const e of [-1, 1]) parts.push(box([x, 1.1, z + e * (SIDE_DOOR_W / 2 + 0.04)], [0.26, 2.2, 0.12], '#16a34a'));
+      parts.push(box([x, 2.24, z], [0.28, 0.12, SIDE_DOOR_W + 0.3], '#16a34a'), box([x - 0.7, 0.012, z], [1.2, 0.024, SIDE_DOOR_W - 0.3], '#7a5b45'));
     }
     // The doorways: a frame, a lintel, and a mat.
     for (const e of ENTRANCES) {
@@ -146,13 +199,13 @@ export const Walls = memo(function Walls() {
   }, [back, right]);
   const lights = useMerged(() => {
     const b = wallParts(FLOOR_SLAB.w, back);
-    const r = wallParts(FLOOR_SLAB.d - WALL_T, right);
-    return [...xform(b.lights, [0, 0, -HZ + WALL_T / 2]), ...xform(r.lights, [HX - WALL_T / 2, 0, WALL_T / 2], -Math.PI / 2)];
+    return [...xform(b.lights, [0, 0, -HZ + WALL_T / 2]), ...rightWall(right).lights];
   }, [back, right]);
   return (
     <group name="office-walls">
       <mesh geometry={body} material={solid} castShadow receiveShadow />
       <mesh geometry={lights} material={glow} />
+      <Sign text="MAIN ENTRANCE" fg="#ffffff" bg="#1e3a8a" position={[MAIN_GATE.x, 2.9, HZ - WALL_T / 2 + 0.27]} width={2.4} />
     </group>
   );
 });

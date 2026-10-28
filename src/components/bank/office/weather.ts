@@ -1,7 +1,7 @@
 import { useStore } from 'zustand';
 import { createStore } from 'zustand/vanilla';
 import { CLEAR, rainOf, WEATHER_MIX, type Weather, type WeatherMix } from './atmosphere';
-import { KERB_Z, STREET } from './layout3d';
+import { ATM_STATIONS, atmBooth, KERB_Z, STREET } from './layout3d';
 
 /**
  * The weather over the 3D office, the shelters on the pavement, and how the people there behave. The weather is a learner's
@@ -100,15 +100,15 @@ export const underRoof = (r: Roof, x: number, z: number, margin = 0.15): boolean
 // Pedestrians
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Where people walk: a lane near the kerb (through the bus stop) and one nearer the building, clear of the ATMs. */
+/** Where people walk: two lanes along the kerb side of the pavement (through the bus stop), clear of the ATM booths. */
 export const PAVEMENT = {
   /** The x range they walk, past the ends of the drawn street so they come and go out of the haze. */
   x0: -STREET.halfWidth - 6,
   x1: STREET.halfWidth + 6,
-  lanes: [KERB_Z - 0.55, KERB_Z - 1.75] as const,
+  lanes: [KERB_Z - 0.45, KERB_Z - 0.85] as const,
 } as const;
 
-export const WALK = { relaxed: [0.45, 0.75] as const, umbrella: 0.95, sprint: 2.6 } as const;
+export const WALK = { relaxed: [0.6, 0.95] as const, umbrella: 1.15, sprint: 3.0 } as const;
 
 /** How long an umbrella takes to open, and the gap between one person opening theirs and the next. */
 export const UMBRELLA = { open: 0.5, stagger: 0.35, first: 0.3 } as const;
@@ -174,8 +174,18 @@ const slot = (r: Roof, k: number, n: number, z: number): [number, number] => {
   return [n <= 1 ? (x0 + x1) / 2 : x0 + ((x1 - x0) * k) / (n - 1), z];
 };
 
-/** A person's spot under the entrance overhang, spread along it. */
-export const overhangSpot = (p: Pedestrian): [number, number] => slot(OVERHANG, PEDESTRIANS.indexOf(p), PEDESTRIANS.length, (OVERHANG.z0 + OVERHANG.z1) / 2);
+/** The stretches of the overhang taken by the ATM booths, where nobody shelters (they would stand in a queue). */
+const BOOTHS = ATM_STATIONS.map((id) => atmBooth(id));
+const inBooth = (x: number): boolean => BOOTHS.some((b) => x > b.x0 - 0.3 && x < b.x1 + 0.3);
+
+/** A person's spot under the entrance overhang, spread along it, clear of the ATM booths. */
+export const overhangSpot = (p: Pedestrian): [number, number] => {
+  const z = (OVERHANG.z0 + OVERHANG.z1) / 2;
+  const spots: number[] = [];
+  for (let x = OVERHANG.x0 + 0.35; x <= OVERHANG.x1 - 0.35; x += 0.05) if (!inBooth(x) && spots.every((s) => x - s >= 1.2)) spots.push(x);
+  const k = Math.floor((PEDESTRIANS.indexOf(p) * spots.length) / PEDESTRIANS.length);
+  return [spots[k]!, z];
+};
 
 /** A person's spot in the bus stop, in two rows. */
 export const busSpot = (p: Pedestrian): [number, number] => {
