@@ -3,21 +3,7 @@ import type { TokenLook } from '../../../store/liveSimulation';
 import { prefersReducedMotion } from '../timing';
 import { TokenShape } from '../tokens/TokenGlyph';
 
-/**
- * One token riding a wire across the Living Bank's map, as a compositor animation.
- *
- * `EdgeTraveller` (used inside a React Flow canvas) moves its token by rewriting an SVG `transform` attribute 60 times a second
- * from JavaScript. On the busy bank map that is a dozen tokens at once, each forcing the whole wire layer to be laid out and
- * painted every frame, and it is what made the map stutter whenever anything else changed. This version does the same journey
- * without any per-frame work on the page:
- *
- *   - the wire is sampled once (and remembered) into a short list of points;
- *   - the token is a small HTML layer (`will-change: transform`), so it is painted once and only ever moved by the GPU;
- *   - the motion is a Web Animations keyframe list: wait `delayMs` hidden, glide along the points with the same ease, vanish.
- *
- * What the learner sees is the same: the token waits while the desk works, rides the wire at the playback speed, and is gone
- * when it reaches the next desk. With "reduce motion" on, the token simply appears at the far end.
- */
+/** One token riding a wire across the Living Bank's map, as a compositor animation. */
 
 /** Samples along a wire. More points make a curve smoother; 40 is smooth at the sizes the map uses. */
 const SAMPLES = 40;
@@ -81,10 +67,7 @@ export function journeyFrames(points: readonly Pt[], delayMs: number, durationMs
   return frames;
 }
 
-/**
- * `label` is what the money is for ("☕ Corner Cafe Tap ($4.50)"). It rides beside the token as a small badge and moves with it,
- * so it costs no extra animation. Leave it out for a token that has no story to tell.
- */
+/** `label` is what the money is for ("☕ Corner Cafe Tap ($4.50)"). */
 export function PathTraveller({ path, look, delayMs, durationMs, label }: { path: string; look: TokenLook; delayMs: number; durationMs: number; label?: string }) {
   const ref = useRef<HTMLDivElement>(null);
 

@@ -1,7 +1,4 @@
-/**
- * The Banking Operations & Architecture Academy: the six-stage curriculum, the three new levels' worth of engine
- * behaviour seen through whole diagrams, and the promise that every finished transaction posts balanced ledger lines.
- */
+/** The Banking Operations & Architecture Academy: the six-stage curriculum, the three new levels' worth of engine behaviour seen through whole diagrams, and the promise that every finished transaction posts balanced ledger lines. */
 
 import { describe, expect, it } from 'vitest';
 import { CURRICULUM, CURRICULUM_ORDER, LEVELS, curriculumPosition } from '../../data/seedChallenges';
@@ -14,9 +11,7 @@ import { DEF, edgeOf, level, makeEdge, makeNode, nodeOf, referenceGraph, removeE
 const failedIds = (r: EvaluationResult): string[] => r.testResults.filter((t) => !t.passed).map((t) => t.testCaseId);
 const feedback = (r: EvaluationResult): string => r.feedbackLogs.map((l) => l.message).join('\n');
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The curriculum
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('curriculum', () => {
   it('has the six stages of the Academy, in order', () => {
@@ -89,9 +84,7 @@ describe('the Academy levels', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The ledger: every finished transaction balances
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Every test of a level run against its reference, with the hidden traces revealed so their lines can be checked too. */
 function postingsOf(levelNumber: number): Array<{ testId: string; entries: GLEntry[] }> {
@@ -210,9 +203,7 @@ describe('the general ledger over the reference solutions', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Flawed diagrams
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('flawed diagrams: Level 5', () => {
   it('approving everything: every decline test fails', () => {

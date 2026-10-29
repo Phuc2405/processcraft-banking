@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { EDGE_PAD, needsRightPad, PLACE_BOX, type PlaceBox } from '../components/bank/layout';
+import { EDGE_PAD, needsRightPad, PLACE_BOX, type PlaceBox } from '../engine/plan/layout';
 import { useSpotlightFocus, type Focus } from '../components/bank/useSpotlight';
 import { prefersReducedMotion } from '../components/canvas/timing';
 import { flowScope } from '../sim/guidedFlows';

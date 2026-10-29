@@ -10,10 +10,7 @@ import { lookOfKind } from './ui';
 import { useSpotlightFocus, useTourPlayback, type Focus } from './useSpotlight';
 import { useBankStore } from '../../store/bankStore';
 
-/**
- * The map side of Learn & Explore: the one token that walks the process, and the explanation card that waits for it at
- * each desk. (Dimming and the glowing path are drawn by the map itself; the words are in education/GuidedWalkthrough.)
- */
+/** The map side of Learn & Explore: the one token that walks the process, and the explanation card that waits for it at each desk. */
 
 const easeInOut = (t: number): number => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
@@ -76,9 +73,7 @@ export function SpotlightToken({ focus }: { focus: Focus }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Where the explanation goes
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface Rect {
   left: number;
@@ -102,10 +97,7 @@ export interface PlaceOptions {
 
 export type CalloutSide = 'right' | 'left' | 'below' | 'above' | 'far';
 
-/**
- * Puts the card where it hides the least of the story: never on the desk the token is at, preferably not on the desk it
- * goes to next, and as little as possible on the other lit desks, while staying close to the token. Pure, so it can be tested.
- */
+/** Puts the card where it hides the least of the story. */
 export function placeCallout(desk: Rect, card: { w: number; h: number }, bounds: { w: number; h: number }, opts: PlaceOptions = {}): { left: number; top: number; side: CalloutSide } {
   const gap = opts.gap ?? 16;
   const margin = 8;

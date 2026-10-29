@@ -16,12 +16,7 @@ const GROUPS: Array<{ title: string; match: (type: NodeType) => boolean }> = [
   { title: 'Banking desks', match: (t) => t === 'TASK' },
 ];
 
-/**
- * The building blocks the active level allows, taken from NODE_CATALOG and filtered by the level's
- * allowedNodePalette. Drag a card onto the canvas, or press + to drop it in the middle of the view
- * (which also works with a keyboard or touch screen, where HTML drag-and-drop does not).
- * Cards grey out when their per-type cap or the level's node budget is used up.
- */
+/** The building blocks the active level allows, taken from NODE_CATALOG and filtered by the level's allowedNodePalette. */
 export function NodePalette() {
   const level = useWorkflowStore((s) => s.level);
   const catalog = useWorkflowStore((s) => s.catalog);

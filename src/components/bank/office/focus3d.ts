@@ -1,17 +1,12 @@
 import { flowPlaces, flowScope } from '../../../sim/guidedFlows';
 import type { PlaceId } from '../../../sim/topology';
 import type { FlowId } from '../../../types/viewport';
-import { DAY_START, EOD_START } from '../../../sim/clock';
-import { COUNTER, FRONT_AISLE_Z, KERB_Z, LANES, MAIN_GATE, STREET, type Pose, type V2 } from './layout3d';
+import { LANES, type V2 } from '../../../engine/plan/layout3d';
 import { pathLength, pointAlongPath } from './tour3d';
 
-/**
- * What the 3D office brings forward and what it lets fade, and the staff walking home. Pure, so the tests can check them.
- */
+/** What the 3D office brings forward and what it lets fade, and the staff walking home. */
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Focus: a pointed-at desk, or a guided scenario
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** How strongly the rest of the office fades: to 20% round a pointed-at desk, to 10% outside a sub-process (guided scenario). */
 export const DIM = { hover: 0.2, flow: 0.1 } as const;
@@ -48,11 +43,7 @@ export function litLanes(hover: PlaceId | null, flow: FlowId | null): { lanes: R
 
 export type BadgeFocus = 'lit' | 'dim' | 'plain' | 'faded';
 
-/**
- * How a lane's condition badge shows. A pointed-at desk: its own lanes' badges bright yellow ('lit'), every other badge
- * faded to LANE_DIM ('dim'). A sub-process: its own wires' badges as usual and in full ('plain'), every other badge almost
- * gone ('faded', FLOW_BADGE_DIM). Otherwise as usual ('plain'). A pointed-at desk wins over the sub-process.
- */
+/** How a lane's condition badge shows. */
 export function badgeFocus(l: { id?: string; from: PlaceId; to: PlaceId }, hover: PlaceId | null, flow: FlowId | null = null): BadgeFocus {
   if (hover !== null) return l.from === hover || l.to === hover ? 'lit' : 'dim';
   if (flow !== null) return l.id !== undefined && flowScope(flow).wires.has(l.id) ? 'plain' : 'faded';
@@ -62,10 +53,7 @@ export function badgeFocus(l: { id?: string; from: PlaceId; to: PlaceId }, hover
 /** A badge's opacity for its focus. */
 export const badgeOpacity = (f: BadgeFocus): number => (f === 'dim' ? LANE_DIM : f === 'faded' ? FLOW_BADGE_DIM : 1);
 
-/**
- * A lane cut into dashes, `dash` = [on, off] in world units (none: the whole lane), each dash its own run of points, so a
- * ribbon drawn over them reads dashed or dotted like the 2D wire.
- */
+/** A lane cut into dashes, `dash` = [on, off] in world units (none. */
 export function dashLane(points: readonly V2[], dash?: readonly [number, number]): V2[][] {
   if (!dash) return [points.slice()];
   const len = pathLength(points);
@@ -88,90 +76,11 @@ export const PULSE = { perLane: 2, speed: 3.2 } as const;
 /** Where pulse `k` of a lane of length `len` is at time `t`: evenly spaced, looping from the start. */
 export const pulseDistance = (len: number, k: number, t: number): number => (len <= 0 ? 0 : (((t * PULSE.speed + (k * len) / PULSE.perLane) % len) + len) % len);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Staff going home
-// ─────────────────────────────────────────────────────────────────────────────
+// Staff coming and going: the engine's (engine/staff.ts), re-exported for the views that draw them
 
-/** The simulation's own words for a member of staff who has gone home (bankSimulation.ts workerView). */
-export const isOffShift = (activity: string): boolean => /^(Off shift|Desk closed)/.test(activity);
+export { ARRIVE_SPEED, arriveRoute, arrivalMinute, arrivalState, isOffShift, LEAVE_SPEED, leaveAt, leaveRoute, STAFF_ARRIVAL } from '../../../engine/simulation/staff';
 
-/** How fast staff walk out, in world units a second; and how briskly they come in before a shift, to be at their desks
- * well before it starts. */
-export const LEAVE_SPEED = 1.4;
-export const ARRIVE_SPEED = 3.5;
-
-/** The pavement's inner walking lane (clear of the ATM booths and the guard's cabin), where staff come and go. */
-const STAFF_LANE_Z = KERB_Z - 0.85;
-
-/**
- * The way out for someone seated at `seat` (relative to the desk at `pose`): up from the chair, along the back of the counter
- * to its end, down the aisle beside the desk to the clear aisle along the front of the hall, along it to the main entrance,
- * out onto the pavement and off down the street (`k` odd to the left, even to the right). Every leg runs straight along x
- * or z: never through a desk, the front wall or an ATM booth.
- */
-export function leaveRoute(pose: Pose, seat: V2, k = 0): V2[] {
-  const sx = pose.x + seat[0];
-  const sz = pose.z + seat[1];
-  const aisle = pose.x + COUNTER.w / 2 + 0.55;
-  const end = (k % 2 ? -1 : 1) * (STREET.halfWidth + 1.5);
-  return [
-    [sx, sz],
-    [aisle, sz],
-    [aisle, FRONT_AISLE_Z],
-    [MAIN_GATE.x, FRONT_AISLE_Z],
-    [MAIN_GATE.x, STAFF_LANE_Z],
-    [end, STAFF_LANE_Z],
-  ];
-}
-
-/**
- * Staff coming in before their shift: the day's staff set off between 07:00 and 07:20 for their 08:00 shift, the night's
- * between 22:00 and 22:20 for the night's work at 23:00. The hour before each shift ticks in short beats (sim/clock.ts
- * PRE_SHIFT) and they walk in briskly (ARRIVE_SPEED), so everyone is seated well before it starts.
- */
-export const STAFF_ARRIVAL = { day: [DAY_START, DAY_START + 20], night: [EOD_START - 60, EOD_START - 40] } as const;
-
-/** The minute the `k`th member of staff at a desk sets off for work: spread through their shift's arrival window, steady per person. */
-export function arrivalMinute(night: boolean, seed: string, k: number): number {
-  const [from, by] = night ? STAFF_ARRIVAL.night : STAFF_ARRIVAL.day;
-  let h = k * 7;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 9973;
-  return from + ((h % 97) / 97) * (by - from - 4);
-}
-
-/**
- * At `minute`, who of a desk's staff (`ids`, in seat order) is not in yet (`away`: their shift's arrival window has begun
- * and their time to set off has not come), and, at a night desk, who has come in and sits ready before the night's work
- * starts (`early`: the simulation still has them off shift until 23:00).
- */
-export function arrivalState(night: boolean, ids: readonly string[], minute: number): { away: string[]; early: string[] } {
-  const [from] = night ? STAFF_ARRIVAL.night : STAFF_ARRIVAL.day;
-  const away: string[] = [];
-  const early: string[] = [];
-  ids.forEach((id, k) => {
-    const due = arrivalMinute(night, id, k);
-    if (minute >= from && minute < due) away.push(id);
-    else if (night && minute >= due && minute < EOD_START) early.push(id);
-  });
-  return { away, early };
-}
-
-/** The way in to `seat`: the way out walked backwards, from down the street, in at the main entrance, to the chair. */
-export const arriveRoute = (pose: Pose, seat: V2, k = 0): V2[] => leaveRoute(pose, seat, k).reverse();
-
-/** Where someone on `route` is after walking for `t` seconds at `speed`, which way they face, and whether they are there. */
-export function leaveAt(route: readonly V2[], t: number, speed: number = LEAVE_SPEED): { at: V2; heading: number; done: boolean } {
-  const len = pathLength(route);
-  const d = Math.min(len, Math.max(0, t) * speed);
-  const at = pointAlongPath(route, d);
-  const ahead = pointAlongPath(route, Math.min(len, d + 0.05));
-  const heading = ahead[0] === at[0] && ahead[1] === at[1] ? 0 : Math.atan2(ahead[0] - at[0], ahead[1] - at[1]);
-  return { at, heading, done: d >= len };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Where a desk's description opens, clear of its own badges
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type TipSide3d = 'above' | 'below' | 'right' | 'left';
 export const TIP_SIDES_3D: readonly TipSide3d[] = ['above', 'below', 'right', 'left'];
@@ -203,11 +112,7 @@ export function tipRect3d(side: TipSide3d, at: { x: number; y: number }, tip: { 
 
 const overlaps = (a: ScreenRect, b: ScreenRect): boolean => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
 
-/**
- * The side a pointed-at desk's description opens on in 3D: the first of above, below, right and left that stays on the
- * screen and covers none of the desk's own condition badges (they light up yellow on hover, so the card must leave them
- * readable); failing that, the first that covers none of them; failing that, the first on the screen.
- */
+/** The side a pointed-at desk's description opens on in 3D. */
 export function tipSide3d(anchors: Readonly<Record<TipSide3d, { x: number; y: number }>>, tip: { w: number; h: number }, badges: readonly ScreenRect[], view: { w: number; h: number }): TipSide3d {
   const rect = (s: TipSide3d) => tipRect3d(s, anchors[s], tip);
   const onScreen = (s: TipSide3d) => {

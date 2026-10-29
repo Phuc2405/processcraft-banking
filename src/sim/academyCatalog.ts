@@ -1,18 +1,9 @@
-/**
- * The Academy split view's catalog: six chapters, each a short run of levels. A level is one step of a payment story, and it
- * points at the node of the Living Bank where that step happens, so choosing it can light and focus that node.
- *
- * A level with a `flow` borrows the Phase 1 guided flow (GUIDED_FLOWS) of that number: the flow is lit, the rest of the bank
- * fades, and `node` names the step inside it. A level with `flow: null` happens at a desk no guided flow covers (the BNPL desk,
- * the A2A gate), so it is shown in the Advanced scope with just its own desk highlighted.
- *
- * Pure data and pure functions, shared by the store, the panel and the tests.
- */
+/** The Academy split view's catalog: six chapters, each a short run of levels. */
 
 import type { FlowId } from '../types/viewport';
 import { flowPlaces, GUIDED_FLOWS, type FlowNodeId, type FlowStep } from './guidedFlows';
 import { lessonContentFor, type LessonContent } from './academyLessons';
-import { activeLocale, type Locale } from '../i18n/locale';
+import { activeLocale, type Locale } from '../i18n/localeCore';
 import { CHAPTER_TEXT_VI, LESSON_CONTENT_VI, LEVEL_TEXT_VI, TRACK_TEXT_VI } from '../i18n/academyVi';
 import type { PlaceId } from './topology';
 
@@ -99,9 +90,7 @@ export const ACADEMY_CHAPTERS: readonly AcademyChapter[] = [
   ]),
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Knowledge tracks
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const TRACK_IDS = [1, 2, 3] as const;
 export type TrackId = (typeof TRACK_IDS)[number];
@@ -173,9 +162,7 @@ export function levelMatchesFlow(level: AcademyLevel): boolean {
   return step !== null && step.places.includes(level.place) && flowPlaces(level.flow).has(level.place);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Progress
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type ChapterStatus = 'not-started' | 'in-progress' | 'completed';
 
@@ -201,9 +188,7 @@ const CHAPTER_STATUS_BADGE_VI: Record<ChapterStatus, string> = {
 /** The status badge in the active language. */
 export const chapterStatusBadge = (status: ChapterStatus, locale: Locale = activeLocale()): string => (locale === 'vi' ? CHAPTER_STATUS_BADGE_VI : CHAPTER_STATUS_BADGE)[status];
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Language
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A level with its title, goal and four-section lesson in the active language. Ids, flow, node and place never change. */
 export function localLevel(level: AcademyLevel, locale: Locale = activeLocale()): AcademyLevel {

@@ -1,21 +1,4 @@
-/**
- * Chaos Monkey: fault injection for the Living Bank, and the two scripted operations days.
- *
- *   Toggles (any day, switched from the Chaos panel)
- *     POS station outage      every card-present tap is refused: the terminal cannot reach the switch (RC 91).
- *     3DS HSM failure         the hardware security module that signs 3DS and dCVV cryptograms is down: every card-not-present
- *                             payment (online, virtual card, Pay-in-4) fails with a system malfunction (RC 96).
- *     Network congestion      every payment picks up +4.5 s of latency, and 35% of them hit a 504 gateway timeout. The bank
- *                             then sends an automatic status inquiry: 80% come back with the real answer, the rest time out (RC 68).
- *     Staff fatigue spike     every person on shift is pushed to at least 90% fatigue: slower, and more mistakes.
- *
- *   Scripted days (when `scriptedDays` is on)
- *     Day 2  FLASH_SURGE      a flash sale: three times the customers, with network congestion on top.
- *     Day 3  BOTNET           a botnet tests stolen cards with $1 online payments, four every beat. Each one the fraud desk
- *                             reviews adds alert fatigue; above 70% fatigue a tired analyst sometimes waves a bot through.
- *
- * Pure data and pure functions. BankSimulation applies them; nothing here touches the simulation's state.
- */
+/** Chaos Monkey: fault injection for the Living Bank, and the two scripted operations days. */
 
 import type { CheckoutKind } from '../sim/types';
 
@@ -86,9 +69,7 @@ export const emptyChaosStats = (): ChaosStats => ({
   addedLatencyMs: 0,
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Tuning
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const SURGE_MULTIPLIER = 3;
 export const BOTS_PER_BEAT = 4;
@@ -109,9 +90,7 @@ export const HSM_CHANNELS: ReadonlySet<CheckoutKind> = new Set<CheckoutKind>(['E
 /** The ISO 8583 response code each fault answers with. */
 export const CHAOS_RESPONSE_CODE = { posOutage: '91', hsmFailure: '96', timeout: '68' } as const;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Rules
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const scenarioForDay = (day: number, scriptedDays: boolean): ChaosScenario => (!scriptedDays ? 'NONE' : day === 2 ? 'FLASH_SURGE' : day === 3 ? 'BOTNET' : 'NONE');
 
@@ -124,10 +103,7 @@ export const chaosActive = (config: ChaosConfig, scenario: ChaosScenario): boole
 
 export type CongestionOutcome = 'CLEAR' | 'RECOVERED' | 'TIMED_OUT';
 
-/**
- * One payment through a congested network, from two independent draws in [0, 1): did it hit a 504, and if so did the status
- * inquiry bring the answer back?
- */
+/** One payment through a congested network, from two independent draws in [0, 1): did it hit a 504, and if so did the status inquiry bring the answer back? */
 export function congestionOutcome(timeoutDraw: number, inquiryDraw: number): CongestionOutcome {
   if (timeoutDraw >= CONGESTION_TIMEOUT_RATE) return 'CLEAR';
   return inquiryDraw < INQUIRY_RECOVERY_RATE ? 'RECOVERED' : 'TIMED_OUT';

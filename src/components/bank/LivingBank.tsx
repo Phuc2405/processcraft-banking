@@ -19,17 +19,13 @@ import { LedgerDrawer } from './LedgerDrawer';
 import { LearningHub } from './LearningHub';
 import { PresetDock } from './PresetDock';
 import { useBankClock } from './useBankClock';
-import { ViewportControls } from './ViewportControls';
+import { useTopBand, ViewportControls } from './ViewportControls';
 import { ZoomToolbar } from '../shell/ZoomToolbar';
 
 /** The 3D office is loaded only when someone asks for it: three.js is the heaviest thing in the app. */
 const Office3D = lazy(() => import('./office/Office3D'));
 
-/**
- * Catches the 3D office failing to LOAD (as opposed to failing to draw, which Office3D handles itself). The usual cause is a
- * project folder whose node_modules predates the 3D packages: new source was copied over an old install and `npm install`
- * was not run again. The learner gets the fix in words and a way back to the 2D map, instead of a blank screen.
- */
+/** Catches the 3D office failing to LOAD (as opposed to failing to draw, which Office3D handles itself). */
 class OfficeLoadBoundary extends Component<{ onBack: () => void; children: ReactNode }, { error: string | null }> {
   override state = { error: null as string | null };
 
@@ -77,19 +73,17 @@ const NOTICE_STYLE = {
   error: 'border-rose-400/40 bg-rose-950/90 text-rose-100',
 } as const;
 
-/**
- * Every floating message over the map (the bank's notices, the decline and incident toasts) in one column in the top-left
- * corner, away from the legend (top-right), the viewport dock (top-centre) and the preset dock (bottom). In 3D the office's
- * toolbar holds the very corner in one row, so the column starts just below it, under the weather menu's layer.
- */
+/** Every floating message over the map (the bank's notices, the decline and incident toasts) in one column in the top-left corner, away from the legend (top-right), the viewport dock (top-centre) and the preset dock (bottom). */
 export const NOTICE_CORNER = { '2d': 'top-4', '3d': 'top-16', '3dSplit': 'top-16' } as const;
 
 function NoticeColumn() {
   const viewMode = useBankStore((s) => s.viewMode);
   const splitOpen = useAcademyStore((s) => s.isSplitScreenOpen);
   const corner = viewMode === '3d' ? NOTICE_CORNER[splitOpen ? '3dSplit' : '3d'] : NOTICE_CORNER['2d'];
+  // In 3D, under the toolbar wherever it is (it drops below the dock when the dock leaves it no room in the corner).
+  const underToolbar = useTopBand((s) => (viewMode === '3d' && s.toolbar ? s.toolbar.bottom + 8 : 0));
   return (
-    <div className={`pointer-events-none absolute left-4 ${corner} ${viewMode === '3d' ? 'z-30' : 'z-50'} flex max-w-[min(440px,calc(100%-32px))] flex-col items-start gap-2`} data-testid="notice-column">
+    <div className={`pointer-events-none absolute left-4 ${corner} ${viewMode === '3d' ? 'z-30' : 'z-50'} flex max-w-[min(440px,calc(100%-32px))] flex-col items-start gap-2`} style={underToolbar > 64 ? { top: underToolbar } : undefined} data-testid="notice-column">
       <Notice />
       <HudToasts />
     </div>
@@ -127,8 +121,7 @@ export function LivingBank() {
     foldedForSplit.current = false;
     setCollapsed(next);
   };
-  // The Academy split view needs the width: the overview sidebar folds to its slim rail while the lesson panel is open, and
-  // comes back when it closes (unless the learner folded or opened it themselves in between).
+  // The Academy split view needs the width: the overview sidebar folds to its slim rail while the lesson panel is open, and comes back when it closes (unless the learner folded or opened it themselves in between).
   const splitOpen = useAcademyStore((s) => s.isSplitScreenOpen);
   const foldedForSplit = useRef(false);
   useEffect(() => {

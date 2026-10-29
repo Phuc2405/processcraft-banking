@@ -1,5 +1,5 @@
-import type { StationId } from '../../../sim/topology';
-import type { V2 } from './layout3d';
+import type { StationId } from '../../sim/topology';
+import type { V2 } from '../plan/layout3d';
 
 /** How long an arrival waits to be taken over by its desk (motion-clock seconds). */
 const HANDOFF_S = 3;
@@ -11,12 +11,7 @@ export interface Landed {
   who: number;
 }
 
-/**
- * A customer walking up to a desk's line (Traffic: Arrivals) and the line drawn at the desk (Desk3D: DeskQueue) are the
- * same person, never two. While someone is still on their way, the desk leaves their place at the end of its line empty;
- * when they reach it, the desk takes them over on the very spot where they stopped, and from there they step on up to their
- * place as the line moves. Nobody shows twice, and nobody vanishes as they arrive.
- */
+/** A customer walking up to a desk's line (Traffic: Arrivals) and the line drawn at the desk (Desk3D: DeskQueue) are the same person, never two. */
 export class QueueHandoff {
   private walking = new Map<StationId, number>();
   private landed = new Map<StationId, Landed[]>();
@@ -44,8 +39,7 @@ export class QueueHandoff {
     return this.walking.get(id) ?? 0;
   }
 
-  /** Where the next to have just arrived stopped, for the desk to take them over there (or undefined: nobody to take over).
-   * An arrival the desk never took up (its line was closed meanwhile) is forgotten after a few seconds. */
+  /** Where the next to have just arrived stopped, for the desk to take them over there (or undefined: nobody to take over). */
   take(id: StationId, now: number): Landed | undefined {
     const list = this.landed.get(id);
     while (list && list.length > 0) {

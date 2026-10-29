@@ -2,17 +2,7 @@ import { t } from '../../../i18n/t';
 import type { CardType } from '../../../types/processLearning';
 import type { TokenLook } from '../../../store/liveSimulation';
 
-/**
- * The pictures a transaction wears as it moves through the diagram. Each is drawn in a box about
- * 34 wide by 24 high, centred on the origin, so the same shape works inside an SVG wire and inside
- * an HTML desk.
- *
- *   CARD         a glowing chip card, tinted by the kind of card
- *   BNPL         a badge split into four, with the first quarter lit: the down payment
- *   SETTLEMENT   a document folder with a sheet sticking out
- *   TRANSFER     a rounded teal badge with a lightning bolt: an instant account-to-account transfer
- *   CASH         a green banknote: cash from the sidewalk ATM
- */
+/** The pictures a transaction wears as it moves through the diagram. */
 
 const CARD_COLOR: Record<CardType, { body: string; edge: string; glow: string }> = {
   DEBIT: { body: '#0284c7', edge: '#7dd3fc', glow: 'rgba(56,189,248,0.85)' },

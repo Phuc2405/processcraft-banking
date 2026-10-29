@@ -1,13 +1,6 @@
-/**
- * Vietnamese for the sentences the process engine and the walkthrough builder write about one payment: what a desk found
- * ("dCVV matches and is 12.0 s old, window 60 s: valid."), why a gateway took a wire, how a tour ends.
- *
- * The engine and the tests keep the English. `noteText` recognises each sentence (exactly, or by its template) and rebuilds
- * it in Vietnamese around the same values. A note made of several sentences is translated sentence by sentence. Anything
- * unrecognised is kept as written.
- */
+/** Vietnamese for the sentences the process engine and the walkthrough builder write about one payment. */
 
-import { activeLocale } from './locale';
+import { activeLocale } from './localeCore';
 
 type Rule = readonly [RegExp, (m: RegExpExecArray) => string];
 

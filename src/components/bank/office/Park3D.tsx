@@ -1,4 +1,5 @@
 import { useFrame } from '@react-three/fiber';
+import { useWorld } from './WorldProvider';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { AdditiveBlending, Color, ConeGeometry, CylinderGeometry, DoubleSide, InstancedMesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, type Group, type Mesh } from 'three';
 import { bankStore } from '../../../store/bankStore';
@@ -6,28 +7,20 @@ import { CustomerFigure, SittingFigure, type Wear } from './Avatars';
 import { Bubble } from './Bubble3D';
 import { Sign, useMerged } from './Dressing';
 import { ball, box, cyl, type Part } from './kit';
-import { customerShirt, SIDE_DOORS_RIGHT } from './layout3d';
+import { customerShirt, SIDE_DOORS_RIGHT } from '../../../engine/plan/layout3d';
 import { glow, solid } from './materials';
-import { motion, substeps } from './motion';
-import { TREE_STRIP } from './parking';
-import { ParkCrowd, SWING_XS, talkers, wantsPark, type ParkPose, type ParkSky, type ParkState, type Talker } from './parkLife';
-import { FLOWERBEDS, FOUNTAIN, HEDGES, LOOP, PARK, PARK_BENCHES, PARK_CX as cx, PARK_CZ as cz, PARK_LAMP_HEIGHT, PARK_LAMPS, PICNIC, PLAYGROUND } from './parkPlan';
-import { isRaining, liveMix, outfitOf, outfitShirt, underCover, useWeather, weatherStore, type Outfit, type Roof } from './weather';
-import { atmosphereAt } from './atmosphere';
+import { motion } from '../../../engine/simulation/motion';
+import { TREE_STRIP } from '../../../engine/world/parking';
+import { ParkCrowd, SWING_XS, talkers, type ParkPose, type ParkState, type Talker } from '../../../engine/world/parkLife';
+import { FLOWERBEDS, FOUNTAIN, HEDGES, LOOP, PARK, PARK_BENCHES, PARK_CX as cx, PARK_CZ as cz, PARK_LAMP_HEIGHT, PARK_LAMPS, PICNIC, PLAYGROUND } from '../../../engine/world/parkPlan';
+import { liveMix, outfitOf, outfitShirt, underCover, type Outfit, type Roof } from '../../../engine/world/weather';
+import { useWeather } from './useWeather';
+import { atmosphereAt } from '../../../engine/world/atmosphere';
 import { useGlowTexture } from './Street';
 
-export { FOUNTAIN, LOOP, PARK, PARK_BENCHES, PICNIC, PLAYGROUND, strollerAt } from './parkPlan';
+export { FOUNTAIN, LOOP, PARK, PARK_BENCHES, PICNIC, PLAYGROUND, strollerAt } from '../../../engine/world/parkPlan';
 
-/**
- * The public park on the right of the branch, between it and the houses: a striped, tufted lawn with a cobbled loop path,
- * paths in from the branch's three side doors, a fountain with leaping jets in a round plaza ringed with flowerbeds and
- * benches, street lamps, a picnic table under a sun umbrella, and a playground with swings and a slide.
- *
- * Its people (parkLife.ts) sit and chat on the benches, eat, drink and talk at the picnic table, swing on the swings (a swing
- * only ever moves with a child on it, and settles still after they hop off) and stroll the loop; more of them after the bank
- * closes at 17:00. When rain, hail or snow comes they look up, get up one after another and walk out through the gate to
- * the street, umbrellas up; when it clears they walk back in. Nobody appears or disappears inside the park.
- */
+/** The public park on the right of the branch, between it and the houses. */
 
 const GROUND_Y = -0.03;
 
@@ -222,10 +215,7 @@ export const SWING = { amp: 0.55, rate: 2.1, pickUp: 0.35, settle: 0.45 } as con
 export const swingAmp = (amp: number, taken: boolean, dt: number): number =>
   taken ? Math.min(SWING.amp, amp + SWING.amp * SWING.pickUp * dt) : amp * Math.exp(-SWING.settle * dt * 3);
 
-/**
- * The two swing seats. A seat swings only with a child on it: the child pumps it up to full height; once they hop off it dies
- * away to still. On the motion clock, so everything stops on pause.
- */
+/** The two swing seats. */
 function Swings({ crowd }: { crowd: ParkCrowd }) {
   const seats = useRef<Array<Group | null>>([]);
   const kids = useRef<Array<Group | null>>([]);
@@ -278,15 +268,10 @@ function Swings({ crowd }: { crowd: ParkCrowd }) {
   );
 }
 
-/** How brightly the park's lamps are lit, 0-1, from the atmosphere's lamp level: off by day, coming on at dusk, full at
- * night, and still on in the half-light of dawn (and partly under a dark storm sky). */
+/** How brightly the park's lamps are lit, 0-1, from the atmosphere's lamp level. */
 export const parkLampGlow = (lamps: number): number => Math.max(0, Math.min(1, (lamps - 0.25) / 0.45));
 
-/**
- * The park's lamps after dark: each head glows warm, a soft cone of light falls from it, and a pool of light lies on the
- * lawn or path beneath it, so the evening crowd on the benches sits in lamplight. They come on by themselves at dusk, burn
- * through the night and the dawn, and go out in daylight.
- */
+/** The park's lamps after dark: each head glows warm, a soft cone of light falls from it, and a pool of light lies on the lawn or path beneath it, so the evening crowd on the benches sits in lamplight. */
 const ParkLamps = memo(function ParkLamps() {
   const map = useGlowTexture();
   const head = useMemo(() => new MeshBasicMaterial({ color: '#fff4cf', toneMapped: false }), []);
@@ -372,9 +357,7 @@ function ParkPerson({ crowd, i, outfit }: { crowd: ParkCrowd; i: number; outfit:
     g.rotation.y = s.heading;
     // Looking up at the sky before setting off.
     g.rotation.x = l === 'stand' ? -0.12 : 0;
-    // Up goes the umbrella as soon as it rains (or hails, or snows), wherever they are out in the open: on a bench, under
-    // the swings, strolling, walking out. Under cover (the picnic table's sun umbrella, the bus stop or a canopy on the way
-    // out) it comes down, and goes back up on stepping out into the rain again.
+    // Up goes the umbrella as soon as it rains (or hails, or snows), wherever they are out in the open: on a bench, under the swings, strolling, walking out.
     const wet = l !== 'away' && crowd.wet && !underCover(s.at[0], s.at[1], [PICNIC_ROOF]);
     raise.current += ((wet ? 1 : 0) - raise.current) * Math.min(1, motion.dt * 4 + (motion.dt > 0 ? 0.02 : 0));
     if (brolly.current) {
@@ -416,10 +399,7 @@ function ParkPerson({ crowd, i, outfit }: { crowd: ParkCrowd; i: number; outfit:
   );
 }
 
-/**
- * Talk at the benches and the picnic table: a speech bubble over each person in a conversation (talkers), so both of a pair
- * (and everyone round the table) show one, never just one side. They take turns: each pops as the other quietens.
- */
+/** Talk at the benches and the picnic table: a speech bubble over each person in a conversation (talkers), so both of a pair (and everyone round the table) show one, never just one side. */
 function Chatter({ crowd }: { crowd: ParkCrowd }) {
   const [list, setList] = useState<readonly Talker[]>([]);
   useFrame(() => {
@@ -443,18 +423,8 @@ export const Park3D = memo(function Park3D() {
   const ground = useMerged(() => parts.solid, [parts]);
   const lit = useMerged(() => parts.lit, [parts]);
   const outfit = useWeather((s) => outfitOf(s.weather));
-  // Everyone wanted at the start is already in place; after that they come and go on foot.
-  const crowd = useMemo(() => {
-    const minute = bankStore.getState().view.minute;
-    return new ParkCrowd(undefined, (m) => wantsPark(m, minute));
-  }, []);
-  useFrame(() => {
-    const minute = bankStore.getState().view.minute;
-    const w = weatherStore.getState().weather;
-    // A storm or hail clears the park at a run; rain or snow cuts visits short under umbrellas.
-    const sky: ParkSky = w === 'storm' || w === 'hail' ? 'storm' : isRaining() || w === 'snow' ? 'rain' : 'dry';
-    for (const h of substeps(motion.dt)) crowd.step(h, (m) => wantsPark(m, minute), sky, minute);
-  }, -1);
+  // The park's people are the world engine's (WorldEngine.park): it steps them, in the weather, before they are drawn.
+  const crowd = useWorld().park;
   return (
     <group name="office-park">
       <mesh geometry={ground} material={solid} receiveShadow />

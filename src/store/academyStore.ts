@@ -1,10 +1,4 @@
-/**
- * The Academy split view's own state: which chapter and level the learner is on, whether the lesson panel is open, and which
- * lessons are done. It knows nothing about the bank. academySync.ts is what turns a chosen level into a lit, focused node.
- *
- * Remembered in the browser (one small JSON entry); anything read back is checked, so a stale or hand-edited entry can drop
- * progress but never crash the app.
- */
+/** The Academy split view's own state: which chapter and level the learner is on, whether the lesson panel is open, and which lessons are done. */
 
 import { useStore } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';

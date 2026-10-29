@@ -1,28 +1,14 @@
-/**
- * Who walks into the bank today, and what tonight's records look like.
- *
- * Everything here is a pure function of (seed, day) and never of the bank's rules, so "tomorrow with
- * the old rules" and "tomorrow with the new rules" see exactly the same customers. That is what makes
- * a what-if fair.
- *
- * The numbers are chosen so the trade-offs the four processes teach are real:
- *   - most genuine customers score low on 3DS risk, a few look unusual; most fraud scores high, some hides low
- *   - fraudsters replay an old dynamic CVV; customers type it fresh but sometimes slowly
- *   - most Pay-in-4 customers put down 25%, and weak scores are more likely to default
- *   - most settlement records agree to the cent, some differ by rounding dust, a few are real breaks
- */
+/** Who walks into the bank today, and what tonight's records look like. */
 
 import type { A2aContext, BankingPayload, CardType, FundingSource, Id, MinorUnits } from '../types/processLearning';
 import { clamp, hashSeed, Rng } from './prng';
-import { WORK_END, WORK_START, beatMinutes } from './clock';
+import { DAY_END, DAY_START, EOD_START, WORK_END, WORK_START, beatMinutes } from './clock';
 import { scenariosFor } from './scenarios';
 import type { AtmSession, CheckoutKind, Customer, DayEvent, DayEventId, ExtendedContext, ExtendedKind, SettlementTruth } from './types';
 import { audToVnd, buildVietQr } from './amlEngine';
-import { activeLocale } from '../i18n/locale';
+import { activeLocale } from '../i18n/localeCore';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Days and their events
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const DAY_EVENTS: Record<DayEventId, DayEvent> = {
   NORMAL: {
@@ -86,10 +72,7 @@ const RANDOM_EVENTS: ReadonlyArray<readonly [DayEventId, number]> = [
   ['PAYDAY', 11],
 ];
 
-/**
- * Day 1 is an ordinary day so a learner sees the baseline. Day 2 is a flash sale so they meet a queue early.
- * After that the calendar is random but fixed by the seed, and never has two special days in a row.
- */
+/** Day 1 is an ordinary day so a learner sees the baseline. */
 const eventCache = new Map<string, DayEvent>();
 
 export function eventForDay(seed: number, day: number): DayEvent {
@@ -107,23 +90,15 @@ export function eventForDay(seed: number, day: number): DayEvent {
   return event;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Arrivals through the working day
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Customers per working beat at intensity 1, on an ordinary day. */
 const BASE_RATE = { POS: 3.0, ECOM: 2.5, VIRTUAL: 1.3, BNPL: 1.1 } as const;
 
-/**
- * The A2A gate and the sidewalk ATM arrived after the four card channels. They draw from their own random stream, so
- * adding them left every card customer of every seeded day exactly as it was.
- */
+/** The A2A gate and the sidewalk ATM arrived after the four card channels. */
 const EXTRA_RATE = { A2A: 0.6, ATM: 1.0 } as const;
 
-/**
- * The Phase 8 channels: eKYC onboarding, VietQR, the teller counter, SWIFT and claims. They draw from a third stream, so
- * adding them left every card, A2A and ATM customer of every seeded day exactly as it was.
- */
+/** The Phase 8 channels: eKYC onboarding, VietQR, the teller counter, SWIFT and claims. */
 export const PHASE8_RATE: Readonly<Record<ExtendedKind, number>> = { ONBOARD: 0.25, QR: 1.0, TELLER: 0.5, SWIFT: 0.18, DISPUTE: 0.12 };
 /** Free blocks under 5001 (A2A), so the four-digit TX ids keep their shape: the card channels never reach 2000 in a day. */
 const PHASE8_SERIAL: Readonly<Record<ExtendedKind, number>> = { ONBOARD: 2000, QR: 2500, TELLER: 3000, SWIFT: 3500, DISPUTE: 4000 };
@@ -133,6 +108,76 @@ const PHASE8_KINDS = Object.keys(PHASE8_RATE) as ExtendedKind[];
 const FRAUD_RATE: Record<CheckoutKind, number> = { POS: 0.001, ECOM: 0.04, VIRTUAL: 0.03, BNPL: 0.01, A2A: 0.012, ATM: 0.008, ONBOARD: 0.05, QR: 0.02, TELLER: 0.015, SWIFT: 0.03, DISPUTE: 0.08 };
 
 export const WORKING_BEATS = (WORK_END - WORK_START) / beatMinutes('WORKING');
+
+/** The channels that never close, run on the bank's servers with nobody at a desk: card payments at the shops' terminals and online, instant transfers and the sidewalk ATM. */
+export const ALWAYS_ON_KINDS = ['POS', 'ECOM', 'VIRTUAL', 'A2A', 'ATM'] as const satisfies readonly CheckoutKind[];
+export type AlwaysOnKind = (typeof ALWAYS_ON_KINDS)[number];
+/** Customers an hour on them while the branch is shut (07:00-09:00 and from 17:00), on an ordinary day: a quiet trickle. */
+export const OFF_HOURS_RATE: Readonly<Record<AlwaysOnKind, number>> = { POS: 1.5, ECOM: 1.5, VIRTUAL: 0.5, A2A: 2, ATM: 3 };
+
+/** The digital channels, whose day follows people's phones and cards rather than the branch's doors: the card gateways, online checkouts, transfers, VietQR, SWIFT and the ATM. */
+export const DIGITAL_KINDS: ReadonlySet<CheckoutKind> = new Set<CheckoutKind>(['POS', 'ECOM', 'VIRTUAL', 'A2A', 'ATM', 'QR', 'SWIFT']);
+
+/**
+ * How a digital channel's day goes, on top of the high street's own shape: a busier morning (07:00-11:59), a lunch peak
+ * (12:00-13:00) strongest for online cards, VietQR and ATM cash, and the evening (17:00-22:00) the busiest stretch of the
+ * night for online shopping, card taps, transfers and the ATM, once the branches have shut. Card payments are lifted gently
+ * and their night rates kept low: every one approved is a record for the 23:00 batch, which the night team must still clear
+ * before midnight on an ordinary day. Transfers and ATM cash settle on their own rails, so they surge freely.
+ */
+export const DIGITAL_CURVE = {
+  morning: 1.1,
+  lunch: { ECOM: 1.25, VIRTUAL: 1.2, QR: 1.45, ATM: 1.45, other: 1.1 },
+  afternoon: { other: 1 },
+  evening: { ECOM: 3, POS: 2.5, A2A: 3, ATM: 2.5, VIRTUAL: 2, other: 1 },
+  late: 1.2,
+  midnight: 0.8,
+} as const;
+
+/** The multiplier on channel `kind`'s rate at `minute` (1 for the branch's own channels: the teller, eKYC, BNPL, claims). */
+export function digitalBoost(kind: CheckoutKind, minute: number): number {
+  if (!DIGITAL_KINDS.has(kind)) return 1;
+  const pick = (table: Readonly<Record<string, number>>): number => table[kind] ?? table.other!;
+  if (minute < 12 * 60) return DIGITAL_CURVE.morning;
+  if (minute < 13 * 60) return pick(DIGITAL_CURVE.lunch);
+  if (minute < WORK_END) return pick(DIGITAL_CURVE.afternoon);
+  if (minute < 22 * 60) return pick(DIGITAL_CURVE.evening);
+  if (minute < EOD_START) return DIGITAL_CURVE.late;
+  return DIGITAL_CURVE.midnight;
+}
+/** Card payments stop at the night's cut-off (the batch takes the day's approvals at 23:00); transfers and ATM cash settle on their own rails and keep coming until midnight. */
+const CARD_CUTOFF = EOD_START;
+/** How many minutes of the day's last hour take new customers. */
+const LAST_ARRIVAL_SPAN = 45;
+/** Their ids: a block of their own, clear of the card channels, Phase 8, A2A (5001) and ATM (7001). */
+const OFF_HOURS_SERIAL = 6000;
+
+/** The hours the branch is shut, as [from, to) minutes. */
+export const OFF_HOURS: ReadonlyArray<readonly [number, number]> = [
+  [DAY_START, WORK_START],
+  [WORK_END, DAY_END],
+];
+
+/** The round-the-clock customers of a day, in the order they come: from their own random stream, so the working day's traffic is exactly as it was. */
+function offHoursTraffic(seed: number, day: number, event: DayEvent): Customer[] {
+  const rng = new Rng(hashSeed(seed, 'arrivals-off-hours', day));
+  const out: Customer[] = [];
+  let serial = OFF_HOURS_SERIAL;
+  for (const [from, to] of OFF_HOURS)
+    for (let hour = from; hour < to; hour += 60)
+      for (const kind of ALWAYS_ON_KINDS) {
+        const card = kind !== 'A2A' && kind !== 'ATM';
+        if (card && hour >= CARD_CUTOFF) continue;
+        const n = rng.poisson(OFF_HOURS_RATE[kind] * digitalBoost(kind, hour) * event.volume * (event.mix[kind] ?? 1));
+        // The last hour's come by 23:45, so each one is through before midnight closes the day.
+        const span = hour + 60 >= DAY_END ? LAST_ARRIVAL_SPAN : 60;
+        for (let i = 0; i < n; i++) {
+          const minute = hour + Math.floor(rng.next() * span);
+          out.push(makeCustomer(seed, day, `d${day}-${++serial}`, kind, minute, event));
+        }
+      }
+  return out.sort((a, b) => a.minute - b.minute || a.id.localeCompare(b.id));
+}
 
 /** How busy the high street is, 1 on average: a morning ramp, a lunch peak and an after-work bump. */
 function shape(minute: number): number {
@@ -157,6 +202,8 @@ export interface DayTraffic {
   customers: Customer[];
   /** Customers grouped by the working beat they arrive in. */
   beats: Customer[][];
+  /** Customers of the round-the-clock channels while the branch is shut, in the order they come (not in `customers`, which is the working day's). */
+  offHours: Customer[];
 }
 
 const EPOCH_2026 = Date.UTC(2026, 0, 5, 0, 0, 0);
@@ -172,7 +219,7 @@ export function generateDay(seed: number, day: number): DayTraffic {
     const beatStart = WORK_START + b * beatMinutes('WORKING');
     const intensity = intensityAt(beatStart + 2.5);
     for (const kind of ['POS', 'ECOM', 'VIRTUAL', 'BNPL'] as const) {
-      const lambda = BASE_RATE[kind] * event.volume * (event.mix[kind] ?? 1) * intensity;
+      const lambda = BASE_RATE[kind] * event.volume * (event.mix[kind] ?? 1) * intensity * digitalBoost(kind, beatStart);
       const n = arrivals.poisson(lambda);
       for (let i = 0; i < n; i++) {
         serial++;
@@ -192,7 +239,7 @@ export function generateDay(seed: number, day: number): DayTraffic {
     const beatStart = WORK_START + b * beatMinutes('WORKING');
     const intensity = intensityAt(beatStart + 2.5);
     for (const kind of ['A2A', 'ATM'] as const) {
-      const lambda = EXTRA_RATE[kind] * event.volume * (event.mix[kind] ?? 1) * intensity;
+      const lambda = EXTRA_RATE[kind] * event.volume * (event.mix[kind] ?? 1) * intensity * digitalBoost(kind, beatStart);
       const n = extras.poisson(lambda);
       for (let i = 0; i < n; i++) {
         const serial = ++serials[kind];
@@ -210,7 +257,7 @@ export function generateDay(seed: number, day: number): DayTraffic {
     const beatStart = WORK_START + b * beatMinutes('WORKING');
     const intensity = intensityAt(beatStart + 2.5);
     for (const kind of PHASE8_KINDS) {
-      const n = phase8.poisson(PHASE8_RATE[kind] * event.volume * (event.mix[kind] ?? 1) * intensity);
+      const n = phase8.poisson(PHASE8_RATE[kind] * event.volume * (event.mix[kind] ?? 1) * intensity * digitalBoost(kind, beatStart));
       for (let i = 0; i < n; i++) {
         const serial = ++serials8[kind];
         const minute = beatStart + Math.min(4, Math.floor(phase8.next() * 5));
@@ -220,12 +267,10 @@ export function generateDay(seed: number, day: number): DayTraffic {
       }
     }
   }
-  return { day, event, customers, beats };
+  return { day, event, customers, beats, offHours: offHoursTraffic(seed, day, event) };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // One customer
-// ─────────────────────────────────────────────────────────────────────────────
 
 const cents = (dollars: number): MinorUnits => Math.max(100, Math.round(dollars * 100));
 
@@ -250,10 +295,7 @@ function amountFor(rng: Rng, kind: CardKind, fraud: boolean): MinorUnits {
   return cents(clamp(rng.lognormal(spec.median, spec.sigma), spec.min, spec.max));
 }
 
-/**
- * What the customer was doing, and so how much it cost. Picked from a stream of its own (keyed on the customer) so choosing
- * a scenario never moves any other draw about that customer.
- */
+/** What the customer was doing, and so how much it cost. */
 function scenarioFor(seed: number, day: number, id: Id, kind: CheckoutKind, fraud: boolean): { id: string; amount: MinorUnits } {
   const options = scenariosFor(kind, fraud);
   const pool = options.length > 0 ? options : scenariosFor(kind, !fraud);
@@ -303,8 +345,7 @@ export function makeCustomer(seed: number, day: number, id: Id, kind: CheckoutKi
   const rng = new Rng(hashSeed(seed, 'customer', day, id));
   const fraudRate = clamp(FRAUD_RATE[kind] * (event.fraud[kind] ?? 1), 0, 0.5);
   const fraud = rng.chance(fraudRate);
-  // The old random amount is still drawn, and thrown away, so every other draw about this customer (funds, risk, OTP,
-  // dCVV) falls exactly where it did before the scenarios existed.
+  // The old random amount is still drawn, and thrown away, so every other draw about this customer (funds, risk, OTP, dCVV) falls exactly where it did before the scenarios existed.
   if (kind === 'POS' || kind === 'ECOM' || kind === 'VIRTUAL' || kind === 'BNPL') amountFor(rng, kind, fraud);
   const scenario = scenarioFor(seed, day, id, kind, fraud);
   const amount = scenario.amount;
@@ -483,9 +524,7 @@ export function makeCustomer(seed: number, day: number, id: Id, kind: CheckoutKi
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Phase 8: what each extended customer brings to the checkpoints
-// ─────────────────────────────────────────────────────────────────────────────
 
 const GIVEN = ['Minh', 'Lan', 'Huy', 'Thao', 'Quang', 'Mai', 'Duc', 'Ngoc', 'Tuan', 'Hoa', 'James', 'Olivia', 'Arjun', 'Sofia', 'Kenji', 'Amara'] as const;
 const FAMILY = ['Nguyen', 'Tran', 'Le', 'Pham', 'Hoang', 'Vu', 'Dang', 'Bui', 'Smith', 'Patel', 'Garcia', 'Okafor', 'Sato', 'Rossi'] as const;
@@ -580,9 +619,7 @@ function extendedContext(rng: Rng, day: number, kind: ExtendedKind, scenario: st
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Tonight's settlement records
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Chance that a record's three legs differ by a few cents of rounding or FX dust, and how big the dust is. */
 const NOISE_RATE = 0.22;
@@ -604,10 +641,7 @@ export interface SettlementRecord {
   truth: SettlementTruth;
 }
 
-/**
- * The three records for one approved payment. What the legs say is decided by the seed, the day it was
- * approved and its id, so it is the same whichever rules are in force.
- */
+/** The three records for one approved payment. */
 export function makeSettlement(seed: number, bornDay: number, txId: Id, cardType: CardType, heldCents: MinorUnits, glitch: number): SettlementRecord {
   const rng = new Rng(hashSeed(seed, 'settle', bornDay, txId));
   const roll = rng.next();

@@ -1,8 +1,4 @@
-/**
- * Everything the End-of-Day report shows that is worked out rather than read straight off the day: the P&L lines in order,
- * revenue against losses, the biggest loss, the decline reasons grouped for the overview bar, the coaching tips and the
- * takeaway, and the CSV export. Pure functions of a DayReport, so the screen and the download always agree.
- */
+/** Everything the End-of-Day report shows that is worked out rather than read straight off the day. */
 
 import { PNL_GLOSSARY, type PnlLabel } from '../data/reportGlossary';
 import { formatClock } from './clock';
@@ -12,9 +8,7 @@ import { STATIONS } from './topology';
 import { scenarioLabelEn } from './scenarios';
 import type { DayReport, DeclineReason, PacketKind, TxRecord } from './types';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Profit & loss
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface PnlLine {
   label: PnlLabel;
@@ -57,9 +51,7 @@ export function topDrain(r: DayReport): { label: PnlLabel; cents: number; share:
   return { label: top.label, cents: top.cents, share: top.cents / total };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Declines, grouped
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type DeclineGroupId = 'NSF' | 'OTP' | 'RISK' | 'COMPLIANCE' | 'HARDWARE' | 'QUEUE';
 
@@ -81,9 +73,7 @@ export function declineGroups(r: DayReport): Array<{ id: DeclineGroupId; label: 
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Coaching
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Lower-cases the first word of a label, unless it is an acronym such as OTP or 3DS. */
 const lowerFirst = (text: string): string => (/^[A-Z][a-z]/.test(text) ? text.charAt(0).toLowerCase() + text.slice(1) : text);
@@ -145,9 +135,7 @@ export function takeaway(r: DayReport): Tip {
   return { text: 'A clean day: nothing cost the bank much. Try tightening a rule in the Rule Lab and see whether you can beat it.', process: null };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // CSV export
-// ─────────────────────────────────────────────────────────────────────────────
 
 const cell = (v: string | number): string => {
   const s = String(v);
@@ -160,11 +148,7 @@ export const approvalRateText = (approved: number, total: number): string => pct
 
 export const CSV_HEADER = ['Section', 'Item', 'Value', 'Unit', 'Note'] as const;
 
-/**
- * The day's report as a CSV file: one row per figure, in five columns, so it opens straight into Excel, Numbers or Google
- * Sheets. Money is in dollars with two decimals and no symbol, so a spreadsheet can add it up. Lines end in CRLF and the file
- * starts with a byte-order mark, which is what Excel needs to read the emoji and the curly quotes correctly.
- */
+/** The day's report as a CSV file: one row per figure, in five columns, so it opens straight into Excel, Numbers or Google Sheets. */
 export function reportCsv(r: DayReport, glossary: Readonly<Record<string, string>> = PNL_GLOSSARY): string {
   const rows: Array<Array<string | number>> = [];
   const add = (section: string, item: string, value: string | number, unit = '', note = ''): void => {
@@ -233,9 +217,7 @@ export const reportFileName = (r: DayReport): string => `processcraft-day-${r.da
 /** Today's net result as money text with a sign: "-$4,531.66" or "+$1,200.00". */
 export const signedMoney = (cents: number): string => (cents >= 0 ? `+${formatMoney(cents)}` : formatMoney(cents));
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Master Transactions export
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const TX_CSV_HEADER = [
   'Timestamp',
@@ -278,11 +260,7 @@ export function clockWithSeconds(minute: number): string {
   return [h, m, sec].map((n) => String(n).padStart(2, '0')).join(':');
 }
 
-/**
- * The day's raw transaction stream as a CSV file, one row per customer payment in the order they arrived. The first nine
- * columns are the standard ones; the last four help trace a row back to the screen (the channel the payment came in on, the
- * card type, the merchant story and the payment id the ledger drawer shows). Built only when the learner asks for it.
- */
+/** The day's raw transaction stream as a CSV file, one row per customer payment in the order they arrived. */
 export function transactionsCsv(records: readonly TxRecord[]): string {
   const rows = [...records]
     .sort((a, b) => a.minute - b.minute || (a.txId < b.txId ? -1 : 1))

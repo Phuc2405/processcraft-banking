@@ -1,46 +1,8 @@
-/**
- * ProcessRunner: a discrete-event interpreter for ProcessGraph.
- *
- * One runner executes one graph against one TestCase. It is deterministic: the same graph and test
- * always produce the same tokens, trace and result.
- *
- * Driving it
- *   step()            runs exactly one node for one token and reports what happened as events.
- *                     Use it for animated playback: each StepResult says which token ran which node,
- *                     which edge it took, and any fork, join, completion or fault.
- *   runToCompletion() steps until nothing can move. Use it for grading.
- *
- * Time is virtual. Each node costs its catalog baseLatencyMs. The runner always advances the token
- * with the smallest virtual clock, so parallel branches interleave in time order, and an AND join
- * releases at the clock of its slowest branch.
- *
- * Tokens
- *   - A token starts at the EVENT_START node and runs the node it is at, then moves along an edge.
- *   - TASK nodes run a capability handler. A raised exception leaves by the node's error port if one
- *     is wired, otherwise the token faults (EXCEPTION).
- *   - XOR gateways try edges in priority order. First true condition wins, then the default edge,
- *     otherwise the token faults (NO_MATCHING_BRANCH).
- *   - AND gateways with one incoming edge fork: the parent is retired and one child runs per
- *     outgoing edge. AND gateways with several incoming edges join: tokens wait until every incoming
- *     edge has delivered one, then a single merged token continues.
- *   - EVENT_END completes the token with the node's configured outcome and reason code.
- *
- * Anomalies recorded (all severity ERROR)
- *   DEAD_END            token is at a node with nowhere to go                 -> token DEADLOCKED
- *   DEADLOCK            AND join that some incoming branch never reaches      -> tokens DEADLOCKED
- *   INFINITE_LOOP       too many steps for one token, in total, or too many tokens -> token EXCEPTION
- *   UNHANDLED_EXCEPTION a capability raised and no error port is wired        -> token EXCEPTION
- *   NO_MATCHING_BRANCH  XOR with no matching edge and no default              -> token EXCEPTION
- *   INVALID_EXPRESSION  a condition does not parse, type-check or evaluate    -> token EXCEPTION
- *   INVALID_CONFIG      a node cannot run with its configuration              -> token EXCEPTION
- *
- * The runner reports what happened. It does not decide whether that is what the test wanted;
- * that is the evaluator's job.
- */
+/** ProcessRunner: a discrete-event interpreter for ProcessGraph. */
 
 import { CONDITION_VARIABLES, NODE_CATALOG } from '../data/seedChallenges';
 import { labLabel as L } from '../i18n/labText';
-import { tr } from '../i18n/locale';
+import { tr } from '../i18n/localeCore';
 import type {
   BankingCapability,
   ConditionVariable,
@@ -72,9 +34,7 @@ import {
   type Scalar,
 } from './expression';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Public types
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface RunnerOptions {
   /** Loop and parallelism guards, and how to pick an outcome when parallel branches disagree. */
@@ -138,9 +98,7 @@ export interface RunResult {
   unsetFactReads: UnsetFactRead[];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Internals
-// ─────────────────────────────────────────────────────────────────────────────
 
 const OUTCOMES: readonly Outcome[] = ['APPROVED', 'DECLINED', 'ROUTED_TO_SUSPENSE', 'CHALLENGE_REQUIRED'];
 
@@ -171,9 +129,7 @@ const compareEdges = (a: ProcessEdge, b: ProcessEdge): number => {
 const formatFact = (v: Scalar | undefined): string =>
   v === undefined ? 'not set' : typeof v === 'string' ? `'${v}'` : String(v);
 
-// ─────────────────────────────────────────────────────────────────────────────
 // ProcessRunner
-// ─────────────────────────────────────────────────────────────────────────────
 
 export class ProcessRunner {
   private readonly graph: ProcessGraph;

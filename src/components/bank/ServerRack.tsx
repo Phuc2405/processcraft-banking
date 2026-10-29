@@ -10,10 +10,7 @@ const LED: Record<NodeRunStatus, string> = {
   FROZEN: '#38bdf8',
 };
 
-/**
- * The workstation picture of an automated node: a server rack with a bot badge instead of a person at a desk. The status
- * lights follow the node (green and blinking while it processes). Same footprint as WorkstationGraphic, so cards keep their layout.
- */
+/** The workstation picture of an automated node: a server rack with a bot badge instead of a person at a desk. */
 export function ServerRackGraphic({ status, className = '', accent = '#a78bfa' }: { status: NodeRunStatus; className?: string; accent?: string }) {
   const led = LED[status];
   const busy = status === 'PROCESSING';

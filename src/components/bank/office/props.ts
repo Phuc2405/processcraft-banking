@@ -1,8 +1,4 @@
-/**
- * The little things that sit on a desk and say what the desk is for: a card terminal at the POS gate, gold bars in the
- * vault, a ledger book at the Core Ledger. Each is a handful of coloured boxes, in its own corner of a 0.4-unit square
- * with its feet on y = 0. `solid` is lit; `glow` is unlit and bright (screens, coins' shine, LEDs).
- */
+/** The little things that sit on a desk and say what the desk is for: a card terminal at the POS gate, gold bars in the vault, a ledger book at the Core Ledger. */
 
 import type { StationId } from '../../../sim/topology';
 import { ball, box, cyl, ring, shade, tint, type Part } from './kit';

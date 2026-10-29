@@ -1,25 +1,21 @@
 import { useFrame } from '@react-three/fiber';
+import { t } from '../../../i18n/t';
+import { useWorld } from './WorldProvider';
 import { memo, useMemo, useRef, useState } from 'react';
 import type { Group } from 'three';
 import { CustomerFigure, type Wear } from './Avatars';
 import { useMerged } from './Dressing';
 import { ball, box, shade, tint, type Part } from './kit';
-import { customerShirt } from './layout3d';
+import { customerShirt } from '../../../engine/plan/layout3d';
 import { glow, solid } from './materials';
-import { outfitOf, outfitShirt, useWeather, type Outfit } from './weather';
+import { outfitOf, outfitShirt, type Outfit } from '../../../engine/world/weather';
+import { useWeather } from './useWeather';
 import { MeshBasicMaterial } from 'three';
-import { ALIGHT, BUS_DOORS, BUS_X, busRiders, kerbZ, LENGTH, riderAt, TrafficSim, WIDTH, VEHICLES, type BusRider, type Vehicle, type VehicleState } from './vehicles';
+import { ALIGHT, BUS_DOORS, BUS_PEOPLE, BUS_X, kerbZ, LENGTH, WIDTH, VEHICLES, type Vehicle, type VehicleState } from '../../../engine/world/vehicles';
+import type { StreetPose } from '../../../engine/world/streetPeople';
 import { Html } from '@react-three/drei';
-import { motion, substeps } from './motion';
-import { sidewalk } from './sidewalk';
-import { isClosed } from './evacuation';
-import { bankStore } from '../../../store/bankStore';
 
-/**
- * The traffic on the avenue (vehicles.ts says where everything is): motorbikes, many carrying two, cars, green taxis and
- * the city bus, with the people getting on and off at the kerb. (The armoured cash van's body is drawn here too, but it
- * drives the lane behind the block to the vault's loading bay: LoadingBay3D.) Riders put on their raincoats when it rains.
- */
+/** The traffic on the avenue (vehicles.ts says where everything is). */
 
 const WHEEL = '#1f2937';
 /** The amber of an indicator lamp, lit. */
@@ -48,8 +44,7 @@ export function bodyParts(v: Pick<Vehicle, 'kind' | 'color'>): { body: Part[]; l
         lights: [box([0.47, 0.66, 0], [0.04, 0.08, 0.12], '#fff7d6'), box([-0.47, 0.44, 0], [0.03, 0.05, 0.1], '#ef4444')],
       };
     case 'cit': {
-      // An armoured cash-in-transit truck: a heavy, tall steel body on big wheels, a small armoured cab window, a bull bar,
-      // black-and-yellow hazard chevrons along both flanks and across the back doors, gun-port slits and an amber beacon.
+      // An armoured cash-in-transit truck: a heavy, tall steel body on big wheels, a small armoured cab window, a bull bar, black-and-yellow hazard chevrons along both flanks and across the back doors, gun-port slits and an amber beacon.
       const chevrons: Part[] = [];
       for (let i = 0; i < 9; i++) for (const zs of [1, -1]) chevrons.push(box([-1.2 + i * 0.24, 0.5, zs * 0.605], [0.12, 0.26, 0.012], i % 2 ? '#111827' : '#facc15', [0.7 * zs, 0, 0]));
       for (let i = 0; i < 5; i++) chevrons.push(box([-1.455, 0.5, -0.48 + i * 0.24], [0.012, 0.26, 0.12], i % 2 ? '#111827' : '#facc15', [0.7, 0, 0]));
@@ -76,8 +71,7 @@ export function bodyParts(v: Pick<Vehicle, 'kind' | 'color'>): { body: Part[]; l
       };
     }
     case 'bus': {
-      // A city bus: a long, tall body with a band of windows, a lit destination board, and two doors on the kerb side (its +z
-      // side: it runs on the near side, facing -x, so its doors' world offsets are mirrored here).
+      // A city bus: a long, tall body with a band of windows, a lit destination board, and two doors on the kerb side (its +z side.
       const windows: Part[] = [];
       for (let i = 0; i < 6; i++) for (const zs of [1, -1]) windows.push(box([-1.75 + i * 0.6, 1.25, zs * 0.605], [0.5, 0.48, 0.012], GLASS));
       return {
@@ -126,10 +120,7 @@ export function bodyParts(v: Pick<Vehicle, 'kind' | 'color'>): { body: Part[]; l
 /** Raincoat colours: bright ponchos in the rain. */
 const PONCHO = ['#2563eb', '#facc15', '#16a34a', '#e11d48', '#7c3aed'];
 
-/**
- * A rider on a motorbike, at `x` along it: in their own clothes and a helmet, or, in the rain, under a poncho. With
- * `pillion`, the driver's poncho is the big two-person kind that covers the passenger too.
- */
+/** A rider on a motorbike, at `x` along it: in their own clothes and a helmet, or, in the rain, under a poncho. */
 export function Rider({ x, index, rain, wide }: { x: number; index: number; rain: boolean; wide: boolean }) {
   const parts = useMemo(() => {
     const skin = SKIN[index % SKIN.length]!;
@@ -156,6 +147,7 @@ const WEAR: Readonly<Record<Outfit, Wear>> = { everyday: 'none', summer: 'summer
 
 /** One vehicle, and the person getting on or off it at the kerb. */
 function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Map<string, VehicleState>; t: number } }) {
+  const street = useWorld().street;
   const root = useRef<Group>(null);
   const person = useRef<Group>(null);
   const door = useRef<Group>(null);
@@ -190,15 +182,14 @@ function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Ma
     if (blinkR.current) blinkR.current.visible = s.signal === 1 && on;
     // The kerbside door swings open while the taxi stands, and shuts before it pulls away.
     if (door.current) door.current.rotation.y = 1.1 * s.door;
-    const r = riderAt(v, s, isClosed(bankStore.getState().view.minute));
+    // The passenger on foot is the engine's (WorldEngine.street), already stepped round others on the pavement.
+    const r = street.riders.get(v.id) ?? null;
     if (person.current) {
       person.current.visible = r !== null;
       if (r) {
-        // On the pavement they step aside for others rather than walk into them (sidewalk.ts).
-        const [x, z] = sidewalk.place(`rider-${v.id}`, r.x, r.z, motion.dt, !r.walking);
-        person.current.position.set(x, 0, z);
+        person.current.position.set(r.x, 0, r.z);
         person.current.rotation.y = r.heading;
-      } else sidewalk.leave(`rider-${v.id}`);
+      }
     }
     const look = r ? { walking: r.walking } : null;
     if ((look === null) !== (rider === null) || (look && rider && look.walking !== rider.walking)) setRider(look);
@@ -261,10 +252,7 @@ function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Ma
   );
 }
 
-/**
- * The yellow ▼ over the cash van, bobbing gently: the objective marker that says "follow the cash" wherever it is on its
- * way to the vault. An overlay, so it reads at any zoom.
- */
+/** The yellow ▼ over the cash van, bobbing gently: the objective marker that says "follow the cash" wherever it is on its way to the vault. */
 export function CitMarker() {
   const g = useRef<Group>(null);
   useFrame(({ clock }) => {
@@ -274,7 +262,7 @@ export function CitMarker() {
     <group ref={g} position={[0, 2.55, 0]} name="cit-marker">
       <Html center zIndexRange={[11, 0]} style={{ pointerEvents: 'none' }}>
         <div data-testid="cit-marker" className="flex flex-col items-center leading-none" style={{ filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.45))' }}>
-          <span className="rounded bg-yellow-400 px-1 text-[9px] font-black tracking-wide text-slate-900">CIT</span>
+          <span className="whitespace-nowrap rounded bg-yellow-400 px-1 text-[9px] font-black tracking-wide text-slate-900">{t('Cash Transporter (CIT)')}</span>
           <span className="text-[22px] text-yellow-400">▼</span>
         </div>
       </Html>
@@ -282,17 +270,18 @@ export function CitMarker() {
   );
 }
 
-const BUS_PEOPLE = ['off-0', 'off-1', 'on-0', 'on-1'] as const;
 
 /** The people getting off and on the bus (busRiders), each placed every frame. */
 function BusPeople({ v, index, live }: { v: Vehicle; index: number; live: { states: Map<string, VehicleState> } }) {
+  const street = useWorld().street;
   const groups = useRef<Array<Group | null>>([]);
   const outfit = useWeather((s) => outfitOf(s.weather));
   const [walking, setWalking] = useState<readonly boolean[]>(() => BUS_PEOPLE.map(() => true));
   useFrame(() => {
     const s = live.states.get(v.id);
     if (!s) return;
-    const riders = new Map<string, BusRider>(busRiders(v, s, isClosed(bankStore.getState().view.minute)).map((r) => [r.id, r]));
+    // Who is getting off and on, and where, is the engine's (WorldEngine.street).
+    const riders = street.busRiders.get(v.id) ?? new Map<string, StreetPose>();
     let changed = false;
     const next = BUS_PEOPLE.map((id, i) => {
       const g = groups.current[i];
@@ -300,10 +289,9 @@ function BusPeople({ v, index, live }: { v: Vehicle; index: number; live: { stat
       if (g) {
         g.visible = !!r;
         if (r) {
-          const [x, z] = sidewalk.place(`bus-${id}`, r.x, r.z, motion.dt, !r.walking);
-          g.position.set(x, 0, z);
+          g.position.set(r.x, 0, r.z);
           g.rotation.y = r.heading;
-        } else sidewalk.leave(`bus-${id}`);
+        }
       }
       const w = r ? r.walking : walking[i]!;
       if (w !== walking[i]) changed = true;
@@ -347,18 +335,9 @@ function KerbBays() {
   return <mesh geometry={bays} material={solid} name="kerb-bays" />;
 }
 
-/**
- * The whole fleet, driven by one TrafficSim (vehicles.ts): stepped once a frame, before the vehicles read where they are.
- * It runs only while the canvas draws, like the pedestrians.
- */
+/** The whole fleet, drawn from the world engine's TrafficSim (WorldEngine.traffic), which it steps once a frame before the vehicles read where they are. */
 export const Vehicles3D = memo(function Vehicles3D() {
-  const sim = useMemo(() => new TrafficSim(), []);
-  const live = useMemo(() => ({ states: sim.states(), t: 0 }), [sim]);
-  useFrame(() => {
-    for (const h of substeps(motion.dt)) sim.step(h);
-    live.states = sim.states();
-    live.t = sim.t;
-  }, -1);
+  const live = useWorld().trafficView;
   return (
     <group name="office-traffic">
       <KerbBays />

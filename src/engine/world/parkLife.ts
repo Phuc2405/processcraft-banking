@@ -1,17 +1,8 @@
-import { KERB_Z, STREET, type V2 } from './layout3d';
+import { KERB_Z, STREET, type V2 } from '../plan/layout3d';
 import { FOUNTAIN, LOOP, PARK, PARK_BENCHES, PICNIC, PLAYGROUND } from './parkPlan';
-import { pathLength, pointAlongPath } from './tour3d';
+import { pathLength, pointAlongPath } from '../plan/path';
 
-/**
- * The people in the park, as a small simulation the tests can step: who is there, where each one is, and how they come and
- * go. Nobody pops in or out of the park. Everyone has a place (a bench, a seat at the picnic table, a swing, or the loop
- * path for a stroller) and a way out to the street through the gap in the hedge: when their visit is up (about half an hour
- * in fair weather, five to ten minutes once it rains, at once in a storm or hail), or night falls, or the evening crowd
- * thins, they get up after a moment's look at the sky, one after another, and walk out along the paths (briskly, umbrella
- * up, in the rain; at a run in a storm); a while later, if the day still wants them, they walk back in the same way.
- * Their walks only ever follow the paths and the open lawn: never through the fountain, a flowerbed, the picnic table or
- * the hedge.
- */
+/** The people in the park, as a small simulation the tests can step: who is there, where each one is, and how they come and go. */
 
 export type ParkRole = 'bench' | 'picnic' | 'swing' | 'stroll';
 
@@ -132,10 +123,7 @@ export function SWING_XS(): number[] {
   return [-0.4, 0.4].map((dx) => PLAYGROUND.x - 1.1 + dx);
 }
 
-/**
- * Who wants to be in the park at `minute`: more on the benches and paths after the bank closes at 17:00. How long each of
- * them stays on a visit, and whether they come at all, is the weather's to say (ParkCrowd.step, PARK_STAY).
- */
+/** Who wants to be in the park at `minute`: more on the benches and paths after the bank closes at 17:00. */
 export function wantsPark(m: ParkMember, minute: number): boolean {
   const h = minute / 60;
   const evening = h >= 17;
@@ -152,18 +140,14 @@ export function wantsPark(m: ParkMember, minute: number): boolean {
   }
 }
 
-/** Walking paces (units a second): an easy stroll in, a brisk walk out in the wet, a run in a storm. And the pauses before
- * anyone moves (in a storm they hardly stop to look). */
+/** Walking paces (units a second): an easy stroll in, a brisk walk out in the wet, a run in a storm. */
 export const PARK_PACE = { stroll: 0.85, in: 0.9, out: 1.0, wet: 1.45, run: 2.6 } as const;
 export const PARK_HOLD = { look: 0.7, stagger: 0.45, back: 1.2, storm: 0.15 } as const;
 
 /** The weather in the park: dry; rain (or snow), umbrellas up; a storm (or hail), everyone out. */
 export type ParkSky = 'dry' | 'rain' | 'storm';
 
-/**
- * How long a visit to the park lasts, in the bank's minutes: [shortest, longest] in fair weather and in the rain; and how
- * long someone who has left stays away before they come back (longer in the rain). In a storm nobody stays or comes.
- */
+/** How long a visit to the park lasts, in the bank's minutes. */
 export const PARK_STAY = { dry: [25, 35], rain: [5, 10], away: [4, 10], rainAway: [10, 18] } as const;
 
 const spread = ([lo, hi]: readonly [number, number], u: number): number => lo + (hi - lo) * u;
@@ -192,12 +176,7 @@ export interface ParkState {
   backAt: number;
 }
 
-/**
- * The park's people, stepped on the motion clock. When it rains everyone puts up an umbrella where they are (Park3D), the
- * strollers keep to the loop, and the children get off the swings and wait under the swing frame; their visits are cut to
- * five to ten minutes, and they walk out briskly when they are up. In a storm or hail everyone hurries out at once, at a
- * run, and nobody comes in until it has passed.
- */
+/** The park's people, stepped on the motion clock. */
 export class ParkCrowd {
   t = 0;
   /** It is raining (or hailing, or snowing) now; and whether it is a storm (or hail). */
@@ -216,11 +195,7 @@ export class ParkCrowd {
     });
   }
 
-  /**
-   * Moves everyone on by `dt` seconds; `wanted` says who the day wants in the park now, `wet` what the weather is (true for
-   * rain). Given the bank's `minute`, visits have a length: each person stays their while (PARK_STAY, cut short by rain, ended
-   * at once by a storm), then leaves for a break before coming back.
-   */
+  /** Moves everyone on by `dt` seconds; `wanted` says who the day wants in the park now, `wet` what the weather is (true for rain). */
   step(dt: number, wanted: (m: ParkMember) => boolean, wet: boolean | ParkSky, minute?: number): void {
     this.t += dt;
     const sky: ParkSky = wet === true ? 'rain' : wet === false ? 'dry' : wet;
@@ -275,12 +250,7 @@ export class ParkCrowd {
     }
   }
 
-  /**
-   * Whether `p` should be in the park now, by their visit: once settled in their place their visit's end is set (a long
-   * stay in fair weather, a short one in rain; those there at the start part-way through theirs, so they do not all get up
-   * together); rain cuts a long stay short; a storm ends it now. Once out, they stay away for a while before coming back,
-   * and nobody comes in during a storm.
-   */
+  /** Whether `p` should be in the park now, by their visit. */
   private visit(p: ParkState, want: boolean, minute: number, rainBegins: boolean): boolean {
     const home = p.d === 0 && p.going !== 'out';
     const rainStay = spread(PARK_STAY.rain, unitOf(p.m, 1));
@@ -348,11 +318,7 @@ export interface Talker {
   turn: number;
 }
 
-/**
- * Who is talking now: everyone sitting in their place on a bench or at the picnic table whose bench (or table) has someone
- * else sitting at it too, as it takes two to talk. Each of them gets a bubble of their own, so a conversation shows over
- * both (or all) of the people in it, never over one side only.
- */
+/** Who is talking now: everyone sitting in their place on a bench or at the picnic table whose bench (or table) has someone else sitting at it too, as it takes two to talk. */
 export function talkers(crowd: ParkCrowd): Talker[] {
   const seated = crowd.people.filter((p) => (p.m.role === 'bench' || p.m.role === 'picnic') && p.d === 0 && p.going === null);
   const group = (id: string): string => (id.startsWith('picnic-') ? 'picnic' : id.slice(0, id.lastIndexOf('-')));

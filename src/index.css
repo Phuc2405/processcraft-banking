@@ -75,6 +75,24 @@ body,
   animation: pc-fade 1.1s ease-in-out infinite;
 }
 
+/* A 3D badge's detail fading in as the camera zooms closer (labelLod.ts). */
+@keyframes pc-lod-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.pc-lod-in {
+  animation: pc-lod-in 220ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pc-lod-in {
+    animation: none;
+  }
+}
+
 @keyframes pc-shake-kf {
   0%,
   100% {

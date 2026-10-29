@@ -1,22 +1,18 @@
 import { useFrame } from '@react-three/fiber';
+import { useWorld } from './WorldProvider';
 import { memo, useMemo, useRef, useState } from 'react';
 import type { Group, MeshBasicMaterial } from 'three';
 import { bankStore } from '../../../store/bankStore';
-import { atmosphereAt } from './atmosphere';
+import { atmosphereAt } from '../../../engine/world/atmosphere';
 import { CustomerFigure } from './Avatars';
 import { Sign, useMerged } from './Dressing';
-import { FRONT_PLAN, FrontGuard, type Cabin, type GuardPostPlan } from './guardCabin';
+import { FRONT_PLAN, FrontGuard, type Cabin, type GuardPostPlan } from '../../../engine/world/guardCabin';
 import { box, type Part } from './kit';
 import { glow, pane, solid } from './materials';
-import { motion, substeps } from './motion';
-import { liveMix, weatherStore } from './weather';
+import { motion } from '../../../engine/simulation/motion';
+import { liveMix } from '../../../engine/world/weather';
 
-/**
- * The security guard's cabin by the main entrance (guardCabin.ts says where the guard is): a small glass booth on a plinth,
- * a solid lower wall, glass windows on three sides and the door side open towards the entrance, a flat roof with an
- * overhang, and a lamp inside that glows warmer as the evening comes on. The guard on duty patrols by day and keeps watch
- * from inside it in the wet and at night; at a change of shift the next guard walks up and the other walks off.
- */
+/** The security guard's cabin by the main entrance (guardCabin.ts says where the guard is). */
 
 const WALL = 0.95;
 const FRAME = '#334155';
@@ -54,8 +50,7 @@ function cabinParts({ x, z, w, d, h, door }: Cabin): { solid: Part[]; glass: Par
 
 const LOOKS = [93, 97, 101];
 
-/** The guard on duty and (during a handover) the guard going off, moved every frame from their FrontGuard. A hand raised
- * to a driver only when `raiseFor` says so (the car park's gate), and never while walking or in the cabin. */
+/** The guard on duty and (during a handover) the guard going off, moved every frame from their FrontGuard. */
 function Guards({ guard, looks, name, raiseFor }: { guard: FrontGuard; looks: readonly number[]; name: string; raiseFor?: () => boolean }) {
   const duty = useRef<Group>(null);
   const off = useRef<Group>(null);
@@ -89,10 +84,7 @@ function Guards({ guard, looks, name, raiseFor }: { guard: FrontGuard; looks: re
   );
 }
 
-/**
- * A guard's cabin and the guards who keep it (`plan`, guardCabin.ts): the front entrance's by default, or the car park's.
- * Stepped on the motion clock, so frozen on pause.
- */
+/** A guard's cabin and the guards who keep it (`plan`, guardCabin.ts): the front entrance's by default, or the car park's. */
 export const GuardCabin3D = memo(function GuardCabin3D({ plan = FRONT_PLAN, name = 'guard-cabin', guardName = 'front-guard', looks = LOOKS, raiseFor }: { plan?: GuardPostPlan; name?: string; guardName?: string; looks?: readonly number[]; raiseFor?: () => boolean }) {
   const { x, z, w, d, h } = plan.cabin;
   const parts = useMemo(() => cabinParts(plan.cabin), [plan]);
@@ -100,13 +92,11 @@ export const GuardCabin3D = memo(function GuardCabin3D({ plan = FRONT_PLAN, name
   const glass = useMerged(() => parts.glass, [parts]);
   const lamp = useMerged(() => parts.lamp, [parts]);
   const light = useRef<MeshBasicMaterial>(null);
-  const guard = useMemo(() => {
-    const st = bankStore.getState();
-    return new FrontGuard(st.view.minute, wetNow(), plan);
-  }, [plan]);
+  // The guards at this post are the world engine's: it steps them on the motion clock (WorldEngine.tick).
+  const world = useWorld();
+  const guard = useMemo(() => world.guard(plan), [world, plan]);
   useFrame(() => {
     const minute = bankStore.getState().view.minute;
-    for (const dt of substeps(motion.dt)) guard.step(dt, minute, wetNow());
     // The lamp inside: always on, brightest after dark and in the gloom of bad weather.
     if (light.current) light.current.opacity = 0.1 + 0.28 * atmosphereAt(minute, liveMix).lamps;
   }, -1);
@@ -127,4 +117,4 @@ export const GuardCabin3D = memo(function GuardCabin3D({ plan = FRONT_PLAN, name
 });
 
 /** Rain, a storm, hail or snow: weather a guard waits out in the cabin. */
-const wetNow = (): boolean => ['rain', 'storm', 'hail', 'snow'].includes(weatherStore.getState().weather);
+

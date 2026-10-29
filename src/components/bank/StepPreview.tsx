@@ -5,10 +5,7 @@ import { bankStore, dataDepthOf, useBankStore } from '../../store/bankStore';
 import type { FlowId } from '../../types/viewport';
 import { useTerms } from './useTerms';
 
-/**
- * The step preview of a guided flow: what this desk does in the flow, which step it is, and whether the learner's last
- * preset payment has passed it yet. The 2D map shows it as a popover on hover; the 3D office floats it over the desk.
- */
+/** The step preview of a guided flow: what this desk does in the flow, which step it is, and whether the learner's last preset payment has passed it yet. */
 
 const BADGE: Record<StepStatus, string> = {
   upcoming: 'bg-slate-700/80 text-slate-200 ring-slate-500/50',

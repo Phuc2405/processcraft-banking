@@ -9,11 +9,7 @@ import { StepPreviewBody } from '../StepPreview';
 import { GroundMark, type Role } from './TourStage';
 import { frameFocus, placeXZ, type CamFocus } from './tour3d';
 
-/**
- * The 3D half of a guided flow (Beginner scope): a ring of the flow's colour round each of its desks while the daylight is
- * turned down (see Lights in OfficeScene), the desk the learner's payment is at pulsing, and a step preview card floating
- * over the lit desk under the pointer. Nothing here runs while a chapter tour has the office.
- */
+/** The 3D half of a guided flow (Beginner scope): a ring of the flow's colour round each of its desks while the daylight is turned down (see Lights in OfficeScene), the desk the learner's payment is at pulsing, and a step preview card floating over the lit desk under the pointer. */
 
 /** The ring colour of a node the Academy teaches when no guided flow is lit. */
 const ACADEMY_ACCENT = '#38bdf8';

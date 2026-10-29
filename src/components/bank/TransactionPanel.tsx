@@ -11,13 +11,7 @@ import type { PacketTrace } from '../../sim/types';
 import { dataDepthOf, useBankStore } from '../../store/bankStore';
 import { useTerms } from './useTerms';
 
-/**
- * The inspector for a payment the learner sent with a preset action. It follows the payment desk by desk, and shows it at
- * the chosen data depth:
- *
- *   Standard   plain cards: Status, Amount, Hold Amount, Latency
- *   Expert     the ISO 8583 response code, the raw message as syntax-highlighted JSON, and the core banking GL journal
- */
+/** The inspector for a payment the learner sent with a preset action. */
 
 const TONE_BADGE: Record<ResponseCode['tone'], string> = {
   good: 'bg-emerald-400/15 text-emerald-200 ring-emerald-400/50',

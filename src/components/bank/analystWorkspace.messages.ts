@@ -1,10 +1,6 @@
 import { defineMessages } from '../../utils/i18nHelper';
 
-/**
- * The Staff Roleplay Workspace: role briefs, the 28-task matrix (titles, SOPs, scenes), scenario stories, risk and benefit cards, field tooltips and the
- * consequence overlay. Every teaching string comes in two registers: `Std` (Standard, plain language) and `Exp` (Expert,
- * formal banking and ISO 20022 terms). Task SOP thresholds mirror TASK_SOP in sim/staffRoleplay.ts.
- */
+/** The Staff Roleplay Workspace: role briefs, the 28-task matrix (titles, SOPs, scenes), scenario stories, risk and benefit cards, field tooltips and the consequence overlay. */
 export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
   // ── Shell ──────────────────────────────────────────────────────────────────
   enterRoleplay: { en: '🎭 Enter Staff Roleplay', vi: '🎭 Vào vai nhân viên' },

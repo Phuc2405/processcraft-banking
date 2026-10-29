@@ -1,17 +1,4 @@
-/**
- * Academy chapters 5 and 6.
- *
- *   Chapter 5  Instant Account-to-Account Transfers (A2A & pacs.008)   the bank's own A2A diagram
- *   Chapter 6  AML Screening & Chargeback Dispute Resolution           the Build Lab's Level 9 and Level 10 reference diagrams
- *
- * Like the first four chapters, these explain a process by running one example through the real diagram (see walkthrough.ts),
- * so nothing in the words decides an outcome. Chapter 6 is two diagrams in one chapter: the examples that start with "AML:"
- * walk the screening diagram and the ones that start with "Dispute:" walk the chargeback diagram, and the learner switches
- * between them with the example picker.
- *
- * This file holds only data. The Lesson type, the helpers and the first four chapters are in learning.ts, which imports
- * this file; the imports back are types only, so there is no cycle at run time.
- */
+/** Academy chapters 5 and 6. */
 
 import { ACADEMY_LEVELS } from '../data/academyLevels';
 import type { A2aContext, BankingPayload } from '../types/processLearning';
@@ -33,9 +20,7 @@ const payment = (over: Partial<BankingPayload> = {}): BankingPayload => ({
   ...over,
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Chapter 5: instant account-to-account transfers
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A pacs.008 credit transfer from the customer's banking app. `message` overrides the fields of the message. */
 const transfer = (amount: number, message: Partial<A2aContext> = {}, funds = amount * 4, over: Partial<BankingPayload> = {}): BankingPayload =>
@@ -189,9 +174,7 @@ export const LESSON_E: Lesson = {
   ],
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Chapter 6: AML screening and chargeback disputes
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** One of the Build Lab's own test payloads, so the Academy and the Lab never disagree about an example. */
 function caseFrom(levelNumber: 9 | 10, testId: string): BankingPayload {

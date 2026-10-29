@@ -1,19 +1,6 @@
-/**
- * The Academy's Course Catalog: one card per chapter, strictly in the order a learner should take them.
- *
- *   Chapter 1  Virtual Card Tokenization & dCVV Masking
- *   Chapter 2  3-D Secure 2.x Risk Engine (Frictionless vs Challenge OTP)
- *   Chapter 3  BNPL Pay-in-4 Underwriting & Card Fallback
- *   Chapter 4  EOD 3-Way Reconciliation & Suspense Accounting
- *   Chapter 5  Instant Account-to-Account Transfers (A2A & pacs.008)
- *   Chapter 6  AML Screening & Chargeback Dispute Resolution
- *
- * The lessons themselves (learning.ts) own the title, the accent colour and the stories. This file adds what only the catalog
- * needs: a difficulty tag, a one-line explanation a complete beginner can read, and the length of the tour, which is counted from
- * the real plans (a chapter's "estimated steps" is the fewest and most desks-and-decisions its examples take, not a guess).
- */
+/** The Academy's Course Catalog: one card per chapter, strictly in the order a learner should take them. */
 
-import { activeLocale } from '../i18n/locale';
+import { activeLocale } from '../i18n/localeCore';
 import { LESSON_LIST, type ProcessId } from './learning';
 import { spotPlan } from './spotlightPlan';
 

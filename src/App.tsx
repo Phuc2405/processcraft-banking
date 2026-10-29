@@ -124,20 +124,19 @@ function TopBar({ view, onView }: { view: View; onView: (v: View) => void }) {
         {view === 'bank' && <AmlButton />}
         {view === 'bank' && <BenchmarkButton />}
         {view === 'bank' && <ChaosButton />}
-        {/* In the Living Bank the scope, 2D/3D and data-depth switches live in the viewport dock over the map. The Build Lab keeps
-            the vocabulary switch here: the tour and the ledger read the same setting as the dock's Standard | Expert. */}
+        {/* In the Living Bank the scope, 2D/3D and data-depth switches live in the viewport dock over the map. */}
         {view === 'lab' && <ModeToggle />}
         <SoundToggle />
-        <LanguageToggle />
+        {/* Lifted over the map's overlays and the Academy, Rule Lab and report windows (z-40 to z-50), so the language can always be changed; the windows above it (workspace, Knowledge Base) carry their own. */}
+        <div className="relative z-[60]" data-testid="global-language">
+          <LanguageToggle />
+        </div>
       </div>
     </header>
   );
 }
 
-/**
- * The Academy's six stages, each with its levels. Each level keeps its own diagram, saved to this browser as you work.
- * The tab for level N is always `level-tab-N`, whichever stage it sits in.
- */
+/** The Academy's six stages, each with its levels. */
 function LevelBar() {
   const levels = useWorkflowStore((s) => s.levels);
   const current = useWorkflowStore((s) => s.level.id);

@@ -1,4 +1,4 @@
-import { LOADING_DOOR } from './citRun';
+import { LOADING_DOOR } from '../../../engine/world/citRun';
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef, type DependencyList } from 'react';
@@ -31,9 +31,10 @@ import {
   type PlantKind,
   type Rect,
   type WallSide,
-} from './layout3d';
+} from '../../../engine/plan/layout3d';
 import { blobMaterial, glow, pane, satin, solid } from './materials';
 import { KIOSK_HEX, SET } from './palette';
+import { lodShows, useLabelLod } from './labelLod';
 
 const HX = FLOOR_SLAB.w / 2;
 const HZ = FLOOR_SLAB.d / 2;
@@ -82,9 +83,7 @@ export function Sign({ text, fg, bg, position, rotationY = 0, width = 1.8 }: { t
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Walls
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A wall running along local x with its room-side face toward +z: wainscot, skirting, a cap, and windows. */
 function wallParts(len: number, windows: readonly number[]): { body: Part[]; lights: Part[] } {
@@ -116,10 +115,7 @@ const DOOR = 1.5;
 const BACK_WINDOWS = WALL_WINDOWS.filter((w) => w.wall === 'back').map((w) => w.at);
 const RIGHT_WINDOWS = WALL_WINDOWS.filter((w) => w.wall === 'right').map((w) => w.at - WALL_T / 2);
 
-/**
- * The right-hand wall, in pieces between its side doors onto the park: each piece keeps the windows that fall on it, and
- * over each doorway the wall carries on above a lintel.
- */
+/** The right-hand wall, in pieces between its side doors onto the park. */
 function rightWall(windows: readonly number[]): { body: Part[]; lights: Part[] } {
   const len = FLOOR_SLAB.d - WALL_T;
   // Along the wall's own x, which is world z less half a wall's thickness.
@@ -164,8 +160,7 @@ export const Walls = memo(function Walls() {
     }
     if (HZ > from) pieces.push([from, HZ]);
     for (const [a, c] of pieces) parts.push(box([-HX + WALL_T / 2, KERB_H / 2, (a + c) / 2], [WALL_T, KERB_H, c - a], SET.wainscot), box([-HX + WALL_T / 2, KERB_H + 0.02, (a + c) / 2], [WALL_T + 0.06, 0.04, c - a + 0.04], SET.wallCap));
-    // The front of the building, towards the street: a low plinth, open wherever a lane runs out to the pavement, and at
-    // the main entrance.
+    // The front of the building, towards the street: a low plinth, open wherever a lane runs out to the pavement, and at the main entrance.
     const g0 = MAIN_GATE.x - MAIN_GATE.width / 2;
     const g1 = MAIN_GATE.x + MAIN_GATE.width / 2;
     for (const r of frontPlinth().runs) {
@@ -211,9 +206,7 @@ export const Walls = memo(function Walls() {
   );
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Glass rooms
-// ─────────────────────────────────────────────────────────────────────────────
 
 const GLASS_H = 2.3;
 
@@ -298,9 +291,7 @@ export const VaultRoom = memo(function VaultRoom() {
   );
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Server racks
-// ─────────────────────────────────────────────────────────────────────────────
 
 const LED_SPOTS: V3[] = [[-0.28, 0.5, 0.455], [-0.28, 0.9, 0.455], [-0.28, 1.3, 0.455], [-0.28, 1.7, 0.455]];
 
@@ -355,9 +346,7 @@ export const ServerRoom = memo(function ServerRoom() {
   );
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Plants
-// ─────────────────────────────────────────────────────────────────────────────
 
 function plantParts(kind: PlantKind): Part[] {
   const [l0, l1, l2] = SET.leaf;
@@ -420,9 +409,7 @@ export const Plants = memo(function Plants() {
   );
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Gates: stanchion ropes and the ATM
-// ─────────────────────────────────────────────────────────────────────────────
 
 const stanchion = (x: number, z: number): Part[] => [cyl([x, 0.02, z], 0.15, 0.16, 0.04, SET.brass, 10), cyl([x, 0.45, z], 0.025, 0.025, 0.84, SET.brass, 8), ball([x, 0.89, z], 0.055, SET.brass)];
 
@@ -440,9 +427,7 @@ export const GateStanchions = memo(function GateStanchions() {
   return <mesh geometry={geo} material={satin} castShadow name="office-stanchions" />;
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The tallies and the phone
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const KIOSKS: readonly ExternalId[] = ['OUT_APPROVED', 'OUT_DECLINED', 'OUT_SETTLED', 'CUSTOMER_OTP'];
 
@@ -492,7 +477,10 @@ const Kiosk = memo(function Kiosk({ id }: { id: ExternalId }) {
   const always = useBankStore((s) => s.labelMode === 'always');
   const hovered = useBankStore((s) => s.hoverPlace === id);
   const lit = useTourLit(id);
-  const labelled = hovered || (lit === null ? always : lit);
+  // A tally only ever grows, so its badge is compact (dot and count) until it is pointed at or lit by a tour, and gone zoomed right out.
+  const tally = lodShows(useLabelLod()).tally;
+  const labelled = hovered || (lit === null ? always && tally && count > 0 : lit);
+  const full = hovered || lit === true;
   const setHoverPlace = useBankStore((s) => s.setHoverPlace);
   // A pile that grows with the tally, slowly: one block for a handful, up to nine.
   const blocks = Math.min(9, Math.ceil(Math.sqrt(count)));
@@ -511,10 +499,13 @@ const Kiosk = memo(function Kiosk({ id }: { id: ExternalId }) {
       </mesh>
       {labelled && (
         <Html position={[0, id === 'CUSTOMER_OTP' ? 1.8 : 1.7, 0]} center zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
-          <div className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-white bg-white/95 py-[2px] pl-1.5 pr-[2px] text-[10px] font-semibold text-slate-700 shadow-[0_2px_6px_rgba(60,40,20,0.28)]" data-testid={`office-kiosk-${id}`}>
+          <div className="pc-lod-in flex items-center gap-1.5 whitespace-nowrap rounded-full border border-white bg-white/95 py-[2px] pl-1.5 pr-[2px] text-[10px] font-semibold text-slate-700 shadow-[0_2px_6px_rgba(60,40,20,0.28)]" data-testid={`office-kiosk-${id}`}>
             <span className="h-1.5 w-1.5 rounded-full" style={{ background: hex }} />
-            <span>{terms.external(id)}</span>
-            <span className="min-w-[16px] rounded-full bg-slate-200 px-1 text-center tabular-nums text-slate-600">{count.toLocaleString()}</span>
+            {full && <span>{terms.external(id)}</span>}
+            {/* Never a pill that says 0: pointed at before anything has come out, it is its dot and its name. */}
+            {count > 0 && (
+              <span className="min-w-[16px] rounded-full bg-slate-200 px-1 text-center tabular-nums text-slate-600">{count.toLocaleString()}</span>
+            )}
           </div>
         </Html>
       )}

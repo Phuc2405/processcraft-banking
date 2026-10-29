@@ -1,13 +1,6 @@
 import type { CSSProperties } from 'react';
 
-/**
- * How one playback tick is spent. A tick is one desk doing one piece of work, so the first part of it
- * is the desk working (the token sits at the desk), then the token travels along the wire, and the
- * last part is a short rest before the next tick.
- *
- *   |-- work --|------- travel -------|-- rest --|
- *   0         35%                     85%       100%
- */
+/** How one playback tick is spent. */
 export const WORK_SHARE = 0.35;
 export const TRAVEL_SHARE = 0.5;
 

@@ -1,7 +1,4 @@
-/**
- * The short names the level bar shows, so the six stages fit on one line. The full title is the tab's tooltip
- * and the heading of the level brief. One `Localized` table: a second language is one more entry.
- */
+/** The short names the level bar shows, so the six stages fit on one line. */
 
 import { pick, type Localized } from '../i18n/locale';
 import type { Id } from '../types/processLearning';

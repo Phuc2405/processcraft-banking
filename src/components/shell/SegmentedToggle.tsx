@@ -20,12 +20,7 @@ export interface SegmentOption<T extends string> {
   badge?: ReactNode;
 }
 
-/**
- * The one segmented switch of the app ([ A | B ] with a radio per option): the Basic / Advanced view, Standard / Expert
- * depth, Select / Pan pointer and the audit scope all draw through it, so they look and behave alike.
- *
- * The group is `testId` and carries `data-<stateKey>` with the value that is on; each option is `${testId}-${value}`.
- */
+/** The one segmented switch of the app ([ A | B ] with a radio per option). */
 export function SegmentedToggle<T extends string>({
   label,
   value,
@@ -70,10 +65,7 @@ export function SegmentedToggle<T extends string>({
 
 export type Depth = 'standard' | 'expert';
 
-/**
- * [💡 Standard | </> Expert]: the one terminology switch, drawn the same in the Living Bank header, the guided tour bar,
- * the Academy and the analyst workspace: plain business words, or the technical codes (ISO 20022, pacs.008, SWIFT MT/MX).
- */
+/** [💡 Standard | </> Expert]: the one terminology switch, drawn the same in the Living Bank header, the guided tour bar, the Academy and the analyst workspace. */
 export function DepthToggle({ value, onChange, testId, stateKey = 'depth', caption = false }: { value: Depth; onChange: (depth: Depth) => void; testId: string; stateKey?: string; caption?: boolean }) {
   const m = useMessages(depthMessages);
   return (
@@ -118,10 +110,7 @@ export function DepthToggle({ value, onChange, testId, stateKey = 'depth', capti
 
 export type ViewMode = 'basic' | 'advanced';
 
-/**
- * [🔰 Basic | 🔬 Advanced]: plain words for a beginner, or the exact codes and the deeper detail. Used by the core ledger,
- * the audit report and the Knowledge Base; `hints` lets a screen say what its own Advanced view adds.
- */
+/** [🔰 Basic | 🔬 Advanced]: plain words for a beginner, or the exact codes and the deeper detail. */
 export function ViewModeToggle({ view, onChange, testId, caption = false, hints }: { view: ViewMode; onChange: (view: ViewMode) => void; testId: string; caption?: boolean; hints?: Partial<Record<ViewMode, string>> }) {
   const m = useMessages(viewModeMessages);
   return (

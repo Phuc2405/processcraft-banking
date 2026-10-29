@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { LESSONS, type ProcessId } from '../learning';
 import { localLesson } from '../learningVi';
 import { groupScenarios, scenarioPathOf } from '../scenarioGroups';
-import { setActiveLocale } from '../../i18n/locale';
+import { setActiveLocale } from '../../i18n/localeCore';
 
 const IDS = Object.keys(LESSONS) as ProcessId[];
 

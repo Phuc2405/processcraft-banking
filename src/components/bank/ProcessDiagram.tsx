@@ -6,7 +6,7 @@ import { exampleOf, graphKeyOf, layoutFor, type Lesson, type DiagramKind, type E
 import { lessonGraph, wireLabel, type StepTone, type Walkthrough } from '../../sim/walkthrough';
 import type { TokenLook } from '../../store/liveSimulation';
 import type { Outcome } from '../../types/processLearning';
-import { roundedPath } from './layout';
+import { roundedPath } from '../../engine/plan/layout';
 import { useTerms } from './useTerms';
 import { EdgeTraveller } from '../canvas/edges/EdgeTraveller';
 import { TokenShape } from '../canvas/tokens/TokenGlyph';
@@ -134,9 +134,7 @@ function drawEdge(from: Shape, to: Shape, route: EdgeRoute | undefined): Drawn {
   return { d: `M${a[0]} ${a[1]}C${c1[0]} ${c1[1]} ${c2[0]} ${c2[1]} ${b[0]} ${b[1]}`, label: route?.labelAt ?? mid };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Node drawings
-// ─────────────────────────────────────────────────────────────────────────────
 
 function NodeShape({ s, color, state, current }: { s: Shape; color: string; state: 'ahead' | 'seen' | 'off'; current: boolean }) {
   const fill = state === 'off' ? '#0a0f1a' : '#101a2e';
@@ -233,9 +231,7 @@ function NodeShape({ s, color, state, current }: { s: Shape; color: string; stat
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The diagram
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface Props {
   lesson: Lesson;

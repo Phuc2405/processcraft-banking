@@ -1,13 +1,4 @@
-/**
- * Bank store: the living bank on screen.
- *
- * The simulation (src/sim) is a plain class with no timers. This store owns one, hands the screen a fresh
- * BankView after every beat, and keeps everything else the screen needs: the clock controls, what is
- * selected for the inspector, the Learning Hub, the rules being tried out, and saving.
- *
- * Like the workflow store there are no timers in here. useBankClock() calls tickBeat() at the right pace
- * while `playing` is true, which keeps the store testable and the pace in one place.
- */
+/** Bank store: the living bank on screen. */
 
 import { useStore } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
@@ -56,11 +47,7 @@ export interface QuizAnswer {
   correct: boolean;
 }
 
-/**
- * Learn & Explore: a guided tour of one chapter, on the 2D map or in the 3D office (whichever the learner is looking at, and
- * they may switch between the two mid-tour). While it runs the clock is stopped and locked to the slowest speed, everything the
- * chapter does not use is dimmed, and one token walks the process from its first desk to its end.
- */
+/** Learn & Explore: a guided tour of one chapter, on the 2D map or in the 3D office (whichever the learner is looking at, and they may switch between the two mid-tour). */
 export interface SpotlightState {
   process: ProcessId;
   exampleId: string;
@@ -115,11 +102,7 @@ export const EMPTY_SHIFT: ShiftProgress = { reviews: 0, correct: 0, latencySumSe
 
 /** What the analyst did: an approval, a plain rejection, or a rejection whose journal froze the funds. */
 export type AuditAction = 'APPROVE' | 'REJECT' | 'FREEZE';
-/**
- * A decision against the SOP is an SOP breach; a right decision taken after the SLA is an SLA breach. UNVERIFIED marks a row
- * rebuilt from a ledger journal saved before the trail itself was saved: what was decided is known, how fast and against which
- * verdict is not, so it is never counted as compliant or as a breach.
- */
+/** A decision against the SOP is an SOP breach; a right decision taken after the SLA is an SLA breach. */
 export type ComplianceStatus = 'COMPLIANT' | 'SLA_BREACH' | 'SOP_BREACH' | 'UNVERIFIED';
 
 /** One row of the audit trail: every desk decision, training, retail or live queue. */
@@ -155,11 +138,7 @@ export const auditActionOf = (r: Pick<StaffDecisionResult, 'decision' | 'journal
 
 export const complianceOf = (correct: boolean, latencySec: number, slaSec: number): ComplianceStatus => (!correct ? 'SOP_BREACH' : latencySec > slaSec ? 'SLA_BREACH' : 'COMPLIANT');
 
-/**
- * The saved trail plus a row for every saved ledger journal it does not have (books kept from before the trail was saved).
- * A recovered row carries what the journal knows (desk, case, decision, status, legs, time) and is marked UNVERIFIED, shift 0;
- * it goes in time order before the trail's own rows, and every row is renumbered so seq stays 1, 2, 3…
- */
+/** The saved trail plus a row for every saved ledger journal it does not have (books kept from before the trail was saved). */
 export function recoverAuditLog(log: readonly AuditEntry[], ledger: Pick<RetailLedger, 'journal'>): AuditEntry[] {
   const known = new Set(log.map((e) => e.caseId));
   const missing = [...ledger.journal]
@@ -223,10 +202,7 @@ export interface BankState {
   /** The payment the learner last sent with a preset action, and where it is now. */
   presetTxId: string | null;
   presetTrace: PacketTrace | null;
-  /**
-   * True while one preset payment plays out on its own: the clock runs, but the day's generated customers are held back and the
-   * clock stops by itself the moment the payment is done. Pressing Play (Live Customers) or Pause ends it.
-   */
+  /** True while one preset payment plays out on its own. */
   solo: boolean;
   /** The node the Academy split view is teaching right now: it pulses on the 2D map and in the 3D office, and the 3D camera goes to it. */
   focusPlace: PlaceId | null;
@@ -268,10 +244,7 @@ export interface BankState {
   setStaffTask(task: StaffTaskNo): void;
   /** Moves to another roleplay desk after the learner confirmed: ends the shift and starts Task 1. */
   switchStaffDesk(id: StationId): void;
-  /**
-   * Decides the head case of the current task and books it on the shift and the career. `expert` is the workspace's complexity
-   * mode; `assisted` means the learner revealed the Decision Support Engine's advice in Expert mode, which forfeits the combo bonus.
-   */
+  /** Decides the head case of the current task and books it on the shift and the career. */
   staffTrain(caseId: string, decision: StaffDecision, latencySec: number, slaSec: number, expert?: boolean, assisted?: boolean): StaffDecisionResult;
   /** Lifetime XP, badges and badge streaks, kept in storage. */
   career: CareerProgress;
@@ -327,11 +300,7 @@ export interface BankState {
   resetBank(): void;
   /** Replays the day the bank is on from 07:00, as the staff arrive: same customers, same carry-over, today's report (if any) dropped. */
   resetDay(): void;
-  /**
-   * The time scrubber: puts the bank clock (and with it the queues, the KPIs and the ledger) at `minute` of today, forwards or
-   * backwards. Forwards plays the day on to that time; backwards replays today from 07:00 up to it, with the same
-   * customers. Reaching 24:00 closes the day as usual.
-   */
+  /** The time scrubber: puts the bank clock (and with it the queues, the KPIs and the ledger) at `minute` of today, forwards or backwards. */
   scrubTo(minute: number): void;
 
   // Operations
@@ -353,17 +322,10 @@ export interface BankState {
   setDimension(dimension: Dimension): void;
   setDataDepth(depth: DataDepth): void;
   setActiveFlow(flow: FlowId): void;
-  /**
-   * The Academy split view picked a lesson step: one change that ends any chapter tour, lights `flow` in the Beginner scope (or,
-   * with no flow, shows the whole bank in the Advanced scope) and marks `place` as the node in focus.
-   */
+  /** The Academy split view picked a lesson step: one change that ends any chapter tour, lights `flow` in the Beginner scope (or, with no flow, shows the whole bank in the Advanced scope) and marks `place` as the node in focus. */
   focusAcademyStep(target: { flow: FlowId | null; place: PlaceId | null }): void;
   clearAcademyFocus(): void;
-  /**
-   * One click of a preset action: sends the scripted customer into the bank and follows it in the inspector. When the bank was
-   * paused, only that payment plays (a solo run) and the clock stops again once it is done; when the bank was already running
-   * live, the payment simply joins the traffic.
-   */
+  /** One click of a preset action: sends the scripted customer into the bank and follows it in the inspector. */
   runPreset(id: PresetId): void;
   /** Lights a guided flow on the map and plays its main preset payment (the "Simulate this Flow" deep link from the Academy). */
   triggerGuidedFlow(flow: FlowId): void;
@@ -527,10 +489,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       };
       return [...log, entry].slice(-AUDIT_LOG_CAP);
     };
-    /**
-     * The one way a decision reaches the books: its journal (if it moves money) is posted and its audit row is appended in the
-     * same step, with the same timestamp, and both are saved. No path can post to the ledger without writing the trail.
-     */
+    /** The one way a decision reaches the books: its journal (if it moves money) is posted and its audit row is appended in the same step, with the same timestamp, and both are saved. */
     const book = (
       s: Pick<BankState, 'retailLedger' | 'auditLog'>,
       d: Pick<AuditEntry, 'station' | 'role' | 'caseId' | 'amountCents' | 'latencySec' | 'slaSec' | 'expert' | 'assisted'>,
@@ -563,10 +522,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       persist();
     };
 
-    /**
-     * Today, rebuilt from what it started with (startCarry) and the rules the learner has now, so changing a dial and
-     * replaying is a fair way to ask "what would this same day have looked like?". Today's own report goes; earlier ones stay.
-     */
+    /** Today, rebuilt from what it started with (startCarry) and the rules the learner has now, so changing a dial and replaying is a fair way to ask "what would this same day have looked like?". */
     const rebuildToday = (): BankSimulation => {
       const s = get();
       const day = s.sim.day;
@@ -713,8 +669,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           last: result,
         };
         if (!result.correct) next.xp -= incidentErrorXp(incident?.id);
-        // A crisis lasts its batch of cases (every case in the mixed stream), then the next one rolls at once: the emergency
-        // queue loops until Incident Mode is turned off.
+        // A crisis lasts its batch of cases (every case in the mixed stream), then the next one rolls at once: the emergency queue loops until Incident Mode is turned off.
         const advanced = incident && advanceIncident(incident, result.correct);
         const staffIncident = advanced && crisisOver(advanced, s.staffCrisisBatch, s.staffCrisisStream) ? rollFor(s.staffDesk, s.staffIncidentMode, advanced.id) : advanced;
         const { career, unlocked } = recordCareerDecision(s.career, { role, drill: head.drill, expected: result.expected, decision, correct: result.correct, latencySec, expert, xp: next.xp - prev.xp });
@@ -1217,7 +1172,6 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
   return store;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** The app's bank. Day 2 (flash sale) and day 3 (botnet) run their scripted scenarios. */
 export const bankStore = createBankStore({ chaos: { scriptedDays: true } });
@@ -1230,12 +1184,11 @@ export function useBankStore<T>(selector: (state: BankState) => T): T {
 export const dataDepthOf = (s: Pick<BankState, 'termMode'>): DataDepth => (s.termMode === 'expert' ? 'expert' : 'standard');
 
 /** The guided flow in focus: only in the Beginner scope, and never while a chapter tour has the map. */
+/** Whether a tour's kickoff card (its briefing, before "Start the tour") is open: the floating dock and the weather bar stand aside for it, and come back the moment the tour starts. */
+export const kickoffOpenOf = (s: Pick<BankState, 'spotlight'>): boolean => s.spotlight?.intro === true;
 export const activeFlowOf = (s: Pick<BankState, 'scope' | 'flow' | 'spotlight'>): FlowId | null => (s.scope === 'beginner' && !s.spotlight ? s.flow : null);
 
-/**
- * The node the Academy is teaching, if it should show: never during a chapter tour, and, when a guided flow is lit, only if the
- * flow uses it (a node the learner has dimmed by picking another flow is not pulsed through the fade).
- */
+/** The node the Academy is teaching, if it should show. */
 export const academyFocusOf = (s: Pick<BankState, 'scope' | 'flow' | 'spotlight' | 'focusPlace'>): PlaceId | null => {
   if (s.spotlight || s.focusPlace === null) return null;
   const flow = activeFlowOf(s);

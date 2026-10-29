@@ -1,21 +1,4 @@
-/**
- * Saving the learner's diagram in the browser, one slot per level.
- *
- *   key  processcraft:v1:diagram:<levelId>   the nodes, wires and every wire's condition
- *   key  processcraft:v1:active-level        the level to reopen on the next visit
- *
- * What is stored is the pure graph (ProcessNode / ProcessEdge, with positions), never React Flow's
- * own bookkeeping (selection, measured size). Anything read back is treated as untrusted: it is
- * rebuilt against the node catalog and the level's starter graph, so a stale, hand-edited or
- * half-written entry can drop pieces of a diagram but can never crash the app or change what a
- * locked starter node means.
- *
- * An untouched starter graph is never written. A level with nothing built on it has no entry,
- * which is also what "Reset to Starter Graph" leaves behind.
- *
- * The first half of this file is pure and takes its storage as an argument, so it needs no browser.
- * `attachAutosave` is the only part with timers.
- */
+/** Saving the learner's diagram in the browser, one slot per level. key processcraft:v1:diagram:<levelId> the nodes, wires and every wire's condition key processcraft:v1:active-level the level to reopen on the next visit What is stored is the pure graph (ProcessNode / ProcessEdge, with positions), never React Flow's own bookkeeping (selection, measured size). */
 
 import type { StoreApi } from 'zustand/vanilla';
 import type {
@@ -30,9 +13,7 @@ import type {
 } from '../types/processLearning';
 import { fromProcessGraph, toProcessGraph, type ProcessFlowEdge, type ProcessFlowNode } from './graphConversion';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Storage access
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** The slice of the Web Storage API this file uses. `localStorage` satisfies it. */
 export interface KeyValueStorage {
@@ -46,10 +27,7 @@ const KEY_PREFIX = `processcraft:v${STORAGE_VERSION}:`;
 export const ACTIVE_LEVEL_KEY = `${KEY_PREFIX}active-level`;
 export const diagramKey = (levelId: Id): string => `${KEY_PREFIX}diagram:${levelId}`;
 
-/**
- * `window.localStorage`, or null when the browser refuses it (private windows, blocked site data,
- * no DOM at all). Reading the property can itself throw, so it is probed with a real write.
- */
+/** `window.localStorage`, or null when the browser refuses it (private windows, blocked site data, no DOM at all). */
 export function browserStorage(): KeyValueStorage | null {
   try {
     if (typeof window === 'undefined') return null;
@@ -82,9 +60,7 @@ function safeGet(storage: KeyValueStorage | null, key: string): string | null {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Encoding
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface SavedDiagram {
   version: typeof STORAGE_VERSION;
@@ -100,10 +76,7 @@ export interface DiagramSource {
   edges: readonly ProcessFlowEdge[];
 }
 
-/**
- * The part of a save that says what the diagram is, with no timestamp. Two states with the same
- * body are the same diagram, so this is what autosave compares to decide whether anything changed.
- */
+/** The part of a save that says what the diagram is, with no timestamp. */
 export function diagramBody(source: DiagramSource): string {
   const graph = toProcessGraph(source.nodes, source.edges, { id: 'saved', name: 'saved' });
   return JSON.stringify({ version: STORAGE_VERSION, levelId: source.level.id, nodes: graph.nodes, edges: graph.edges });
@@ -121,9 +94,7 @@ export function pristineBody(level: ChallengeLevel): string {
   return diagramBody({ level, nodes, edges });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Decoding (untrusted input)
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface RestoredDiagram {
   graph: ProcessGraph;
@@ -148,11 +119,7 @@ function readConfigValue(def: ConfigParamDef, v: unknown): ConfigValue | undefin
   }
 }
 
-/**
- * Rebuilds one node from what was saved. The node's type, ports and capability always come from
- * the catalog, so a catalog change reaches saved diagrams. Locked starter nodes come from the
- * level, with only their position taken from the save.
- */
+/** Rebuilds one node from what was saved. */
 function rebuildNode(raw: unknown, defs: ReadonlyMap<Id, NodeDefinition>, lockedStarter: ReadonlyMap<Id, ProcessNode>): ProcessNode | null {
   if (!isRecord(raw) || !isString(raw.id) || raw.id === '') return null;
   const starter = lockedStarter.get(raw.id);
@@ -205,10 +172,7 @@ function rebuildEdge(raw: unknown, nodes: ReadonlyMap<Id, ProcessNode>): Process
   return edge;
 }
 
-/**
- * Turns a stored string into a graph for `level`, or null when there is nothing usable
- * (no entry, not JSON, another format version, or an entry that belongs to another level).
- */
+/** Turns a stored string into a graph for `level`, or null when there is nothing usable (no entry, not JSON, another format version, or an entry that belongs to another level). */
 export function decodeDiagram(raw: string | null, level: ChallengeLevel, catalog: readonly NodeDefinition[]): RestoredDiagram | null {
   if (raw === null) return null;
   let parsed: unknown;
@@ -258,17 +222,9 @@ export function loadActiveLevelId(storage: KeyValueStorage | null, levels: reado
   return id !== null && levels.some((l) => l.id === id) ? id : null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Autosave
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * - unavailable  the browser gives no storage, so nothing is being saved
- * - pristine     the level is exactly as it starts: nothing to save, nothing saved
- * - pending      there are changes waiting for the short delay before they are written
- * - saved        the latest changes are in storage
- * - error        the last write failed (storage full, or blocked mid-session)
- */
+/** - unavailable the browser gives no storage, so nothing is being saved - pristine the level is exactly as it starts. */
 export type SaveStatus = 'unavailable' | 'pristine' | 'pending' | 'saved' | 'error';
 
 /** The part of the workflow state autosave reads and writes. */

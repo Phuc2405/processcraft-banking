@@ -1,7 +1,4 @@
-/**
- * The numbers an operations manager reads at the end of a day, and the day's profit and loss.
- * Comparing two days (today's rules against a tweak) is the main way the Learning Hub shows a rule's effect.
- */
+/** The numbers an operations manager reads at the end of a day, and the day's profit and loss. */
 
 import type { CheckoutKind, DayKpis, DayReport, DeclineReason } from './types';
 
@@ -114,9 +111,7 @@ export function emptyKpis(): DayKpis {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Money
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Card interchange the bank earns on an approved genuine sale. */
 export const INTERCHANGE_RATE = 0.02;
@@ -188,9 +183,7 @@ export const pct = (part: number, whole: number): number => (whole > 0 ? (part /
 
 export const formatPct = (value: number, digits = 1): string => `${value.toFixed(digits)}%`;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Comparing two days
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type RowFormat = 'count' | 'money' | 'pct' | 'minutes';
 export type Better = 'higher' | 'lower' | 'neutral';

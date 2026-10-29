@@ -10,10 +10,7 @@ import { AlarmBadge, AlarmRing, DroppedToken, TokenDock } from './NodeReactions'
 import { PortHandle } from './PortHandle';
 import { CustomerGraphic } from './WorkstationGraphic';
 
-/**
- * Start: a customer's payment arrives. End: Approved, Declined, To suspense or Challenge.
- * Both are pills; the End pill takes its colour from the outcome the learner chose.
- */
+/** Start: a customer's payment arrives. */
 function EventNodeView({ id, data, selected }: NodeProps<ProcessFlowNode>) {
   const node = data.node;
   const isStart = node.type === 'EVENT_START';

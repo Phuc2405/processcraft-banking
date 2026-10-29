@@ -1,20 +1,10 @@
-/**
- * The Build Lab guided tour, as data.
- *
- * A tour takes one diagram and one test payment, runs them through the same process runner the grader uses, and turns the
- * path the payment took into steps: one per box, each with what the box does (from the copy table) and what it did to this
- * payment (from the runner's own notes). At every decision gateway it builds a question whose right answer is the wire the
- * runner actually took, so a question can never disagree with the simulation.
- *
- * Nothing here decides anything and nothing here draws anything. The tour store (store/labTourStore.ts) steps the canvas;
- * the components (components/education/LabWalkthrough.tsx) show it.
- */
+/** The Build Lab guided tour, as data. */
 
 import { capabilityText, endText, factLabel, gatewayText, labUi, outcomeText, startText } from '../data/labTourCopy';
 import { CONDITION_VARIABLES, NODE_CATALOG } from '../data/seedChallenges';
 import { formatAud } from '../engine/money';
 import { labLabel } from '../i18n/labText';
-import { activeLocale, tr } from '../i18n/locale';
+import { activeLocale, tr } from '../i18n/localeCore';
 import { noteText } from '../i18n/notesVi';
 import { pacs008From, pacs008Xml, type Rail } from '../engine/iso20022';
 import { postTestResult } from '../engine/postings';
@@ -99,9 +89,7 @@ export interface LabTour {
   problem: string | null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Words for values
-// ─────────────────────────────────────────────────────────────────────────────
 
 const MONEY_FACTS: ReadonlySet<string> = new Set(['amount', 'availableBalance', 'creditLimit', 'authHoldMinor', 'reconVarianceMinor', 'installment1Minor', 'installmentAmountMinor']);
 
@@ -255,9 +243,7 @@ export function carriesOf(p: Readonly<BankingPayload>): TourFact[] {
   return out;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Reading the run
-// ─────────────────────────────────────────────────────────────────────────────
 
 const kindOf = (n: ProcessNode): StepKind => (n.type === 'EVENT_START' ? 'start' : n.type === 'EVENT_END' ? 'end' : n.type === 'TASK' ? 'task' : 'gateway');
 
@@ -268,10 +254,7 @@ function wireName(graph: ProcessGraph, edge: ProcessEdge): string {
   return target ? tr({ en: `the wire to “${target.label}”`, vi: `dây tới “${labLabel(target.label)}”` }) : tr({ en: 'the wire', vi: 'dây này' });
 }
 
-/**
- * What a decision read and which wire it took, in a sentence or two. The facts come from what the desks before it wrote and
- * from the payment itself, not from the runner's note, so the words are the learner's ("Ledger: insufficient funds").
- */
+/** What a decision read and which wire it took, in a sentence or two. */
 function describeDecision(graph: ProcessGraph, node: ProcessNode, taken: ProcessEdge | undefined, facts: DerivedFacts, payload: BankingPayload): string {
   const out = graph.edges.filter((e) => e.sourceNodeId === node.id);
   const read = variablesRead(out).map((n) => `${factLabel(n)}: ${valueText(n, readVariable(n, facts, payload))}`);
@@ -449,9 +432,7 @@ export function buildLabTour(level: ChallengeLevel, graph: ProcessGraph, test: T
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Which payment to follow
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** The payment each Academy level's opening scene is about. Levels not listed pick the test with the most decisions. */
 const FEATURED: Readonly<Record<Id, Id>> = {
@@ -481,14 +462,9 @@ export function featuredTest(level: ChallengeLevel, graph: ProcessGraph): TestCa
   return best;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The spotlight
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * What the canvas shows at step `index`: the box being explained is lit, the boxes behind it are seen, the rest of the path is
- * ahead, and everything this payment will never touch is off. The wire the token is about to take is current.
- */
+/** What the canvas shows at step `index`: the box being explained is lit, the boxes behind it are seen, the rest of the path is ahead, and everything this payment will never touch is off. */
 export function spotlightFor(tour: LabTour, index: number): GraphSpotlight {
   const nodes: Record<Id, SpotState> = {};
   const edges: Record<Id, SpotState> = {};
@@ -502,9 +478,7 @@ export function spotlightFor(tour: LabTour, index: number): GraphSpotlight {
   return { nodes, edges };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Questions at the decisions
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface LabQuiz {
   /** The step the question belongs to. */

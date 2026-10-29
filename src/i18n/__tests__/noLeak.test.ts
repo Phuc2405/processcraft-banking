@@ -1,10 +1,4 @@
-/**
- * Language leak guard.
- *
- * 1. The simulation, the stores and the exports write canonical English, whatever language is on screen.
- * 2. Showing that text in English never contains Vietnamese, even if a Vietnamese scenario name got baked in.
- * 3. Showing it in Vietnamese never leaves an English scenario name behind (the "Practice Swipe, Big Basket" class of bug).
- */
+/** Language leak guard. 1. */
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { transactionsCsv } from '../../sim/reportSummary';

@@ -1,17 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { atmosphereAt, CLEAR, WEATHER_MIX } from '../atmosphere';
+import { atmosphereAt, CLEAR, WEATHER_MIX } from '../../../../engine/world/atmosphere';
 import { atmPress } from '../Desk3D';
 import { mistClipped } from '../Environment3D';
-import { evacuees } from '../evacuation';
-import { CABIN_DOOR, FrontGuard, inCabin } from '../guardCabin';
-import { ATM_STATIONS, arrivalPath, atmBooth, atmExitPath, GUARD_CABIN, KERB_Z, lobbyWalkIn, ROPED_QUEUES, stanchionLine, STREET, WALK_IN_DESKS, type V2 } from '../layout3d';
-import { exitRoute, PARK_GATE, PARK_MEMBERS, ParkCrowd, wantsPark } from '../parkLife';
-import { FLOWERBEDS, FOUNTAIN, HEDGES, LOOP, PICNIC } from '../parkPlan';
+import { evacuees } from '../../../../engine/world/evacuation';
+import { CABIN_DOOR, FrontGuard, inCabin } from '../../../../engine/world/guardCabin';
+import { ATM_STATIONS, arrivalPath, atmBooth, atmExitPath, GUARD_CABIN, KERB_Z, lobbyWalkIn, ROPED_QUEUES, stanchionLine, STREET, WALK_IN_DESKS, type V2 } from '../../../../engine/plan/layout3d';
+import { exitRoute, PARK_GATE, PARK_MEMBERS, ParkCrowd, wantsPark } from '../../../../engine/world/parkLife';
+import { FLOWERBEDS, FOUNTAIN, HEDGES, LOOP, PICNIC } from '../../../../engine/world/parkPlan';
 import { swingAmp, SWING } from '../Park3D';
 import { pathLength, pointAlongPath } from '../tour3d';
-import { BUS_X, busRiders, kerbZ, LENGTH, MIN_GAP, TAXI_X, TrafficSim, VEHICLES, WIDTH } from '../vehicles';
+import { BUS_X, busRiders, kerbZ, LENGTH, MIN_GAP, TAXI_X, TrafficSim, VEHICLES, WIDTH } from '../../../../engine/world/vehicles';
 import { DAY_EVENTS } from '../../../../sim/traffic';
 import { dayIntroCopy, dayLabel, introDue } from '../../dayIntro';
 
@@ -64,7 +64,7 @@ describe('queue ropes, stanchions and booth glass are walls to walk round', () =
       expect(atmPress(t)).toBeLessThanOrEqual(0.47);
     }
     // The one served is drawn by the desk itself, on the spot, then walks off: there is no separate pool of leavers.
-    expect(read('../Desk3D.tsx')).toContain('<ServedCustomer key={s.key} id={id} s={s} onGone={gone} />');
+    expect(read('../Desk3D.tsx')).toContain('<ServedCustomer key={s.key} id={id} s={s} line={line} />');
     expect(read('../OfficeScene.tsx')).not.toContain('<AtmLeavers />');
   });
 

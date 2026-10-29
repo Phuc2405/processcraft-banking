@@ -1,12 +1,6 @@
-/**
- * Vietnamese for the label/value pairs a walkthrough step shows ("Account holds: $120.00", "dCVV: VALID").
- *
- * The plan keeps the English labels, because the walkthrough quizzes look facts up by label. The screen translates them as it
- * draws them, through `factLabel` and `factValue`. Codes that a banker reads as codes (VALID, FRICTIONLESS, RTP) stay as they are
- * unless a plain word exists for them.
- */
+/** Vietnamese for the label/value pairs a walkthrough step shows ("Account holds: $120.00", "dCVV: VALID"). */
 
-import { activeLocale } from './locale';
+import { activeLocale } from './localeCore';
 
 const LABEL_VI: Readonly<Record<string, string>> = {
   Amount: 'Số tiền',

@@ -1,7 +1,4 @@
-/**
- * Helpers for writing levels: graph builders that stay consistent with the node catalog, the node-definition id
- * shorthands, and the test payload builders every level shares.
- */
+/** Helpers for writing levels: graph builders that stay consistent with the node catalog, the node-definition id shorthands, and the test payload builders every level shares. */
 
 import type {
   BankingPayload,
@@ -17,9 +14,7 @@ import type {
 } from '../types/processLearning';
 import { NODE_CATALOG } from './nodeCatalog';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Builders (used only to keep graph literals short and consistent with the catalog)
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function definition(id: Id): NodeDefinition {
   const found = NODE_CATALOG.find((d) => d.id === id);
@@ -88,9 +83,7 @@ export const AML = 'nd_aml_screening';
 export const CASE = 'nd_case_investigation';
 export const CHARGEBACK = 'nd_chargeback_desk';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Test payload builders
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** 2026-10-10T03:00:00Z. Every test happens "now" relative to this. */
 export const T0 = Date.UTC(2026, 9, 10, 3, 0, 0);

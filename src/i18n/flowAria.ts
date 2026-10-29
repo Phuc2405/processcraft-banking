@@ -1,10 +1,7 @@
-/**
- * React Flow's built-in screen-reader and tooltip text (zoom buttons, mini map, keyboard help) in the active language.
- * Passed to every <ReactFlow ariaLabelConfig={…}>.
- */
+/** React Flow's built-in screen-reader and tooltip text (zoom buttons, mini map, keyboard help) in the active language. */
 
 import type { AriaLabelConfig } from '@xyflow/react';
-import { activeLocale } from './locale';
+import { activeLocale } from './localeCore';
 
 const DIRECTION_VI: Readonly<Record<string, string>> = { up: 'lên', down: 'xuống', left: 'sang trái', right: 'sang phải' };
 

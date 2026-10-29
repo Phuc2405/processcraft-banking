@@ -1,16 +1,7 @@
-/**
- * Beginner View vocabulary for the Academy and the ledgers: GL account codes and response codes in plain words, in English
- * and Vietnamese.
- *
- * Expert View shows the raw code with its professional name ("1120-Customer Credit Line Hold", "RC 51 Insufficient Funds");
- * Beginner View shows the plain name ("Pending Card Hold", "Insufficient Balance"). In Vietnamese both views use the bank's
- * Vietnamese account names, and the response codes keep the international term in brackets in Expert View.
- * `plainText` rewrites free text (lesson steps, journal lines) so a beginner never meets a bare code.
- * Pure data and pure functions; the language comes from i18n/locale.ts.
- */
+/** Beginner View vocabulary for the Academy and the ledgers: GL account codes and response codes in plain words, in English and Vietnamese. */
 
 import { CHART_OF_ACCOUNTS } from '../engine/ledger';
-import { activeLocale, pick, type Locale, type Localized } from '../i18n/locale';
+import { activeLocale, pick, type Locale, type Localized } from '../i18n/localeCore';
 import type { AccountId } from '../types/processLearning';
 import type { TermMode } from './terms';
 
@@ -68,10 +59,7 @@ const GL_NAME_VI: Readonly<Record<string, string>> = {
 /** Plain names for every GL account, keyed by its four-digit code, per language. */
 export const GL_PLAIN_BOOK: Localized<Readonly<Record<string, string>>> = { en: GL_PLAIN_EN, vi: GL_NAME_VI };
 
-/**
- * Plain names for every GL account in the active language. A Proxy, so code that reads `GL_PLAIN['1120']` follows the language
- * switch without changing.
- */
+/** Plain names for every GL account in the active language. */
 export const GL_PLAIN: Readonly<Record<string, string>> = new Proxy({} as Record<string, string>, {
   get: (_t, key) => (typeof key === 'string' ? pick(GL_PLAIN_BOOK)[key] : undefined),
   has: (_t, key) => typeof key === 'string' && key in pick(GL_PLAIN_BOOK),
@@ -158,10 +146,7 @@ const RC_PATTERN = /\bRC ?([0-9]{2}|N7)\b/g;
 /** A bare four-digit number; only known GL codes are swapped (message types like 0100 are left alone). */
 const GL_PATTERN = /(?<![$\d.,])\b([0-9]{4})\b(?![.,]?\d)/g;
 
-/**
- * Free text for the chosen view. Expert View returns it unchanged. Beginner View swaps every "RC xx" for its plain title and
- * every known GL code for the plain account name, in the active language.
- */
+/** Free text for the chosen view. */
 export function plainText(text: string, mode: TermMode, locale: Locale = activeLocale()): string {
   if (mode === 'expert') return text;
   const rc = pick(RC_BOOK, locale);

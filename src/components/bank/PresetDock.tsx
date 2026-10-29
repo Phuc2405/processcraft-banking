@@ -6,10 +6,7 @@ import { presetsFor, presetText, type PresetVariant } from '../../sim/presets';
 import { activeFlowOf, useBankStore } from '../../store/bankStore';
 import { useMapCentre } from './ViewportControls';
 
-/**
- * The preset actions of the guided flow in focus, docked at the bottom of the map in the Beginner scope. Each button sends
- * one scripted payment into the live bank (or, for the night flow, runs the clock to 23:00), and the inspector follows it.
- */
+/** The preset actions of the guided flow in focus, docked at the bottom of the map in the Beginner scope. */
 
 const VARIANT: Record<PresetVariant, string> = {
   success: 'bg-emerald-500 text-emerald-950 hover:bg-emerald-400',

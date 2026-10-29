@@ -1,14 +1,9 @@
-/**
- * The guided tour in the 3D office, as plain numbers: where the camera goes for each step, which desks get a pool of light,
- * and the floor path the tour token follows. Nothing here touches three.js or React, so it can be tested without a browser.
- *
- * The camera stays orthographic and keeps its isometric tilt. For each step it slides (dolly) over the desks in play and
- * swings a little round the vertical axis (orbit) towards the side of the office the desk is on, so the view visibly turns
- * as the story crosses the floor. It never leaves the range the learner could reach by hand.
- */
+/** The guided tour in the 3D office, as plain numbers: where the camera goes for each step, which desks get a pool of light, and the floor path the tour token follows. */
 
 import { edgeId, isStation, type PlaceId } from '../../../sim/topology';
-import { COUNTER, clampTarget, fitZoom, HOME_TARGET, ISO_AZIMUTH, kioskPose, deskPose, ORBIT_RANGE, packetLane, SCENE, ZOOM_LIMITS, type V2 } from './layout3d';
+import { pathLength } from '../../../engine/plan/path';
+export { pathLength, pointAlongPath } from '../../../engine/plan/path';
+import { COUNTER, clampTarget, fitZoom, HOME_TARGET, ISO_AZIMUTH, kioskPose, deskPose, ORBIT_RANGE, packetLane, SCENE, ZOOM_LIMITS, type V2 } from '../../../engine/plan/layout3d';
 
 /** The most the camera turns away from the home azimuth for a tour step. Well inside the learner's own ORBIT_RANGE. */
 export const TOUR_SWING = 0.3;
@@ -45,7 +40,6 @@ export function placeFootprint(place: PlaceId): Footprint {
 /** Where a point of the floor lands on the screen, in world units (x to the right, y up), for a camera at azimuth `az`. */
 export function groundToScreen(az: number, x: number, z: number): V2 {
   // The camera sits at (sin az, ., cos az) looking at the middle; its right-hand direction on the floor is (cos az, -sin az).
-  // The camera looks down at the isometric angle, so a step away from it moves a point up the screen by sin(35.26 deg) = 1/sqrt(3).
   return [x * Math.cos(az) - z * Math.sin(az), (-x * Math.sin(az) - z * Math.cos(az)) / Math.sqrt(3)];
 }
 
@@ -66,11 +60,7 @@ const corners = (f: Footprint): V2[] => [
   [f.x - f.w / 2, f.z + f.d / 2],
 ];
 
-/**
- * Where to put the camera to show these places filling the screen: swung towards the side of the office they are on, centred
- * on them, and close enough that they fill the frame but never closer than the tour allows. `viewport` is the size of the
- * canvas in pixels.
- */
+/** Where to put the camera to show these places filling the screen. */
 export function frameFocus(places: readonly PlaceId[], viewport: { w: number; h: number }): CamFocus {
   const feet = places.map(placeFootprint);
   if (feet.length === 0) return { x: HOME_TARGET[0], z: HOME_TARGET[1], zoom: fitZoom(viewport.w, viewport.h), az: ISO_AZIMUTH };
@@ -108,9 +98,7 @@ export function framedPlaces(here: PlaceId, upNext: PlaceId | undefined): PlaceI
 /** True when an azimuth is one the learner could also reach by dragging (so the camera controls will not clamp it). */
 export const azimuthReachable = (az: number): boolean => Math.abs(az - ISO_AZIMUTH) <= ORBIT_RANGE + 1e-9;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The light
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** How much of the daylight is left while a tour is running: the rest of the office falls back and the lit desks stand out. */
 export const TOUR_DAYLIGHT = { sky: 0.3, ambient: 0.35, sun: 0.26, fill: 0.2 } as const;
@@ -118,10 +106,7 @@ export const TOUR_DAYLIGHT = { sky: 0.3, ambient: 0.35, sun: 0.26, fill: 0.2 } a
 /** The most pools of light at once. Fixed, so the shaders are built once when a tour starts. */
 export const MAX_POOLS = 8;
 
-/**
- * Which of the chapter's places get a real light on them (the rest still get a painted ring): the desk the token is at, the one
- * it goes to next, then the others nearest to the token. At most MAX_POOLS.
- */
+/** Which of the chapter's places get a real light on them (the rest still get a painted ring). */
 export function poolPlaces(scope: ReadonlySet<PlaceId>, here: PlaceId, upNext: PlaceId | undefined): PlaceId[] {
   const at = placeXZ(here);
   const rest = [...scope]
@@ -134,19 +119,14 @@ export function poolPlaces(scope: ReadonlySet<PlaceId>, here: PlaceId, upNext: P
   return [here, ...(upNext && upNext !== here ? [upNext] : []), ...rest].slice(0, MAX_POOLS);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The token
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** How high the tour token hovers over the floor. */
 export const TOKEN_HEIGHT = 1.9;
 
 const same = (a: V2, b: V2): boolean => Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6;
 
-/**
- * The path on the floor from one place to the end of a route: along the lane painted for each wire (the same rounded path the
- * packets fly) and straight across where no wire is drawn. It starts at the first place's centre and ends at the last's.
- */
+/** The path on the floor from one place to the end of a route. */
 export function tourPath(route: readonly PlaceId[]): V2[] {
   const first = route[0];
   if (!first) return [];
@@ -163,30 +143,6 @@ export function tourPath(route: readonly PlaceId[]): V2[] {
     push(placeXZ(to));
   }
   return out;
-}
-
-export function pathLength(path: readonly V2[]): number {
-  let n = 0;
-  for (let i = 1; i < path.length; i++) n += Math.hypot((path[i] as V2)[0] - (path[i - 1] as V2)[0], (path[i] as V2)[1] - (path[i - 1] as V2)[1]);
-  return n;
-}
-
-/** The point `d` along a path (clamped to its ends). */
-export function pointAlongPath(path: readonly V2[], d: number): V2 {
-  const first = path[0];
-  if (!first) return [0, 0];
-  let left = Math.max(0, d);
-  for (let i = 1; i < path.length; i++) {
-    const a = path[i - 1] as V2;
-    const b = path[i] as V2;
-    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    if (left <= len) {
-      const t = len === 0 ? 0 : left / len;
-      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-    }
-    left -= len;
-  }
-  return path[path.length - 1] as V2;
 }
 
 /** How long the token takes to travel a path, in milliseconds: never less than the camera needs, never longer than a few seconds. */

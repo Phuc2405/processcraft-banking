@@ -1,7 +1,4 @@
-/**
- * Small pieces the whole Living Bank screen shares: a worker's face, fatigue colours, packet pictures,
- * a sparkline, and the words for things.
- */
+/** Small pieces the whole Living Bank screen shares: a worker's face, fatigue colours, packet pictures, a sparkline, and the words for things. */
 
 import { t } from '../../i18n/t';
 import { activeLocale } from '../../i18n/locale';
@@ -14,9 +11,7 @@ import { formatClock } from '../../sim/clock';
 import { TokenGlyph } from '../canvas/tokens/TokenGlyph';
 import { InfoTip } from './InfoTip';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Words
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** The label of a kind of payment in the active language. */
 export const kindLabel = (kind: PacketKind): string => t(KIND_LABEL[kind]);
@@ -108,9 +103,7 @@ export const waitText = (minutes: number): string => {
   return minutes < 1 ? (vi ? '<1 phút' : '<1 min') : minutes < 60 ? `${Math.round(minutes)} ${vi ? 'phút' : 'min'}` : `${(minutes / 60).toFixed(1)} ${vi ? 'giờ' : 'h'}`;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Fatigue
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface FatigueLook {
   label: string;
@@ -154,9 +147,7 @@ export function MachineFace({ ring, size = 22, temp = false, title }: { ring: st
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Faces
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A person, head and shoulders, ringed in their fatigue colour. */
 export function WorkerFace({ profile, fatigue, size = 22, temp = false, selected = false, title }: { profile: WorkerProfileSeed; fatigue: number; size?: number; temp?: boolean; selected?: boolean; title?: string }) {
@@ -181,9 +172,7 @@ export function WorkerFace({ profile, fatigue, size = 22, temp = false, selected
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Sparkline
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function Sparkline({ values, width = 120, height = 28, color = '#38bdf8', label }: { values: readonly number[]; width?: number; height?: number; color?: string; label: string }) {
   const max = Math.max(4, ...values);
@@ -200,9 +189,7 @@ export function Sparkline({ values, width = 120, height = 28, color = '#38bdf8',
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Layout atoms
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A metric tip: the standard definition and, for a hybrid tip, what it means at this desk. */
 export interface MetricInfo {

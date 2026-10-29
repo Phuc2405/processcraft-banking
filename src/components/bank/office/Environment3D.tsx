@@ -1,4 +1,5 @@
 import { useFrame, useThree } from '@react-three/fiber';
+import { useWorld } from './WorldProvider';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AdditiveBlending,
@@ -25,18 +26,16 @@ import {
   type Group,
 } from 'three';
 import { bankStore } from '../../../store/bankStore';
-import { atmosphereAt, fadeToward, gustOf, rainOf, sameMix, stepMix, WEATHER_MIX, windOf, type WeatherMix } from './atmosphere';
+import { atmosphereAt, fadeToward, gustOf, rainOf, windOf } from '../../../engine/world/atmosphere';
 import { useMerged } from './Dressing';
 import { box, cyl, mix, type Part } from './kit';
-import { avenueMarkings, customerShirt, FLOOR_SLAB, KERB_Z, ROAD_END, SIDE_DOORS_RIGHT, STATION_POSES, STREET } from './layout3d';
+import { avenueMarkings, customerShirt, FLOOR_SLAB, KERB_Z, ROAD_END, SIDE_DOORS_RIGHT, STATION_POSES, STREET } from '../../../engine/plan/layout3d';
 import { glow, pane, solid } from './materials';
 import { CustomerFigure, type Wear } from './Avatars';
 import { Bubble } from './Bubble3D';
-import { LOT, LOT_SIDE, TREE_STRIP } from './parking';
-import { Parking3D } from './Parking3D';
-import { FOUNTAIN, LOOP, PARK, Park3D } from './Park3D';
+import { LOT, LOT_SIDE, TREE_STRIP } from '../../../engine/world/parking';
+import { FOUNTAIN, LOOP, PARK } from './Park3D';
 import { Sky3D } from './Sky3D';
-import { Vehicles3D } from './Vehicles3D';
 import {
   BUS_STOP,
   carriesDrink,
@@ -45,27 +44,15 @@ import {
   outfitShirt,
   OVERHANG,
   PEDESTRIANS,
-  pedestrianAt,
-  UMBRELLA_RATE,
-  underCover,
-  useWeather,
-  weatherStore,
-  type AfterRain,
-  type Downpour,
   type Outfit,
+  type PavementClock,
   type Pedestrian,
   type PedestrianPose,
   type Roof,
-} from './weather';
-import { motion } from './motion';
-import { sidewalk } from './sidewalk';
+} from '../../../engine/world/weather';
+import { useWeather } from './useWeather';
 
-/**
- * The world around the branch in the 3D office: the city it stands in, the sky light and the haze, the morning mist, the
- * weather (eased between picks by WeatherDriver), the wind in the trees, the shelters on the pavement and the people under
- * them. All of it is dressing; nothing here changes the bank. The city is kept low, pale and in the haze so the branch
- * stays the sharp, bright focus of the view.
- */
+/** The world around the branch in the 3D office: the city it stands in, the sky light and the haze, the morning mist, the weather (eased between picks by WeatherDriver), the wind in the trees, the shelters on the pavement and the people under them. */
 
 const HX = FLOOR_SLAB.w / 2;
 const HZ = FLOOR_SLAB.d / 2;
@@ -81,32 +68,10 @@ const rnd = (i: number, k: number): number => {
   return x - Math.floor(x);
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The weather blend
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Eases the live weather blend (liveMix) towards the pick, over WEATHER_BLEND_S, and refreshes the store's copy a few times
- * a second for the page (the sky gradient behind the canvas).
- */
-function WeatherDriver() {
-  const since = useRef(0);
-  useFrame((_, dt) => {
-    const want = WEATHER_MIX[weatherStore.getState().weather];
-    if (sameMix(liveMix, want)) return;
-    Object.assign(liveMix, stepMix(liveMix, want, Math.min(dt, 0.1)));
-    since.current += dt;
-    if (since.current > 0.1 || sameMix(liveMix, want)) {
-      since.current = 0;
-      weatherStore.setState({ mix: { ...liveMix } });
-    }
-  });
-  return null;
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Ground, road and pavements past the drawn street
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A canvas texture, drawn once and tiled. */
 function useTiled(draw: (g: CanvasRenderingContext2D, s: number) => void, repeat: number): CanvasTexture {
@@ -216,9 +181,7 @@ function Ground() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The city: low blocks, lit windows
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface Block {
   x: number;
@@ -250,10 +213,7 @@ export const CITY_BLOCKS: readonly Block[] = (() => {
   return out;
 })();
 
-/**
- * The houses beyond the car park and the park, on both sides: the town's residential streets. The zoning runs, from the
- * outside in: houses, then the park (right) or the car park (left), then the branch.
- */
+/** The houses beyond the car park and the park, on both sides: the town's residential streets. */
 export interface House {
   x: number;
   z: number;
@@ -348,9 +308,7 @@ const City = memo(function City() {
   );
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Trees that sway in the wind
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface Tree {
   x: number;
@@ -412,9 +370,7 @@ function Trees() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Shelters: the entrance overhang and the bus stop
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A glass roof on posts, with a fascia along its front: shared by the entrance overhang and the bus stop. */
 function roofParts(r: Roof, posts: number): { frame: Part[]; glass: Part[] } {
@@ -469,9 +425,7 @@ const Shelters = memo(function Shelters() {
   );
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Haze, mist, motes, rain and lightning
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** The branch's footprint, floor slab and pavement: no rain, snow or haze ever falls or hangs inside it. */
 export const INDOORS = { x0: -HX, x1: HX, z0: -HZ, z1: STREET.z0 } as const;
@@ -480,11 +434,7 @@ export const indoors = (x: number, z: number): boolean => x > INDOORS.x0 && x < 
 /** How far beyond the farthest corner of the branch (in depth from the camera) the haze may begin. */
 export const HAZE_CLEARANCE = 2;
 
-/**
- * Distance haze that fades the city into the sky, coloured and pulled in by the time of day and the weather. However thick
- * the fog, smog or storm, it never starts before the far side of the branch, so the floor, the desks, the lanes and their
- * words stay sharp; the weather shows on the street through the mist banks, the rain and the sky.
- */
+/** Distance haze that fades the city into the sky, coloured and pulled in by the time of day and the weather. */
 function Haze() {
   const scene = useThree((s) => s.scene);
   const camera = useThree((s) => s.camera);
@@ -537,11 +487,7 @@ function useMistTexture(): CanvasTexture {
   return tex;
 }
 
-/**
- * The mist is cut away over the branch: anything of it that would lie inside the building's footprint (the floor slab, out to
- * just past its walls) is never drawn, so the floor, the desks, the staff, the lanes and the counters stay perfectly sharp
- * however thick the fog or smog outside. A world-space test in the fragment shader, so it holds from any camera angle.
- */
+/** The mist is cut away over the branch: anything of it that would lie inside the building's footprint (the floor slab, out to just past its walls) is never drawn, so the floor, the desks, the staff, the lanes and the counters stay perfectly sharp however thick the fog or smog outside. */
 export const MIST_CLIP = { x0: -HX - 0.15, x1: HX + 0.15, z0: -HZ - 0.15, z1: STREET.z0 + 0.05 } as const;
 export const mistClipped = (x: number, z: number): boolean => x > MIST_CLIP.x0 && x < MIST_CLIP.x1 && z > MIST_CLIP.z0 && z < MIST_CLIP.z1;
 
@@ -562,10 +508,7 @@ function clipIndoors(material: MeshBasicMaterial): void {
 const MIST_WHITE = new Color('#ffffff');
 const MIST_SMOG = new Color('#e4dccb');
 
-/**
- * A tileable wash of soft white blobs over a thin even veil, for the ground mist: drawn once, wrapped at its edges so it
- * repeats across a bank without seams.
- */
+/** A tileable wash of soft white blobs over a thin even veil, for the ground mist: drawn once, wrapped at its edges so it repeats across a bank without seams. */
 function useGroundMistTexture(): CanvasTexture {
   const tex = useMemo(() => {
     const c = document.createElement('canvas');
@@ -599,10 +542,7 @@ function useGroundMistTexture(): CanvasTexture {
   return tex;
 }
 
-/**
- * The layers of the ground mist, low to high: how far above a bank's floor each lies, how thick it is, and how it drifts
- * (texture tiles a second). Stacked, they give the mist depth from any angle; each drifts its own way, so it rolls.
- */
+/** The layers of the ground mist, low to high: how far above a bank's floor each lies, how thick it is, and how it drifts (texture tiles a second). */
 export const MIST_LAYERS: ReadonlyArray<{ lift: number; alpha: number; drift: readonly [number, number] }> = [
   { lift: 0, alpha: 0.45, drift: [0.012, 0.004] },
   { lift: 0.3, alpha: 0.3, drift: [-0.009, 0.006] },
@@ -611,8 +551,7 @@ export const MIST_LAYERS: ReadonlyArray<{ lift: number; alpha: number; drift: re
 /** How wide (world units) one tile of the mist texture lies. */
 const MIST_TILE = 7;
 
-/** What the mist has to cover: the pavement and the avenue in front of the branch, the lane behind it, the park's lawns and
- * the car park either side, and the city all round ([x, z, width along x, depth along z]). */
+/** What the mist has to cover: the pavement and the avenue in front of the branch, the lane behind it, the park's lawns and the car park either side, and the city all round ([x, z, width along x, depth along z]). */
 const MIST_REACH: ReadonlyArray<readonly [number, number, number, number]> = [
   [0, KERB_Z - 0.4, 44, 6],
   [0, KERB_Z + 4.5, 60, 9],
@@ -625,11 +564,7 @@ const MIST_REACH: ReadonlyArray<readonly [number, number, number, number]> = [
   [0, ROAD_END + 5, 48, 12.6],
 ];
 
-/**
- * The mist banks: [x, floor height, z, width along x, depth along z]. One even sheet over all of MIST_REACH at a single
- * height just above the ground, so the mist is the same thickness everywhere outdoors: no bank overlapping another and
- * doubling up, no seam where one ends. The branch is cut out of it (MIST_CLIP).
- */
+/** The mist banks: [x, floor height, z, width along x, depth along z]. */
 export const MIST_BANKS: ReadonlyArray<readonly [number, number, number, number, number]> = (() => {
   const x0 = Math.min(...MIST_REACH.map(([x, , w]) => x - w / 2));
   const x1 = Math.max(...MIST_REACH.map(([x, , w]) => x + w / 2));
@@ -638,16 +573,10 @@ export const MIST_BANKS: ReadonlyArray<readonly [number, number, number, number,
   return [[(x0 + x1) / 2, 0.2, (z0 + z1) / 2, x1 - x0, z1 - z0]];
 })();
 
-/**
- * Ground mist: layered banks rolling low over the streets, the pavements, the lane, the park's lawns and the car park, and
- * higher ones over the city, soft in fog (and still lying low once a fog has lifted off the city) and in smog, and in the
- * early morning; never a blinding wall. Tinted a light dust grey in smog. Never inside the branch (MIST_CLIP): the floor, the desks and the people
- * in it stay sharp.
- */
+/** Ground mist: layered banks rolling low over the streets, the pavements, the lane, the park's lawns and the car park, and higher ones over the city, soft in fog (and still lying low once a fog has lifted off the city) and in smog, and in the early morning. */
 function Mist() {
   const map = useGroundMistTexture();
-  // What is shown, eased towards the atmosphere's mist and smog tint over WEATHER_BLEND_S: a change of weather (or the
-  // clock jumping) cross-fades the mist instead of snapping it.
+  // What is shown, eased towards the atmosphere's mist and smog tint over WEATHER_BLEND_S.
   const shown = useRef<{ mist: number; smog: number } | null>(null);
   const layers = useMemo(
     () =>
@@ -749,10 +678,7 @@ const RAIN_BOX = { x: 30, z0: -HZ - 6, z1: ROAD_END + 6, top: 20 } as const;
 /** Below the ground, where a drop over the branch is parked so it is not drawn. */
 const UNDER = -50;
 
-/**
- * Rain: slanting streaks falling through the whole scene. How many are drawn follows the blend, so a shower starts as a few
- * drops and thickens to a downpour over the blend's two seconds; the wind slants and lengthens them in a storm.
- */
+/** Rain: slanting streaks falling through the whole scene. */
 function Rain() {
   const geometry = useMemo(() => {
     const g = new BufferGeometry();
@@ -1034,9 +960,7 @@ function DeskLights() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // People on the pavement
-// ─────────────────────────────────────────────────────────────────────────────
 
 const umbrellaCanopy = new ConeGeometry(0.62, 0.32, 10, 1, true);
 const umbrellaStick = new CylinderGeometry(0.018, 0.018, 0.9, 5);
@@ -1044,23 +968,12 @@ const UMBRELLA_TONES = ['#1d4ed8', '#e11d48', '#0f766e', '#7c3aed', '#ea580c', '
 
 const WEAR: Readonly<Record<Outfit, Wear>> = { everyday: 'none', summer: 'summer', winter: 'winter', rain: 'rain', mask: 'mask', jacket: 'none' };
 
-/** The weather the people on the pavement react to, from a pick's blend: dry (null), rain, a storm, or hail. */
-export const downpourOf = (w: WeatherMix): Downpour | null => (w.hail > 0 ? 'hail' : w.storm > 0 ? true : w.rain > 0 ? false : null);
-
-interface PavementClock {
-  t: number;
-  rainFor: number | null;
-  storm: Downpour;
-  after: AfterRain | null;
-}
+export { downpourOf } from '../../../engine/world/weather';
 
 /** Where the hand holding an umbrella is (figure scale 0.7): low by the side, then raised overhead and a little forward. */
 const HAND = { down: [0.19, 0.36, 0], up: [0.19, 0.95, 0.13] } as const;
 
-/**
- * How an umbrella moves in the wind at time `t`: a lean downwind and a shake that grows with the wind (radians about z and x).
- * Pure, so the tests can check a storm shakes it harder than a breeze.
- */
+/** How an umbrella moves in the wind at time `t`: a lean downwind and a shake that grows with the wind (radians about z and x). */
 export const umbrellaWobble = (index: number, t: number, wind: number): { z: number; x: number } => ({
   z: -wind * (0.06 + 0.08 * Math.sin(t * 3.1 + index) + 0.05 * Math.sin(t * 7.3 + index * 2)),
   x: wind * 0.07 * Math.sin(t * 2.3 + index * 1.3),
@@ -1070,33 +983,26 @@ export const umbrellaWobble = (index: number, t: number, wind: number): { z: num
 export const chatPhase = (index: number): number => (index % 2) * (Math.PI / 1.3) + Math.floor(index / 2) * 0.7;
 
 /** One person on the pavement, placed each frame from pedestrianAt (weather.ts). Walking and standing are separate rigs. */
-function Passer({ p, clock }: { p: Pedestrian; clock: PavementClock }) {
+function Passer({ p, i, clock }: { p: Pedestrian; i: number; clock: PavementClock }) {
+  const street = useWorld().street;
   const root = useRef<Group>(null);
   const hand = useRef<Group>(null);
   const brolly = useRef<Group>(null);
   const raise = useMemo(() => ({ current: 0 }), []);
-  // How far the umbrella is up now (eased, so it never pops).
-  const open = useRef(0);
   const outfit = useWeather((s) => outfitOf(s.weather));
   const drink = useWeather((s) => carriesDrink(s.weather));
-  const [pose, setPose] = useState<PedestrianPose>(() => pedestrianAt(p, 0, null).pose);
+  const [pose, setPose] = useState<PedestrianPose>(() => street.passers[i]!.pose);
   useFrame(() => {
-    const s = pedestrianAt(p, clock.t, clock.rainFor, clock.storm, clock.after);
-    // Stepping aside for anyone else on the pavement (sidewalk.ts) rather than walking into them.
-    const [x, z] = sidewalk.place(`passer-${p.index}`, s.x, s.z, motion.dt, s.speed === 0);
+    // Where they are, what they do and how far the umbrella is up are the engine's (WorldEngine.street); this draws them.
+    const s = street.passers[i]!;
     if (root.current) {
-      root.current.position.set(x, 0, z);
+      root.current.position.set(s.x, 0, s.z);
       root.current.rotation.y = s.heading;
       // Looking up at the first drops: a lean back. Shaking the water off a furled umbrella: a quick wiggle.
       root.current.rotation.x = s.pose === 'lookup' ? -0.12 : 0;
       root.current.rotation.z = s.pose === 'shake' ? Math.sin(clock.t * 34) * 0.09 : 0;
     }
-    // An umbrella carrier keeps it up in the wet out in the open, running for shelter too, and puts it down under a roof
-    // (the entrance's overhang, the bus stop, the guard's cabin), putting it up again on stepping back out into the rain.
-    const out = clock.rainFor !== null && p.umbrella && s.pose !== 'lookup' ? 1 : 0;
-    const want = underCover(x, z) ? 0 : Math.max(s.umbrella, out);
-    open.current = fadeToward(open.current, want, motion.dt, 1 / UMBRELLA_RATE);
-    const u0 = open.current;
+    const u0 = s.umbrella;
     // The arm comes up first, then the umbrella pops open over the head: from a furled stick to its full canopy.
     raise.current = Math.min(1, u0 * 2);
     const h = hand.current;
@@ -1165,50 +1071,39 @@ function Passer({ p, clock }: { p: Pedestrian; clock: PavementClock }) {
   );
 }
 
-/** The passers-by: their own clock runs only while the canvas draws, so a resting office never makes them jump. */
-function Pedestrians() {
-  const clock = useMemo<PavementClock>(() => ({ t: 0, rainFor: null, storm: false, after: null }), []);
-  useFrame(() => {
-    // On the motion clock: frozen while the bank is paused, and at the bank's speed while it runs.
-    const step = motion.dt;
-    clock.t += step;
-    // The weather they react to is the one picked, so they move as the first drops fall rather than when the blend is done.
-    const wet = downpourOf(WEATHER_MIX[weatherStore.getState().weather]);
-    if (wet === null) {
-      // It has just dried up: remember how long it lasted and what it was, so they fold their umbrellas and step back out.
-      if (clock.rainFor !== null) clock.after = { since: 0, lasted: clock.rainFor, was: clock.storm };
-      else if (clock.after) clock.after.since += step;
-      clock.rainFor = null;
-    } else {
-      clock.after = null;
-      clock.rainFor = clock.rainFor === null ? 0 : clock.rainFor + step;
-      clock.storm = wet;
-    }
-  });
+/** The passers-by, drawn where the world engine's pavement clock (WorldEngine.pavement) puts them. */
+export function Pedestrians() {
+  const clock = useWorld().pavement;
   return (
     <group name="office-pedestrians">
-      {PEDESTRIANS.map((p) => (
-        <Passer key={p.index} p={p} clock={clock} />
+      {PEDESTRIANS.map((p, i) => (
+        <Passer key={p.index} p={p} i={i} clock={clock} />
       ))}
     </group>
   );
 }
 
-/** Everything around the branch. */
+/** The scenery around the branch: the ground, the houses and the city, the trees, the shelters and the lights in the windows. */
 export const Environment3D = memo(function Environment3D() {
   // The time of day and the weather reach everything here through useFrame, so nothing re-renders on the clock.
   return (
     <>
-      <WeatherDriver />
-      <Haze />
       <Ground />
-      <Parking3D />
-      <Park3D />
       <Houses />
-      <Sky3D />
       <City />
       <Trees />
       <Shelters />
+      <DeskLights />
+    </>
+  );
+});
+
+/** The weather and the sky over the whole scene: the haze and the sky, the ground mist, sunlit motes, rain, drifting leaves, petals and snow, gusts, settled snow and lightning, all drawn from the sky's blend (liveMix) and the time of day. */
+export const WeatherRenderer = memo(function WeatherRenderer() {
+  return (
+    <group name="weather-renderer">
+      <Haze />
+      <Sky3D />
       <Mist />
       <Motes />
       <Rain />
@@ -1218,9 +1113,6 @@ export const Environment3D = memo(function Environment3D() {
       <WindStreaks />
       <SnowCover />
       <Lightning />
-      <DeskLights />
-      <Pedestrians />
-      <Vehicles3D />
-    </>
+    </group>
   );
 });

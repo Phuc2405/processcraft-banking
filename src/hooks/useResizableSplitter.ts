@@ -27,11 +27,7 @@ export interface ResizableSplitter<E extends HTMLElement> {
   dragging: boolean;
 }
 
-/**
- * Drag state for a two-pane split. The ratio is owned by the caller (a store, so it is remembered); the hook turns pointer and
- * keyboard input into new ratios. Pointer capture keeps the drag alive over iframes and canvases, and `touch-action: none` on
- * the handle (the caller's class) stops the page from scrolling under a finger.
- */
+/** Drag state for a two-pane split. */
 export function useResizableSplitter<E extends HTMLElement = HTMLDivElement>({
   ratio,
   onChange,

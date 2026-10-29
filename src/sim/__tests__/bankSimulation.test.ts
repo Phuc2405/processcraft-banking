@@ -5,7 +5,7 @@ import { BEATS_PER_DAY, DAY_END, EOD_START, WORK_END, WORK_START } from '../cloc
 import { COVER_COST_CENTS, pnl } from '../kpis';
 import { DEFAULT_RULES } from '../rules';
 import { STATION_IDS, WIRES, hasWire, isStation } from '../topology';
-import { eventForDay } from '../traffic';
+import { ALWAYS_ON_KINDS, eventForDay, generateDay } from '../traffic';
 import type { DayReport } from '../types';
 import { compareDays, simulateDay, sumReports } from '../whatIf';
 
@@ -53,18 +53,27 @@ describe('time', () => {
     expect(seen.slice(0, 4)).toEqual(['PRE_OPEN', 'WORKING', 'AFTER_HOURS', 'EOD']);
   });
 
-  it('lets customers in only between 09:00 and 17:00', () => {
+  it('lets the branch customers in between 09:00 and 17:00, and the round-the-clock channels at every hour', () => {
     const sim = new BankSimulation({ seed: SEED });
+    const offHours = generateDay(SEED, 1).offHours;
     sim.stepUntil(WORK_START);
-    expect(sim.snapshot().kpis.arrivals).toBe(0);
+    const early = sim.snapshot().kpis.arrivals;
+    // Before the doors open only the machines take customers: card terminals and online checkouts, transfers, the ATM.
+    expect(early).toBeGreaterThan(0);
+    expect(early).toBe(offHours.filter((c) => c.minute < WORK_START).length);
     sim.stepUntil(WORK_START + 60);
     const midMorning = sim.snapshot().kpis.arrivals;
-    expect(midMorning).toBeGreaterThan(0);
+    expect(midMorning).toBeGreaterThan(early);
     sim.stepUntil(WORK_END);
     const atClose = sim.snapshot().kpis.arrivals;
     expect(atClose).toBeGreaterThan(midMorning);
     sim.stepUntil(DAY_END);
-    expect(sim.snapshot().kpis.arrivals).toBe(atClose);
+    const night = offHours.filter((c) => c.minute >= WORK_END);
+    expect(night.length).toBeGreaterThan(0);
+    expect(sim.snapshot().kpis.arrivals).toBe(atClose + night.length);
+    expect(new Set(night.map((c) => c.kind))).toEqual(new Set(ALWAYS_ON_KINDS));
+    // Card payments stop at the 23:00 cut-off, when the night batch takes the day's approvals; transfers and ATM cash go on.
+    for (const c of night) if (c.minute >= EOD_START) expect(['A2A', 'ATM']).toContain(c.kind);
   });
 
   it('the night cycle starts at 23:00: nothing is batched before, records are cleared after', () => {
@@ -124,8 +133,7 @@ describe('an ordinary day', () => {
     expect(r.close.reconBacklog).toBe(0);
     expect(r.close.nightDoneMinute).not.toBeNull();
     expect(r.close.nightDoneMinute!).toBeLessThanOrEqual(DAY_END);
-    // Only card payments go through tonight's clearing: an instant transfer settles on its own rail, ATM cash is counted at the
-    // machine, and the Phase 8 channels post straight to the CASA ledger.
+    // Only card payments go through tonight's clearing: an instant transfer settles on its own rail, ATM cash is counted at the machine, and the Phase 8 channels post straight to the CASA ledger.
     const x = k.ext;
     const extended = x.accountsOpened + x.qrPaid + x.swiftSent + x.tellerDeposits + x.tellerWithdrawals + x.disputesRefunded;
     expect(k.recon.records).toBe(k.approved - k.a2a.released - k.atm.dispensed - extended);
@@ -135,9 +143,11 @@ describe('an ordinary day', () => {
 
   it('every break is in the suspense account, worth what was posted', () => {
     const breaks = k.recon.breakAmount + k.recon.breakMissing + k.recon.breakDuplicate;
-    expect(r.close.suspenseItems).toBe(breaks);
-    expect(r.close.suspenseCents).toBe(k.recon.suspenseAddedCents);
-    expect(sim.snapshot().suspense.items).toBe(breaks);
+    // An ATM that jams once the suspense desk has closed (17:00) leaves its refund parked there until the morning too.
+    const atmParked = sim.carryState().suspense.filter((s) => s.source === 'ATM').length;
+    expect(r.close.suspenseItems).toBe(breaks + atmParked);
+    expect(r.close.suspenseCents).toBe(k.recon.suspenseAddedCents + sim.carryState().suspense.filter((s) => s.source === 'ATM').reduce((n, s) => n + s.amountCents, 0));
+    expect(sim.snapshot().suspense.items).toBe(breaks + atmParked);
   });
 
   it('the ordinary rules make a profit', () => {
@@ -352,7 +362,9 @@ describe('the next day', () => {
     expect(promo.close.reconBacklog).toBeGreaterThan(0);
     sim.nextDay();
     const next = sim.runToEndOfDay();
-    expect(next.kpis.recon.records).toBeGreaterThan(next.kpis.approved - next.kpis.a2a.released - next.kpis.atm.dispensed);
+    // The same day started afresh, with nothing carried over: last night's leftovers make tonight's work the bigger.
+    const fresh = new BankSimulation({ seed: SEED, day: PROMO_DAY + 1 }).runToEndOfDay();
+    expect(next.kpis.recon.records).toBeGreaterThan(fresh.kpis.recon.records);
   });
 
   it('can finish a day that is not over when asked to move on', () => {

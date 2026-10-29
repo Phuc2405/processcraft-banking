@@ -5,15 +5,7 @@ import { TokenShape } from '../tokens/TokenGlyph';
 
 const easeInOut = (t: number): number => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
-/**
- * One token riding a wire. It waits `delayMs` (the desk is still working on it), then glides from
- * one end of the path to the other in `durationMs` and disappears into the next desk, which shows it
- * docked from then on.
- *
- * The motion is driven from requestAnimationFrame along the real path (getPointAtLength) rather than
- * SMIL: it restarts reliably each tick, follows the playback speed, and can be switched off cleanly
- * for people who ask their system for reduced motion (the token then just appears at the far end).
- */
+/** One token riding a wire. */
 export function EdgeTraveller({ path, look, delayMs, durationMs }: { path: string; look: TokenLook; delayMs: number; durationMs: number }) {
   const pathRef = useRef<SVGPathElement>(null);
   const groupRef = useRef<SVGGElement>(null);

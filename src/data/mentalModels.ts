@@ -1,10 +1,4 @@
-/**
- * Four everyday pictures for the four ideas learners find hardest. Beginner mode shows them in the inspector, in the
- * Learning Hub and inside the guided walkthrough; nothing here changes how the simulation behaves.
- *
- * Each model is a small table: the real thing on one side, the picture on the other, and one line about where the
- * picture stops being true. The words sit in a `Localized` block so a second language only adds a block.
- */
+/** Four everyday pictures for the four ideas learners find hardest. */
 
 import { pick, type Localized } from '../i18n/locale';
 import type { ProcessId } from '../sim/learning';

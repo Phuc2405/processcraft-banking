@@ -1,27 +1,21 @@
-import { bankStore } from '../../../store/bankStore';
-import { isClosed } from './evacuation';
+import { useWorld } from './WorldProvider';
 import { useFrame } from '@react-three/fiber';
 import { memo, useMemo, useRef, useState } from 'react';
 import type { BufferGeometry, Group } from 'three';
 import { CustomerFigure } from './Avatars';
 import { Sign, useMerged } from './Dressing';
 import { box, cyl, merge, type Part } from './kit';
-import { customerShirt } from './layout3d';
+import { customerShirt } from '../../../engine/plan/layout3d';
 import { glow, pane, solid } from './materials';
-import { motion, substeps } from './motion';
 import { GuardCabin3D } from './GuardCabin3D';
 import { LoadingBay3D } from './LoadingBay3D';
-import { PARKING_PLAN } from './guardCabin';
-import { AISLE, CIT_CLEAR, FOOTWAY, LOT, LOT_SIDE, ParkingLot, ROWS, SIDE_DOORS_LEFT, TREE_STRIP, WALKWAY, type LotKind } from './parking';
+import { PARKING_PLAN } from '../../../engine/world/guardCabin';
+import { AISLE, CIT_CLEAR, FOOTWAY, LOT, LOT_SIDE, ROWS, SIDE_DOORS_LEFT, TREE_STRIP, WALKWAY, type LotKind, type ParkingLot } from '../../../engine/world/parking';
 import { bodyParts, Rider } from './Vehicles3D';
-import { outfitOf, outfitShirt, useWeather } from './weather';
+import { outfitOf, outfitShirt } from '../../../engine/world/weather';
+import { useWeather } from './useWeather';
 
-/**
- * The car park on the left of the branch, drawn from ParkingLot (parking.ts): asphalt with white bay lines, walkways
- * striped across to the branch's side doors, a sheltered run of motorbike slots, a barrier at the gate and the guard's
- * cabin beside it with the guard on duty (patrolling, into the cabin in the wet and at night, and changing over every eight
- * hours), the vehicles parked in their bays, the one vehicle moving, and the drivers walking in.
- */
+/** The car park on the left of the branch, drawn from ParkingLot (parking.ts). */
 
 const ASPHALT = '#5b616b';
 const LINE = '#f8fafc';
@@ -136,9 +130,51 @@ function Barrier({ lot }: { lot: ParkingLot }) {
   );
 }
 
+/** The vehicles on the lane behind the block: coming up to the lot, waiting their turn at the gate, and driving off (ParkingLot.lanePoses). */
+function LaneTraffic({ lot }: { lot: ParkingLot }) {
+  const [cars, setCars] = useState<Array<{ id: string; kind: LotKind; color: string }>>([]);
+  const groups = useRef(new Map<string, Group>());
+  const key = useRef('');
+  const outfit = useWeather((st) => outfitOf(st.weather));
+  useFrame(() => {
+    const poses = lot.lanePoses();
+    const k = poses.map((p) => p.id).join(',');
+    if (k !== key.current) {
+      key.current = k;
+      setCars(poses.map((p) => ({ id: p.id, kind: p.kind, color: p.color })));
+    }
+    for (const p of poses) {
+      const g = groups.current.get(p.id);
+      if (!g) continue;
+      g.position.set(p.x, GROUND_Y, p.z);
+      g.rotation.y = p.yaw;
+      g.visible = true;
+    }
+  });
+  return (
+    <>
+      {cars.map((c) => (
+        <group
+          key={c.id}
+          name={`parking-lane-${c.id}`}
+          visible={false}
+          ref={(g) => {
+            if (g) groups.current.set(c.id, g);
+            else groups.current.delete(c.id);
+          }}
+        >
+          <mesh geometry={bodyOf(c.kind, c.color).body} material={solid} castShadow />
+          <mesh geometry={bodyOf(c.kind, c.color).lights} material={glow} />
+          {c.kind === 'moto' && <Rider x={0.05} index={c.id.length * 3} rain={outfit === 'rain'} wide={false} />}
+        </group>
+      ))}
+    </>
+  );
+}
+
 /** The car park, stepped on the motion clock (frozen while the bank is paused). */
 export const Parking3D = memo(function Parking3D() {
-  const lot = useMemo(() => new ParkingLot(), []);
+  const lot = useWorld().lot;
   const parts = useMemo(lotParts, []);
   const ground = useMerged(() => parts.solid, [parts]);
   const glass = useMerged(() => parts.glass, [parts]);
@@ -150,9 +186,7 @@ export const Parking3D = memo(function Parking3D() {
   const parkedKey = useRef('');
   const outfit = useWeather((st) => outfitOf(st.weather));
   useFrame(() => {
-    // At closing time the drivers in the branch walk back to their cars and drive off; nobody parks again until it opens.
-    lot.setClosed(isClosed(bankStore.getState().view.minute));
-    for (const h of substeps(motion.dt)) lot.step(h);
+    // (Stepped by the world engine, closing time and all: WorldEngine.tick.)
     const list = lot.parked();
     const key = list.map((p) => p.v.id).join(',');
     if (key !== parkedKey.current) {
@@ -184,8 +218,7 @@ export const Parking3D = memo(function Parking3D() {
       <mesh geometry={lit} material={glow} />
       <Sign text="P  CARS · MOTORBIKES" fg="#ffffff" bg="#1d4ed8" position={[s * (LOT.x0 + 4.4), 1.45, LOT.z1 - 0.3]} width={2.6} />
       <Barrier lot={lot} />
-      {/* The guard's cabin by the gate, and the guard: a raised hand to a driver only while a vehicle is at the gate (and the
-          guard is standing at the post, not walking or sheltering in the cabin). */}
+      {/* The guard's cabin by the gate, and the guard: a raised hand to a driver only while a vehicle is at the gate (and the guard is standing at the post, not walking or sheltering in the cabin). */}
       {/* The cash van's run in through the gate to its loading bay against the left wall: it shares the drive, so the lot steps it. */}
       <LoadingBay3D run={lot.cit} />
       <GuardCabin3D plan={PARKING_PLAN} name="parking-guard-cabin" guardName="parking-guard" looks={GUARD_LOOK} raiseFor={() => lot.barrier() > 0} />
@@ -199,6 +232,7 @@ export const Parking3D = memo(function Parking3D() {
           {mover.kind === 'moto' && <Rider x={0.05} index={mover.id.length * 3} rain={outfit === 'rain'} wide={false} />}
         </group>
       )}
+      <LaneTraffic lot={lot} />
       {[0, 1, 2, 3].map((i) => (
         <group
           key={i}

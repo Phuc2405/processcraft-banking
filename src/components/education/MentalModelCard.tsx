@@ -1,10 +1,7 @@
 import { t } from '../../i18n/t';
 import { modelCopy, type MentalModel } from '../../data/mentalModels';
 
-/**
- * One everyday picture for one hard idea: "A wallet with a temporary-lock pocket". Shown in Beginner mode, in the inspector
- * beside the desk it explains and in the Learning Hub beside the process.
- */
+/** One everyday picture for one hard idea: "A wallet with a temporary-lock pocket". */
 export function MentalModelCard({ model, compact = false }: { model: MentalModel; compact?: boolean }) {
   const copy = modelCopy(model.id);
   return (

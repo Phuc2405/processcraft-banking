@@ -1,15 +1,9 @@
-/**
- * Small, pure questions about the learner's diagram that the editor UI asks while they work.
- * Kept out of the store so they are easy to test and cheap to call from components.
- */
+/** Small, pure questions about the learner's diagram that the editor UI asks while they work. */
 
 import type { BankingCapability, ConditionVariable, Id } from '../types/processLearning';
 import type { ProcessFlowEdge, ProcessFlowNode } from './graphConversion';
 
-/**
- * Every banking capability that runs somewhere before `nodeId` on at least one path from any node
- * that feeds it. Loops are handled: each node is visited once.
- */
+/** Every banking capability that runs somewhere before `nodeId` on at least one path from any node that feeds it. */
 export function upstreamCapabilities(
   nodes: readonly ProcessFlowNode[],
   edges: readonly ProcessFlowEdge[],

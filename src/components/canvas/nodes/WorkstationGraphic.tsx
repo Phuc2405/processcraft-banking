@@ -5,15 +5,7 @@ import type { BankingCapability } from '../../../types/processLearning';
 import type { NodeRunStatus } from '../../../store/liveSimulation';
 import { CATEGORY_THEME, categoryOf, WORKER_PROFILE, type Accessory } from '../nodeTheme';
 
-/**
- * A banker at a desk, drawn in SVG. The person, the desk prop and the screen change with the
- * banking capability, and the scene reacts to what the node is doing:
- *   PROCESSING  hands type, the screen scans
- *   WAITING     the screen pulses (holding at a join)
- *   FAULTED     the screen goes red and shows "!"
- *   FROZEN      the screen ices over and shows a snowflake (a deadlocked join)
- *   DONE        a tick appears on the screen
- */
+/** A banker at a desk, drawn in SVG. */
 
 interface Props {
   capability: BankingCapability;
@@ -235,9 +227,7 @@ export function WorkstationGraphic({ capability, status, className, profile }: P
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Start-event customer
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A customer holding up a card: the "payment arrives" picture on the Start event. */
 export function CustomerGraphic({ active, className }: { active: boolean; className?: string }) {

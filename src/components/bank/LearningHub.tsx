@@ -39,9 +39,7 @@ function tokenFor(example: LessonExample): TokenLook {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Small parts
-// ─────────────────────────────────────────────────────────────────────────────
 
 function Facts({ facts }: { facts: readonly WalkFact[] }) {
   if (facts.length === 0) return null;
@@ -69,9 +67,7 @@ function Panel({ title, aside, children, testId }: { title: string; aside?: Reac
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Rules
-// ─────────────────────────────────────────────────────────────────────────────
 
 function Dial({ ruleKey, accent }: { ruleKey: keyof BankRules; accent: string }) {
   const draft = useBankStore((s) => s.draftRules[ruleKey]);
@@ -117,9 +113,7 @@ function Dial({ ruleKey, accent }: { ruleKey: keyof BankRules; accent: string })
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Impact on tomorrow
-// ─────────────────────────────────────────────────────────────────────────────
 
 const VERDICT_TEXT = { better: 'text-emerald-300', worse: 'text-rose-300', same: 'text-slate-500' } as const;
 const VERDICT_PILL = { better: 'bg-emerald-400/15 text-emerald-200', worse: 'bg-rose-400/15 text-rose-200', same: 'bg-slate-800 text-slate-400' } as const;
@@ -261,9 +255,7 @@ function Impact({ lesson, horizon, setHorizon }: { lesson: Lesson; horizon: 1 | 
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The hub
-// ─────────────────────────────────────────────────────────────────────────────
 
 const STEP_MS = 1700;
 

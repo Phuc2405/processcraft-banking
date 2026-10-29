@@ -10,17 +10,7 @@ import { isBlocked, quizAt, useLabTour, type QuizAnswer } from '../../store/labT
 import { useTerms } from '../bank/useTerms';
 import { MessagePreview } from '../inspector/MessagePreview';
 
-/**
- * What the Build Lab tour puts on screen besides the canvas:
- *
- *   LabIntro      the opening scene, before the token moves, with the choice of payment
- *   LabStepCard   at every box: What is happening here? / Key takeaway / What can go wrong
- *   LabQuiz       at every decision: a question the learner answers before the token carries on
- *   LabVerdict    after the End event: how it ended, and the lines the payment posted to the ledger
- *
- * All the words come from data/labTourCopy.ts and data/walkthroughCopy.ts. The numbers and sentences about this payment come
- * from sim/labTour.ts, which reads them off the same run the grader uses.
- */
+/** What the Build Lab tour puts on screen besides the canvas. */
 
 const TONE: Record<StepTone, string> = {
   neutral: 'bg-slate-800 text-slate-200 ring-slate-600',
@@ -52,9 +42,7 @@ function Facts({ items }: { items: ReadonlyArray<{ label: string; value: string 
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Opening card
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function LabIntro({ accent }: { accent: string }) {
   const ui = labUi();
@@ -182,9 +170,7 @@ function tourTests(tour: LabTour): Array<{ id: string; name: string }> {
   return level ? playableTests(localChallenge(level)).map((tc) => ({ id: tc.id, name: tc.name })) : [];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The question at a decision
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function LabQuizGate({ quiz, answer, accent }: { quiz: LabQuiz; answer: QuizAnswer | undefined; accent: string }) {
   const ui = labUi();
@@ -257,9 +243,7 @@ export function LabQuizGate({ quiz, answer, accent }: { quiz: LabQuiz; answer: Q
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The explanation at a box
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const LabStepCard = forwardRef<HTMLDivElement, { step: LabStep; total: number; accent: string; style?: CSSProperties; className?: string }>(function LabStepCard(
   { step, total, accent, style, className },
@@ -331,9 +315,7 @@ export const LabStepCard = forwardRef<HTMLDivElement, { step: LabStep; total: nu
   );
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // How it ended
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function LabVerdict({ tour, accent, className }: { tour: LabTour; accent: string; className?: string }) {
   const ui = labUi();

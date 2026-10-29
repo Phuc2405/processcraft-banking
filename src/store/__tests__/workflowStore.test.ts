@@ -13,9 +13,7 @@ import {
 } from '../workflowStore';
 import { NODE_CATALOG } from '../../data/seedChallenges';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Helpers
-// ─────────────────────────────────────────────────────────────────────────────
 
 const FIXED_NOW = () => new Date('2026-10-10T03:00:00Z');
 const newStore = (config: Parameters<typeof createWorkflowStore>[0] = {}): WorkflowStore =>
@@ -44,9 +42,7 @@ function runToEnd(store: WorkflowStore, testId: Id): void {
   expect(store.getState().simulation?.finished).toBe(true);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // React Flow → ProcessGraph
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('conversion to the pure ProcessGraph', () => {
   it.each(REFERENCE_SOLUTIONS.map((r) => [r.challengeId, r] as const))(
@@ -137,9 +133,7 @@ describe('conversion to the pure ProcessGraph', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Building a diagram the way a learner does
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('building Level 1 with drag, wire and type', () => {
   function buildLevel1(store: WorkflowStore): void {
@@ -218,9 +212,7 @@ describe('building Level 1 with drag, wire and type', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Palette rules
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('palette limits', () => {
   it('lists only what the level allows, and starter nodes are free', () => {
@@ -289,9 +281,7 @@ describe('palette limits', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Locked starter nodes
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('locked starter nodes', () => {
   it('cannot be deleted by React Flow, by removeNode, or edited', () => {
@@ -319,9 +309,7 @@ describe('locked starter nodes', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Wiring rules
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('wiring', () => {
   const fresh = () => {
@@ -393,9 +381,7 @@ describe('wiring', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Edge conditions
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('edge conditions', () => {
   function xorWithTwoBranches() {
@@ -458,9 +444,7 @@ describe('edge conditions', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Node settings
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('node settings', () => {
   it('writes known settings, rejects unknown keys, and the evaluator sees the value', () => {
@@ -493,9 +477,7 @@ describe('node settings', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Stale state
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('stale results', () => {
   it('layout-only changes keep the grade and the playback; structural changes drop both', () => {
@@ -541,9 +523,7 @@ describe('stale results', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Playback
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('playback', () => {
   it('shows the token at the start event before the first step, then moves it along the first wire', () => {
@@ -698,9 +678,7 @@ describe('playback', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Click-to-add placement
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('findFreeSpot', () => {
   const size = NODE_FOOTPRINT.task;

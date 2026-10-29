@@ -1,10 +1,7 @@
-/**
- * The Fintech Cheat Sheet: every Academy lesson, the ISO response codes and the chart of GL accounts in one Markdown file,
- * in the language the learner has chosen. Built only when the learner presses Export.
- */
+/** The Fintech Cheat Sheet: every Academy lesson, the ISO response codes and the chart of GL accounts in one Markdown file, in the language the learner has chosen. */
 
 import { CHART_OF_ACCOUNTS, ACCOUNT_IDS } from '../engine/ledger';
-import { activeLocale, pick, type Locale, type Localized } from '../i18n/locale';
+import { activeLocale, pick, type Locale, type Localized } from '../i18n/localeCore';
 import type { AccountType } from '../types/processLearning';
 import { ACADEMY_CHAPTERS, localChapter } from './academyCatalog';
 import { LESSON_EXTRAS } from './lessonExtras';

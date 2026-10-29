@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { VI_DICTIONARY } from '../../../../i18n/viDictionary';
 import { STATION_IDS, WIRES } from '../../../../sim/topology';
-import { routingRules } from '../../routingRules';
+import { routingRules } from '../../../../engine/plan/routingRules';
 import { flowPlaces, flowScope } from '../../../../sim/guidedFlows';
 import { FLOW_IDS } from '../../../../types/viewport';
 import { badgeFocus, badgeOpacity, dashLane, deskFocus, DIM, FLOW_BADGE_DIM, isOffShift, LANE_DIM, leaveAt, leaveRoute, litLanes, neighbours, PULSE, pulseDistance } from '../focus3d';
-import { atmosphereAt, CLEAR, DAY_KEYS, FOG_LIFT, fogLeft, GROUND_FOG, gustOf, MOODS, sunsetAt, nextRandomWeather, RANDOM_WEATHERS, WEATHER_SPAN, weatherSpan, sameMix, stepMix, WEATHER_BLEND_S, WEATHER_MIX, WEATHERS, wetOf, windOf } from '../atmosphere';
+import { atmosphereAt, CLEAR, DAY_KEYS, FOG_LIFT, fogLeft, GROUND_FOG, gustOf, MOODS, sunsetAt, nextRandomWeather, RANDOM_WEATHERS, WEATHER_SPAN, weatherSpan, sameMix, stepMix, WEATHER_BLEND_S, WEATHER_MIX, WEATHERS, wetOf, windOf } from '../../../../engine/world/atmosphere';
 import { CITY_BLOCKS, downpourOf, driftAt, DRIFTS, swayAt, TREE_BELTS, TREES, umbrellaWobble, type Tree } from '../Environment3D';
 import { LANE_STYLE, laneKind } from '../palette';
 import { pathLength } from '../tour3d';
-import { deskPose, FLOOR_SLAB, KERB_Z, LANE_LABELS, LANES, laneLabelShown, lanesOf, ROAD_END, STREET } from '../layout3d';
-import { BUS_STOP, carriesDrink, FOLD, LOOK_UP, outfitOf, outfitShirt, OVERHANG, PAVEMENT, PEDESTRIANS, pedestrianAt, shelterSpot, stormGoesToBus, UMBRELLA, umbrellaDelay, underRoof, WALK, weatherStore } from '../weather';
+import { deskPose, FLOOR_SLAB, KERB_Z, LANE_LABELS, LANES, laneLabelShown, lanesOf, ROAD_END, STREET } from '../../../../engine/plan/layout3d';
+import { BUS_STOP, carriesDrink, FOLD, LOOK_UP, outfitOf, outfitShirt, OVERHANG, PAVEMENT, PEDESTRIANS, pedestrianAt, shelterSpot, stormGoesToBus, UMBRELLA, umbrellaDelay, underRoof, WALK, weatherStore } from '../../../../engine/world/weather';
 
 const lum = (hex: string): number => {
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
@@ -571,6 +571,8 @@ describe('staff going home', () => {
   it('empties the seat of someone off shift, and walks them out only when it happens in front of the learner', () => {
     const src = (import.meta.glob('../Desk3D.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)['../Desk3D.tsx']!;
     expect(src).toContain('if (!seat || absent.has(w.id) || (!automated && isOffShift(w.activity) && !early.has(w.id))) return null;');
-    expect(src).toMatch(/was\.get\(w\.id\) === true && next\.get\(w\.id\) === false/);
+    // Who walks out is the engine's to say (engine/simulation/people.ts StaffWalks).
+    const people = (import.meta.glob('../../../../engine/simulation/people.ts', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)['../../../../engine/simulation/people.ts']!;
+    expect(people).toMatch(/was\.get\(w\.id\) === true && next\.get\(w\.id\) === false/);
   });
 });

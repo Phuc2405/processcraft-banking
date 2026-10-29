@@ -1,7 +1,4 @@
-/**
- * What a worker is doing, in words. The inspector's "live activity" lines and the bank-wide feed
- * both come from here, built from the facts the real process diagram wrote for the step.
- */
+/** What a worker is doing, in words. */
 
 import { formatAud } from '../engine/capabilities';
 import type { CardType } from '../types/processLearning';

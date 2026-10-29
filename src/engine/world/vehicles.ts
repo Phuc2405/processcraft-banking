@@ -1,33 +1,7 @@
-import { FLOOR_SLAB, KERB_Z, lobbyWalkIn, MAIN_GATE, ROAD_END, STREET, type V2 } from './layout3d';
+import { FLOOR_SLAB, KERB_Z, lobbyWalkIn, MAIN_GATE, ROAD_END, STREET, type V2 } from '../plan/layout3d';
 import { BUS_STOP } from './weather';
 
-/**
- * The traffic on the avenue in front of the branch: motorbikes (many carrying two), cars, green ride-hailing taxis
- * and the city bus. A small driving simulation (TrafficSim), stepped on the motion clock. (The armoured cash van drives the
- * lane behind the block to the vault's loading bay instead: citRun.ts.)
- *
- * The avenue has four lanes, two each way, and traffic keeps to the right: in each direction a motorbike lane along the
- * kerb and a car lane inside it, so cars and motorbikes never share a lane. Seen from the pavement the near side runs
- * towards -x and the far side towards +x.
- *
- * Every vehicle looks ahead in its lane:
- *   - it brakes smoothly to keep a safe distance, and never closes up past MIN_GAP: nobody drives into or through anybody;
- *   - when the vehicle ahead has stopped (a taxi at the kerb, the cash van, a motorbike letting its passenger off) it checks
- *     the other lane its way: clear far enough behind and beyond the stopped vehicle, it puts its indicator on, eases
- *     across, overtakes and eases back once its own lane is clear again; not clear, it waits behind. Every vehicle behind
- *     does the same, so traffic flows round a stop without a jam and queues neatly when it cannot.
- *
- * Only the near side stops at the kerb, and only from the kerb lane (the motorbike lane): a vehicle bound for the kerb
- * indicates and moves across into it before its stop, and one that could not get across in time drives on and comes round
- * again rather than stop out in the car lane and send its passenger across the traffic. A taxi drops off or picks up at the
- * taxi stand (opening its kerbside door), the bus pulls into the bus stop and lets people off and on at its doors.
- *
- * Dropping someone off (a taxi with a passenger, a motorbike with one on the back) there is no fixed spot: once it is
- * along the branch's frontage and in the kerb lane, it takes the first clear stretch of kerb it can stop at (never the bus
- * stop's box), indicates and pulls straight in, rather than drive on down the street with its passenger. Then they pull
- * away and drive on, out past the end of the street (well out in the haze) before coming round again: nothing vanishes in
- * view.
- */
+/** The traffic on the avenue in front of the branch: motorbikes (many carrying two), cars, green ride-hailing taxis and the city bus. */
 
 /** The road between the kerb and the far side. */
 export const ROAD = { z0: KERB_Z + STREET.kerbW, z1: ROAD_END } as const;
@@ -55,8 +29,7 @@ export const SAFE_GAP = 1.6;
 /** How hard vehicles brake and pull away (units/s²). */
 export const BRAKE = 5;
 export const ACCEL = 2.8;
-/** Overtaking: how far ahead a driver looks for a stopped vehicle, how much clear road the other lane needs behind and in
- * front, how long the indicator blinks before moving across, and how long the move across takes. */
+/** Overtaking: how far ahead a driver looks for a stopped vehicle, how much clear road the other lane needs behind and in front, how long the indicator blinks before moving across, and how long the move across takes. */
 export const OVERTAKE = { look: 12, behind: 7, beyond: 5, signal: 0.7, shift: 1.1 } as const;
 
 export type VehicleKind = 'motorbike' | 'sedan' | 'taxi' | 'cit' | 'bus';
@@ -90,13 +63,11 @@ export const WIDTH: Record<VehicleKind, number> = { motorbike: 0.4, sedan: 0.97,
 /** A vehicle's own lane: motorbikes in the kerb lane, everything else in the car lane. */
 export const homeLane = (v: Pick<Vehicle, 'kind'>): LaneIndex => (v.kind === 'motorbike' ? 0 : 1);
 
-/** Where the bus stops (alongside its shelter), and where the taxis stand to pick someone up (just down the street from
- * it, clear of the bus). */
+/** Where the bus stops (alongside its shelter), and where the taxis stand to pick someone up (just down the street from it, clear of the bus). */
 export const BUS_X = (BUS_STOP.x0 + BUS_STOP.x1) / 2;
 export const TAXI_X = BUS_STOP.x0 - 3.3;
 
-/** The stretch of kerb where passengers for the branch are let off: along its frontage, from its right-hand end to a little
- * past the main entrance. A drop-off stops at the first clear spot in it. */
+/** The stretch of kerb where passengers for the branch are let off: along its frontage, from its right-hand end to a little past the main entrance. */
 export const DROP_ZONE = { x0: MAIN_GATE.x - 5, x1: FLOOR_SLAB.w / 2 } as const;
 /** Whether a vehicle of length `len` stopping with its middle at `x` keeps out of the bus stop's painted box (and a little more). */
 export const busBoxClear = (x: number, len: number): boolean => Math.abs(x - BUS_X) > LENGTH.bus / 2 + len / 2 + 0.4;
@@ -157,7 +128,8 @@ export interface VehicleState {
   signal: -1 | 0 | 1;
 }
 
-interface Driving {
+/** A vehicle as the simulation drives it (its own record: the strategies and states below read and update it). */
+export interface Driving {
   v: Vehicle;
   /** Distance driven along its side (keeps growing; the lap is s / SPAN). */
   s: number;
@@ -187,12 +159,83 @@ const mod = (a: number, n: number): number => ((a % n) + n) % n;
 /** Whether two vehicles at these places across the road would touch side to side. */
 const sideBySide = (a: Driving, b: Driving): boolean => Math.abs(a.lat - b.lat) * LANE_W < (WIDTH[a.v.kind] + WIDTH[b.v.kind]) / 2 + 0.12;
 
+/** How a vehicle letting a passenger off picks its spot along the kerb (Strategy): swap one in to change how drop-offs pull over without touching the rest of the driving. */
+export interface DropOffStrategy {
+  /** Where along its side `c` stops to let its passenger off now, or null while there is no spot yet. */
+  findSpot(sim: TrafficSim, c: Driving): number | null;
+  /** Whether a drop-off that could not get across to its spot in time keeps the stop and looks again (rather than giving the stop a miss this time round). */
+  keepsIntent(c: Driving): boolean;
+}
+
+/** The kerbside drop-off: the first clear spot along the frontage, or right beside it when held up in traffic. */
+export class KerbsideDropOff implements DropOffStrategy {
+  /** A drop-off looking for its spot, every step along the frontage, and taking the first it can. */
+  findSpot(sim: TrafficSim, c: Driving): number | null {
+    const along = mod(c.s, SPAN);
+    const brake = (c.speed * c.speed) / (2 * BRAKE) + 0.3;
+    const ok = (at: number): boolean => {
+      const x = startX(c.v) + dirOf(c.v) * at;
+      return x <= DROP_ZONE.x1 && x >= DROP_ZONE.x0 && busBoxClear(x, LENGTH[c.v.kind]);
+    };
+    if (c.lane === 0 && c.lat === 0) {
+      const { gap, lead } = sim.gapAhead(c);
+      if (gap - MIN_GAP - 0.2 >= brake && ok(along + brake)) return along + brake;
+      const held = lead !== null && lead.stoppedAt !== null && c.speed < 1.5;
+      const here = along + Math.max(0, gap - MIN_GAP - 0.05);
+      return held && ok(here) ? here : null;
+    }
+    if (c.lane !== c.lat || (c.wants !== null && c.wants !== 0)) return null;
+    // Held up by the traffic in front: straight across into the kerb lane beside it, if that is clear.
+    const { gap, lead } = sim.gapAhead(c);
+    if (lead !== null && c.speed < HALTED && gap < OVERTAKE.look) {
+      const near = Math.max(brake, 1);
+      if (ok(along + near) && sim.laneClear(c, 0, DROP_BEHIND, near + 1)) return along + near;
+    }
+    // From the car lane: the indicator, the move across, and the braking all fit before the spot.
+    const need = Math.max(brake, c.speed * (OVERTAKE.signal + OVERTAKE.shift) + KERB_MISS + 0.5);
+    if (!ok(along + need)) return null;
+    return sim.laneClear(c, 0, DROP_BEHIND, need + 1) ? along + need : null;
+  }
+
+  /** Held up in traffic, it keeps its passenger's drop-off and looks again for a clear spot beside it. */
+  keepsIntent(c: Driving): boolean {
+    return c.speed < HALTED;
+  }
+}
+
+/** What a vehicle does in a step, by the state it is in (State): standing at the kerb (letting someone off or on, until its wait is over), or driving. */
+interface DrivingState {
+  readonly name: 'at-kerb' | 'driving';
+  /** True when the step is done with; false hands it on to the driving state (the vehicle has just pulled away). */
+  step(sim: TrafficSim, c: Driving, lap: number): boolean;
+}
+
+/** Standing at the kerb: still, until its wait is over; then its stop for this lap is made and it drives on. */
+const AtKerb: DrivingState = {
+  name: 'at-kerb',
+  step(sim, c, lap) {
+    if (sim.t - c.stoppedAt! >= c.v.stop!.wait) {
+      c.doneLap = lap;
+      c.stoppedAt = null;
+      return false;
+    }
+    c.speed = 0;
+    return true;
+  },
+};
+
+/** The state a vehicle is in. */
+export const drivingStateOf = (c: Pick<Driving, 'stoppedAt'>): 'at-kerb' | 'driving' => (c.stoppedAt !== null ? 'at-kerb' : 'driving');
+
 /** The driving simulation: step it with the motion clock, read each vehicle's state. */
 export class TrafficSim {
   t = 0;
   private cars: Driving[];
 
-  constructor(fleet: readonly Vehicle[] = VEHICLES) {
+  constructor(
+    fleet: readonly Vehicle[] = VEHICLES,
+    private readonly dropOff: DropOffStrategy = new KerbsideDropOff(),
+  ) {
     this.cars = fleet.map((v) => ({ v, s: v.start, speed: v.speed, lane: homeLane(v), lat: homeLane(v), wants: null, signalSince: 0, doneLap: -1, spot: null, spotLap: -1, stoppedAt: null, lastStopAt: null, lastStopLap: -1 }));
   }
 
@@ -209,40 +252,9 @@ export class TrafficSim {
     return c.spotLap === lap ? c.spot : null;
   }
 
-  /**
-   * A drop-off looking for its spot, every step along the frontage, and taking the first it can. In the kerb lane: the
-   * nearest place it can brake to in comfort, if nothing in its lane is in the way; or, held up behind a vehicle standing
-   * at the kerb, right where it is (the passenger gets out there rather than waiting, or being driven on down the street).
-   * Out in the car lane: as soon as the kerb lane beside and ahead of it is clear, the place just far enough on to signal,
-   * move across and brake, so it pulls straight over; and when traffic ahead brings it to a crawl or a halt, the kerb lane
-   * right beside it, if that is clear: it signals and moves across where it stands, and the passenger gets out there instead
-   * of sitting in the queue. Never in the bus stop's box. Null while there is none yet.
-   */
+  /** Where a drop-off stops this time round: its DropOffStrategy's to say. */
   private findSpot(c: Driving): number | null {
-    const along = mod(c.s, SPAN);
-    const brake = (c.speed * c.speed) / (2 * BRAKE) + 0.3;
-    const ok = (at: number): boolean => {
-      const x = startX(c.v) + dirOf(c.v) * at;
-      return x <= DROP_ZONE.x1 && x >= DROP_ZONE.x0 && busBoxClear(x, LENGTH[c.v.kind]);
-    };
-    if (c.lane === 0 && c.lat === 0) {
-      const { gap, lead } = this.gapAhead(c);
-      if (gap - MIN_GAP - 0.2 >= brake && ok(along + brake)) return along + brake;
-      const held = lead !== null && lead.stoppedAt !== null && c.speed < 1.5;
-      const here = along + Math.max(0, gap - MIN_GAP - 0.05);
-      return held && ok(here) ? here : null;
-    }
-    if (c.lane !== c.lat || (c.wants !== null && c.wants !== 0)) return null;
-    // Held up by the traffic in front: straight across into the kerb lane beside it, if that is clear.
-    const { gap, lead } = this.gapAhead(c);
-    if (lead !== null && c.speed < HALTED && gap < OVERTAKE.look) {
-      const near = Math.max(brake, 1);
-      if (ok(along + near) && this.laneClear(c, 0, DROP_BEHIND, near + 1)) return along + near;
-    }
-    // From the car lane: the indicator, the move across, and the braking all fit before the spot.
-    const need = Math.max(brake, c.speed * (OVERTAKE.signal + OVERTAKE.shift) + KERB_MISS + 0.5);
-    if (!ok(along + need)) return null;
-    return this.laneClear(c, 0, DROP_BEHIND, need + 1) ? along + need : null;
+    return this.dropOff.findSpot(this, c);
   }
 
   /** Bumper-to-bumper gap from `a` to the nearest vehicle in front of it that it would touch (round the ring), and that vehicle. */
@@ -271,8 +283,7 @@ export class TrafficSim {
       const fwd = mod(b.s - a.s, SPAN);
       const back = mod(a.s - b.s, SPAN);
       const reach = (LENGTH[a.v.kind] + LENGTH[b.v.kind]) / 2;
-      // Room for the time the move across takes: whatever is coming up behind may close in meanwhile, and a slower
-      // vehicle ahead may be caught up.
+      // Room for the time the move across takes: whatever is coming up behind may close in meanwhile, and a slower vehicle ahead may be caught up.
       const closing = OVERTAKE.shift + 0.3;
       if (fwd < ahead + reach + Math.max(0, a.speed - b.speed) * closing || back < behind + reach + Math.max(0, b.speed - a.speed) * closing) return false;
     }
@@ -283,31 +294,22 @@ export class TrafficSim {
     const h = Math.min(Math.max(dt, 0), 0.1);
     this.t += h;
     // Leaders first, so each follower brakes for where the vehicle in front has got to now.
-    const order = [...this.cars].sort((a, b) => this.gapAhead(b).gap - this.gapAhead(a).gap);
+    const gaps = new Map(this.cars.map((c) => [c, this.gapAhead(c).gap]));
+    const order = [...this.cars].sort((a, b) => gaps.get(b)! - gaps.get(a)!);
     for (const c of order) {
       const lap = Math.floor(c.s / SPAN);
-      // Standing at the kerb.
-      if (c.stoppedAt !== null) {
-        if (this.t - c.stoppedAt >= c.v.stop!.wait) {
-          c.doneLap = lap;
-          c.stoppedAt = null;
-        } else {
-          c.speed = 0;
-          continue;
-        }
-      }
+      // Standing at the kerb: its state handles the step (or hands it on, as it pulls away).
+      if (drivingStateOf(c) === AtKerb.name && AtKerb.step(this, c, lap)) continue;
       const along = mod(c.s, SPAN);
       let kerbBound = false;
       let dropping = false;
       if (c.v.stop && c.doneLap < lap && this.dropsOff(c, lap)) {
-        // Letting someone off: into the kerb lane on the way up to the frontage, then the first clear spot along it. Past
-        // the end of the frontage without one (the kerb lane never cleared), it drives on and comes round again.
+        // Letting someone off: into the kerb lane on the way up to the frontage, then the first clear spot along it.
         if (c.spotLap !== lap) {
           c.spot = null;
           c.spotLap = lap;
         }
-        // It keeps to its lane until it finds its spot (so it is never stuck in the kerb lane behind the bus), then signals
-        // and pulls straight over.
+        // It keeps to its lane until it finds its spot (so it is never stuck in the kerb lane behind the bus), then signals and pulls straight over.
         const zone1 = Math.abs(DROP_ZONE.x0 - startX(c.v));
         if (c.spot === null) c.spot = this.findSpot(c);
         if (c.spot === null && along > zone1) c.doneLap = lap;
@@ -322,14 +324,11 @@ export class TrafficSim {
       // Move across towards its lane.
       const step = h / OVERTAKE.shift;
       c.lat = Math.abs(c.lane - c.lat) <= step ? c.lane : c.lat + Math.sign(c.lane - c.lat) * step;
-      // A vehicle stops at the kerb only from the kerb lane. Still out in the car lane as its stop comes up (the kerb lane
-      // was never clear), it gives the stop a miss this time round and drives on: nobody is let out across the traffic.
-      // (A drop-off held up in traffic, signalling across to a spot right beside it, is let finish the move.)
+      // A vehicle stops at the kerb only from the kerb lane.
       const crossing = dropping && c.wants === 0 && c.speed < HALTED;
       if (pending !== null && c.lane !== 0 && pending < KERB_MISS && !crossing) {
-        if (dropping && c.speed < HALTED) {
-          // Held up in traffic and the kerb lane filled before it could move across: it keeps its passenger's drop-off and
-          // looks again for a clear spot beside it, rather than giving up and driving them on down the street.
+        if (dropping && this.dropOff.keepsIntent(c)) {
+          // Held up in traffic and the kerb lane filled before it could move across.
           c.spot = null;
         } else c.doneLap = lap;
         pending = null;
@@ -363,11 +362,7 @@ export class TrafficSim {
     }
   }
 
-  /**
-   * Lane choice, every step: into the kerb lane ahead of a kerbside stop; round a stopped vehicle when the other lane is
-   * clear (indicator first, then across); and back to its own lane once that is clear again. A move only starts when the
-   * lane it is going to is clear behind and ahead, and only after the indicator has blinked for a moment.
-   */
+  /** Lane choice, every step: into the kerb lane ahead of a kerbside stop. */
   private steer(c: Driving, kerbBound: boolean, kerbBehind: number = OVERTAKE.behind, kerbAhead: number = OVERTAKE.beyond): void {
     const home = homeLane(c.v);
     const other = (1 - c.lane) as LaneIndex;
@@ -468,9 +463,7 @@ export class TrafficSim {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // People getting on and off
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A walking pace for people stepping out of a vehicle, how long the door takes before they appear, and how far off a waiting rider sees their taxi. */
 export const ALIGHT = { pace: 1.0, door: 0.6, board: 1.1, seeFrom: 22 } as const;
@@ -483,6 +476,9 @@ export interface RiderState {
   heading: number;
   walking: boolean;
 }
+
+/** Who gets off and on a bus at its stop: two off, two on. */
+export const BUS_PEOPLE = ['off-0', 'off-1', 'on-0', 'on-1'] as const;
 
 /** What a taxi does at its stop this lap: even laps drop someone off, odd laps pick someone up. */
 export const taxiAction = (cycle: number): 'alight' | 'board' => (cycle % 2 === 0 ? 'alight' : 'board');
@@ -510,13 +506,7 @@ const downStreet = (x: number): V2[] => [
   [STREET.halfWidth + 7, KERB_Z - 0.75],
 ];
 
-/**
- * The person getting on or off vehicle `v` (in state `s`) at its stop, or null when there is no one: a taxi's passenger
- * stepping out onto the pavement and walking to the lobby (or a rider waiting at the kerb as their taxi comes, and getting
- * in), a motorbike's pillion passenger climbing off and walking in while the rider rides away. A drop-off lets its
- * passenger out wherever it found its spot (`stopX`). Once the branch has closed (`closed`), someone getting out walks off
- * down the street instead: nobody goes in after hours.
- */
+/** The person getting on or off vehicle `v` (in state `s`) at its stop, or null when there is no one. */
 export function riderAt(v: Vehicle, s: VehicleState, closed = false): (RiderState & { action: RiderAction }) | null {
   if (!v.stop || v.stop.kind === 'bus') return null;
   const side = kerbZ(v.kind) - WIDTH[v.kind] / 2 - 0.15;
@@ -543,25 +533,16 @@ export function riderAt(v: Vehicle, s: VehicleState, closed = false): (RiderStat
   return w ? { x: w.at[0], z: w.at[1], heading: w.heading, walking: true, action } : null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The bus
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** The bus's two doors on its kerb side, as x offsets from its middle (it drives towards -x, so its front is at -x). */
 export const BUS_DOORS = { front: -(LENGTH.bus / 2 - 0.55), rear: 0.5 } as const;
-/** How many get off and on each time, and when (seconds into the stop) each one moves; and how far off the bus is when the
- * people waiting for it set off for the shelter. */
+/** How many get off and on each time, and when (seconds into the stop) each one moves; and how far off the bus is when the people waiting for it set off for the shelter. */
 export const BUS_FLOW = { off: 2, on: 2, offGap: 0.9, onFrom: 2.6, onGap: 1.1, see: 50 } as const;
 
 export type BusRider = RiderState & { action: 'alight' | 'board'; id: string };
 
-/**
- * The people getting off and on the bus at its stop. Off: out of the front door once it has stopped, straight across onto
- * the kerb, then one walks to the branch's main entrance and in to the teller's queue, the other off down the street. On:
- * hurrying up the pavement to the shelter as the bus comes, waiting there, then (once the others are off) to the rear door
- * and up the step. Every step is between the bus's doors and the pavement: nobody walks in the road. After closing time
- * (`closed`) both walk off down the street.
- */
+/** The people getting off and on the bus at its stop. */
 export function busRiders(v: Vehicle, s: VehicleState, closed = false): BusRider[] {
   if (v.kind !== 'bus' || !v.stop) return [];
   const out: BusRider[] = [];

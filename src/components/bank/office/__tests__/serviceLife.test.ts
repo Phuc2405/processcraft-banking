@@ -1,18 +1,18 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { atmosphereAt, GROUND_FOG, WEATHER_MIX } from '../atmosphere';
-import { CARRY_PATH, CIT_RUN, LOADING_BAY, LOADING_DOOR, LOADS, VAN_REAR, type CitPhase } from '../citRun';
+import { atmosphereAt, GROUND_FOG, WEATHER_MIX } from '../../../../engine/world/atmosphere';
+import { CARRY_PATH, CIT_RUN, LOADING_BAY, LOADING_DOOR, LOADS, VAN_REAR, type CitPhase } from '../../../../engine/world/citRun';
 import { pathLength } from '../tour3d';
 import { chatPhase, MIST_BANKS, MIST_CLIP, MIST_LAYERS } from '../Environment3D';
-import { evacuationRoute, servedExit } from '../evacuation';
-import { FrontGuard, PARKING_CABIN, PARKING_PLAN } from '../guardCabin';
-import { arrivalPath, ATM_STATIONS, atmBooth, atmExitPath, CAR_PARK_FOOTWAY_X, CUSTOMER_DOOR, ENTRANCES, FLOOR_SLAB, KERB_Z, queueSlots, ROAD_END, WALK_IN_DESKS, type V2 } from '../layout3d';
-import { AISLE, CIT_CLEAR, CIT_MOVER, FOOTWAY, LOT, LOT_SIDE, ParkingLot, SIZE, slotsOf } from '../parking';
-import { ParkCrowd, PARK_MEMBERS, talkers } from '../parkLife';
-import { PARK } from '../parkPlan';
-import { SIDEWALK, SidewalkCrowd } from '../sidewalk';
-import { BUS_X, busBoxClear, DROP_ZONE, LENGTH, taxiAction, TrafficSim, VEHICLES, WIDTH } from '../vehicles';
+import { evacuationRoute, servedExit } from '../../../../engine/world/evacuation';
+import { FrontGuard, PARKING_CABIN, PARKING_PLAN } from '../../../../engine/world/guardCabin';
+import { arrivalPath, ATM_STATIONS, atmBooth, atmExitPath, CAR_PARK_FOOTWAY_X, CUSTOMER_DOOR, ENTRANCES, FLOOR_SLAB, KERB_Z, queueSlots, ROAD_END, WALK_IN_DESKS, type V2 } from '../../../../engine/plan/layout3d';
+import { AISLE, CIT_CLEAR, CIT_MOVER, FOOTWAY, LOT, LOT_SIDE, ParkingLot, SIZE, slotsOf } from '../../../../engine/world/parking';
+import { ParkCrowd, PARK_MEMBERS, talkers } from '../../../../engine/world/parkLife';
+import { PARK } from '../../../../engine/world/parkPlan';
+import { SIDEWALK, SidewalkCrowd } from '../../../../engine/world/sidewalk';
+import { BUS_X, busBoxClear, DROP_ZONE, LENGTH, taxiAction, TrafficSim, VEHICLES, WIDTH } from '../../../../engine/world/vehicles';
 import { DAY_INTRO_FADE_MS } from '../../dayIntro';
 
 const read = (rel: string): string => readFileSync(join(__dirname, rel), 'utf8');
@@ -168,12 +168,12 @@ describe('people on the pavement keep apart', () => {
   });
 
   it('steers every walker on the pavement: passers-by, ATM customers coming and going, and people off the buses and taxis', () => {
-    expect(read('../Environment3D.tsx')).toContain('sidewalk.place(`passer-${p.index}`');
-    const traffic = read('../Traffic.tsx');
-    expect(traffic).toContain("placeWalkers(walks.current, pool.current, 'arrival',");
+    expect(read('../../../../engine/world/streetPeople.ts')).toContain('sidewalk.place(`passer-${p.index}`');
+    const people = read('../../../../engine/simulation/people.ts');
+    expect(people).toContain('this.sidewalk.place(`arrival-${i}`, p.x, p.z, dt)');
     // Whoever has been served walks off from the desk itself, curving round the others on the pavement too.
-    expect(read('../Desk3D.tsx')).toContain('const [x, z] = sidewalk.place(who, p.x, p.z, motion.dt);');
-    const cars = read('../Vehicles3D.tsx');
+    expect(people).toContain('this.sidewalk.place(`served-${this.id}-${s.key}`, p.at[0], p.at[1], dt)');
+    const cars = read('../../../../engine/world/streetPeople.ts');
     expect(cars).toContain('sidewalk.place(`rider-${v.id}`');
     expect(cars).toContain('sidewalk.place(`bus-${id}`');
   });
@@ -181,12 +181,12 @@ describe('people on the pavement keep apart', () => {
 
 describe('the ATM queues, from the street to the machine and away', () => {
   it('walks customers to the ATMs at an unhurried pace on the motion clock, each on one figure the whole way', () => {
-    const traffic = read('../Traffic.tsx');
-    expect(traffic).toContain('export const ARRIVAL_PACE = { atm: 0.85, gate: 1.0 } as const;');
-    expect(read('../Desk3D.tsx')).toContain('export const SERVED = { counter: 1.1, atm: ATM_TURN_S, turn: 0.45, pace: 0.95, business: { atm: 3.5, counter: 4 } } as const;');
+    const people = read('../../../../engine/simulation/people.ts');
+    expect(people).toContain('export const ARRIVAL_PACE = { atm: 0.85, gate: 1.0 } as const;');
+    expect(people).toContain('export const SERVED = { counter: 1.4, atm: 1.2, turn: 0.45, pace: 0.95, business: { atm: 3.5, counter: 4 } } as const;');
     // Paced walks on the scaled motion clock, not squeezed into a beat: and nobody's figure is taken over mid-walk.
-    expect(traffic).toContain('const p = laneAt(w.path, (t - w.start) * w.pace);');
-    expect(traffic).not.toContain('walks.current.splice(0, walks.current.length - MAX_WALKERS)');
+    expect(people).toContain('const p = laneAt(w.path, (now - w.start) * w.pace);');
+    expect(people).not.toContain('this.walks.splice(0, this.walks.length - MAX_WALKERS)');
   });
 
   it('lines the waiting customers up behind the rope, the one at the machine stepping up to it', () => {
@@ -205,8 +205,7 @@ describe('the ATM queues, from the street to the machine and away', () => {
   });
 
   it('turns the customer round at the machine before they walk off down the street', () => {
-    const traffic = read('../Traffic.tsx');
-    expect(traffic).toContain('export const ATM_TURN_S = 0.8;');
+    expect(read('../../../../engine/simulation/people.ts')).toContain('export const ATM_TURN_S = 0.8;');
     // From the machine, along the inside of the booth, out by the rope's gap and off down the street.
     for (const id of ATM_STATIONS) {
       const out = servedExit(id);
@@ -346,6 +345,5 @@ describe('from the car park to the side doors', () => {
       const out = evacuationRoute(queueSlots(id, 3)[2]!, 2).path;
       expect(out[out.length - 1]![0]).toBe(CAR_PARK_FOOTWAY_X);
     }
-    expect(read('../Traffic.tsx')).toContain('from their car in the car park, across to the side door');
   });
 });

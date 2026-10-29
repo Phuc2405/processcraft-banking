@@ -26,10 +26,7 @@ export function useSmallScreen(): boolean {
   return small;
 }
 
-/**
- * On a screen narrower than 768 px: a notice that the bank is built for a desktop, pinned to the top of the viewport (the app
- * itself keeps its desktop width and scrolls sideways). Dismissed for the rest of the visit.
- */
+/** On a screen narrower than 768 px: a notice that the bank is built for a desktop, pinned to the top of the viewport (the app itself keeps its desktop width and scrolls sideways). */
 export function SmallScreenBanner() {
   const small = useSmallScreen();
   const [dismissed, setDismissed] = useState(readDismissed);

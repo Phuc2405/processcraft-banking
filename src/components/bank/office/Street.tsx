@@ -3,19 +3,13 @@ import { memo, useEffect, useMemo, useRef } from 'react';
 import { CanvasTexture, Color, MeshBasicMaterial, RepeatWrapping, SRGBColorSpace, type MeshStandardMaterial } from 'three';
 import { bankStore } from '../../../store/bankStore';
 import { Sign, useMerged } from './Dressing';
-import { ATM_ALCOVE, ATM_STATIONS, atmBooth, avenueMarkings, KERB_Z, LAMP, ROAD_END, STREET, STREET_LAMPS } from './layout3d';
+import { ATM_ALCOVE, ATM_STATIONS, atmBooth, avenueMarkings, KERB_Z, LAMP, ROAD_END, STREET, STREET_LAMPS } from '../../../engine/plan/layout3d';
 import { box, cyl, tint, type Part } from './kit';
 import { glow, pane, satin, solid } from './materials';
-import { atmosphereAt, wetOf } from './atmosphere';
-import { liveMix } from './weather';
+import { atmosphereAt, wetOf } from '../../../engine/world/atmosphere';
+import { liveMix } from '../../../engine/world/weather';
 
-/**
- * The street in front of the branch: a paved sidewalk with tiles, a kerb, a strip of road with its markings, the street
- * lamps along the kerb, and the low alcove wall that the two ATMs stand against.
- *
- * It is dressing only. Nothing here decides anything; the ATM kiosks themselves are desks (see AtmKiosk.tsx), and the
- * painted lanes and the people in the queue are the same ones the rest of the office draws.
- */
+/** The street in front of the branch: a paved sidewalk with tiles, a kerb, a strip of road with its markings, the street lamps along the kerb, and the low alcove wall that the two ATMs stand against. */
 
 const HW = STREET.halfWidth;
 
@@ -24,9 +18,7 @@ export function duskAt(minute: number): number {
   return Math.max(0, Math.min(1, (minute - 17 * 60) / 120));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Paving
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Paving slabs, one world unit square, each a slightly different grey, with a dark joint round it. Four by four to a texture. */
 function usePavers(repeatX: number, repeatY: number): CanvasTexture {
@@ -72,9 +64,7 @@ function usePavers(repeatX: number, repeatY: number): CanvasTexture {
   return tex;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Lamp light pools
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A soft warm disc of light for the ground under a lamp, drawn once. */
 export function useGlowTexture(): CanvasTexture {
@@ -101,9 +91,7 @@ export function useGlowTexture(): CanvasTexture {
 /** Where a lamp's head hangs, on the pavement side of its pole. */
 const headAt = ([x, z]: readonly [number, number]): [number, number] => [x, z - LAMP.reach];
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The street
-// ─────────────────────────────────────────────────────────────────────────────
 
 function groundParts(): Part[] {
   const w = HW * 2;
@@ -177,9 +165,7 @@ const StreetLamps = memo(function StreetLamps() {
   );
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The alcove the ATMs stand against
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A low blue-grey wall along the front of the building behind both kiosks, with a lit sign above each bay. */
 const Alcove = memo(function Alcove() {

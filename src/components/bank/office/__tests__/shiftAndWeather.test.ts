@@ -2,18 +2,18 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { StationView } from '../../../../sim/types';
-import { workingCount, statusAfterWorking } from '../../deskActivity';
-import { fadeToward, WEATHER_BLEND_S } from '../atmosphere';
+import { workingCount, statusAfterWorking } from '../../../../engine/simulation/deskActivity';
+import { fadeToward, WEATHER_BLEND_S } from '../../../../engine/world/atmosphere';
 import { MIST_BANKS, MIST_CLIP } from '../Environment3D';
-import { servedExit } from '../evacuation';
+import { servedExit } from '../../../../engine/world/evacuation';
 import { arriveRoute, arrivalMinute, arrivalState, leaveRoute, STAFF_ARRIVAL } from '../focus3d';
-import { ATM_STATIONS, atmBooth, CAR_PARK_FOOTWAY_X, deskPose, EYE_POLAR, ISO_POLAR, KERB_Z, MAIN_GATE, queueSlots, ROAD_END, STREET, WALK_IN_DESKS, type V2 } from '../layout3d';
-import { LOT, LOT_SIDE } from '../parking';
-import { PARK } from '../parkPlan';
-import { ParkCrowd, PARK_MEMBERS, PARK_PACE, PARK_STAY, wantsPark } from '../parkLife';
-import { SidewalkCrowd, SIDEWALK } from '../sidewalk';
+import { ATM_STATIONS, atmBooth, CAR_PARK_FOOTWAY_X, deskPose, EYE_POLAR, ISO_POLAR, KERB_Z, MAIN_GATE, queueSlots, ROAD_END, STREET, WALK_IN_DESKS, type V2 } from '../../../../engine/plan/layout3d';
+import { LOT, LOT_SIDE } from '../../../../engine/world/parking';
+import { PARK } from '../../../../engine/world/parkPlan';
+import { ParkCrowd, PARK_MEMBERS, PARK_PACE, PARK_STAY, wantsPark } from '../../../../engine/world/parkLife';
+import { SidewalkCrowd, SIDEWALK } from '../../../../engine/world/sidewalk';
 import { pathLength, pointAlongPath } from '../tour3d';
-import { TAXI_X, TrafficSim, TRAFFIC_SPAN, type Vehicle } from '../vehicles';
+import { TAXI_X, TrafficSim, TRAFFIC_SPAN, type Vehicle } from '../../../../engine/world/vehicles';
 
 const read = (rel: string): string => readFileSync(join(__dirname, rel), 'utf8');
 
@@ -70,8 +70,9 @@ describe('served at a counter or an ATM: finish, turn, walk away', () => {
     const desk = read('../Desk3D.tsx');
     expect(desk).toContain('function ServedCustomer(');
     // While finishing up they stand at the spot where they were served, then turn smoothly to the way out.
-    expect(desk).toContain('if (t < walkUp + s.wait) {');
-    expect(desk).toContain('who: before + j + salt');
+    const people = read('../../../../engine/simulation/people.ts');
+    expect(people).toContain('const p: CustomerPose = journeyPose(this.journeyOf(s), now - s.start);');
+    expect(people).toContain('who: before + j + this.salt');
     // Talking to the teller at the front of a counter's line.
     expect(desk).toContain('<CounterUser index={who}');
     expect(read('../OfficeScene.tsx')).not.toContain('AtmLeavers');
@@ -160,31 +161,34 @@ describe('waiting and talking people stand still; walkers curve smoothly round t
   });
 
   it('locks the talking pairs, the bus stop and the riders waiting at the kerb', () => {
-    expect(read('../Environment3D.tsx')).toContain('sidewalk.place(`passer-${p.index}`, s.x, s.z, motion.dt, s.speed === 0)');
-    expect(read('../Vehicles3D.tsx')).toContain('sidewalk.place(`bus-${id}`, r.x, r.z, motion.dt, !r.walking)');
+    const street = read('../../../../engine/world/streetPeople.ts');
+    expect(street).toContain('this.sidewalk.place(`passer-${p.index}`, s.x, s.z, dt, s.speed === 0)');
+    expect(street).toContain('this.sidewalk.place(`bus-${id}`, b.x, b.z, dt, !b.walking)');
     // Runners for shelter run: quicker steps and a lean.
     expect(read('../Environment3D.tsx')).toContain("tempo={pose === 'run' ? 1.7 : 1}");
   });
 });
 
 describe('staff walk in before their shift', () => {
-  it('sets the day staff off between 07:00 and 07:20 and the night staff between 22:00 and 22:20', () => {
+  it('sets the day staff off between 08:15 and 08:35 and the night staff between 22:15 and 22:35', () => {
     for (let k = 0; k < 6; k++) {
       const day = arrivalMinute(false, `w${k}`, k);
       const night = arrivalMinute(true, `n${k}`, k);
       expect(day).toBeGreaterThanOrEqual(STAFF_ARRIVAL.day[0]);
       expect(day).toBeLessThan(STAFF_ARRIVAL.day[1]);
-      expect(night).toBeGreaterThanOrEqual(22 * 60);
-      expect(night).toBeLessThan(22 * 60 + 20);
-      expect(day).toBeLessThan(7 * 60 + 20);
+      expect(STAFF_ARRIVAL.day[0]).toBe(8 * 60 + 15);
+      expect(night).toBeGreaterThanOrEqual(22 * 60 + 15);
+      expect(night).toBeLessThan(22 * 60 + 35);
+      expect(day).toBeLessThan(8 * 60 + 35);
     }
   });
 
   it('keeps a seat empty until its person is due, and seats the night staff ready before 23:00', () => {
     const ids = ['a', 'b', 'c'];
-    const at7 = arrivalState(false, ids, 7 * 60);
-    expect(at7.away.length).toBeGreaterThan(0);
-    expect(arrivalState(false, ids, 7.4 * 60).away).toEqual([]);
+    // From the start of the day until they set off, the day's seats stand empty.
+    expect(arrivalState(false, ids, 7 * 60).away).toEqual(ids);
+    expect(arrivalState(false, ids, 8.3 * 60).away.length).toBeGreaterThan(0);
+    expect(arrivalState(false, ids, 8.6 * 60).away).toEqual([]);
     expect(arrivalState(true, ids, 21.9 * 60)).toEqual({ away: [], early: [] });
     expect(arrivalState(true, ids, 22.6 * 60).early).toEqual(ids);
     expect(arrivalState(true, ids, 23 * 60).early).toEqual([]);
@@ -206,7 +210,7 @@ describe('staff walk in before their shift', () => {
         for (const b of ATM_STATIONS.map((s) => atmBooth(s))) expect(x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1, `${id} through a booth`).toBe(false);
       }
     }
-    expect(read('../Desk3D.tsx')).toContain('route: arriveRoute(pose, seatsNow[i]!, i), t: 0, index: i, arriving: true');
+    expect(read('../../../../engine/simulation/people.ts')).toContain('route: MAIN_GATE_STAFF_ROUTE.arrive(this.pose, seats[i]!, i), t: 0, index: i, arriving: true');
   });
 });
 

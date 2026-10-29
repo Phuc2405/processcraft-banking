@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { analystWorkspaceMessages } from '../../components/bank/analystWorkspace.messages';
 import { isBalanced } from '../../engine/ledger';
-import { setActiveLocale } from '../../i18n/locale';
+import { setActiveLocale } from '../../i18n/localeCore';
 import { QR_SCANNED_LABEL_EN, stationBrandMessages } from '../../i18n/stationBrand.messages';
 import { VI_DICTIONARY } from '../../i18n/viDictionary';
 import { createBankStore } from '../../store/bankStore';

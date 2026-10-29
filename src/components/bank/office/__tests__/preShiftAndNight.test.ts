@@ -1,30 +1,31 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { beatMinutesAt, beatMs, DAY_START, EOD_START, isPreShift } from '../../../../sim/clock';
+import { beatMinutesAt, beatMs, DAY_START, EOD_START, isPreShift, WORK_START } from '../../../../sim/clock';
 import { STATION_IDS, STATIONS } from '../../../../sim/topology';
 import { isAutomatedNode } from '../../../../sim/nodeKind';
 import { isNightStation } from '../../../../sim/roster';
-import { atmosphereAt } from '../atmosphere';
+import { atmosphereAt } from '../../../../engine/world/atmosphere';
 import { ARRIVE_SPEED, arriveRoute, arrivalMinute, STAFF_ARRIVAL } from '../focus3d';
-import { deskPose, seatOffsets } from '../layout3d';
-import { exitRoute, PARK_MEMBERS, wantsPark } from '../parkLife';
-import { PARK_BENCHES, PARK_LAMPS, PICNIC } from '../parkPlan';
-import { QueueHandoff } from '../queueHandoff';
+import { deskPose, seatOffsets } from '../../../../engine/plan/layout3d';
+import { exitRoute, PARK_MEMBERS, wantsPark } from '../../../../engine/world/parkLife';
+import { PARK_BENCHES, PARK_LAMPS, PICNIC } from '../../../../engine/world/parkPlan';
+import { QueueHandoff } from '../../../../engine/simulation/queueHandoff';
 import { pathLength, pointAlongPath } from '../tour3d';
-import { BUS_STOP, OVERHANG, PAVEMENT, underCover } from '../weather';
+import { BUS_STOP, OVERHANG, PAVEMENT, underCover } from '../../../../engine/world/weather';
 
 const read = (rel: string): string => readFileSync(join(__dirname, rel), 'utf8');
 
 describe('the hours before a shift tick by, never jumping', () => {
-  it('starts the day at 07:00 and runs 07:00-08:00 and 22:00-23:00 in short beats', () => {
+  it('starts the day at 07:00 and runs 08:00-09:00 and 22:00-23:00, the hours the staff walk in, in short beats', () => {
     expect(DAY_START).toBe(7 * 60);
-    for (let m = 7 * 60; m < 8 * 60; m += 5) expect(beatMinutesAt(m)).toBe(5);
+    for (let m = 8 * 60; m < WORK_START; m += 5) expect(beatMinutesAt(m)).toBe(5);
     for (let m = 22 * 60; m < EOD_START; m += 5) expect(beatMinutesAt(m)).toBe(5);
-    expect(isPreShift(8 * 60)).toBe(false);
+    expect(isPreShift(7 * 60)).toBe(false);
+    expect(isPreShift(WORK_START)).toBe(false);
     expect(isPreShift(21 * 60)).toBe(false);
     // Slower to watch than an ordinary quiet-hour beat.
-    expect(beatMs('PRE_OPEN', 1, 7 * 60)).toBeGreaterThan(beatMs('PRE_OPEN', 1, 8 * 60));
+    expect(beatMs('PRE_OPEN', 1, 8 * 60)).toBeGreaterThan(beatMs('PRE_OPEN', 1, 7 * 60));
   });
 
   it('gets every member of staff walking in seated before their shift starts, at the real pace the clock runs', () => {
@@ -34,7 +35,7 @@ describe('the hours before a shift tick by, never jumping', () => {
       if (isAutomatedNode(id) || STATIONS[id].kind === 'ATM') continue;
       const night = isNightStation(id);
       const [from] = night ? STAFF_ARRIVAL.night : STAFF_ARRIVAL.day;
-      const start = night ? EOD_START : DAY_START + 60;
+      const start = night ? EOD_START : WORK_START;
       const seats = seatOffsets(STATIONS[id].staff);
       seats.forEach((seat, k) => {
         const due = arrivalMinute(night, `${id}-${k}`, k);
@@ -64,14 +65,14 @@ describe('customers are handed from their walk to the line, never shown twice or
   });
 
   it('wires the walkers and the desks together', () => {
-    const traffic = read('../Traffic.tsx');
-    expect(traffic).toContain('queueHandoff.expect(id);');
-    expect(traffic).toContain('const who = sv.stats.processedToday + place + queueSalt(id);');
-    expect(traffic).toContain('queueHandoff.arrive(w.desk, w.path[w.path.length - 1]!, motion.t, w.who)');
-    const desk = read('../Desk3D.tsx');
-    expect(desk).toContain("const standing = style === 'people' ? Math.max(0, shown - queueHandoff.pending(id)) : shown;");
+    // The engine wires them (engine/simulation/people.ts); the views only draw.
+    const people = read('../../../../engine/simulation/people.ts');
+    expect(people).toContain('this.handoff.expect(id);');
+    expect(people).toContain('const who = sv.stats.processedToday + place + queueSalt(id);');
+    expect(people).toContain('this.handoff.arrive(w.desk, w.path[w.path.length - 1]!, now, w.who);');
+    expect(people).toContain("const standing = this.style === 'people' ? Math.max(0, this.shown - this.handoff.pending(this.id)) : this.shown;");
     // Someone who arrives after their turn came walks up, does their business, and leaves.
-    expect(desk).toContain('wait: atm ? SERVED.business.atm : SERVED.business.counter, stopAt });');
+    expect(people).toContain('wait: this.atm ? SERVED.business.atm : SERVED.business.counter, stopAt, business: true }');
   });
 });
 
@@ -85,7 +86,7 @@ describe('umbrellas come down under cover', () => {
   });
 
   it('lowers them on the street and in the park, under the picnic umbrella too', () => {
-    expect(read('../Environment3D.tsx')).toContain('const want = underCover(x, z) ? 0 : Math.max(s.umbrella, out);');
+    expect(read('../../../../engine/world/streetPeople.ts')).toContain('const want = underCover(x, z) ? 0 : Math.max(s.umbrella, out);');
     const park = read('../Park3D.tsx');
     expect(park).toContain('PICNIC_ROOF');
     for (const m of PARK_MEMBERS.filter((x) => x.role === 'picnic')) expect(Math.hypot(m.at[0] - PICNIC.x, m.at[1] - PICNIC.z)).toBeLessThan(1.05);
@@ -122,6 +123,7 @@ describe('the park after dark', () => {
 
 describe('a drop-off held up in traffic keeps its passenger’s stop', () => {
   it('looks again for a spot rather than giving up when the kerb lane fills', () => {
-    expect(read('../vehicles.ts')).toMatch(/if \(dropping && c\.speed < HALTED\) \{[\s\S]*?c\.spot = null;/);
+    expect(read('../../../../engine/world/vehicles.ts')).toMatch(/if \(dropping && this\.dropOff\.keepsIntent\(c\)\) \{[\s\S]*?c\.spot = null;/);
+    expect(read('../../../../engine/world/vehicles.ts')).toMatch(/keepsIntent\(c: Driving\): boolean \{\s*return c\.speed < HALTED;/);
   });
 });

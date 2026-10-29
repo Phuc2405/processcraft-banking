@@ -1,12 +1,7 @@
 import { LOCALE_OPTIONS, localeStore, useLocale, useMessages } from '../../utils/i18nHelper';
 import { languageMessages } from './languageToggle.messages';
 
-/**
- * [🇬🇧 EN | 🇻🇳 VI]: the language of every lesson, panel and label. Remembered in this browser. The app redraws in the new
- * language at once (App keys its tree by the locale).
- *
- * `variant="globe"` is the compact [🌐 EN | VI] form for dialogs. `testId` names the group; the buttons are `${testId}-en` and `-vi`.
- */
+/** [🇬🇧 EN | 🇻🇳 VI]: the language of every lesson, panel and label. */
 export function LanguageToggle({ variant = 'flags', testId = 'language' }: { variant?: 'flags' | 'globe'; testId?: string }) {
   const locale = useLocale();
   const m = useMessages(languageMessages);

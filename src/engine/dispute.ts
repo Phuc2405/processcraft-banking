@@ -1,19 +1,4 @@
-/**
- * The card-dispute (chargeback) cycle as a state machine.
- *
- *   RETRIEVAL_REQUEST  ->  FIRST_CHARGEBACK  ->  REPRESENTMENT  ->  PRE_ARBITRATION
- *   "show me the receipt"   "I am taking the     "the merchant       "I do not accept the
- *                            money back"          fights back"        answer; this goes to the scheme"
- *
- * Each stage ends in one of three ways: the case moves to the next stage, someone wins and the case is resolved, or the
- * scheme allows no action at all (the claim is out of time, or the bank carries the liability itself).
- *
- * Liability is the heart of it. When a purchase was authenticated with 3-D Secure, the liability for fraud shifts to the
- * ISSUER: the merchant did everything the scheme asks, so a fraud chargeback against it is not allowed and the issuer
- * absorbs the loss. Without authentication the MERCHANT stays liable, so the issuer can charge back.
- *
- * Pure functions, no I/O.
- */
+/** The card-dispute (chargeback) cycle as a state machine. */
 
 import type { DisputeContext, DisputeNext, DisputeReason, DisputeStage, MerchantEvidence } from '../types/processLearning';
 
@@ -29,10 +14,7 @@ export function liabilityFor(reason: DisputeReason, authenticated: boolean | und
   return reason === 'FRAUD' && authenticated === true ? 'ISSUER' : 'MERCHANT';
 }
 
-/**
- * Where the case goes after the stage it is in, given how strong the merchant's answer is.
- * `NEW` is a claim nobody has acted on yet: the first move is always to ask the merchant for the paperwork.
- */
+/** Where the case goes after the stage it is in, given how strong the merchant's answer is. */
 export function transition(stage: DisputeStage | 'NEW', evidence: MerchantEvidence): DisputeNext {
   switch (stage) {
     case 'NEW':

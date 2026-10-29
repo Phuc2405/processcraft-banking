@@ -1,13 +1,8 @@
-/**
- * Vietnamese for the bank's dials, the manager's KPIs and the short notices the bank store raises.
- *
- * RULE_META and KPI_DEFS stay English (tests, saved games and the comparison engine key on them). The screen reads the
- * label and help text through these accessors instead.
- */
+/** Vietnamese for the bank's dials, the manager's KPIs and the short notices the bank store raises. */
 
 import type { KpiRowDef } from '../sim/kpis';
 import { RULE_META, type BankRules } from '../sim/rules';
-import { activeLocale } from './locale';
+import { activeLocale } from './localeCore';
 
 const RULE_VI: Readonly<Record<keyof BankRules, { label: string; help: string }>> = {
   dcvvWindowSec: { label: 'Thời hạn hiệu lực dCVV', help: 'Dài hơn thì dễ chịu với người gõ chậm, nhưng cũng dễ hơn cho kẻ dùng lại mã bị đánh cắp.' },

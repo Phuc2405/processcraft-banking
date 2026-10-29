@@ -1,7 +1,4 @@
-/**
- * Where a tooltip goes: centred over the (?) it explains, above it if there is room and below it otherwise, and always pushed
- * back inside the window by a margin, so it never spills off a small screen. Pure, so it can be tested without a browser.
- */
+/** Where a tooltip goes: centred over the (?) it explains, above it if there is room and below it otherwise, and always pushed back inside the window by a margin, so it never spills off a small screen. */
 
 export interface Box {
   left: number;

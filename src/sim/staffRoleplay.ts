@@ -1,12 +1,4 @@
-/**
- * Phase 8 Step 2: the Staff Roleplay Workspace engine.
- *
- * The learner sits at one of seven review desks and decides the payment at the head of the desk's queue. The bank's own
- * verdict (the checkpoint the interceptor already wrote on the stop, sim/amlEngine.ts) is the answer key, and every field the
- * learner sees is either read from that checkpoint or derived from the packet so it agrees with the SOP thresholds below.
- *
- * Pure and English-only (codes, numbers, scenario ids): screens translate at display.
- */
+/** Phase 8 Step 2: the Staff Roleplay Workspace engine. */
 
 import { AML_POLICY, CTR_THRESHOLD_CENTS, DISPUTE_SLA_DAYS, EKYC_POLICY, FDS_POLICY } from './amlEngine';
 import { isAutomatedNode } from './nodeKind';
@@ -34,10 +26,7 @@ const STATION_ROLE = Object.fromEntries(STAFF_ROLES.map((r) => [ROLE_STATION[r],
 
 export const roleForStation = (id: StationId): StaffRoleId | null => STATION_ROLE[id] ?? null;
 
-/**
- * Whether a roleplay desk is a server-run system (eKYC onboarding, the FDS device check, SWIFT STP) or a desk people staff
- * (AML, disputes, BNPL, the teller counter). It follows the map's own classification in sim/nodeKind.ts.
- */
+/** Whether a roleplay desk is a server-run system (eKYC onboarding, the FDS device check, SWIFT STP) or a desk people staff (AML, disputes, BNPL, the teller counter). */
 export const isAutomatedDesk = (role: StaffRoleId): boolean => isAutomatedNode(ROLE_STATION[role]);
 
 /** A held case the bank's checks flagged: a field breaches the SOP, or the right answer is to refuse it. */
@@ -354,9 +343,7 @@ function fieldsFor(role: StaffRoleId, p: Packet, stop: Stop, ctx: StaffDeskConte
 /** Live roleplay counters a desk keeps, read back as Inspector lines. */
 export const RP_COUNTERS = { reviews: 'rpReviews', correct: 'rpCorrect', latency: 'rpLatencySec' } as const;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The 28-task matrix (7 roles × 4 tasks): synthetic training cases, graded by the task SOPs below
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Thresholds the task SOPs quote (analystWorkspace.messages.ts `task_<role>_<n>_sop`). */
 export const TASK_SOP = {
@@ -730,9 +717,7 @@ export function gradeTaskCase(c: StaffCase, decision: StaffDecision): StaffDecis
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Time-Attack Challenge Mode
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const CHALLENGE = {
   /** Length of a challenge shift, in real seconds. */
@@ -803,9 +788,7 @@ export function challengeGrade(t: Pick<ChallengeTally, 'reviews' | 'correct'>): 
   return GRADE_BANDS.find((b) => acc >= b.minAccuracyPct && t.reviews >= b.minReviews)?.grade ?? 'F';
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Incident Mode: 25 crisis events (4 bank-wide, 3 per desk)
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const GLOBAL_INCIDENTS = ['AUDIT_DAY', 'NETWORK_LATENCY', 'CORRUPTED_PAYLOAD', 'POWER_GRID_FAILOVER'] as const;
 
@@ -894,9 +877,7 @@ export const advanceIncident = (a: ActiveIncident, correct: boolean): ActiveInci
   compliance: a.id === 'AUDIT_DAY' && !correct ? Math.max(0, a.compliance - INCIDENT.auditComplianceDrop) : a.compliance,
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Career progression (lifetime XP → level and rank) and operational badges
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type CareerRankId = 'intern' | 'junior' | 'senior' | 'cro';
 
@@ -1023,9 +1004,7 @@ export function recordCareerDecision(c: CareerProgress, d: CareerDecision): { ca
   return { career: { ...next, perfectExpertShifts, shift: EMPTY_SHIFT_LOG, badges: [...c.badges, ...unlocked] }, unlocked };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Phase 10: retail banking operations and the double-entry core ledger
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** The core ledger's chart of accounts. Balances are kept debit-positive: assets and expenses carry a positive balance, the rest a negative one. */
 export const GL_ACCOUNTS = [
@@ -1129,10 +1108,7 @@ export const naturalBalance = (gl: GlAccount, debitPositive: number): number => 
 export const HOLDING_ACCOUNTS: readonly GlAccount[] = ['ATM_SUSPENSE', 'CLEARING_SUSPENSE', 'DISPUTE_ACCOUNT', 'FROZEN_ASSETS', 'TD_PLEDGED'];
 const CUSTOMER_ACCOUNTS: readonly GlAccount[] = ['CASA', 'OVERDRAFT_RECV'];
 
-/**
- * What a journal adds to the settled volume: nothing when it routes funds into a holding account; otherwise the customer's
- * side of the movement (deposits and overdraft), or the whole journal when no customer account is touched.
- */
+/** What a journal adds to the settled volume: nothing when it routes funds into a holding account. */
 export function settledCents(lines: readonly LedgerLine[]): number {
   if (lines.some((l) => HOLDING_ACCOUNTS.includes(l.gl) && naturalBalance(l.gl, l.dr - l.cr) > 0)) return 0;
   const customer = lines.filter((l) => CUSTOMER_ACCOUNTS.includes(l.gl));
@@ -1205,11 +1181,7 @@ export const WIRE_FEE_CENTS = 2_500;
 /** AML holds that freeze the funds (sanctions matches and funnel accounts) rather than just returning the payment. */
 const amlFreezes = (c: StaffCase): boolean => c.drill === 1 || c.drill === 3 || c.scene === 'aml_OFAC';
 
-/**
- * The journal a 28-task-matrix or live-queue decision posts. Letting a transaction through moves it (till cash, nostro,
- * card or interbank settlement, a loan disbursement, a provisional dispute credit); an AML freeze moves the funds into the
- * emergency frozen-asset account; any other rejection, and eKYC, moves no money.
- */
+/** The journal a 28-task-matrix or live-queue decision posts. */
 export function caseJournalLines(c: StaffCase, decision: StaffDecision): LedgerLine[] {
   const a = c.amountCents;
   if (a <= 0) return [];
@@ -1692,15 +1664,9 @@ function gradeRetailCase(c: StaffCase, r: RetailCaseData, decision: StaffDecisio
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Emergency Crisis Queue: Incident Mode as its own queue
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * With Incident Mode on, a desk stops working its routine task and works an emergency queue instead: a crisis is always
- * running (rollCrisis), the queue is the drill that crisis floods (a desk incident) or a mix of all three drills (a bank-wide
- * one), and every decision books its money to the bank's risk and holding accounts (crisisJournalLines).
- */
+/** With Incident Mode on, a desk stops working its routine task and works an emergency queue instead. */
 
 /** Every crisis a desk can face: the four bank-wide incidents and its own three. Over the seven desks that is all 25. */
 export const crisisPool = (role: StaffRoleId): readonly IncidentId[] => [...GLOBAL_INCIDENTS, ...DESK_INCIDENTS[role]];
@@ -1727,10 +1693,7 @@ export const clampCrisisBatch = (n: number): number => (Number.isFinite(n) ? Mat
 /** The mixed crisis stream: every case brings a different crisis. Switched on explicitly, or by a batch of one case. */
 export const isCrisisStream = (batch: number, stream: boolean): boolean => stream || clampCrisisBatch(batch) === 1;
 
-/**
- * Whether the crisis that has just booked a decision (`a`, already advanced) is over, so the next case opens a new one. The
- * queue itself never stops: a finished crisis is always followed by another until Incident Mode is turned off.
- */
+/** Whether the crisis that has just booked a decision (`a`, already advanced) is over, so the next case opens a new one. */
 export const crisisOver = (a: ActiveIncident, batch: number, stream: boolean): boolean => isCrisisStream(batch, stream) || a.reviews >= clampCrisisBatch(batch);
 
 /** Cases left in the running crisis, this one included. */
@@ -1741,18 +1704,7 @@ const UNCONFIRMED: ReadonlySet<IncidentId> = new Set<IncidentId>(['NETWORK_LATEN
 /** Desks whose refusal during a crisis holds the customer's money instead of simply not moving it. */
 const HOLD_ON_REJECT: ReadonlySet<StaffRoleId> = new Set<StaffRoleId>(['aml', 'fds', 'swift']);
 
-/**
- * A crisis decision's journal: the routine posting, re-routed to the risk and holding accounts.
- *
- *   Refused at AML, FDS or SWIFT             Dr 2011 CASA / Cr 2930 Frozen assets: the money is held for investigation.
- *   Refused anywhere else                    The routine posting (usually none: nothing was paid out, and a teller's
- *                                            suspect notes never reached the account).
- *   Approved during an outage                The settlement or nostro leg goes to 2912 Interbank suspense until the other
- *                                            bank confirms it.
- *   Approved dispute                         Dr 1920 Dispute receivable / Cr 2011 CASA, as on any day.
- *
- * Every re-routed journal still balances: only the account of a leg changes, never its amount.
- */
+/** A crisis decision's journal: the routine posting, re-routed to the risk and holding accounts. */
 export function crisisJournalLines(c: StaffCase, decision: StaffDecision, incident: IncidentId): LedgerLine[] {
   const a = c.amountCents;
   if (a <= 0) return [];

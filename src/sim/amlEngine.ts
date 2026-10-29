@@ -1,19 +1,4 @@
-/**
- * Phase 8: the checkpoint interceptor for the extended channels.
- *
- *   onboarding   eKYC  ──────────────────────────────────────────────▶ AML screen ─▶ CASA (account opened)
- *   VietQR       QR gateway ─▶ FacePay (> $400) ─▶ FDS (+ AML screen) ─▶ AML desk? ─▶ CASA
- *   SWIFT        ISO 20022 gateway ─▶ FacePay (> $400) ─▶ FDS (+ AML screen) ─▶ AML desk? ─▶ CASA
- *   teller cash  teller counter (+ AML screen, CTR) ─▶ AML desk? ─▶ CASA
- *   claim        disputes desk ─▶ CASA (refund) or declined
- *
- * Every checkpoint is a pure function of the customer, so a day can be replayed exactly and the tests read the same verdicts
- * the map shows. Each stop carries a `Checkpoint` (see types.ts) that the desk counters and the activity line read.
- *
- * Reason codes are the bank's own: EKYC_LIVENESS_FAILED, BIOMETRIC_AUTH_REQUIRED, FDS_HIGH_RISK_DEVICE, AML_SANCTION_MATCH
- * (and STR_PENDING, the status of a payment held for an analyst). Everything written here is canonical English: the screen
- * translates at display, as with every other simulation text.
- */
+/** Phase 8: the checkpoint interceptor for the extended channels. onboarding eKYC ──────────────────────────────────────────────▶ AML screen ─▶ CASA (account opened) VietQR QR gateway ─▶ FacePay (> $400) ─▶ FDS (+ AML screen) ─▶ AML desk? ─▶ CASA SWIFT ISO 20022 gateway ─▶ FacePay (> $400) ─▶ FDS (+ AML screen) ─▶ AML desk? ─▶ CASA teller cash teller counter (+ AML screen, CTR) ─▶ AML desk? ─▶ CASA claim disputes desk ─▶ CASA (refund) or declined Every checkpoint is a pure function of the customer, so a day can be replayed exactly and the tests read the same verdicts the map shows. */
 
 import { nameSimilarity } from '../engine/aml';
 import { BIC_PATTERN } from '../engine/iso20022';
@@ -37,9 +22,7 @@ import type {
   SwiftContext,
 } from './types';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Policy
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** VND per AUD used to show a VietQR amount. $400 is 10,000,000 VND, the FacePay line. */
 export const VND_PER_AUD = 25_000;
@@ -73,9 +56,7 @@ export const SANCTIONS_LIST: readonly WatchlistEntry[] = [
   { list: 'OFAC', name: 'Hassan Reza Moradi', dateOfBirth: '1972-11-30', country: 'IR' },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
 // eKYC
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type EkycVerdict = Extract<Checkpoint, { at: 'EKYC' }>['verdict'];
 
@@ -89,9 +70,7 @@ export function checkEkyc(id: IdentityContext): Extract<Checkpoint, { at: 'EKYC'
   return { ...base, verdict: 'VERIFIED' };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // FacePay
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const needsBiometric = (amountCents: MinorUnits): boolean => amountCents > BIOMETRIC_THRESHOLD_CENTS;
 
@@ -101,9 +80,7 @@ export function checkFacePay(b: BiometricContext): Extract<Checkpoint, { at: 'FA
   return { at: 'FACEPAY', verdict: ok ? 'MATCHED' : 'FAILED', faceMatchPct: b.faceMatchPct };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // FDS
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Scores the device fingerprint. Signals add up, capped at 100. */
 export function scoreDevice(d: DeviceContext): Extract<Checkpoint, { at: 'FDS' }> {
@@ -129,9 +106,7 @@ export function scoreDevice(d: DeviceContext): Extract<Checkpoint, { at: 'FDS' }
   return { at: 'FDS', verdict: score >= FDS_POLICY.highRiskAt ? 'HIGH_RISK' : 'CLEAR', score, signals };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // AML screening and review
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface AmlScreenInput {
   subject: AmlSubject;
@@ -150,10 +125,7 @@ export function isStructuring(amountCents: MinorUnits, recent: readonly MinorUni
   return near.length >= AML_POLICY.structuringMinDeposits && near.reduce((n, c) => n + c, 0) >= CTR_THRESHOLD_CENTS;
 }
 
-/**
- * The automated screen: a sanctions hit is frozen at once, a PEP, structuring or a large cross-border payment is held as
- * STR_PENDING for an analyst, anything else is clean. A CTR is filed for large cash whatever the verdict.
- */
+/** The automated screen: a sanctions hit is frozen at once, a PEP, structuring or a large cross-border payment is held as STR_PENDING for an analyst, anything else is clean. */
 export function screenAml(input: AmlScreenInput): Extract<Checkpoint, { at: 'AML_SCREEN' }> {
   const score = sanctionsScore(input.subject.name);
   const ctr = input.cash !== undefined && input.amountCents >= CTR_THRESHOLD_CENTS;
@@ -164,19 +136,14 @@ export function screenAml(input: AmlScreenInput): Extract<Checkpoint, { at: 'AML
   return { at: 'AML_SCREEN', verdict: 'CLEAN', reason: 'NONE', ctr, score };
 }
 
-/**
- * What the analyst decides about a held payment. A confirmed sanctions match stays blocked. A suspicious payment that turns
- * out to be fraud is blocked and reported; a genuine one is released, with an STR filed when the reason was structuring.
- */
+/** What the analyst decides about a held payment. */
 export function reviewAml(screen: Extract<Checkpoint, { at: 'AML_SCREEN' }>, isFraud: boolean): Extract<Checkpoint, { at: 'AML_REVIEW' }> {
   if (screen.verdict === 'SANCTION_MATCH') return { at: 'AML_REVIEW', verdict: 'BLOCKED_SANCTION', reason: 'OFAC' };
   if (isFraud) return { at: 'AML_REVIEW', verdict: 'BLOCKED_STR', reason: screen.reason };
   return { at: 'AML_REVIEW', verdict: screen.reason === 'STRUCTURING' ? 'STR_FILED_RELEASED' : 'RELEASED', reason: screen.reason };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Teller cash
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function checkTellerCash(cash: CashContext, amountCents: MinorUnits): Extract<Checkpoint, { at: 'TELLER' }> {
   const ctr = amountCents >= CTR_THRESHOLD_CENTS;
@@ -186,9 +153,7 @@ export function checkTellerCash(cash: CashContext, amountCents: MinorUnits): Ext
   return { ...base, verdict: 'COUNTED' };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // VietQR (EMVCo merchant-presented QR, Napas247)
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF), as EMVCo QR uses for tag 63. Upper-case hex, 4 digits. */
 export function crc16(text: string): string {
@@ -253,10 +218,7 @@ export interface VietQrParse {
   iso8583: { mti: '0200'; processingCode: '912020'; amountVnd: number | null; currency: '704'; acquirerBin: string | null } | null;
 }
 
-/**
- * Parses a VietQR payload: CRC first (anything after 6304), then the EMVCo tags, then the amount against what the customer
- * is paying. A dynamic QR whose amount disagrees with the instructed amount is refused.
- */
+/** Parses a VietQR payload: CRC first (anything after 6304), then the EMVCo tags, then the amount against what the customer is paying. */
 export function parseVietQr(payload: string, instructedVnd: number): VietQrParse {
   const bad = (issue: VietQrParse['issue']): VietQrParse => ({ valid: false, mode: null, issue, amountVnd: null, bin: null, iso8583: null });
   const at = payload.lastIndexOf('6304');
@@ -277,9 +239,7 @@ export function parseVietQr(payload: string, instructedVnd: number): VietQrParse
 
 export const audToVnd = (cents: MinorUnits): number => Math.round((cents / 100) * VND_PER_AUD);
 
-// ─────────────────────────────────────────────────────────────────────────────
 // SWIFT / ISO 20022
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** The first field of the pacs.008 that breaks a format rule, or null when it is well formed. */
 export function checkSwift(m: SwiftContext): Extract<Checkpoint, { at: 'SWIFT' }> {
@@ -298,9 +258,7 @@ export function checkSwift(m: SwiftContext): Extract<Checkpoint, { at: 'SWIFT' }
   return { at: 'SWIFT', verdict: field ? 'INVALID' : 'VALID', currency: m.currency, field };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Disputes
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function resolveDispute(c: DisputeClaim): Extract<Checkpoint, { at: 'DISPUTE' }> {
   const base = { at: 'DISPUTE' as const, type: c.type };
@@ -309,9 +267,7 @@ export function resolveDispute(c: DisputeClaim): Extract<Checkpoint, { at: 'DISP
   return { ...base, verdict: upheld ? 'REFUND' : 'REJECTED_EVIDENCE' };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Route planning
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const EXTENDED_KINDS: readonly ExtendedKind[] = ['ONBOARD', 'QR', 'TELLER', 'SWIFT', 'DISPUTE'];
 export const isExtendedKind = (kind: string): kind is ExtendedKind => (EXTENDED_KINDS as readonly string[]).includes(kind);
@@ -360,10 +316,7 @@ const AML_SCREEN_NOTE: Record<Extract<Checkpoint, { at: 'AML_SCREEN' }>['reason'
   OFAC: 'Name matches the sanctions list: AML_SANCTION_MATCH, funds frozen.',
 };
 
-/**
- * The tail every money movement shares once it is past its channel's own checks: a clean screen goes straight to the CASA
- * ledger, a held one waits for an analyst at the AML desk, a sanctions match is frozen there.
- */
+/** The tail every money movement shares once it is past its channel's own checks. */
 function screenedTail(
   c: Customer,
   screen: Extract<Checkpoint, { at: 'AML_SCREEN' }>,
@@ -381,8 +334,7 @@ function screenedTail(
   if (review.verdict === 'BLOCKED_SANCTION' || review.verdict === 'BLOCKED_STR') {
     const sanction = review.verdict === 'BLOCKED_SANCTION';
     const desk = stop('AML_DESK', 'WORK', 'AML analyst review', sanction ? 'Analyst confirmed the sanctions match: the funds stay frozen and the regulator is told.' : 'Analyst confirmed the activity is suspicious: STR filed and the payment blocked.', review, sanction ? 0.5 : 1, MS.AML_REVIEW);
-    // Money already in the bank (an account balance) is frozen in 2510. A refused account's deposit never arrives, and cash
-    // at the counter is not taken in, so neither has anything to freeze.
+    // Money already in the bank (an account balance) is frozen in 2510.
     const drafts = c.kind === 'ONBOARD' || c.kind === 'TELLER' ? [] : [amlRestrain(amount, sanction ? 'Sanctions match confirmed.' : 'STR filed.')];
     return plan([...carry, desk, end('OUT_DECLINED', 'Blocked', note)], 'DECLINED', sanction ? 'AML_SANCTION_MATCH' : 'STR_BLOCKED', sanction ? 'AML_SANCTION_MATCH' : 'AML_STR_BLOCKED', drafts);
   }

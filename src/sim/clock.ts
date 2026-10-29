@@ -1,18 +1,6 @@
-/**
- * The bank's clock. A day runs from 07:00, as the day's staff start arriving for their 08:00 shift, to midnight; the
- * hours the bank sleeps through (00:00 to 07:00) are skipped, and tired people recover during them.
- *
- *   PRE_OPEN     07:00-09:00  the day's staff walk in (07:00-08:00), then the systems check and briefing
- *   WORKING      09:00-17:00  live customers: checkouts, BNPL purchases, POS swipes
- *   AFTER_HOURS  17:00-23:00  no new customers; the last queues drain; the night's staff walk in (22:00-23:00)
- *   EOD          23:00-24:00  the night cycle: batch clearing, Visa settlement, 3-way reconciliation
- *
- * The simulation moves in beats. A beat is a few minutes of bank time, and how many depends on how
- * much is going on: customers arrive in 5-minute beats, the quiet hours pass an hour at a time. The two hours before a
- * shift (PRE_SHIFT) tick in 5-minute beats too, so the clock moves on steadily while the staff walk in to their desks.
- */
+/** The bank's clock. */
 
-import { activeLocale } from '../i18n/locale';
+import { activeLocale } from '../i18n/localeCore';
 
 export type Phase = 'PRE_OPEN' | 'WORKING' | 'AFTER_HOURS' | 'EOD';
 
@@ -38,9 +26,9 @@ export function phaseAt(minute: number): Phase {
 
 const BEAT_MINUTES: Record<Phase, number> = { PRE_OPEN: 60, WORKING: 5, AFTER_HOURS: 60, EOD: 2 };
 
-/** The hours before each shift, when its staff walk in: they tick in 5-minute beats, never jumping the hour. */
+/** The hours before each shift, when its staff walk in: they tick in 5-minute beats, never jumping the hour (the day's from 08:00 for the doors at 09:00, the night's from 22:00 for its 23:00 start). */
 export const PRE_SHIFT: ReadonlyArray<{ from: number; to: number }> = [
-  { from: DAY_START, to: DAY_START + 60 },
+  { from: WORK_START - 60, to: WORK_START },
   { from: EOD_START - 60, to: EOD_START },
 ];
 const PRE_SHIFT_BEAT = 5;
@@ -69,10 +57,7 @@ export function formatClock(minute: number): string {
   return `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`;
 }
 
-/**
- * Real milliseconds one beat takes at the Relaxed (1x) speed. The busy phases are slow enough to follow with your
- * eyes (one beat every 1.5 seconds); the quiet hours pass a little faster because nothing much happens in them.
- */
+/** Real milliseconds one beat takes at the Relaxed (1x) speed. */
 const BEAT_MS: Record<Phase, number> = { PRE_OPEN: 900, WORKING: 1500, AFTER_HOURS: 900, EOD: 1500 };
 /** A 5-minute beat before a shift, at 1x: the staff's hour in about half a minute, time for everyone to walk in. */
 const PRE_SHIFT_MS = 2400;
@@ -107,3 +92,6 @@ export const SLOWEST_SPEED_INDEX = 0;
 
 export const beatMs = (phase: Phase, factor: number, minute?: number): number =>
   Math.round((minute !== undefined && isPreShift(minute) ? PRE_SHIFT_MS : BEAT_MS[phase]) / Math.max(0.1, factor));
+
+/** Seconds of the 3D office's motion clock that one bank minute takes around `minute` (the same at every speed: both scale with it). */
+export const motionSecondsPerMinute = (minute: number): number => beatMs(phaseAt(minute), 1, minute) / 1000 / beatMinutesAt(minute);

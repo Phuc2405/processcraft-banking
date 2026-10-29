@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { setActiveLocale } from '../../i18n/locale';
+import { setActiveLocale } from '../../i18n/localeCore';
 import { feedText } from '../../i18n/feedVi';
 import { trialBalance } from '../../engine/ledger';
 import {

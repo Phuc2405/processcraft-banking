@@ -3,11 +3,7 @@ import { GL_SIDE, type GlAccount, type LedgerLine } from '../../sim/staffRolepla
 import { message, useLocale, type Locale, type Values } from '../../utils/i18nHelper';
 import { codeGlossaryMessages, type CodeGlossaryKey } from './codeGlossary.messages';
 
-/**
- * Turns raw banking codes into plain language. `explain` knows desk IDs (DISPUTE_DESK), status codes (DISPUTE_REFUNDED) and
- * acronyms (CTR, pacs.008); `gloss` finds every such code inside a sentence and lists their meanings, for a hover title.
- * Codes the glossary does not know are left alone, so a lookup never invents a meaning.
- */
+/** Turns raw banking codes into plain language. */
 
 /** Basic: plain words instead of codes. Advanced: the exact codes, GL numbers and Dr/Cr legs, meanings on hover. */
 export type { ViewMode } from '../shell/SegmentedToggle';

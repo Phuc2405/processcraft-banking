@@ -1,16 +1,6 @@
-/**
- * Banking capability handlers: the business logic behind each TASK node.
- *
- * A handler is a pure function. It reads the transaction (payload), the facts earlier nodes have
- * derived, and the node's configuration, then either:
- *   - returns facts to merge into the token (and a plain-English note for the execution trace), or
- *   - raises a technical exception, which leaves the node through its error port if one is wired.
- *
- * Handlers never mutate their inputs and never see the fraud label's consequences: isFraud is not
- * read here, because the bank cannot observe it.
- */
+/** Banking capability handlers: the business logic behind each TASK node. */
 
-import { tr } from '../i18n/locale';
+import { tr } from '../i18n/localeCore';
 import type {
   BankingCapability,
   BankingPayload,
@@ -52,7 +42,6 @@ const maskPan = (pan: string): string => `****${pan.slice(-4)}`;
 
 const num = (config: Readonly<Record<string, ConfigValue>>, key: string): number => Number(config[key]);
 
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Maps a DPAN to the real card (FPAN) and the account that funds it. */
 const tokenVault: CapabilityHandler = ({ payload }) => {
@@ -141,11 +130,7 @@ const threeDsEvaluator: CapabilityHandler = ({ payload, config }) => {
   );
 };
 
-/**
- * Checks the funding account can cover the amount and, if so, places an authorization hold.
- * Debit and prepaid compare against available balance. Credit compares against the lower of
- * available credit and the credit limit. A DPAN is judged by the account behind it.
- */
+/** Checks the funding account can cover the amount and, if so, places an authorization hold. */
 const coreLedgerCheck: CapabilityHandler = ({ payload, derived, config }) => {
   const source: FundingSource =
     derived.fundingSource ?? (payload.cardType === 'VIRTUAL_DPAN' ? 'DEBIT' : payload.cardType);
@@ -231,11 +216,7 @@ const reconDesk: CapabilityHandler = ({ payload, config }) => {
   );
 };
 
-/**
- * A foreign-currency purchase is booked at one exchange rate and settled by the scheme at another, so the legs differ by
- * the foreign amount times the difference between the two rates. If that explains the gap, the break is FX, not a mistake.
- * `LOSS` means the scheme settled for more than the bank booked.
- */
+/** A foreign-currency purchase is booked at one exchange rate and settled by the scheme at another, so the legs differ by the foreign amount times the difference between the two rates. */
 function classifyFx(s: SettlementContext, tolerance: MinorUnits): { explained: boolean; direction: 'GAIN' | 'LOSS'; why: string } {
   const fx = s.fx;
   const direction = (s.clearingAmount ?? 0) > (s.ledgerAmount ?? 0) ? 'LOSS' : 'GAIN';
@@ -286,11 +267,7 @@ const bnplUnderwriter: CapabilityHandler = ({ payload, config }) => {
   );
 };
 
-/**
- * The A2A payment gateway. Reads the pacs.008 message and the state of the gateway and writes five facts: is the message
- * well formed, which rail suits the amount, whether it is a priority payment, whether the queue is congested, and whether the
- * liquidity this payment may draw on covers it. What to DO about those facts is the learner's decision.
- */
+/** The A2A payment gateway. */
 const a2aGateway: CapabilityHandler = ({ payload, config }) => {
   const result = gateway(payload, {
     instantLimitMinor: num(config, 'instantLimitMinor'),

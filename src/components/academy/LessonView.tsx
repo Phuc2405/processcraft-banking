@@ -10,12 +10,7 @@ import { DepthToggle } from '../shell/SegmentedToggle';
 import { termsFor } from '../bank/useTerms';
 import { MessageInspector, SimulateButton } from './AcademyStudy';
 
-/**
- * One lesson, in four sections: 📌 the real-world scenario, 🔄 the step-by-step flow (with [▶ Simulate this Flow] right under
- * it), 🧠 why it matters and ⚠️ edge cases, the last two as accordions. Then 📇 the lesson's key terms as flip-cards, with
- * [📇 Practice in Flashcards Tab] for the chapter, and 🔭 Explore Deeper. `roomy` is Focus Mode: bigger type, sections open.
- * Every code in the text follows the Beginner / Expert View (plainLanguage.ts), and every word follows the language switch.
- */
+/** One lesson, in four sections: 📌 the real-world scenario, 🔄 the step-by-step flow (with [▶ Simulate this Flow] right under it), 🧠 why it matters and ⚠️ edge cases, the last two as accordions. */
 
 const Check = ({ className = '' }: { className?: string }) => (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">

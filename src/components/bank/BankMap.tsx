@@ -21,7 +21,7 @@ import { StepPreviewBody } from './StepPreview';
 import { useDockInset } from './ViewportControls';
 import { PathTraveller } from '../canvas/edges/PathTraveller';
 import { WorkstationGraphic } from '../canvas/nodes/WorkstationGraphic';
-import { BANK_WIRES, CARD, connectedWires, DEPT_BOX, gatewayCarries, GATEWAY_SPOKES, GATEWAYS, pathOfWire, PLACE_BOX, STAGE, TIP_SIDE, type Gateway, type TipSide } from './layout';
+import { BANK_WIRES, CARD, connectedWires, DEPT_BOX, gatewayCarries, GATEWAY_SPOKES, GATEWAYS, pathOfWire, PLACE_BOX, STAGE, TIP_SIDE, type Gateway, type TipSide } from '../../engine/plan/layout';
 import { SpotlightOverlay, SpotlightToken } from './Spotlight';
 import { StageScaleContext, useStageScale } from './stage';
 import { lookOfKind, RUN_STATUS, STATUS_DOT_CLASS, STATUS_TEXT_CLASS, statusLabel, MachineFace, WorkerFace } from './ui';
@@ -35,31 +35,19 @@ import { DESK_HEAT, deskHeat, type DeskHeat } from '../../sim/deskHeat';
 import { useMessages } from '../../utils/i18nHelper';
 import { analystWorkspaceMessages } from './analystWorkspace.messages';
 import { deskBadgeMessages } from './deskBadge.messages';
-import { statusAfterWorking, workingCount } from './deskActivity';
+import { useDeskStatusLine } from './useSimulation';
+import { isOnShift } from '../../engine/simulation/deskActivity';
 
 /** Border and queue-number colours of the roleplay desks' congestion heat. */
 const HEAT_BORDER: Readonly<Record<DeskHeat, string>> = { green: 'border-emerald-400/60', orange: 'border-amber-400/80', red: 'border-rose-500/90' };
 const HEAT_TEXT: Readonly<Record<DeskHeat, string>> = { green: 'text-emerald-300', orange: 'text-amber-300', red: 'text-rose-300' };
 const HEAT_DOT: Readonly<Record<DeskHeat, string>> = { green: 'bg-emerald-400', orange: 'bg-amber-400', red: 'bg-rose-500' };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Scaling the stage to the space it is given
-// ─────────────────────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Who is on shift
-// ─────────────────────────────────────────────────────────────────────────────
+// Who is on shift: the engine's rule (engine/simulation/deskActivity.ts isOnShift)
 
-/** Desks that have nothing to do at this hour are drawn dim, unless something is still waiting at them. */
-function isOnShift(id: StationId, phase: Phase): boolean {
-  const def = STATIONS[id];
-  if (def.department === 'EOD') return def.openHoursOnly ? phase === 'WORKING' : phase === 'EOD';
-  return phase === 'WORKING' || phase === 'AFTER_HOURS';
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Chips that open the Learning Hub
-// ─────────────────────────────────────────────────────────────────────────────
 
 function ProcessChip({ process, accent }: { process: ProcessId; accent: string }) {
   const startSpotlight = useBankStore((s) => s.startSpotlight);
@@ -78,9 +66,7 @@ function ProcessChip({ process, accent }: { process: ProcessId; accent: string }
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Learn & Explore: what is lit and what is dimmed
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Nothing on the map is dimmed outside a tour. During one, everything the process does not use fades to 15%. */
 const dimClass = (focus: Focus | null, lit: boolean): string => (focus && !lit ? 'bk-dimmed' : '');
@@ -98,10 +84,7 @@ const flowVar = (flow: FlowFocus | null): CSSProperties | undefined => (flow ? (
 
 const TIP_ORIGIN: Record<TipSide, string> = { below: 'top center', above: 'bottom center', right: 'center left', left: 'center right' };
 
-/**
- * The step preview of a lit desk in a guided flow: step number, name, status and what happens there. It lives inside the
- * scaled stage, so it is scaled back up to reading size (never past 1.35×) from the edge that touches the desk.
- */
+/** The step preview of a lit desk in a guided flow: step number, name, status and what happens there. */
 function StepPreviewTip({ flow, place, side }: { flow: FlowId; place: PlaceId; side: TipSide }) {
   const stage = useStageScale();
   const grow = Math.min(1.35, Math.max(1, 1 / stage));
@@ -129,10 +112,7 @@ const TIP_POSITION: Record<TipSide, string> = {
   left: 'right-full top-1/2 mr-1.5 -translate-y-1/2',
 };
 
-/**
- * Opens on the side of the desk where it covers no other card (see tipSideFor), and the desk under the pointer is lifted above
- * its neighbours while it shows, so no other card can paint over it.
- */
+/** Opens on the side of the desk where it covers no other card (see tipSideFor), and the desk under the pointer is lifted above its neighbours while it shows, so no other card can paint over it. */
 function HoverTip({ name, tip, side, caption, status }: { name: string; tip: string; side: TipSide; caption?: string | null; status?: { text: string; className: string } }) {
   return (
     <span
@@ -160,9 +140,7 @@ function HoverTip({ name, tip, side, caption, status }: { name: string; tip: str
 /** The desk icon (staff workstation or server rack): one compact size in every vocabulary, so a mode switch never resizes it. */
 const DESK_ICON = 'h-[36px] w-[50px] shrink-0';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Departments
-// ─────────────────────────────────────────────────────────────────────────────
 
 function DepartmentFrame({ id, focus, flow, terms }: { id: DepartmentId; focus: Focus | null; flow: FlowFocus | null; terms: Terms }) {
   const dept = DEPARTMENTS[id];
@@ -212,9 +190,7 @@ function DepartmentFrame({ id, focus, flow, terms }: { id: DepartmentId; focus: 
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Desks
-// ─────────────────────────────────────────────────────────────────────────────
 
 const StationCard = memo(function StationCard({
   id,
@@ -255,11 +231,11 @@ const StationCard = memo(function StationCard({
   const flowLit = flow ? flow.scope.places.has(id) : false;
   const dim = !focus && !flowLit && sv.status === 'IDLE' && sv.queueLength === 0 && !isOnShift(id, phase);
   const worst = sv.alerts.some((a) => a.severity === 'crit' && a.live) ? 'crit' : sv.alerts.length > 0 ? 'warn' : null;
-  // One wording on every desk, accounts included, the same as the 3D badges: "X waiting · Y working" while cases are being
-  // worked on (so a desk with nobody waiting but a case in hand never reads as just "0"), else "0 waiting · Idle".
+  // One wording on every desk, accounts included, the same as the 3D badges.
   const unit = t('waiting');
-  const working = workingCount(sv);
-  const showStatus = statusAfterWorking(sv.status, working);
+  // The same status stream the 3D badges and tooltips read (SimulationEngine.desks): one source of truth for both views.
+  const { status: desk, line } = useDeskStatusLine(id);
+  const { working, showStatus, waiting } = desk;
   const name = terms.station(id);
   const title = terms.stationTitle(id);
 
@@ -285,15 +261,14 @@ const StationCard = memo(function StationCard({
         onClick={() => (focus ? spotlightFocus(id) : select({ kind: 'station', id }))}
         onDoubleClick={() => !focus && roleForStation(id) && openStaffDesk(id)}
         aria-pressed={selected}
-        aria-label={`${title}: ${statusLabel(sv.status)}, ${sv.queueLength} ${unit}${working ? `, ${bm('working', { n: working })}` : ''}${heatText ? `. ${wm('heatLabel')}: ${heatText}` : ''}`}
+        aria-label={`${title}: ${line}${heatText ? `. ${wm('heatLabel')}: ${heatText}` : ''}`}
         data-testid={`station-${id}`}
         data-status={sv.status}
         data-heat={heat ?? undefined}
         className={`absolute inset-0 rounded-xl border bg-gradient-to-b from-slate-900 to-[#0b1120] transition hover:border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${lit && focus ? 'bk-spot-lit' : flowLit ? 'bk-flow-lit' : border} ${flowHere ? 'bk-flow-here' : ''} ${selected ? 'ring-2 ring-sky-400' : ''} ${pulse}`}
       />
       <div className="pointer-events-none absolute inset-0 flex flex-col p-1.5">
-        {/* Fixed rows: a two-line title box, the art and the count, and the staff row pinned to the bottom. A name of one line
-            or two, in either vocabulary, never moves anything below it. */}
+        {/* Fixed rows: a two-line title box, the art and the count, and the staff row pinned to the bottom. */}
         <div className="flex h-[24px] shrink-0 items-start gap-1.5" data-testid={`station-title-${id}`}>
           <span className={`mt-[3px] h-1.5 w-1.5 shrink-0 rounded-full ${passed && focus ? 'bg-[var(--tour)]' : heat ? HEAT_DOT[heat] : STATUS_DOT_CLASS[sv.status]}`} title={heatText ?? undefined} data-testid={heat ? `heat-dot-${id}` : undefined} />
           <span className="line-clamp-2 text-[10.5px] font-semibold leading-[1.12] text-slate-100" data-testid={`station-name-${id}`} title={name}>
@@ -313,8 +288,8 @@ const StationCard = memo(function StationCard({
           )}
           <div className="min-w-0 flex-1 text-right">
             <div className="flex items-center justify-end gap-1">
-              <div className={`text-[21px] font-bold leading-none tabular-nums ${heat && sv.queueLength > 0 ? HEAT_TEXT[heat] : sv.queueLength > 0 ? (sv.status === 'CONGESTED' || sv.status === 'ALERT' ? 'text-amber-300' : 'text-slate-100') : 'text-slate-600'}`} data-testid={`queue-${id}`}>
-                {sv.queueLength}
+              <div className={`text-[21px] font-bold leading-none tabular-nums ${heat && waiting > 0 ? HEAT_TEXT[heat] : waiting > 0 ? (desk.status === 'CONGESTED' || desk.status === 'ALERT' ? 'text-amber-300' : 'text-slate-100') : 'text-slate-600'}`} data-testid={`queue-${id}`}>
+                {waiting}
               </div>
             </div>
             {/* The unit and the status share a line, so a two-line name never pushes them into the staff and chapter row. */}
@@ -332,7 +307,7 @@ const StationCard = memo(function StationCard({
               {showStatus && (
                 <>
                   <span className="text-slate-600"> · </span>
-                  <span className={`font-medium ${STATUS_TEXT_CLASS[sv.status]}`}>{statusLabel(sv.status)}</span>
+                  <span className={`font-medium ${STATUS_TEXT_CLASS[desk.status]}`}>{statusLabel(desk.status)}</span>
                 </>
               )}
             </div>
@@ -356,7 +331,7 @@ const StationCard = memo(function StationCard({
           +{sv.arrivals}
         </span>
       )}
-      {!focus && (flow && flowLit ? <StepPreviewTip flow={flow.flow} place={id} side={TIP_SIDE[id]} /> : <HoverTip name={title} tip={terms.tip(id)} caption={terms.caption(id)} side={TIP_SIDE[id]} status={{ text: `${statusLabel(sv.status)} · ${sv.queueLength} ${unit}`, className: STATUS_TEXT_CLASS[sv.status] }} />)}
+      {!focus && (flow && flowLit ? <StepPreviewTip flow={flow.flow} place={id} side={TIP_SIDE[id]} /> : <HoverTip name={title} tip={terms.tip(id)} caption={terms.caption(id)} side={TIP_SIDE[id]} status={{ text: line, className: STATUS_TEXT_CLASS[desk.status] }} />)}
     </div>
   );
 });
@@ -422,9 +397,7 @@ function WorkerButton({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Places outside the departments
-// ─────────────────────────────────────────────────────────────────────────────
 
 const PhoneIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -508,9 +481,7 @@ function ExternalNode({ id, focus, flow, flowHere, terms }: { id: ExternalId; fo
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Wires and the packets on them
-// ─────────────────────────────────────────────────────────────────────────────
 
 const HEAT_DECAY = 0.82;
 
@@ -541,10 +512,7 @@ const GATEWAY_STYLE: Record<Gateway['kind'], { base: string; glow: string; dash?
   night: { base: '#78350f', glow: '#fbbf24' },
 };
 
-/**
- * A collector gateway: the trunk it sends on to its place, and the XOR diamond the feeders end at. The trunk lights, glows and
- * fades with the wires it carries.
- */
+/** A collector gateway: the trunk it sends on to its place, and the XOR diamond the feeders end at. */
 function GatewayMark({ g, opacity, glow, active, accent, ridden }: { g: Gateway; opacity: number; glow: number; active: boolean; accent: string | null; ridden: boolean }) {
   const st = GATEWAY_STYLE[g.kind];
   const stroke = active ? st.glow : (accent ?? st.base);
@@ -577,8 +545,7 @@ function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; t
   const heat = useWireHeat(moves, tick);
   // The wires the token is on right now glow brightest; the ones it has already ridden stay lit.
   const current = new Set(focus && !focus.tour.intro ? wiresOfRoute(focus.current.route) : []);
-  // Hovering a line lights that line; hovering or selecting a node lights its own paths. A tour or a guided flow keeps its own
-  // dimming instead.
+  // Hovering a line lights that line; hovering or selecting a node lights its own paths.
   const [hoverWire, setHoverWire] = useState<string | null>(null);
   const linked = focus || flow ? null : hoverWire ? new Set([hoverWire]) : connectedWires(active);
 
@@ -673,10 +640,7 @@ function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; t
   );
 }
 
-/**
- * The tokens on the move this beat. They are HTML layers above the wires, not drawn inside the wire SVG: a token that is moved
- * by the GPU costs the page nothing per frame, where one drawn in the SVG made the whole wire layer lay itself out each frame.
- */
+/** The tokens on the move this beat. */
 /** How many of a beat's tokens wear a badge saying what the payment is. */
 const LABELLED_TOKENS = 6;
 
@@ -696,9 +660,7 @@ function Travellers({ moves, tick, phase, speedIndex, className = '' }: { moves:
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The map
-// ─────────────────────────────────────────────────────────────────────────────
 
 const STATION_LIST = Object.values(STATIONS);
 const EXTERNALS: readonly ExternalId[] = ['CUSTOMER_OTP', 'OUT_APPROVED', 'OUT_DECLINED', 'OUT_SETTLED'];

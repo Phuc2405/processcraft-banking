@@ -1,15 +1,4 @@
-/**
- * The sidewalk ATM: what the machine itself does, apart from the bank behind it.
- *
- * A withdrawal has three steps the machine owns:
- *
- *   1. PIN verification   the customer gets three tries. Three wrong PINs lock the session and the machine keeps the card.
- *   2. Cash dispense      the machine can only pay in whole notes, so the amount has to be built out of the notes it holds.
- *   3. Jam               the notes can fail to come out. The customer has already been debited, so the money cannot just vanish:
- *                         it is parked in the suspense account until a cash count shows what really happened.
- *
- * Everything here is pure: the same input always gives the same answer, and nothing reads a clock or a random number.
- */
+/** The sidewalk ATM: what the machine itself does, apart from the bank behind it. */
 
 import type { MinorUnits } from '../types/processLearning';
 import { formatAud } from './money';
@@ -34,10 +23,7 @@ export interface PinResult {
   note: string;
 }
 
-/**
- * `wrongBefore` is how many wrong PINs the customer types before (if ever) the right one. Three wrong PINs in a row, with no
- * right one, lock the session.
- */
+/** `wrongBefore` is how many wrong PINs the customer types before (if ever) the right one. */
 export function verifyPin(wrongBefore: number, eventuallyCorrect: boolean): PinResult {
   const wrong = Math.max(0, Math.floor(wrongBefore));
   if (!eventuallyCorrect || wrong >= MAX_PIN_TRIES) {

@@ -1,14 +1,6 @@
-/**
- * The micro-quizzes at the decision gateways of a guided walkthrough.
- *
- * When the token reaches an XOR gateway it stops and asks the learner which way the payment goes. The questions are built
- * from the payment in front of them and the bank's current rules, and the right answer is never typed in: it is the wire
- * the real process diagram took (the next step of the plan). So a quiz can never disagree with the simulation.
- *
- * The wording lives in one `Localized` book, keyed by process and by the gateway's box id.
- */
+/** The micro-quizzes at the decision gateways of a guided walkthrough. */
 
-import { pick, type Localized } from '../i18n/locale';
+import { pick, type Localized } from '../i18n/localeCore';
 import { formatMoney } from './kpis';
 import { LESSONS, type LessonExample, type ProcessId } from './learning';
 import type { BankRules } from './rules';

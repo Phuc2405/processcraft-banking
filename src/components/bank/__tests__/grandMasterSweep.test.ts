@@ -31,7 +31,7 @@ import { knowledgeBaseMessages } from '../../knowledge/knowledgeBase.messages';
 import { SegmentedToggle } from '../../shell/SegmentedToggle';
 import { analystWorkspaceMessages, type AnalystWorkspaceKey } from '../analystWorkspace.messages';
 import { AnalystWorkspaceView, CoreLedgerSheet, IncidentBanner, IncidentToggle, type AnalystWorkspaceViewProps } from '../AnalystWorkspaceModal';
-import { BANK_WIRES, connectedWires, GATEWAY_HALF, GATEWAY_SPOKES, gatewayCarries, GATEWAYS, labelChars, labelPill, PLACE_BOX } from '../layout';
+import { BANK_WIRES, connectedWires, GATEWAY_HALF, GATEWAY_SPOKES, gatewayCarries, GATEWAYS, labelChars, labelPill, PLACE_BOX } from '../../../engine/plan/layout';
 import { VI_DICTIONARY } from '../../../i18n/viDictionary';
 import { WIRES } from '../../../sim/topology';
 import { openingLedger } from '../../../sim/staffRoleplay';

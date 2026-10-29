@@ -1,14 +1,6 @@
-/**
- * The Living Bank's feed, alerts and desk activity lines in Vietnamese.
- *
- * The simulation writes its log in English from a fixed set of sentence templates (bankSimulation.ts, narration.ts) and
- * keeps it that way: the log is also what the tests and the CSV exports read. On screen, `feedText` turns each line into
- * Vietnamese by recognising its template and re-building the sentence around the same values (amounts, names, times).
- * Pieces that are themselves translatable (a payment's scenario, a 3DS verdict, a decline reason) are translated too.
- * A line no template matches is shown as written, so nothing is ever lost.
- */
+/** The Living Bank's feed, alerts and desk activity lines in Vietnamese. */
 
-import { activeLocale } from './locale';
+import { activeLocale } from './localeCore';
 import { localizeScenarioText } from '../sim/scenarios';
 import { dayScenarios } from './dayScenarios';
 
@@ -150,8 +142,8 @@ const RULES: readonly Rule[] = [
   // The day
   [/^Day (\d+): (.+?)\. (.+)$/, (m) => `Ngày ${m[1]}: ${m[2]}. ${m[3]}`],
   [/^(\d\d:\d\d) The doors open\. Customers are arriving\.$/, (m) => `${m[1]} Ngân hàng mở cửa. Khách hàng đang đến.`],
-  [/^(\d\d:\d\d) No new customers\. (\d+) payments are still being worked\.$/, (m) => `${m[1]} Không còn khách mới. ${m[2]} giao dịch vẫn đang được xử lý.`],
-  [/^(\d\d:\d\d) No new customers\. Every queue is clear\.$/, (m) => `${m[1]} Không còn khách mới. Mọi hàng chờ đã trống.`],
+  [/^(\d\d:\d\d) The branch closes\. The ATMs, card gateways and online transfers run on through the night\. (\d+) payments are still being worked\.$/, (m) => `${m[1]} Chi nhánh đóng cửa. ATM, cổng thanh toán thẻ và chuyển khoản trực tuyến vẫn chạy suốt đêm. ${m[2]} giao dịch vẫn đang được xử lý.`],
+  [/^(\d\d:\d\d) The branch closes\. The ATMs, card gateways and online transfers run on through the night\. Every queue is clear\.$/, (m) => `${m[1]} Chi nhánh đóng cửa. ATM, cổng thanh toán thẻ và chuyển khoản trực tuyến vẫn chạy suốt đêm. Mọi hàng chờ đã trống.`],
   [/^Night cycle begins\. (\d+) approved payments \((\$[\d,.]+)\) go into batch clearing, on top of (\d+) records still unreconciled from yesterday\.$/, (m) => `Chu kỳ đêm bắt đầu. ${m[1]} giao dịch đã duyệt (${m[2]}) được đưa vào bù trừ theo lô, cộng thêm ${m[3]} bản ghi chưa đối soát từ hôm qua.`],
   [/^Night cycle begins\. (\d+) approved payments \((\$[\d,.]+)\) go into batch clearing\.$/, (m) => `Chu kỳ đêm bắt đầu. ${m[1]} giao dịch đã duyệt (${m[2]}) được đưa vào bù trừ theo lô.`],
   [/^Midnight\. (\d+) records were not reconciled and roll into tomorrow night\. Suspense account: (\$[\d,.]+)\.$/, (m) => `Nửa đêm. ${m[1]} bản ghi chưa được đối soát và chuyển sang đêm mai. Tài khoản treo: ${m[2]}.`],
@@ -267,7 +259,7 @@ const IDLE_VI: Readonly<Record<string, string>> = {
   'Watching the SWIFT inbound and outbound queues': 'Đang theo dõi hàng chờ SWIFT đi và đến',
   'Morning briefing and systems check': 'Giao ban buổi sáng và kiểm tra hệ thống',
   'Off shift until 22:30': 'Nghỉ ca tới 22:30',
-  'Off shift until 08:00': 'Nghỉ ca tới 08:00',
+  'Off shift until 08:30': 'Nghỉ ca tới 08:30',
   'Desk closed until 09:00': 'Quầy đóng tới 09:00',
 };
 

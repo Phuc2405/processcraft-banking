@@ -11,12 +11,7 @@ import { academySplitMessages } from './academySplit.messages';
 import { FlashcardsView, QuizView } from './AcademyStudy';
 import { LessonView, ViewLevelToggle } from './LessonView';
 
-/**
- * The Academy split view. The lesson panel sits on the left (400 px by default, drag its edge to resize) and the Living Bank,
- * 2D or 3D with its viewport controls, keeps the rest. Focus Mode (`isMaximized`) lifts the panel over the whole screen as a
- * reader, with the map blurred and inert behind it; [▶ Simulate this Flow] drops straight back to the map. Choosing a lesson step lights and focuses its node on the map: that link
- * is academySync.ts, bound here for as long as the Living Bank is on screen.
- */
+/** The Academy split view. */
 
 const STATUS_STYLE: Record<ChapterStatus, string> = {
   'not-started': 'text-slate-500',
@@ -30,9 +25,7 @@ const Check = ({ className = '' }: { className?: string }) => (
   </svg>
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Toggle
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** The button that opens and closes the split view (the top bar of the Living Bank). */
 export function AcademySplitToggle() {
@@ -57,9 +50,7 @@ export function AcademySplitToggle() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Catalog
-// ─────────────────────────────────────────────────────────────────────────────
 
 function ChapterCard({ chapter, open, onOpen }: { chapter: AcademyChapter; open: boolean; onOpen: () => void }) {
   const completed = useAcademyStore((s) => s.completedLessons);
@@ -125,9 +116,7 @@ function ChapterCard({ chapter, open, onOpen }: { chapter: AcademyChapter; open:
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Panel
-// ─────────────────────────────────────────────────────────────────────────────
 
 function ResizeHandle({ onDrag, onKey }: { onDrag: (clientX: number) => void; onKey: (delta: number) => void }) {
   const width = useAcademyStore((s) => s.panelWidth);
@@ -171,10 +160,7 @@ function ResizeHandle({ onDrag, onKey }: { onDrag: (clientX: number) => void; on
   );
 }
 
-/**
- * The course roadmap above, the step details below, and a divider between them that drags up and down (or moves with the
- * arrow keys). Both panes scroll on their own, so neither clips the other's scrollbar. The split is remembered.
- */
+/** The course roadmap above, the step details below, and a divider between them that drags up and down (or moves with the arrow keys). */
 function RoadmapLessonSplit({ lesson }: { lesson: ReactNode }) {
   const m = useMessages(academySplitMessages);
   const ratio = useAcademyStore((s) => s.catalogRatio);
@@ -379,15 +365,9 @@ function AcademyPanel() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Layout
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Lays the lesson panel beside the Living Bank's map (`children`). It also keeps the panel and the map in step: while it is on
- * screen, the level in focus is lit and focused on the 2D map and in the 3D office. In Focus Mode the map, its docks and its
- * controls stay mounted (the 3D scene keeps its state) but are blurred and inert.
- */
+/** Lays the lesson panel beside the Living Bank's map (`children`). */
 export function AcademySplitLayout({ children }: { children: ReactNode }) {
   useEffect(() => bindAcademySync(academyStore, bankStore), []);
   const maximized = useAcademyStore((s) => s.isMaximized && s.isSplitScreenOpen);

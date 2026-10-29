@@ -1,12 +1,4 @@
-/**
- * The general ledger: a chart of accounts, double-entry lines, and the checks that keep them honest.
- *
- * Double entry in one sentence: every movement of money is written twice, once as a debit to one account and once
- * as a credit to another of the same amount, so the books can never gain or lose a cent without a trace.
- *
- * Everything here is pure and works on plain JSON (`GLEntry` lines), so the same code serves the Build Lab (the lines
- * a test transaction would post), the Living Bank (the lines a day's traffic posts) and the tests.
- */
+/** The general ledger: a chart of accounts, double-entry lines, and the checks that keep them honest. */
 
 import type { AccountId, AccountType, EpochMs, GLEntry, Id, MinorUnits, PostingKind } from '../types/processLearning';
 import { formatAud } from './money';
@@ -72,9 +64,7 @@ export const isAccountId = (id: string): id is AccountId => id in CHART_OF_ACCOU
 
 export const accountName = (id: AccountId): string => CHART_OF_ACCOUNTS[id].name;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Lines
-// ─────────────────────────────────────────────────────────────────────────────
 
 export class LedgerError extends Error {}
 
@@ -119,9 +109,7 @@ export function entryProblems(entries: readonly GLEntry[]): string[] {
   return out;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Balances
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface TrialRow {
   account: AccountId;
@@ -143,12 +131,7 @@ export interface TrialBalance {
   balanced: boolean;
 }
 
-/**
- * The trial balance: for each account, what has been debited and what has been credited, and the totals of both.
- * It adds up per account, the way an accountant does. Every legal line is a debit and a credit of the same amount, so legal
- * lines always balance; a line that names an account that is not on the chart is counted on one side only and shows up as a
- * difference here (`entryProblems` says which line).
- */
+/** The trial balance: for each account, what has been debited and what has been credited, and the totals of both. */
 export function trialBalance(entries: readonly GLEntry[]): TrialBalance {
   const debit = new Map<AccountId, MinorUnits>();
   const credit = new Map<AccountId, MinorUnits>();
@@ -192,9 +175,7 @@ export function everyTransactionBalances(entries: readonly GLEntry[]): boolean {
   return true;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Words
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** "Dr Customer CASA Hold $200.00 / Cr Card Settlement Clearing Payable $200.00" */
 export function describeEntry(e: Pick<GLEntry, 'debitAccount' | 'creditAccount' | 'amount'>): string {
@@ -209,9 +190,7 @@ export function describeBalance(row: Pick<TrialRow, 'net' | 'side'>): string {
   return row.net === 0 ? '$0.00' : `${sideLabel(row.side)} ${formatAud(Math.abs(row.net))}`;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // A book that lines are added to one at a time (the Living Bank keeps one per day)
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface LedgerBook {
   entries: GLEntry[];

@@ -27,9 +27,7 @@ import { ServerRackGraphic } from './ServerRack';
 import { selfScaling, useNodeCopy, type NodeCopy } from './useNodeCopy';
 import { FatigueBar, fatigueLook, MachineFace, PacketGlyph, RUN_STATUS, SEVERITY_BOX, SEVERITY_DOT, SEVERITY_TEXT, SectionTitle, Sparkline, Stat, STATUS_DOT_CLASS, statusLabel, STATUS_TEXT_CLASS, WorkerFace, waitText, kindLabel } from './ui';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Shared pieces
-// ─────────────────────────────────────────────────────────────────────────────
 
 function ExploreButtons({ processes }: { processes: readonly ProcessId[] }) {
   const startSpotlight = useBankStore((s) => s.startSpotlight);
@@ -162,9 +160,7 @@ function MiniHeader({ title, subtitle, accent, onBack, backLabel, children }: { 
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Department
-// ─────────────────────────────────────────────────────────────────────────────
 
 function DepartmentPanel({ id }: { id: DepartmentId }) {
   const terms = useTerms();
@@ -263,9 +259,7 @@ function DepartmentPanel({ id }: { id: DepartmentId }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Station
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A queued item's one-word detail in the active language ("risk 82", "record …0042", "card present"). */
 function detailText(detail: string): string {
@@ -496,9 +490,7 @@ function StationPanel({ id }: { id: StationId }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Worker
-// ─────────────────────────────────────────────────────────────────────────────
 
 function WorkerPanel({ station, workerId }: { station: StationId; workerId: string }) {
   const terms = useTerms();
@@ -634,21 +626,12 @@ function WorkerPanel({ station, workerId }: { station: StationId; workerId: stri
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The drawer
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** How long the drawer takes to slide in or out. The content stays mounted until it has gone, so it never slides out empty. */
 const SLIDE_MS = 200;
 
-/**
- * The inspector drawer. It floats over the right edge of the map instead of sitting beside it, so opening or closing it never
- * changes the size of the map or the 3D scene (which would make every desk lay itself out again). It slides on the compositor
- * (a transform, with `will-change`) and uses a plain semi-opaque background: no blur over the animated scene.
- *
- * This component subscribes only to the selection. The panels inside subscribe to their own slice of the bank, and only while
- * they are on screen, so the clock ticking does nothing here while the drawer is shut.
- */
+/** The inspector drawer. */
 function InspectorDrawer() {
   const selection = useBankStore((s) => s.selection);
   const open = selection.kind !== 'none';
@@ -712,8 +695,7 @@ function InspectorDrawer() {
       data-kind={selection.kind}
       data-open={open}
       data-width={width}
-      // The drawer floats over the map or the 3D office. Wheel and pointer events that start in it stay in it, so scrolling the
-      // drawer never zooms or pans the scene underneath.
+      // The drawer floats over the map or the 3D office.
       onWheel={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >

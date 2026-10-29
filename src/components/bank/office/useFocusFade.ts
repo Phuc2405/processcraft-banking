@@ -5,11 +5,7 @@ import type { PlaceId } from '../../../sim/topology';
 import { activeFlowOf, bankStore } from '../../../store/bankStore';
 import { deskFocus } from './focus3d';
 
-/**
- * Fades everything under `root` (the desk, its staff, its queue) to the opacity deskFocus gives `place`, easing there, so a
- * pointed-at desk or a guided scenario stands out against the rest of the office. The office shares its materials between
- * desks, so the first time a mesh fades it gets its own copy; meshes at full opacity are left untouched.
- */
+/** Fades everything under `root` (the desk, its staff, its queue) to the opacity deskFocus gives `place`, easing there, so a pointed-at desk or a guided scenario stands out against the rest of the office. */
 export function useFocusFade(root: RefObject<Object3D | null>, place: PlaceId): void {
   const now = useRef(1);
   useFrame((_, dt) => {

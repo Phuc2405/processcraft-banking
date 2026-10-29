@@ -1,7 +1,7 @@
 import { ContactShadows, OrbitControls } from '@react-three/drei';
 import { ZOOM_STEP, zoomStore } from '../../../store/zoomStore';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { t } from '../../../i18n/t';
 import { useLocale } from '../../../i18n/locale';
 import { AdditiveBlending, CanvasTexture, Color, ExtrudeGeometry, MeshBasicMaterial, MOUSE, Path, RepeatWrapping, ShapeGeometry, SpriteMaterial, SRGBColorSpace, TOUCH, Vector3, type AmbientLight, type DirectionalLight, type Group, type HemisphereLight } from 'three';
@@ -14,12 +14,15 @@ import { Desk3D } from './Desk3D';
 import { AtmKiosk } from './AtmKiosk';
 import { GateStanchions, Kiosks, Plants, ServerRoom, VaultRoom, Walls } from './Dressing';
 import { Street } from './Street';
-import { atmosphereAt, CLEAR, sameMix } from './atmosphere';
-import { Environment3D } from './Environment3D';
-import { liveMix, weatherStore } from './weather';
+import { atmosphereAt, CLEAR, sameMix } from '../../../engine/world/atmosphere';
+import { Environment3D, Pedestrians, WeatherRenderer } from './Environment3D';
+import { Park3D } from './Park3D';
+import { Parking3D } from './Parking3D';
+import { Vehicles3D } from './Vehicles3D';
+import { liveMix, weatherStore } from '../../../engine/world/weather';
 import { badgeFocus, badgeOpacity, dashLane, litLanes, PULSE, pulseDistance, type BadgeFocus } from './focus3d';
 import { pathLength, pointAlongPath } from './tour3d';
-import { customerShirt, type V2 } from './layout3d';
+import { customerShirt, type V2 } from '../../../engine/plan/layout3d';
 import { ribbonGeometry, roundedRect, roundedRectPath, shade, tint } from './kit';
 import {
   CAMERA_DIRECTION,
@@ -45,7 +48,7 @@ import {
   seatOffsets,
   smoothLane,
   viewGround,
-} from './layout3d';
+} from '../../../engine/plan/layout3d';
 import { tape } from './materials';
 import { LANE_STYLE, laneKind, SET } from './palette';
 import { Arrivals, Packets } from './Traffic';
@@ -53,15 +56,11 @@ import { SignalPulses } from './SignalPulses';
 import { GuardCabin3D } from './GuardCabin3D';
 import { TOUR_DAYLIGHT, TOUR_GLIDE_MS, type CamFocus } from './tour3d';
 import { TourStage, useTourCamera } from './TourStage';
-import { advanceMotion } from './motion';
-import { SPEEDS } from '../../../sim/clock';
-import { evacuees, EXIT_PACE, isClosed } from './evacuation';
-import { motion } from './motion';
+import { useWorld, WorldProvider } from './WorldProvider';
+
 import { CustomerFigure } from './Avatars';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Camera
-// ─────────────────────────────────────────────────────────────────────────────
 
 type Controls = {
   enableDamping: boolean;
@@ -74,14 +73,12 @@ type Controls = {
 const RESET_MS = 520;
 const easeInOut = (u: number): number => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
 
-/** The height of the camera above the point it looks at, and how far it stands from it on the floor, at the isometric tilt;
- * and how far it stands from that point, whatever the tilt. */
+/** The height of the camera above the point it looks at, and how far it stands from it on the floor, at the isometric tilt. */
 const CAM_HEIGHT = CAMERA_DISTANCE / Math.sqrt(CAMERA_DIRECTION[0] ** 2 + CAMERA_DIRECTION[1] ** 2 + 1);
 const CAM_REACH = CAM_HEIGHT * Math.hypot(CAMERA_DIRECTION[0], CAMERA_DIRECTION[1]);
 const CAM_RADIUS = Math.hypot(CAM_HEIGHT, CAM_REACH);
 
-/** Where the camera stands to look at `target` from the direction `az` (radians round the vertical axis, 0 = straight in
- * front), tilted `polar` from straight up (the isometric tilt unless the learner has lowered the view). */
+/** Where the camera stands to look at `target` from the direction `az` (radians round the vertical axis, 0 = straight in front), tilted `polar` from straight up (the isometric tilt unless the learner has lowered the view). */
 const standAt = (target: Vector3, az: number, polar: number = ISO_POLAR): Vector3 =>
   new Vector3(target.x + Math.sin(az) * Math.sin(polar) * CAM_RADIUS, target.y + Math.cos(polar) * CAM_RADIUS, target.z + Math.cos(az) * Math.sin(polar) * CAM_RADIUS);
 
@@ -102,16 +99,7 @@ interface Glide {
   toZoom: number;
 }
 
-/**
- * The isometric camera. It is orthographic and looks down at the isometric angle; the learner can pan (drag), zoom (scroll
- * or pinch), swing the view a little either side and tilt it lower, down to a nearly eye-level look across the lobby
- * (right-drag), all with damping, and cannot lose the office: the point the camera looks at is kept over the floor. "Reset
- * view" glides back to the whole office, at the isometric tilt.
- *
- * During a guided tour `focus` says where the camera should be for the current step. The camera dollies over the desks in play
- * and orbits a little towards them, and glides back home when the tour ends. The learner can still pan and zoom by hand
- * during a tour; the next step takes the camera back to where the story is.
- */
+/** The isometric camera. */
 export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFocus | null }) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
@@ -200,8 +188,7 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
     glideTo(f.x, f.z, f.az, f.zoom, TOUR_GLIDE_MS);
   };
 
-  // Fit the floor on first show, glide home (or back to the step in a tour) whenever the learner presses "Reset view",
-  // and re-fit when the window changes a lot.
+  // Fit the floor on first show, glide home (or back to the step in a tour) whenever the learner presses "Reset view", and re-fit when the window changes a lot.
   useEffect(() => {
     const pressed = resetKey !== lastReset.current;
     lastReset.current = resetKey;
@@ -356,9 +343,7 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Floor
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Warm wooden planks, drawn once on a canvas: four world units square, eight planks, each a slightly different tone. */
 function usePlanks(): CanvasTexture {
@@ -440,14 +425,9 @@ const Floor = memo(function Floor() {
   );
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Departments
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * A name painted on the floor: a flat plane with the words drawn on a canvas. Unlike a floating label it sits in the
- * scene, so a desk or a person can stand in front of it, and it never covers anything. Long names wrap to two lines.
- */
+/** A name painted on the floor: a flat plane with the words drawn on a canvas. */
 function FloorLabel({ text, color, width, selected }: { text: string; color: string; width: number; selected: boolean }) {
   const made = useMemo(() => {
     const PX = 150; // canvas pixels per world unit
@@ -555,12 +535,7 @@ const Rug = memo(function Rug({ id }: { id: DepartmentId }) {
   );
 });
 
-/**
- * A lane painted on the floor along every wire of the 2D map, with rounded corners: the same path the packets fly, and the
- * same line type (red dashed declines, purple dotted OTP, solid blue and amber). Pointing at a desk lights its own lanes (a
- * sub-process lights its route) in the 2D Map Legend's own colours: a bright stripe over a soft additive halo, the floor's
- * stand-in for an emissive glow, with pulses of light running along them, while every other lane fades to LANE_DIM.
- */
+/** A lane painted on the floor along every wire of the 2D map, with rounded corners. */
 const Lanes = memo(function Lanes() {
   const geometry = useMemo(
     () =>
@@ -734,11 +709,7 @@ function LaneBadge({ text, at, focus }: { text: string; at: readonly [number, nu
   return <sprite material={material} position={[at[0], lit ? 0.36 : 0.32, at[1]]} scale={[h * aspect, h, 1]} renderOrder={lit ? 9 : 6} />;
 }
 
-/**
- * The conditions on the lanes, in the active language: the same words, and the same rules, as the 2D map (laneLabelShown).
- * Pointing at a desk lights its own lanes' badges bright yellow and fades every other badge in the bank; a sub-process keeps
- * its own badges in full and lets every other one all but disappear (badgeFocus).
- */
+/** The conditions on the lanes, in the active language: the same words, and the same rules, as the 2D map (laneLabelShown). */
 const LaneLabels = memo(function LaneLabels() {
   useLocale();
   const flow = useBankStore((s) => (s.spotlight ? null : activeFlowOf(s)));
@@ -753,14 +724,9 @@ const LaneLabels = memo(function LaneLabels() {
   );
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The scene
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * `window.__officeProbe(stationId)` answers where a counter is on screen, in CSS pixels from the top-left of the page.
- * It exists so the 3D view can be driven by a browser test, which cannot see inside a canvas.
- */
+/** `window.__officeProbe(stationId)` answers where a counter is on screen, in CSS pixels from the top-left of the page. */
 function Probe() {
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
@@ -812,11 +778,7 @@ function Probe() {
   return null;
 }
 
-/**
- * Daylight that follows the bank's clock: a sun from the front-left, a sky-and-floor bounce, and a cool fill from behind so
- * the shaded faces are not black. The colours and strengths come from the time-of-day presets in atmosphere.ts (morning,
- * noon, afternoon, night) and dim under rain; after dusk the street lamps and the city's windows take over.
- */
+/** Daylight that follows the bank's clock: a sun from the front-left, a sky-and-floor bounce, and a cool fill from behind so the shaded faces are not black. */
 function Lights() {
   const sky = useRef<HemisphereLight>(null);
   const sun = useRef<DirectionalLight>(null);
@@ -844,8 +806,7 @@ function Lights() {
       // The sun moves across the sky: low in the east in the morning, high at noon, low and raking from the west late on.
       sun.current.position.set(a.sun.dir[0], a.sun.dir[1], a.sun.dir[2]);
     }
-    // The branch's own lights: as the weather darkens the daylight (cloud, storm, smog), the office lights make up the
-    // difference, so the floor, the desks and their words stay bright however wild it is outside.
+    // The branch's own lights: as the weather darkens the daylight (cloud, storm, smog), the office lights make up the difference, so the floor, the desks and their words stay bright however wild it is outside.
     const clearSun = atmosphereAt(s.view.minute).sun.intensity;
     const gloom = clearSun > 0 ? Math.max(0, Math.min(1, 1 - a.sun.intensity / clearSun)) : 0;
     if (ambient.current) ambient.current.intensity = (0.28 + 0.6 * gloom) * keep(TOUR_DAYLIGHT.ambient);
@@ -866,23 +827,69 @@ function Lights() {
   );
 }
 
+/** The traffic: the fleet on the avenue and the car park (its cars, barrier, guard and the cash van), as the world moves them. */
+const TrafficRenderer = memo(function TrafficRenderer() {
+  return (
+    <group name="traffic-renderer">
+      <Parking3D />
+      <Vehicles3D />
+    </group>
+  );
+});
+
+/** The people outside the desks' lines: the park, the passers-by, the guard at the main entrance, customers walking in and (at closing time) walking out. */
+const CrowdRenderer = memo(function CrowdRenderer() {
+  return (
+    <group name="crowd-renderer">
+      <Evacuation />
+      <Park3D />
+      <Pedestrians />
+      <GuardCabin3D />
+      <Arrivals />
+    </group>
+  );
+});
+
+/** The desks and the machines, with their staff, lines and badges; the queue ropes; and the payments and signals flowing between them. */
+const DeskRenderer = memo(function DeskRenderer() {
+  return (
+    <group name="desk-renderer">
+      <GateStanchions />
+      {STATION_IDS.map((id) => (isMachine(id) ? <AtmKiosk key={id} id={id} /> : <Desk3D key={id} id={id} />))}
+      <Kiosks />
+      <Packets />
+      <SignalPulses />
+    </group>
+  );
+});
+
+/** The world of the 3D office behind one front (Facade). */
+function BankingWorldFacade({ children }: { children: ReactNode }) {
+  return (
+    <WorldProvider>
+      {children}
+      <WeatherRenderer />
+      <TrafficRenderer />
+      <CrowdRenderer />
+      <DeskRenderer />
+    </WorldProvider>
+  );
+}
+
 export function OfficeScene({ resetKey }: { resetKey: number }) {
   const tourCamera = useTourCamera();
   // A chapter tour owns the camera; otherwise it goes to the node the Academy split view is teaching.
   const academyCamera = useAcademyCamera();
   return (
-    <>
+    <BankingWorldFacade>
       <Lights />
       <CameraRig resetKey={resetKey} focus={tourCamera ?? academyCamera} />
       <Probe />
       <Floor />
-      <MotionDriver />
-      <Evacuation />
       <FrameDriver />
       <Environment3D />
       <ContactShadows position={[0, -0.66, 0]} scale={[FLOOR_SLAB.w + 6, FLOOR_SLAB.d + 6]} far={0.9} blur={2.8} opacity={0.4} resolution={512} frames={1} color="#6b4f35" />
-      {/* Soft contact shadows under every desk, person and plant on the office floor, baked once. They replace the real-time
-          shadow map of the sun, which redrew the whole office a second time on every frame. */}
+      {/* Soft contact shadows under every desk, person and plant on the office floor, baked once. */}
       <ContactShadows position={[0, 0.03, 0]} scale={[FLOOR_SLAB.w, FLOOR_SLAB.d]} far={2.4} blur={2} opacity={0.4} resolution={1024} frames={1} color="#5b4330" />
       {DEPARTMENT_IDS.map((id) => (
         <Rug key={id} id={id} />
@@ -894,68 +901,36 @@ export function OfficeScene({ resetKey }: { resetKey: number }) {
       <ServerRoom />
       <Plants />
       <Street />
-      <GuardCabin3D />
-      <GateStanchions />
-      {STATION_IDS.map((id) => (isMachine(id) ? <AtmKiosk key={id} id={id} /> : <Desk3D key={id} id={id} />))}
-      <Kiosks />
-      <Arrivals />
-      <Packets />
-      <SignalPulses />
       <TourStage />
       <FlowStage3D />
-    </>
+    </BankingWorldFacade>
   );
 }
 
 /** How long the office keeps drawing after anything in the bank changed, so fades and glides can finish. */
 const AWAKE_MS = 1600;
 
-/**
- * The canvas draws on demand (frameloop="demand"): a frame is drawn only when something asks for one. This keeps it drawing
- * while the bank clock runs, while a tour plays, and for a moment after any change or any pointer move over the office, and
- * otherwise lets it rest, so a paused office costs the graphics card nothing.
- */
-/**
- * Closing time: when the bank clock passes 17:00 (never on a pause), everyone queuing at a customer desk walks out through
- * the nearest way out, the main entrance or a side door, on the motion clock (evacuation.ts).
- */
+/** The canvas draws on demand (frameloop="demand"): a frame is drawn only when something asks for one. */
+/** Closing time: when the bank clock passes 17:00 (never on a pause), everyone queuing at a customer desk walks out through the nearest way out, the main entrance or a side door, on the motion clock (evacuation.ts). */
 function Evacuation() {
-  const closed = useBankStore((s) => isClosed(s.view.minute));
-  const was = useRef(closed);
-  const [walkers, setWalkers] = useState<ReturnType<typeof evacuees>>([]);
-  const since = useRef(0);
+  // Who walks out and where each of them is: the world engine's (ClosingWalkout). This only draws them.
+  const world = useWorld();
+  const [walkers, setWalkers] = useState(() => [...world.walkout.who]);
+  const version = useRef(world.walkoutVersion);
   const pool = useRef<Array<Group | null>>([]);
-  useEffect(() => {
-    if (closed && !was.current) {
-      const st = bankStore.getState();
-      setWalkers(evacuees((id) => st.view.stations[id].queueLength));
-      since.current = 0;
-    }
-    if (!closed) setWalkers([]);
-    was.current = closed;
-  }, [closed]);
   useFrame(() => {
-    if (!walkers.length) return;
-    since.current += motion.dt;
-    let out = 0;
-    walkers.forEach((w, i) => {
+    if (world.walkoutVersion !== version.current) {
+      version.current = world.walkoutVersion;
+      setWalkers([...world.walkout.who]);
+    }
+    world.walkout.poses().forEach((w, i) => {
       const g = pool.current[i];
       if (!g) return;
-      const len = pathLength(w.path);
-      // They set off a moment apart, the head of each queue first.
-      const d = (since.current - w.k * 0.35) * EXIT_PACE;
-      if (d >= len) {
-        g.visible = false;
-        out++;
-        return;
-      }
-      const [x, z] = pointAlongPath(w.path, Math.max(0, d));
-      const [ax, az] = pointAlongPath(w.path, Math.min(len, Math.max(0, d) + 0.05));
-      g.visible = true;
-      g.position.set(x, 0, z);
-      g.rotation.y = Math.atan2(ax - x, az - z);
+      g.visible = w.visible;
+      if (!w.visible) return;
+      g.position.set(w.at[0], 0, w.at[1]);
+      g.rotation.y = w.heading;
     });
-    if (out === walkers.length) setWalkers([]);
   });
   return (
     <group name="office-evacuation">
@@ -974,14 +949,6 @@ function Evacuation() {
   );
 }
 
-/** Moves the motion clock (motion.ts) on every frame, before anything reads it: frozen on pause, at the bank's speed in play. */
-function MotionDriver() {
-  useFrame((_, dt) => {
-    const s = bankStore.getState();
-    advanceMotion(dt, s.playing && s.spotlight === null, SPEEDS[s.speedIndex]?.factor ?? 1);
-  }, -10);
-  return null;
-}
 
 function FrameDriver() {
   const invalidate = useThree((s) => s.invalidate);

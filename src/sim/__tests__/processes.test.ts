@@ -234,8 +234,7 @@ describe('every route the bank can plan', () => {
           expect(plan.broken).toBe(false);
           expect(routeIsWired(plan.stops)).toBe(true);
           expect(plan.stops[0]?.kind).toBe('GATE');
-          // Every route ends at Approved or Declined, except a jammed ATM: its cash never came out, so it runs on through the
-          // suspense desk to the refund and finishes at Settled.
+          // Every route ends at Approved or Declined, except a jammed ATM: its cash never came out, so it runs on through the suspense desk to the refund and finishes at Settled.
           const jam = c.kind === 'ATM' && plan.reasonCode === 'ATM_JAM';
           expect(jam ? ['OUT_SETTLED'] : ['OUT_APPROVED', 'OUT_DECLINED']).toContain(plan.stops[plan.stops.length - 1]?.place);
           if (jam) expect(plan.stops.map((s) => s.place)).toContain('SUSPENSE');

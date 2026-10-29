@@ -20,9 +20,7 @@ const failedIds = (r: EvaluationResult): string[] => r.testResults.filter((t) =>
 const feedback = (r: EvaluationResult): string => r.feedbackLogs.map((l) => l.message).join('\n');
 const anomalyTypes = (r: EvaluationResult): string[] => r.detectedAnomalies.map((a) => a.type);
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The three reference solutions
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('reference solutions', () => {
   it.each(LEVELS.map((l) => [`Level ${l.levelNumber}: ${l.title}`, l] as const))(
@@ -99,9 +97,7 @@ describe('reference solutions', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Flawed diagrams: they must fail, and say why
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('flawed diagrams: Level 1', () => {
   it('missing dCVV check: fails with diagnostics that name the skipped step and the wrong outcome', () => {

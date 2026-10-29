@@ -28,9 +28,7 @@ const L2 = level(2);
 const L3 = level(3);
 const L4 = level(4);
 
-// ─────────────────────────────────────────────────────────────────────────────
 // What tokens look like
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('token looks', () => {
   const token = (over: Record<string, unknown>, derived: Record<string, unknown> = {}) =>
@@ -101,9 +99,7 @@ describe('tokens on the wires', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Desks at work
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('desks at work', () => {
   it('the desk that ran shows the token it worked on until the token leaves; the next desk shows it waiting', () => {
@@ -145,9 +141,7 @@ describe('desks at work', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Queue congestion
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('queue congestion', () => {
   // Fork the payment into two parallel branches that both land on the same ledger desk.
@@ -208,9 +202,7 @@ describe('queue congestion', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Deadlock and dropped transactions
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('deadlock: a frozen join', () => {
   function starvedJoin(): ProcessGraph {
@@ -311,9 +303,7 @@ describe('dropped transactions', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Alarms: fraud slips and reconciliation breaks
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('alarms', () => {
   it('the recon desk raises an alarm when the three records disagree, and stays quiet when they match', () => {
@@ -371,9 +361,7 @@ describe('alarms', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Correct diagrams stay calm
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('a correct diagram never looks like a problem', () => {
   it.each(LEVELS.map((l) => [l.id, l] as const))('%s: no congestion, freeze, drop or slip in any visible replay', (_id, lvl) => {

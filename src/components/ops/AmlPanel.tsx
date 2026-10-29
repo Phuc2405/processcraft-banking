@@ -12,12 +12,7 @@ import { uiStore, useUiStore } from '../../store/uiStore';
 import { glossText } from '../bank/codeGlossary';
 import { Modal } from '../shell/Modal';
 
-/**
- * The AML / SAR compliance desk, in three steps:
- *   1. Monitor      alerts raised automatically on the day's payments (over $10,000, or a velocity burst of tiny online payments)
- *   2. Investigate  the payments behind an alert and the risk factors, then close it or escalate it
- *   3. Report       the Suspicious Activity Report form, and [Submit SAR to Regulator]
- */
+/** The AML / SAR compliance desk, in three steps: 1. */
 
 type Step = 1 | 2 | 3;
 

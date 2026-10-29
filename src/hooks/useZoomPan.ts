@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
-import { STAGE } from '../components/bank/layout';
+import { STAGE } from '../engine/plan/layout';
 import { clampZoom, wheelZoom, ZOOM_STEP, zoomStore } from '../store/zoomStore';
 import { freeCentre, type SmartView, type SmartZoomCamera, type ViewInsets, type Viewport } from './useSmartZoom';
 
@@ -9,13 +9,7 @@ const MAX_SCALE = 1.3;
 // Glide convergence: snap once within these.
 export const CONVERGE = { zoom: 0.005, px: 0.5 } as const;
 
-/**
- * Drag-to-pan.
- *   slack      share of the frame the stage may be dragged past its edges (so at least half a frame of map stays in view)
- *   threshold  px the pointer must travel before a press becomes a drag (below it, it is a click)
- *   rubber     resistance past the bounds while dragging (1 = none), easing off to at most `stretch` px
- *   settleMs   spring back into bounds on release
- */
+/** Drag-to-pan. slack share of the frame the stage may be dragged past its edges (so at least half a frame of map stays in view) threshold px the pointer must travel before a press becomes a drag (below it, it is a click) rubber resistance past the bounds while dragging (1 = none), easing off to at most `stretch` px settleMs spring back into bounds on release */
 export const PAN = { slack: 0.5, threshold: 4, rubber: 0.3, stretch: 120, settleMs: 220 } as const;
 
 /** Elements that keep their own pointer behaviour: a press on them never starts a pan. */
@@ -75,10 +69,7 @@ export const includePan = (b: PanBounds, p: Pan): PanBounds => ({ x0: Math.min(b
 
 export const clampPan = (p: Pan, b: PanBounds): Pan => ({ x: Math.min(b.x1, Math.max(b.x0, p.x)), y: Math.min(b.y1, Math.max(b.y0, p.y)) });
 
-/**
- * Past a bound the stage follows the pointer at `k` of its speed, easing off towards `limit` px however far the pointer goes:
- * the map stretches a little, then springs back on release.
- */
+/** Past a bound the stage follows the pointer at `k` of its speed, easing off towards `limit` px however far the pointer goes. */
 export function rubberBand(v: number, lo: number, hi: number, k: number = PAN.rubber, limit: number = PAN.stretch): number {
   const stretch = (over: number): number => limit * (1 - 1 / (1 + (over * k) / limit));
   if (v < lo) return lo - stretch(lo - v);
@@ -129,14 +120,7 @@ export interface ZoomPan {
   camera: SmartZoomCamera;
 }
 
-/**
- * Zoom and pan on top of the fitted scale. The stage is placed with a transform (`pan` + `zoom`), so it can be dragged at any
- * zoom, including the whole-map fit. Wheel zooms about the cursor, a left-drag on empty map pans (never on a card or a
- * button), toolbar commands arrive via zoomStore, and `camera` glides for smart zoom.
- *
- * While a drag is held the view belongs to the user: glides stop at once and a smart-zoom flight asked for meanwhile waits
- * for the release, so the two never fight over the stage.
- */
+/** Zoom and pan on top of the fitted scale. */
 export function useZoomPan(frame: RefObject<HTMLDivElement>, fit: number, insets: ViewInsets): ZoomPan {
   const [view, setViewState] = useState<View>(() => ({ zoom: 1, x: 0, y: 0 }));
   const [panning, setPanning] = useState(false);
@@ -374,9 +358,7 @@ export function useZoomPan(frame: RefObject<HTMLDivElement>, fit: number, insets
     const onMouseDown = (e: MouseEvent): void => {
       if (e.button === 0 && isPanTarget(el, e.target)) e.preventDefault();
     };
-    // No selection may begin on the map itself, even from a press on a card (which keeps its click and focus): a drag from
-    // there would otherwise sweep up the text of the panels around the map. Reading surfaces that float over the map (the
-    // tour's dialog and step card, form fields, anything marked select-text) keep normal selection for copy and paste.
+    // No selection may begin on the map itself, even from a press on a card (which keeps its click and focus).
     const onSelectStart = (e: Event): void => {
       const t = e.target instanceof Element ? e.target : e.target instanceof Node ? e.target.parentElement : null;
       if (!t?.closest(SELECTABLE)) e.preventDefault();

@@ -1,9 +1,6 @@
 import { CanvasTexture, DoubleSide, MeshBasicMaterial, MeshStandardMaterial, SRGBColorSpace } from 'three';
 
-/**
- * The materials of the office. Almost everything is merged geometry with its colour in the vertices (see kit.ts), so a
- * handful of shared materials is enough, and sharing them keeps the draw calls and the GPU state changes down.
- */
+/** The materials of the office. */
 
 /** Lit, faceted, matte: furniture, people, plants. */
 export const solid = new MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.84, metalness: 0.02 });
@@ -20,17 +17,12 @@ export const tape = new MeshBasicMaterial({ vertexColors: true, side: DoubleSide
 /** Panes of glass: very light, see-through, and not written to the depth buffer so people behind them stay visible. */
 export const pane = new MeshStandardMaterial({ color: '#bfe7f5', transparent: true, opacity: 0.2, roughness: 0.1, metalness: 0.1, depthWrite: false, side: DoubleSide });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Soft contact shadows
-// ─────────────────────────────────────────────────────────────────────────────
 
 let blobTex: CanvasTexture | null = null;
 let blobMat: MeshBasicMaterial | null = null;
 
-/**
- * A soft dark smudge for under furniture and plants: it grounds them on the floor the way ambient occlusion would, at the
- * price of a single textured quad. (The real shadows from the sun are cast separately.)
- */
+/** A soft dark smudge for under furniture and plants: it grounds them on the floor the way ambient occlusion would, at the price of a single textured quad. */
 export function blobMaterial(): MeshBasicMaterial {
   if (blobMat) return blobMat;
   const canvas = document.createElement('canvas');

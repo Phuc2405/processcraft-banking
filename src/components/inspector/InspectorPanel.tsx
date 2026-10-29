@@ -53,10 +53,7 @@ function NumberInput({ id, value, min, max, disabled, onCommit }: { id: string; 
   );
 }
 
-/**
- * The bank-to-bank message the selected test payment carries, for the boxes that read it: the A2A start event and the A2A gateway.
- * It is the same pacs.008 the gateway validates, so the learner can see which field a rule is about.
- */
+/** The bank-to-bank message the selected test payment carries, for the boxes that read it: the A2A start event and the A2A gateway. */
 function A2aMessage() {
   const payload = useWorkflowStore((s) => s.level.testSuite.find((tc) => tc.id === s.selectedTestId)?.inputPayload);
   const level = useWorkflowStore((s) => s.level);
@@ -235,10 +232,7 @@ function EdgeInspector({ edge }: { edge: ProcessFlowEdge }) {
   );
 }
 
-/**
- * Settings for whatever is selected on the canvas: a node's name and configuration, or a wire's
- * condition. Hidden when nothing (or more than one thing) is selected.
- */
+/** Settings for whatever is selected on the canvas: a node's name and configuration, or a wire's condition. */
 export function InspectorPanel() {
   const node = useWorkflowStore((s) => {
     const picked = s.nodes.filter((n) => n.selected);

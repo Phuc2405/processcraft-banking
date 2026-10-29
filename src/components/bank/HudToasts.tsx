@@ -1,7 +1,7 @@
 import { t } from '../../i18n/t';
 import { useEffect, useRef, useState } from 'react';
 import { useBankStore } from '../../store/bankStore';
-import { HUD_EVENTS, HUD_TTL_MS, newEvents, pushToasts, type DeclineCounts, type HudToast } from './hudToastLogic';
+import { HUD_EVENTS, HUD_TTL_MS, newEvents, pushToasts, type DeclineCounts, type HudToast } from '../../engine/simulation/hudEvents';
 
 const TONE = {
   amber: 'border-amber-400/50 bg-[#1c1406]/95 text-amber-100 [--dot:#fbbf24]',
@@ -10,10 +10,7 @@ const TONE = {
 
 const META = Object.fromEntries(HUD_EVENTS.map((e) => [e.kind, e]));
 
-/**
- * Floating alert pills at the top right of the map (2D or 3D). Max three, each gone after 3.5 s. The whole layer ignores the
- * pointer, so it never blocks a click on the map or a drag of the 3D camera.
- */
+/** Floating alert pills at the top right of the map (2D or 3D). */
 export function HudToasts() {
   const declines = useBankStore((s) => s.view.kpis.declines) as DeclineCounts;
   const playing = useBankStore((s) => s.playing);

@@ -1,9 +1,6 @@
 import { defineMessages } from '../../utils/i18nHelper';
 
-/**
- * The inspector's hybrid tips: one standard definition per metric, plus an example of what that metric means at this kind of
- * desk (keys `<metric>_<family>`, families from sim/nodeKind.ts). Both languages are required for every key.
- */
+/** The inspector's hybrid tips: one standard definition per metric, plus an example of what that metric means at this kind of desk (keys `<metric>_<family>`, families from sim/nodeKind.ts). */
 export const tipMessages = defineMessages('inspectorTips', {
   atThisDesk: { en: 'At this desk', vi: 'Tại quầy này' },
 

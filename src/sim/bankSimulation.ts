@@ -1,18 +1,4 @@
-/**
- * The living bank.
- *
- * Time moves in beats (see clock.ts). In every beat the bank:
- *   1. lets in the customers who arrive (working hours only) and plans each one's route by running the real process diagram,
- *   2. lets customers back in from their phones with the one-time code,
- *   3. at 23:00, turns the day's approved payments into settlement records for the night cycle,
- *   4. serves every desk in order. A desk is its staff: each person works through the queue at their own pace, slower
- *      the more tired they are, and a payment can cross several desks in one beat when nobody is busy,
- *   5. sends away customers who have waited too long, and
- *   6. tires the staff out (or lets them recover), and writes down what happened.
- *
- * Nothing in here draws anything. snapshot() turns the state into a BankView, a plain object the screen reads.
- * Nothing in here uses Math.random: a day is a function of the seed, the day number and the rules.
- */
+/** The living bank. */
 
 import { formatAud } from '../engine/capabilities';
 import { emptyBook, groupByTransaction, post, trialBalance, type LedgerBook } from '../engine/ledger';
@@ -104,9 +90,7 @@ import type {
   WorkerView,
 } from './types';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Tuning
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** How many of the latest ledger lines the screen is sent each beat. The trial balance covers all of them. */
 const LEDGER_RECENT = 40;
@@ -133,9 +117,7 @@ const ALERT_LIMIT = 60;
 
 export const isCustomerStation = (id: StationId): boolean => id !== 'EOD_BATCH' && id !== 'EOD_VISA' && id !== 'RECON' && id !== 'SUSPENSE';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // State
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface WorkerState {
   seed: WorkerSeed;
@@ -207,7 +189,6 @@ const bump = (st: StationState, key: string, n = 1): void => {
 
 const firstName = (w: WorkerState): string => w.seed.name.split(' ')[0] ?? w.seed.name;
 
-// ─────────────────────────────────────────────────────────────────────────────
 
 export class BankSimulation {
   readonly seed: number;
@@ -319,9 +300,7 @@ export class BankSimulation {
     this.beginDay(options.cover);
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
   // Public controls
-  // ───────────────────────────────────────────────────────────────────────────
 
   get rules(): BankRules {
     return this.rulesNow;
@@ -343,10 +322,7 @@ export class BankSimulation {
     return { ...this.chaosConfig };
   }
 
-  /**
-   * Switches Chaos Monkey faults on or off. They apply from the next beat; payments already in the building keep their route.
-   * Turning `scriptedDays` on or off takes effect from the next day.
-   */
+  /** Switches Chaos Monkey faults on or off. */
   setChaos(next: Partial<ChaosConfig>): void {
     const before = this.chaosConfig;
     this.chaosConfig = cleanChaos({ ...before, ...next });
@@ -371,13 +347,7 @@ export class BankSimulation {
     return true;
   }
 
-  /**
-   * Moves the bank forward by one beat. Does nothing once the day is over.
-   *
-   * With `admit: false` (a solo run, used while one preset payment plays out) the day's generated customers who would arrive
-   * this beat are held back instead of walking in. They are let in on the next normal beat, so nobody is lost and a replay of
-   * the day is unchanged.
-   */
+  /** Moves the bank forward by one beat. */
   step(options: { admit?: boolean } = {}): void {
     if (this.dayOver) return;
     const phase = phaseAt(this.minute);
@@ -394,14 +364,13 @@ export class BankSimulation {
     this.announce(phase, start);
 
     if (this.chaosConfig.fatigueSpike) this.spikeFatigue();
-    if (phase === 'WORKING') {
-      const arriving = [...(this.traffic.beats[workingBeatIndex(start)] ?? []), ...this.chaosArrivals(start)];
-      if (options.admit === false) this.heldBack.push(...arriving);
-      else {
-        // Customers held back during a solo run walk in now, as if they had just arrived.
-        const late = this.heldBack.splice(0).map((c) => ({ ...c, minute: start }));
-        for (const customer of [...late, ...arriving]) this.admit(customer);
-      }
+    // In working hours the day's customers come; while the branch is shut only the round-the-clock channels do (card terminals and online checkouts, transfers, the ATM).
+    const arriving = phase === 'WORKING' ? [...(this.traffic.beats[workingBeatIndex(start)] ?? []), ...this.chaosArrivals(start)] : this.traffic.offHours.filter((c) => c.minute >= start && c.minute < start + bm);
+    if (options.admit === false) this.heldBack.push(...arriving);
+    else if (phase === 'WORKING' || arriving.length > 0) {
+      // Customers held back during a solo run walk in now, as if they had just arrived.
+      const late = this.heldBack.splice(0).map((c) => ({ ...c, minute: start }));
+      for (const customer of [...late, ...arriving]) this.admit(customer);
     }
     this.releasePhones(start, bm);
     if (phase === 'EOD' && !this.nightStarted) this.startNight(start);
@@ -416,11 +385,7 @@ export class BankSimulation {
   }
 
   /** Plays on until the clock reaches `minute` (or the day ends). */
-  /**
-   * Sends one scripted customer into the bank now (a preset action: "Swipe $20", "Deposit $200 cash"). The payment takes
-   * the same route, desks, queues and ledger postings as any other; it simply arrives at the current minute. Returns its id,
-   * or null when the day is over.
-   */
+  /** Sends one scripted customer into the bank now (a preset action: "Swipe $20", "Deposit $200 cash"). */
   inject(customer: Customer): string | null {
     if (this.dayOver) return null;
     // Their own block of serials (9001 up), so they never share an id with the day's generated customers.
@@ -521,9 +486,7 @@ export class BankSimulation {
     return Math.min(1, beatIndexAt(this.minute) / BEATS_PER_DAY);
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
   // Starting a day
-  // ───────────────────────────────────────────────────────────────────────────
 
   private beginDay(cover?: Partial<Record<StationId, number>>): void {
     this.minute = DAY_START;
@@ -603,9 +566,7 @@ export class BankSimulation {
     }
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
   // Packets
-  // ───────────────────────────────────────────────────────────────────────────
 
   private insert(queue: Packet[], p: Packet): void {
     let i = queue.length;
@@ -751,9 +712,7 @@ export class BankSimulation {
     return p;
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
   // Chaos Monkey
-  // ───────────────────────────────────────────────────────────────────────────
 
   /** One independent random stream per payment and purpose, so chaos never shifts the draws of the day's own traffic. */
   private chaosDraw(id: string, purpose: string): number {
@@ -828,10 +787,7 @@ export class BankSimulation {
     return { ...c, payload: { ...c.payload, riskScore: Math.max(0, this.rulesNow.frictionlessBelow - 5) } };
   }
 
-  /**
-   * Applies the faults that stop a payment at the door. Returns true when the payment was ended here (declined) and must not
-   * be queued. Congestion that recovers only adds latency.
-   */
+  /** Applies the faults that stop a payment at the door. */
   private chaosFault(p: Packet, st: StationState): boolean {
     const c = this.chaosConfig;
     const decline = (reason: 'PROCESS_ERROR' | 'TIMEOUT', counter: keyof ChaosStats, message: string, key: string, tag: ChaosTag): true => {
@@ -885,15 +841,9 @@ export class BankSimulation {
     return { scenario: this.chaosScenario, config: { ...this.chaosConfig }, stats: { ...this.chaosStats }, active: chaosActive(this.chaosConfig, this.chaosScenario) };
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
   // Disputes raised from the ledger
-  // ───────────────────────────────────────────────────────────────────────────
 
-  /**
-   * Raises a cardholder dispute on a card purchase from the live ledger: the amount the bank still owes the merchant side
-   * (2110 Card Settlement Clearing Payable) is reversed back to the customer's CASA (2010). One balanced pair of lines,
-   * posted under `<txId>-CB`. A payment can be disputed once.
-   */
+  /** Raises a cardholder dispute on a card purchase from the live ledger. */
   disputeTransaction(txId: string): DisputeResult {
     const fail = (reason: DisputeResult['reason']): DisputeResult => ({ ok: false, amountCents: 0, reason, txId: null });
     if (this.dayOver) return fail('DAY_OVER');
@@ -934,9 +884,7 @@ export class BankSimulation {
     }
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
   // The night cycle
-  // ───────────────────────────────────────────────────────────────────────────
 
   private startNight(start: number): void {
     this.nightStarted = true;
@@ -983,9 +931,7 @@ export class BankSimulation {
     return this.stations.EOD_BATCH.queue.length + this.stations.EOD_VISA.queue.length + this.stations.RECON.queue.length;
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
   // Serving a desk
-  // ───────────────────────────────────────────────────────────────────────────
 
   private isStaffed(id: StationId, phase: Phase): boolean {
     if (isNightStation(id)) return phase === 'EOD';
@@ -1423,9 +1369,7 @@ export class BankSimulation {
     }
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
   // How a payment ends
-  // ───────────────────────────────────────────────────────────────────────────
 
   /** Writes lines into today's ledger, stamped with the bank's clock rather than the run's virtual time. */
   private postLines(lines: readonly GLEntry[]): void {
@@ -1434,10 +1378,7 @@ export class BankSimulation {
     post(this.book, lines.map((e) => ({ ...e, timestamp })));
   }
 
-  /**
-   * A route plan is worked out once per kind of payment, so its lines carry the id of the example payment it was run with.
-   * Every real payment gets its own transaction here: the lines keep their order and amounts and take the packet's id.
-   */
+  /** A route plan is worked out once per kind of payment, so its lines carry the id of the example payment it was run with. */
   private bookedAs(p: Packet): GLEntry[] {
     const seen = new Map<string, string>();
     const counts = new Map<string, number>();
@@ -1567,8 +1508,7 @@ export class BankSimulation {
         k.genuineCardCents += amount;
         earned(Math.round(amount * INTERCHANGE_RATE));
       }
-      // Card payments go into tonight's clearing file. A transfer settles on the instant rail and the machine's cash is counted
-      // at the machine, so neither is presented to the card scheme.
+      // Card payments go into tonight's clearing file.
       if (p.kind !== 'A2A' && p.kind !== 'ATM' && !isExtendedKind(p.kind)) this.approved.push({ txId: `tx_${p.id}`, cardType: p.cardType, heldCents: plan.heldCents, scenario: p.scenario });
       return;
     }
@@ -1680,9 +1620,7 @@ export class BankSimulation {
     }
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
   // End of a beat
-  // ───────────────────────────────────────────────────────────────────────────
 
   private endBeat(phase: Phase, bm: number): void {
     for (const st of Object.values(this.stations)) {
@@ -1714,7 +1652,7 @@ export class BankSimulation {
     if (phase === 'WORKING') this.log('info', null, `${formatClock(start)} The doors open. Customers are arriving.`, { notable: true });
     else if (phase === 'AFTER_HOURS') {
       const waiting = this.inFlight();
-      this.log('info', null, `${formatClock(start)} No new customers. ${waiting > 0 ? `${waiting} payments are still being worked.` : 'Every queue is clear.'}`, { notable: true });
+      this.log('info', null, `${formatClock(start)} The branch closes. The ATMs, card gateways and online transfers run on through the night. ${waiting > 0 ? `${waiting} payments are still being worked.` : 'Every queue is clear.'}`, { notable: true });
     }
   }
 
@@ -1787,9 +1725,7 @@ export class BankSimulation {
     };
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
   // Feed and alerts
-  // ───────────────────────────────────────────────────────────────────────────
 
   private log(severity: Severity, place: PlaceId | null, text: string, opts: { worker?: string; packetId?: string; notable?: boolean } = {}): void {
     if (this.headless) return;
@@ -1899,9 +1835,7 @@ export class BankSimulation {
     this.liveAlertIds = ids;
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
   // Moves (what the screen animates)
-  // ───────────────────────────────────────────────────────────────────────────
 
   private addMove(p: Packet, from: PlaceId, to: PlaceId, at: number): void {
     if (this.headless || from === to) return;
@@ -1913,9 +1847,7 @@ export class BankSimulation {
     this.beatMoves.push({ key: `${this.tick}:${this.moveSerial++}`, packetId, edge: edgeId(from, to), from, to, kind, cardType, scenario, amountCents, at });
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
   // Reading the bank
-  // ───────────────────────────────────────────────────────────────────────────
 
   private inFlight(): number {
     let n = this.otpWaiting.length;
@@ -1941,7 +1873,8 @@ export class BankSimulation {
 
   private workerView(st: StationState, w: WorkerState, phase: Phase): WorkerView {
     const recent = w.activity !== null && this.tick - w.activityTick <= 1;
-    const lateEvening = phase === 'EOD' || (phase === 'AFTER_HOURS' && this.minute >= 18 * 60);
+    // The branch closes at 17:00: its people finish what is still waiting at their desk, then go home.
+    const lateEvening = phase === 'EOD' || phase === 'AFTER_HOURS';
     let activity: string;
     let working = false;
     if (recent && w.activity) {
@@ -1954,7 +1887,7 @@ export class BankSimulation {
     } else if (st.id === 'SUSPENSE' && phase !== 'WORKING') {
       activity = st.queue.length > 0 ? `Desk closed. ${st.queue.length} items wait for tomorrow` : 'Desk closed until 09:00';
     } else if (isCustomerStation(st.id) && lateEvening && st.queue.length === 0) {
-      activity = 'Off shift until 08:00';
+      activity = 'Off shift until 08:30';
     } else if (phase === 'PRE_OPEN') {
       activity = 'Morning briefing and systems check';
     } else {
@@ -2202,9 +2135,7 @@ export class BankSimulation {
     };
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
   // Staff Roleplay Workspace (Phase 8 Step 2)
-  // ───────────────────────────────────────────────────────────────────────────
 
   /** The roleplay desk whose staff stand down while the learner works it, or null. */
   private staffOverride: StationId | null = null;
@@ -2238,10 +2169,7 @@ export class BankSimulation {
     return out;
   }
 
-  /**
-   * The learner decides one queued review. The packet leaves the queue and is worked now, on the route the bank already
-   * planned (the ledger stays balanced); the decision is graded against that verdict and booked on the desk's counters.
-   */
+  /** The learner decides one queued review. */
   staffDecide(id: StationId, packetId: string, decision: StaffDecision, latencySec: number): StaffDecisionResult {
     const role = roleForStation(id);
     const st = this.stations[id];

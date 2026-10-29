@@ -1,7 +1,4 @@
-/**
- * The AML desk's case book for the session: which alerts have been closed as false positives and which have had a suspicious
- * activity report filed, with the regulator's reference. Kept in memory only: a filed report belongs to the day it was filed.
- */
+/** The AML desk's case book for the session: which alerts have been closed as false positives and which have had a suspicious activity report filed, with the regulator's reference. */
 
 import { useStore } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';

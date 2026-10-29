@@ -1,7 +1,4 @@
-/**
- * Vietnamese for every fixed label read through `t()`, keyed by the English.
- * The i18n test checks that every `t('…')` in the source has an entry here.
- */
+/** Vietnamese for every fixed label read through `t()`, keyed by the English. */
 
 export const VI_DICTIONARY: Readonly<Record<string, string>> = {
   " a desk or a person to inspect it": " vào quầy hoặc người để xem chi tiết",
@@ -27,10 +24,10 @@ export const VI_DICTIONARY: Readonly<Record<string, string>> = {
   "Advance one beat": "Tiến thêm một nhịp",
   "Advanced": "Nâng cao",
   "Sub-process": "Quy trình con",
-  "Full process": "Toàn trình",
+  "Full process": "Toàn bộ",
   "One isolated sub-flow at a time (pick 01-08): only its desks, wires and conditions stay lit, the rest fades back": "Từng phân đoạn quy trình con riêng biệt (chọn 01-08): chỉ quầy, đường nối và điều kiện của nó sáng rõ, phần còn lại mờ đi",
-  "The full end-to-end bank: every desk, wire and condition lit": "Sơ đồ vận hành ngân hàng toàn trình end-to-end: mọi quầy, đường nối và điều kiện đều sáng",
-  "Switch between an isolated sub-process view (Sub-process) and the full end-to-end operating map (Full process)": "Chuyển đổi giữa góc nhìn phân đoạn quy trình con (Sub-process) và sơ đồ vận hành toàn trình (Full process)",
+  "The full end-to-end bank: every desk, wire and condition lit": "Sơ đồ vận hành toàn bộ ngân hàng, từ đầu đến cuối: mọi quầy, đường nối và điều kiện đều sáng",
+  "Switch between an isolated sub-process view (Sub-process) and the full end-to-end operating map (Full process)": "Chuyển đổi giữa góc nhìn phân đoạn quy trình con (Sub-process) và sơ đồ vận hành toàn bộ (Full process)",
   "After hours · queues drain": "Ngoài giờ · xử lý nốt hàng chờ",
   "Also moved": "Cũng thay đổi",
   "Always Show": "Luôn hiện",
@@ -65,6 +62,7 @@ export const VI_DICTIONARY: Readonly<Record<string, string>> = {
   "Cards resolved": "Thẻ đã tra cứu",
   "Case file desk": "Quầy hồ sơ vụ việc",
   "Cash bay": "Khoang tiền mặt",
+  "Cash Transporter (CIT)": "Xe chở tiền (CIT)",
   "Cash paid out": "Tiền đã chi",
   "Challenge": "Thử thách",
   "Challenge brief": "Đề bài thử thách",

@@ -1,10 +1,6 @@
-/**
- * The Expert data depth of a payment: the ISO 8583 response code a terminal would get, the raw message as JSON, and the
- * double-entry journal the core banking ledger posted. Standard depth gets the same facts as plain cards. Pure functions of
- * a PacketTrace, so the inspector and the tests read the same thing.
- */
+/** The Expert data depth of a payment: the ISO 8583 response code a terminal would get, the raw message as JSON, and the double-entry journal the core banking ledger posted. */
 
-import { activeLocale } from '../i18n/locale';
+import { activeLocale } from '../i18n/localeCore';
 import { formatAud } from '../engine/money';
 import { CHART_OF_ACCOUNTS } from '../engine/ledger';
 import type { AccountId } from '../types/processLearning';
@@ -109,10 +105,7 @@ function entryMode(t: PacketTrace): string {
 const amount12 = (cents: number): string => String(Math.max(0, Math.round(cents))).padStart(12, '0');
 const stan = (id: string): string => (/(\d+)$/.exec(id)?.[1] ?? '0').padStart(6, '0').slice(-6);
 
-/**
- * The payment as the bank's switch would log it: an ISO 8583 0100 authorisation request while it is on its way, the 0110
- * response once it has an answer. Card numbers are masked; an account-to-account transfer is shown as its pacs.008 header.
- */
+/** The payment as the bank's switch would log it: an ISO 8583 0100 authorisation request while it is on its way, the 0110 response once it has an answer. */
 export function rawMessage(trace: PacketTrace): Record<string, unknown> {
   const rc = responseCodeFor(trace);
   if (trace.kind === 'A2A') {

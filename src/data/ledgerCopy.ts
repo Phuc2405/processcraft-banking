@@ -1,7 +1,4 @@
-/**
- * Everything the ledger drawer says. One `Localized` table, so a second language is one more entry and no component changes.
- * The names of the accounts and the memo on each line come from the engine (engine/ledger.ts, engine/postings.ts).
- */
+/** Everything the ledger drawer says. */
 
 import { pick, type Localized } from '../i18n/locale';
 import type { PostingKind } from '../types/processLearning';

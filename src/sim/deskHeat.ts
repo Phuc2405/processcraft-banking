@@ -1,9 +1,4 @@
-/**
- * Phase 8: the desk congestion heatmap on the 2D bank map.
- *
- * Each of the seven roleplay desks takes a heat colour from its live queue: green under 3 items, orange at 3-5, red above 5
- * or when the item at the head of the queue has waited past the desk SLA. Pure: the map only reads the result.
- */
+/** Phase 8: the desk congestion heatmap on the 2D bank map. */
 
 import { roleForStation } from './staffRoleplay';
 import type { StationId } from './topology';

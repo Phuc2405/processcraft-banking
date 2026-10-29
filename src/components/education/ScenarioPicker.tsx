@@ -9,11 +9,7 @@ const GROUP: Record<ScenarioPath, { dot: string; key: 'groupHappy' | 'groupEdge'
   edge: { dot: '🔴', key: 'groupEdge', tone: 'text-rose-300' },
 };
 
-/**
- * [🧪 Test Scenarios · 6 ▾ An ordinary purchase]: a glass pill that opens the lesson's example payments, grouped into the
- * straight-through Happy Path and the Edge Cases. A listbox, not a native <select>, so the groups can be styled; it keeps the
- * listbox keyboard contract (↑ ↓ Home End Enter Esc) and stops those keys from reaching the tour's own shortcuts.
- */
+/** [🧪 Test Scenarios · 6 ▾ An ordinary purchase]: a glass pill that opens the lesson's example payments, grouped into the straight-through Happy Path and the Edge Cases. */
 export function ScenarioPicker({
   lessonId,
   examples,

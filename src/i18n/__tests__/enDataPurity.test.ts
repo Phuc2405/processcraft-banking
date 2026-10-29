@@ -1,10 +1,4 @@
-/**
- * English data stays English.
- *
- * Walks every exported table in data/, sim/, engine/ and types/ and fails on a Vietnamese letter in an English position. An
- * `{ en, vi }` pair counts as English only on its `en` side. Exports that are Vietnamese on purpose (names ending in VI / Vi,
- * and the *Vi.ts modules) are skipped. This is the net that catches a Vietnamese string pasted into an English table.
- */
+/** English data stays English. */
 
 import { describe, expect, it } from 'vitest';
 import { hasVietnamese } from '../../utils/i18nHelper';

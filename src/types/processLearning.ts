@@ -1,23 +1,6 @@
-/**
- * ProcessCraft Banking: metamodel (data layer only, no UI, no engine logic).
- *
- * Sections
- *   0. Shared primitives
- *   1. Process Graph        (what the learner builds)
- *   2. Node catalog         (what the learner builds it from)
- *   3. Execution & tokens   (what the simulator moves through the graph)
- *   4. Learning & challenge (levels, test cases, grading)
- *
- * Conventions
- *   - Money is always integer minor units (cents, AUD). Never floats.
- *   - Time is epoch milliseconds. Simulated latency is virtual milliseconds.
- *   - Every entity is plain JSON (no classes, no Dates, no Maps) so it can be
- *     stored, diffed, and sent to a server-side grader unchanged.
- */
+/** ProcessCraft Banking: metamodel (data layer only, no UI, no engine logic). */
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 0. Shared primitives
-// ─────────────────────────────────────────────────────────────────────────────
+// 0.
 
 export type Id = string;
 export type MinorUnits = number;
@@ -32,9 +15,7 @@ export type PaymentChannel = 'POS' | 'ECOMMERCE' | 'MOBILE_WALLET' | 'IN_APP' | 
 /** The only four ways a test run can end. Each EVENT_END node is configured with one. */
 export type Outcome = 'APPROVED' | 'DECLINED' | 'ROUTED_TO_SUSPENSE' | 'CHALLENGE_REQUIRED';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 1. Process Graph (what the learner builds)
-// ─────────────────────────────────────────────────────────────────────────────
+// 1.
 
 export type NodeType = 'EVENT_START' | 'TASK' | 'GATEWAY_XOR' | 'GATEWAY_AND' | 'EVENT_END';
 
@@ -83,28 +64,14 @@ export interface ProcessNode {
   locked?: boolean;
 }
 
-/**
- * Condition grammar (evaluated against ExpressionContext, see section 3):
- *   expr    := or
- *   or      := and ('||' and)*
- *   and     := cmp ('&&' cmp)*
- *   cmp     := unary (('==' | '!=' | '<' | '<=' | '>' | '>=') unary)?
- *   unary   := '!' unary | primary
- *   primary := number | 'string' | true | false | identifier | '(' expr ')'
- * Examples: "riskScore < 40", "isVirtual == true", "dcvvStatus == 'VALID' && riskScore < 80"
- */
+/** Condition grammar (evaluated against ExpressionContext, see section 3). */
 export interface ProcessEdge {
   id: Id;
   sourceNodeId: Id;
   sourcePortId: Id;
   targetNodeId: Id;
   targetPortId: Id;
-  /**
-   * Only evaluated when the source node is a GATEWAY_XOR; edges leaving any other node type are always taken.
-   * At an XOR, edges are tried in priority order. An edge matches when its condition is true, or when it has
-   * no condition and is not the default edge (so a lone unconditional edge simply passes the token through).
-   * The default edge is used only when nothing else matched.
-   */
+  /** Only evaluated when the source node is a GATEWAY_XOR; edges leaving any other node type are always taken. */
   conditionExpression?: string;
   /** XOR fallback: taken when no conditional edge matches. At most one per gateway. */
   isDefault?: boolean;
@@ -124,9 +91,7 @@ export interface ProcessGraph {
   updatedAt?: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 2. Node catalog (the palette's building blocks)
-// ─────────────────────────────────────────────────────────────────────────────
+// 2.
 
 export type ConfigParamType = 'number' | 'string' | 'boolean' | 'enum';
 
@@ -181,9 +146,7 @@ export interface NodeDefinition {
   raises: TokenExceptionCode[];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. Execution & token engine
-// ─────────────────────────────────────────────────────────────────────────────
+// 3.
 
 export type ChallengeStatus = 'NOT_STARTED' | 'COMPLETED' | 'FAILED' | 'ABANDONED' | 'TIMED_OUT';
 
@@ -218,17 +181,11 @@ export interface SettlementContext {
   switchAmount: MinorUnits | null;
   /** How many times the clearing file presented this transaction (normally 1). */
   clearingPresentments: number;
-  /**
-   * Set when the purchase was made in a foreign currency. The ledger booked the purchase at one exchange rate and the
-   * scheme settled it at another, so a gap between the legs may be a rate difference rather than an error.
-   */
+  /** Set when the purchase was made in a foreign currency. */
   fx?: FxContext;
 }
 
-/**
- * Rates are integers (micro-AUD per one unit of the foreign currency), so no float ever touches money:
- * 1_534_800 means 1 USD = 1.5348 AUD.
- */
+/** Rates are integers (micro-AUD per one unit of the foreign currency), so no float ever touches money: 1_534_800 means 1 USD = 1.5348 AUD. */
 export interface FxContext {
   /** ISO 4217, e.g. 'USD'. */
   currency: string;
@@ -246,10 +203,7 @@ export interface BnplContext {
   downPaymentMinor: MinorUnits;
 }
 
-/**
- * The ISO 20022 pacs.008 (FIToFICustomerCreditTransfer) fields an account-to-account payment arrives with, plus the state
- * of the gateway at the moment it arrives. The instructed amount is the payload's own `amount`.
- */
+/** The ISO 20022 pacs.008 (FIToFICustomerCreditTransfer) fields an account-to-account payment arrives with, plus the state of the gateway at the moment it arrives. */
 export interface A2aContext {
   /** EndToEndId: the reference the debtor gave the payment; it survives every hop. 1 to 35 characters. */
   endToEndId: string;
@@ -338,13 +292,7 @@ export interface DisputeContext {
 /** What the dispute desk says should happen next. NONE means the scheme allows no action. */
 export type DisputeNext = DisputeStage | 'RESOLVED_CARDHOLDER' | 'RESOLVED_MERCHANT' | 'NONE';
 
-/**
- * The transaction a token carries. The first ten fields are the core spec.
- * The four optional context blocks hold the extra world state a capability
- * node needs (vault lookup, 3DS challenge result, settlement legs, BNPL
- * application). Edge conditions can only read the flat core fields and
- * DerivedFacts, never these blocks.
- */
+/** The transaction a token carries. */
 export interface BankingPayload {
   txId: Id;
   /** Minor units. */
@@ -475,16 +423,7 @@ export interface ExecutionStep {
   note?: string;
 }
 
-/**
- * A token is one unit of work moving through the graph. An AND fork retires the
- * parent (state COMPLETED, finalOutcome null) and spawns one child per branch
- * (parentTokenId set); an AND join waits for all siblings, then continues as
- * one token whose clock is the max of its branches.
- *
- * Location: currentNodeId is the node the token is at (about to run it, waiting
- * at it, or finished at it). currentEdgeId is the edge it last travelled along,
- * and is null before its first move.
- */
+/** A token is one unit of work moving through the graph. */
 export interface SimulationToken {
   id: Id;
   parentTokenId: Id | null;
@@ -504,9 +443,7 @@ export interface SimulationToken {
   finalReasonCode: string | null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 4. Learning & challenge system
-// ─────────────────────────────────────────────────────────────────────────────
+// 4.
 
 export type ChallengeDomain = 'PAYMENTS';
 export type Difficulty = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
@@ -548,23 +485,11 @@ export interface RunnerConfig {
   /** A token that takes more hops than this is flagged as an infinite loop. */
   maxStepsPerToken: number;
   maxTokensPerTest: number;
-  /**
-   * When parallel branches end with different outcomes, the one listed first wins
-   * (most restrictive first).
-   */
+  /** When parallel branches end with different outcomes, the one listed first wins (most restrictive first). */
   outcomePrecedence: Outcome[];
 }
 
-/**
- * correctnessScore = round(100 * sum(weight of passed tests) / sum(weight of all tests))
- *                    minus anomalyPenaltyPoints per distinct ERROR anomaly, clamped to 0..100.
- *                    "Distinct" means one per (type, node, edge): the same bug hit by six tests costs once.
- * efficiencyScore  = round(100 * (nodeCountWeight * min(1, optimalNodeCount / nodesUsed)
- *                                + latencyWeight  * min(1, optimalAvgLatencyMs / avgLatencyMs)))
- *                    avgLatencyMs is the mean over passing tests. Scored only once the level is passed,
- *                    otherwise 0, so a broken one-node diagram cannot look efficient.
- * The level is passed when correctnessScore >= passMark.
- */
+/** correctnessScore = round(100 * sum(weight of passed tests) / sum(weight of all tests)) minus anomalyPenaltyPoints per distinct ERROR anomaly, clamped to 0..100. */
 export interface ScoringConfig {
   passMark: number;
   anomalyPenaltyPoints: number;
@@ -651,10 +576,7 @@ export interface TestCaseResult {
   actualReasonCode: string | null;
   latencyMs: number;
   failureReasons: TestFailureReason[];
-  /**
-   * Final state of every token the run produced, including full path history, for replay in the UI.
-   * Empty for hidden tests (a trace carries the payload) unless the grader was asked to reveal them.
-   */
+  /** Final state of every token the run produced, including full path history, for replay in the UI. */
   tokens: SimulationToken[];
 }
 
@@ -676,9 +598,7 @@ export interface EvaluationResult {
   testResults: TestCaseResult[];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 5. Core banking: the general ledger
-// ─────────────────────────────────────────────────────────────────────────────
+// 5.
 
 export type AccountType = 'ASSET' | 'LIABILITY' | 'INCOME' | 'EXPENSE';
 
@@ -738,10 +658,7 @@ export type PostingKind =
   | 'PAYMENT_RETURN'
   | 'OPENING_DEPOSIT';
 
-/**
- * One line of the general ledger. Double entry means every line debits one account and credits another by the same
- * amount, so any set of lines balances by construction. `amount` is a positive integer in minor units.
- */
+/** One line of the general ledger. */
 export interface GLEntry {
   id: Id;
   txId: Id;

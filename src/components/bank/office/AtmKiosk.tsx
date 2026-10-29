@@ -9,18 +9,11 @@ import { pickPlace } from './tourHooks';
 import { Sign } from './Dressing';
 import { DeskPin, DeskQueue, SelectionFrame, cursor } from './Desk3D';
 import { box, merge, type Part } from './kit';
-import { ATM_KIOSK, atmQueueMarks, deskPose } from './layout3d';
+import { ATM_KIOSK, atmQueueMarks, deskPose } from '../../../engine/plan/layout3d';
 import { blobMaterial, glow, solid } from './materials';
 import { STATUS_HEX } from './palette';
 
-/**
- * A sidewalk ATM: a blue kiosk on the pavement outside the branch, its screen, card slot and cash slot facing the street.
- *
- * The brief's two kiosks are the two bays of one cash machine, and each is a station of the simulation. The first is the
- * Card & PIN bay, where the customer inserts the card and keys in the PIN; the second is the Cash bay, which counts out the
- * notes. The kiosk is a desk in every way that matters to the rest of the app: it has a queue (people waiting on the pavement),
- * a status lamp, a badge, and clicking it opens the inspector.
- */
+/** A sidewalk ATM: a blue kiosk on the pavement outside the branch, its screen, card slot and cash slot facing the street. */
 
 const FRONT = ATM_KIOSK.d / 2;
 

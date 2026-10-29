@@ -1,8 +1,4 @@
-/**
- * Shared types for the living bank. Everything here is plain data (no classes, no Maps), so a
- * snapshot of the bank can be handed to React, saved, or compared without surprises.
- * Money is integer cents, as everywhere else in the project.
- */
+/** Shared types for the living bank. */
 
 import type { ChaosTag, ChaosView } from '../engine/chaos';
 import type { TrialBalance } from '../engine/ledger';
@@ -17,9 +13,7 @@ export type CheckoutKind = 'VIRTUAL' | 'POS' | 'ECOM' | 'BNPL' | 'A2A' | 'ATM' |
 export type ExtendedKind = Extract<CheckoutKind, 'ONBOARD' | 'QR' | 'TELLER' | 'SWIFT' | 'DISPUTE'>;
 export type PacketKind = CheckoutKind | 'SETTLEMENT';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // A day's customers
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type DayEventId = 'NORMAL' | 'PROMO' | 'FRAUD_RING' | 'VISA_GLITCH' | 'PAYDAY';
 
@@ -67,9 +61,7 @@ export interface Customer {
   otpCompletes: boolean;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Phase 8: what the extended checkpoints read
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** What the eKYC engine reads from the CCCD scan and the selfie video. */
 export interface IdentityContext {
@@ -179,9 +171,7 @@ export type Checkpoint =
   | { at: 'DISPUTE'; verdict: 'REFUND' | 'REJECTED_SLA' | 'REJECTED_EVIDENCE'; type: DisputeClaim['type'] }
   | { at: 'POSTING'; verdict: 'ACCOUNT_OPENED' | 'DEBITED' | 'CREDITED' | 'REFUNDED' | 'NO_FUNDS' };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // A payment's route, worked out by running the real process diagram
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type StopKind = 'GATE' | 'WORK' | 'OTP' | 'SYSTEM' | 'OUTCOME';
 
@@ -249,10 +239,7 @@ export interface RoutePlan {
   recon: DerivedFacts['reconStatus'] | null;
   /** A model of the process diagram itself failing (should never happen with the bundled diagrams). */
   broken: boolean;
-  /**
-   * The general-ledger lines this payment posts when it finishes, read off the run by the same rules the Build Lab uses
-   * (engine/postings.ts). Empty for a payment that moved no money. They always balance.
-   */
+  /** The general-ledger lines this payment posts when it finishes, read off the run by the same rules the Build Lab uses (engine/postings.ts). */
   ledger: GLEntry[];
 }
 
@@ -263,9 +250,7 @@ export interface SettlementTruth {
   trueKind: 'NONE' | 'NOISE' | 'AMOUNT' | 'MISSING' | 'DUPLICATE';
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Packets (what is moving through the bank right now)
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface Packet {
   id: Id;
@@ -308,9 +293,7 @@ export interface Packet {
   ext?: ExtendedContext;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // People
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface WorkerProfileSeed {
   skin: string;
@@ -338,9 +321,7 @@ export interface WorkerView {
   profile: WorkerProfileSeed;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Read model for the UI
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type Severity = 'info' | 'ok' | 'warn' | 'crit';
 
@@ -698,10 +679,7 @@ export interface BankView {
 
 export type { DepartmentId, ExternalId, PlaceId, StationId };
 
-/**
- * Where one payment is on its route, for the inspector and the step previews: the places it will visit, which one it is at,
- * and, once it has finished, its record. Built on demand for a payment the learner sent with a preset action.
- */
+/** Where one payment is on its route, for the inspector and the step previews: the places it will visit, which one it is at, and, once it has finished, its record. */
 export interface PacketTrace {
   id: Id;
   kind: PacketKind;

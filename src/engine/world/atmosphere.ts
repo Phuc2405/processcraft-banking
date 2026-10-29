@@ -1,22 +1,4 @@
-/**
- * The look of the sky and the light over the 3D office at a given bank minute, under a given weather. Pure: the scene reads
- * it each frame, and the tests read it directly.
- *
- * The bank's day runs 08:00 to 24:00 (sim/clock.ts), so the time-of-day presets are spread over it:
- *
- *   Morning     08:00  soft, bright light from a low sun in the east, and a mist over the street that burns off by 10:00
- *   Noon        12:00  the highest, whitest sun
- *   Afternoon   15:30  a deep golden-amber sun, low in the west, for long raking light
- *   Night       20:00  deep navy sky, the sun gone, street lamps, lit windows and bright desk lights
- *
- * The weather is a blend of moods over clear sky (WeatherMix): harsh sun, overcast, rain, storm, a golden low sun, snow, fog,
- * falling leaves and blossom, hail, smog and pollen. Every weather is a point in that one space, so the scene
- * moves between ANY two of them the same way: each mood eases linearly towards its target over two seconds (stepMix), so a
- * drizzle thickens into rain, a storm thins into sunshine, a fog lifts into smog, with nothing to special-case.
- *
- * Two things follow the clock whatever the weather: a fog lifts as the bank opens (gone by FOG_LIFT), and late in the
- * afternoon a warm sunset glow blends into the weather's own light (sunsetAt).
- */
+/** The look of the sky and the light over the 3D office at a given bank minute, under a given weather. */
 
 export type DayPart = 'morning' | 'noon' | 'afternoon' | 'night';
 
@@ -70,11 +52,7 @@ export const WEATHER_MIX: Readonly<Record<Weather, WeatherMix>> = {
   snow: moods({ overcast: 0.7, snow: 1 }),
 };
 
-/**
- * In random mode, how long each weather lasts, in the bank's minutes ([shortest, longest]): a fair spell an hour to an hour
- * and a half, a shower a quarter of an hour to twenty minutes, a storm ten to fifteen (everyone runs for shelter at once
- * while it lasts). On the bank's clock, so the weather holds while the bank is paused.
- */
+/** In random mode, how long each weather lasts, in the bank's minutes ([shortest, longest]). */
 export const WEATHER_SPAN: Readonly<Record<Weather, readonly [number, number]>> = {
   clear: [60, 90],
   cloudy: [60, 90],
@@ -112,8 +90,7 @@ export function stepMix(from: WeatherMix, to: WeatherMix, dt: number): WeatherMi
 
 export const sameMix = (a: WeatherMix, b: WeatherMix): boolean => MOODS.every((m) => a[m] === b[m]);
 
-/** One step of a 0-1 value easing linearly towards `to`, a full swing taking `span` seconds: for anything drawn from the
- * weather (the ground mist's thickness and tint) that must cross-fade rather than snap. */
+/** One step of a 0-1 value easing linearly towards `to`, a full swing taking `span` seconds. */
 export function fadeToward(from: number, to: number, dt: number, span: number = WEATHER_BLEND_S): number {
   const k = Math.max(0, Math.min(dt, 0.1)) / span;
   return from < to ? Math.min(to, from + k) : Math.max(to, from - k);
@@ -225,8 +202,7 @@ const GOLD = '#e67e22';
 /** The atmosphere at `minute` (minutes since midnight) under `weather` (a blend, or `true` for full rain). */
 export function atmosphereAt(minute: number, weather: WeatherMix | boolean = CLEAR): Atmosphere {
   const picked: WeatherMix = weather === true ? WEATHER_MIX.rain : weather === false ? CLEAR : weather;
-  // The fog lifts as the morning goes on; late in the day a warm sunset blends into whatever weather there is (a clear
-  // sky has its own amber evening in DAY_KEYS already).
+  // The fog lifts as the morning goes on; late in the day a warm sunset blends into whatever weather there is (a clear sky has its own amber evening in DAY_KEYS already).
   const w: WeatherMix = { ...picked, fog: picked.fog * fogLeft(minute), golden: Math.min(1, picked.golden + 0.6 * sunsetAt(minute) * weatherIn(picked)) };
   const m = Math.max(DAY_KEYS[0]!.at, Math.min(DAY_KEYS[DAY_KEYS.length - 1]!.at, minute));
   let i = 0;
@@ -274,8 +250,7 @@ export function atmosphereAt(minute: number, weather: WeatherMix | boolean = CLE
     sun: { intensity: sunIntensity, color: sunColor, dir },
     hemi: { intensity: hemiIntensity, sky: desaturate(mixHex(a.hemiSky, b.hemiSky, t), 0.5 * w.overcast), ground: mixHex(a.hemiGround, b.hemiGround, t) },
     fog: { near: lerp(a.fogNear, b.fogNear, t) - haze * 0.4, far: lerp(a.fogFar, b.fogFar, t) - haze, color: sky(horizon, '#dbe9f7') },
-    // Ground mist: the morning's, a little in rain or under cloud, and thick in fog and in smog. When a fog lifts off the
-    // city (the distance haze above), a low mist stays lying over the streets, the car park and the lawns all day.
+    // Ground mist: the morning's, a little in rain or under cloud, and thick in fog and in smog.
     mist: Math.min(0.85, lerp(a.mist, b.mist, t) * fogLeft(minute) + 0.2 * w.rain + 0.15 * w.overcast + Math.max(0.7 * w.fog, GROUND_FOG * picked.fog) + 0.45 * w.smog),
     lamps: Math.min(1, lerp(a.lamps, b.lamps, t) + (0.35 * w.rain + 0.5 * w.storm + 0.4 * w.fog + 0.3 * w.golden + 0.5 * w.smog + 0.3 * w.hail) * daylight),
     windows: Math.min(1, lerp(a.windows, b.windows, t) + 0.5 * w.storm * daylight + 0.3 * w.golden * daylight),

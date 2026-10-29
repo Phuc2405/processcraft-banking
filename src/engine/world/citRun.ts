@@ -1,25 +1,12 @@
-import { FLOOR_SLAB, type V2 } from './layout3d';
-import { pathLength, pointAlongPath } from './tour3d';
+import { FLOOR_SLAB, type V2 } from '../plan/layout3d';
+import { pathLength, pointAlongPath } from '../plan/path';
 import { LENGTH, WIDTH } from './vehicles';
 
-/**
- * The armoured cash-in-transit van's run to the vault. It comes along the lane behind the block, indicates, turns in at
- * the car park's gate and drives down the drive to its own painted loading bay in the car park's inner row, against the
- * branch's left wall, where the camera looks straight at it; noses in and stops. Its guard opens the rear doors and carries
- * the cash (boxes and a bag) one at a time from the back of the van, round its side to the vault's loading door in the
- * left wall, which rolls up while they work and where one of the vault's staff takes each load in; then the doors are
- * shut, and the van indicates, backs out, and drives back up the drive and away along the lane. Pure and stepped on the
- * motion clock, so it freezes on pause and keeps pace with the speed multiplier.
- *
- * The van shares the drive with the car park's own traffic, so it only drives in or out while the car park is still, and
- * holds the car park's turn (ParkingLot gives it the lot as it would its own mover) until it is in its bay or gone: nothing
- * ever drives into it. Its bay is kept clear of the car bays, so standing there it is in nobody's way.
- */
+/** The armoured cash-in-transit van's run to the vault. */
 
 const HX = FLOOR_SLAB.w / 2;
 
-/** The painted bay: where the van stands (its middle) nose-in to the left wall, and the bay's size (`len` across the
- * row, `w` along it). Between the second and third side doors, where none of the car park's walkways run. */
+/** The painted bay: where the van stands (its middle) nose-in to the left wall, and the bay's size (`len` across the row, `w` along it). */
 export const LOADING_BAY = (() => {
   const len = LENGTH.cit + 0.5;
   return { x: -(HX + 0.35 + LENGTH.cit / 2), z: -4.6, len, w: WIDTH.cit + 0.7 } as const;
@@ -35,6 +22,8 @@ export const CARRY_PATH: readonly V2[] = [VAN_REAR, [VAN_REAR[0], LOADING_BAY.z 
 
 /** How fast the van drives, and how long each step of its stop takes (seconds on the motion clock). */
 export const CIT_RUN = { speed: 5, doors: 1.2, pick: 0.6, hand: 0.7, pace: 0.9, signal: 6, gapMin: 70, gapMax: 100, first: 20 } as const;
+/** Keeping clear of people on foot: the stretch in front of the van (behind it, backing out) it will not drive into while anyone stands there and how wide it is each side of the middle, how far from its bodywork a walker waits for it to pass, and how briskly it brakes and pulls away again. */
+export const CIT_YIELD = { ahead: 3.2, half: WIDTH.cit / 2 + 0.25, wait: 1.6, ease: 5 } as const;
 /** What the guard carries, trip by trip. */
 export const LOADS = ['box', 'bag', 'box'] as const;
 export type Load = (typeof LOADS)[number];
@@ -95,13 +84,23 @@ export class CitRun {
   /** Seconds into the phase. */
   t = 0;
   runs = 0;
+  /** How much of its pace the van has on now, 0-1: it brakes to a stop for anyone in its way and pulls away when they are clear. */
+  go = 1;
   private due: number = CIT_RUN.first;
 
   constructor(readonly routes: CitRoutes) {}
 
-  /** Steps the run on; `lotFree` says whether the car park is still, so the van may drive in or out now. */
-  step(dt: number, lotFree: boolean): void {
-    this.t += dt;
+  /** Steps the run on; `lotFree` says whether the car park is still, so the van may drive in or out now; `walkers` are the people on foot near its drive. */
+  step(dt: number, lotFree: boolean, walkers: readonly V2[] = []): void {
+    if (this.needsLane()) {
+      const want = walkers.some((p) => this.inPath(p)) ? 0 : 1;
+      this.go += (want - this.go) * Math.min(1, dt * CIT_YIELD.ease);
+      if (want === 0 && this.go < 0.05) this.go = 0;
+      this.t += dt * this.go;
+    } else {
+      this.go = 1;
+      this.t += dt;
+    }
     switch (this.phase) {
       case 'away':
         if (this.t >= this.due && lotFree) this.next('arrive');
@@ -138,9 +137,44 @@ export class CitRun {
     this.t = 0;
   }
 
+  /** Whether the van is due and waiting to drive in: the lot sends nobody new up its lane meanwhile. */
+  wantsIn(): boolean {
+    return this.phase === 'away' && this.t >= this.due;
+  }
+
+  /** Whether the van is shut up and waiting to back out: the lot sends nobody else out onto its lane meanwhile. */
+  wantsOut(): boolean {
+    return this.phase === 'close' && this.t >= CIT_RUN.doors;
+  }
+
   /** Whether the van is driving in the car park (or on its way in or out through the gate): it has the lot's turn. */
   needsLane(): boolean {
     return this.phase === 'arrive' || this.phase === 'depart';
+  }
+
+  /** Where `p` is against the van: along the way it is driving (from its middle) and out to the side; null while it is not driving. */
+  private against(p: V2): { along: number; side: number } | null {
+    if (!this.needsLane()) return null;
+    const pose = this.pose();
+    const back = pose.reversing ? -1 : 1;
+    const fx = Math.cos(pose.yaw) * back;
+    const fz = -Math.sin(pose.yaw) * back;
+    const dx = p[0] - pose.x;
+    const dz = p[1] - pose.z;
+    return { along: dx * fx + dz * fz, side: Math.abs(dx * fz - dz * fx) };
+  }
+
+  /** Whether someone at `p` stands in the van's way: in the stretch just ahead of it as it drives (behind it as it backs out). */
+  inPath(p: V2): boolean {
+    const a = this.against(p);
+    return a !== null && a.side < CIT_YIELD.half && a.along > LENGTH.cit / 2 - 0.3 && a.along < LENGTH.cit / 2 + CIT_YIELD.ahead;
+  }
+
+  /** Whether someone on foot at `p` stops and lets the van by: they are close to it as it drives, but not in its way (whoever is in its way walks on and clears it, so neither waits for the other for ever). */
+  makesWait(p: V2): boolean {
+    const a = this.against(p);
+    if (a === null || this.inPath(p)) return false;
+    return Math.abs(a.along) < LENGTH.cit / 2 + CIT_YIELD.wait && a.side < WIDTH.cit / 2 + CIT_YIELD.wait;
   }
 
   pose(): CitPose {

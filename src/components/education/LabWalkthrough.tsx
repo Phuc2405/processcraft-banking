@@ -16,16 +16,7 @@ import { useWorkflowStore, WorkflowStoreProvider, workflowStore, type SpotState 
 import { levelAccent } from '../../data/curriculumTheme';
 import { LabIntro, LabStepCard, LabVerdict } from './LabCards';
 
-/**
- * The Build Lab guided tour.
- *
- *   LabTourLauncher   two buttons in the level brief: tour the worked example, or walk through your own diagram
- *   LabTourOverlay    covers the canvas and results drawer while a tour runs (the learner's diagram is never touched)
- *   LabBar            the sticky bottom bar: Previous step, Pause / Resume, Next step, Exit tutorial
- *
- * The overlay draws the tour's private canvas with the same boxes and wires as the real one, dims everything the payment never
- * touches, and lights the path. State lives in store/labTourStore.ts; the sentences in sim/labTour.ts and data/labTourCopy.ts.
- */
+/** The Build Lab guided tour. */
 
 // The tour reads the learner's level and diagram from the Build Lab store.
 connectLabTour({
@@ -33,9 +24,7 @@ connectLabTour({
   learnerGraph: () => workflowStore.getState().getProcessGraph(),
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Launcher
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function LabTourLauncher() {
   const ui = labUi();
@@ -83,9 +72,7 @@ export function LabTourLauncher() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The tour's canvas
-// ─────────────────────────────────────────────────────────────────────────────
 
 const LOOK: Record<SpotState, CSSProperties> = {
   off: { opacity: 0.15, filter: 'blur(1.6px) saturate(0.5)' },
@@ -180,14 +167,9 @@ function LabFlow() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Arrival and auto-play
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * True once the token has reached the box the card is about. After a step forward that is the time the box takes to do its work
- * and the token to ride the wire; after a jump back or a restart nothing travels far, so the card is there at once.
- */
+/** True once the token has reached the box the card is about. */
 function useArrived(): boolean {
   const index = useLabTour((s) => s.index);
   const phase = useLabTour((s) => s.phase);
@@ -244,9 +226,7 @@ function useAutoPlay(arrived: boolean): void {
   }, [auto, phase, tour, index, arrived, blocked, answered, next, setAuto]);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The bar at the bottom
-// ─────────────────────────────────────────────────────────────────────────────
 
 function LabBar({ accent }: { accent: string }) {
   const ui = labUi();
@@ -401,9 +381,7 @@ function testsFor(levelId: string): Array<{ id: string; name: string }> {
   return level ? playableTests(localChallenge(level)).map((tc) => ({ id: tc.id, name: tc.name })) : [];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The overlay
-// ─────────────────────────────────────────────────────────────────────────────
 
 const CARD_PLACE = 'absolute inset-x-2 bottom-2 max-h-[55%] lg:inset-x-auto lg:bottom-auto lg:right-3 lg:top-3 lg:max-h-[calc(100%-24px)] lg:w-[410px]';
 

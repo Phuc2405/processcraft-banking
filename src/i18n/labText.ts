@@ -1,7 +1,4 @@
-/**
- * The label of a box on a Build Lab canvas in the active language: a starter box ("Payment Request", "Settled") or a node
- * type's default name ("Core Ledger Check"). A label the learner typed is shown as typed.
- */
+/** The label of a box on a Build Lab canvas in the active language: a starter box ("Payment Request", "Settled") or a node type's default name ("Core Ledger Check"). */
 
 import { nodeLabelText } from './catalogVi';
 import { canvasLabel } from './challengeVi';

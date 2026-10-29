@@ -1,24 +1,4 @@
-/**
- * The bank's processes are the four reference diagrams from the Build Lab, with the bank's policy
- * dials (BankRules) written into their node settings. A payment is planned by running the real
- * ProcessRunner on the right diagram and reading the path it took: each node that ran becomes a
- * stop at a desk on the map, each decision it made becomes the wire the packet takes.
- *
- *   virtual card   Level 1  token vault -> dCVV -> ledger
- *   online card    Level 2  3DS risk -> (OTP round trip) -> ledger
- *   POS swipe      (own)    ledger only: the card is present, so there is no 3DS
- *   Pay-in-4       Level 4  underwriter -> down payment or card fallback
- *   A2A transfer   Level 7  pacs.008 gateway -> Debit CASA ledger
- *   AML screening  Level 9  (Academy chapter 6 only)
- *   dispute        Level 10 (Academy chapter 6 only)
- *   settlement     Level 3  recon desk -> settled, or one of three suspense queues
- *
- * The Phase 8 channels (eKYC onboarding, VietQR, SWIFT, teller cash, claims) run through the checkpoint interceptor in
- * amlEngine.ts instead of a diagram: eKYC / FacePay, then the FDS, then AML screening, then the CASA ledger.
- *
- * The sidewalk ATM is the other exception: it has no diagram of its own. The machine is the process, and engine/atm.ts
- * (PIN tries, note counting, jams) plays the part a diagram would.
- */
+/** The bank's processes are the four reference diagrams from the Build Lab, with the bank's policy dials (BankRules) written into their node settings. */
 
 import { ACADEMY_REFERENCES } from '../data/academyLevels';
 import { LEVELS, NODE_CATALOG, REFERENCE_SOLUTIONS } from '../data/seedChallenges';
@@ -43,9 +23,7 @@ import type { BankRules } from './rules';
 import { hasWire, type PlaceId, type StationId } from './topology';
 import type { Customer, DeclineReason, RoutePlan, Stop } from './types';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Graphs
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface BankGraphs {
   virtual: ProcessGraph;
@@ -125,12 +103,7 @@ function posGraph(): ProcessGraph {
   };
 }
 
-/**
- * An instant account-to-account transfer: the gateway reads the pacs.008, a malformed message is refused at the door,
- * and a well-formed one goes to the debit ledger, which must find the money. Rails, queues and liquidity are the Level 7
- * lesson; here the gateway's state is always healthy, so the only things that can stop a transfer are a bad message and an
- * empty account.
- */
+/** An instant account-to-account transfer: the gateway reads the pacs.008, a malformed message is refused at the door, and a well-formed one goes to the debit ledger, which must find the money. */
 function a2aGraph(): ProcessGraph {
   return {
     id: 'g_bank_a2a',
@@ -174,9 +147,7 @@ export function buildGraphs(rules: BankRules): BankGraphs {
   return { virtual, ecom, pos: posGraph(), bnpl, a2a: a2aGraph(), settle, aml: academyReference('lvl_09_sanctions_storm'), dispute: academyReference('lvl_10_chargeback_warfare') };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Running a graph
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function testCaseFor(payload: BankingPayload): TestCase {
   return { id: payload.txId, name: payload.txId, inputPayload: payload, expectedOutcome: 'APPROVED', maxLatencyMs: Number.MAX_SAFE_INTEGER };
@@ -192,9 +163,7 @@ export function decidingPath(result: RunResult): ExecutionStep[] {
   return token ? token.executionPathHistory : [];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // From a run to a route across the map
-// ─────────────────────────────────────────────────────────────────────────────
 
 const ledgerPlace = (payload: BankingPayload, derived: DerivedFacts): StationId => {
   const source = derived.fundingSource ?? (payload.cardType === 'VIRTUAL_DPAN' ? 'DEBIT' : payload.cardType);
@@ -217,8 +186,7 @@ export function taskPlace(capability: NonNullable<ProcessNode['bankingCapability
       return 'RECON';
     case 'A2A_GATEWAY':
       return 'GATE_A2A';
-    // AML screening and the dispute desks are Academy chapters only; they have no desk on the bank's floor yet. They are seated
-    // beside the nearest existing desk so a diagram that uses them still draws a sensible route.
+    // AML screening and the dispute desks are Academy chapters only; they have no desk on the bank's floor yet.
     case 'AML_SCREENING':
     case 'CASE_INVESTIGATION':
       return 'SEC_3DS';
