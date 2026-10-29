@@ -1,9 +1,4 @@
-/**
- * Vietnamese for the bank's dials, the manager's KPIs and the short notices the bank store raises.
- *
- * RULE_META and KPI_DEFS stay English (tests, saved games and the comparison engine key on them). The screen reads the
- * label and help text through these accessors instead.
- */
+/** Vietnamese for the bank's dials, the manager's KPIs and the short notices the bank store raises. */
 
 import type { KpiRowDef } from '../sim/kpis';
 import { RULE_META, type BankRules } from '../sim/rules';

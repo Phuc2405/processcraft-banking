@@ -1,11 +1,4 @@
-/**
- * Everything the Build Lab guided tour says that is not about one particular payment: the opening scene of every level,
- * what each kind of desk does, the headings, the button labels. One `Localized` table, so a second language is one more
- * entry and not a change to any component or to the code that builds a tour.
- *
- * The scenes of levels 1 to 4 are the same stories the Living Bank tells (see walkthroughCopy.ts), so they are not
- * written twice.
- */
+/** Everything the Build Lab guided tour says that is not about one particular payment. */
 
 import { pick, type Localized } from '../i18n/localeCore';
 import type { BankingCapability, Id, Outcome } from '../types/processLearning';

@@ -345,6 +345,5 @@ describe('from the car park to the side doors', () => {
       const out = evacuationRoute(queueSlots(id, 3)[2]!, 2).path;
       expect(out[out.length - 1]![0]).toBe(CAR_PARK_FOOTWAY_X);
     }
-    expect(read('../Traffic.tsx')).toContain('from their car in the car park in at the side door');
   });
 });

@@ -1,18 +1,4 @@
-/**
- * A tiny Web Audio synthesiser for the Living Bank's sound effects. No audio files: every sound is built from oscillators.
- *
- *   posSuccessDing   two bright sine notes, like a card terminal's approval chime
- *   errorBuzz        a short, low, pulsing square buzz for a decline or a fault
- *   botnetSiren      a two-second rising and falling siren for a botnet velocity alert
- *   comboSuccess     a high double beep for a correct review decision
- *   comboUp          an ascending major arpeggio when a combo reaches x1.5 or x2.0
- *   sopError         a low filtered buzz for a review decision against the SOP
- *   badgeUnlock      a bright rising fanfare with a shimmer when a badge unlocks
- *
- * Browsers only let a page make sound after the person has interacted with it, so the AudioContext is created lazily on the
- * first sound and resumed if it was suspended. Everything is a silent no-op where Web Audio does not exist (tests, old
- * browsers) or while sound is switched off. `bindAudioFX` listens to the bank and plays the right sound for what happens.
- */
+/** A tiny Web Audio synthesiser for the Living Bank's sound effects. */
 
 import type { StoreApi } from 'zustand/vanilla';
 import { comboTierUp } from '../sim/staffRoleplay';

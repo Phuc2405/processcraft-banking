@@ -1,14 +1,4 @@
-/**
- * Posting rules: what a finished transaction does to the books.
- *
- * A transaction's journey through a diagram decides the money that moves. A decline moves none. An approval holds, pays or
- * settles. A break parks money in a suspense account. A dispute credits the cardholder and, later, wins it back or loses it.
- * Every rule here returns a list of `Draft`s (one debit account, one credit account, one amount) and `toEntries` turns a
- * list of drafts into numbered `GLEntry` lines. Because a draft names both sides, whatever a rule returns balances.
- *
- * The same drafts serve the Build Lab (`postToken` reads a token that has reached an end event) and the Living Bank
- * (which calls the builders directly as the day's events happen).
- */
+/** Posting rules: what a finished transaction does to the books. */
 
 import type {
   AccountId,
@@ -38,9 +28,7 @@ export interface Draft {
 
 const draft = (kind: PostingKind, debit: AccountId, credit: AccountId, amount: MinorUnits, memo: string): Draft => ({ kind, debit, credit, amount, memo });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Builders (one per kind of event)
-// ─────────────────────────────────────────────────────────────────────────────
 
 const HOLD_ACCOUNT: Readonly<Record<FundingSource, AccountId>> = { DEBIT: 'CUST_CASA_HOLD', CREDIT: 'CUST_CREDIT_HOLD', PREPAID: 'CUST_PREPAID_HOLD' };
 /** Where a customer's money really sits once a held purchase is captured. */
@@ -52,10 +40,7 @@ export const holdAccountFor = (source: FundingSource): AccountId => HOLD_ACCOUNT
 export const fundingOf = (payload: Readonly<BankingPayload>, derived: Readonly<DerivedFacts>): FundingSource =>
   derived.fundingSource ?? (payload.cardType === 'VIRTUAL_DPAN' ? 'DEBIT' : payload.cardType);
 
-/**
- * A chargeback raised from the live ledger: the amount the bank owed the merchant side for the purchase (2110) goes back to
- * the cardholder's account (2010).
- */
+/** A chargeback raised from the live ledger: the amount the bank owed the merchant side for the purchase (2110) goes back to the cardholder's account (2010). */
 export const chargebackReversal = (amount: MinorUnits): Draft =>
   draft('CHARGEBACK_REVERSAL', 'CARD_CLEARING_PAYABLE', 'CUST_CASA', amount, `Chargeback: ${formatAud(amount)} owed to the merchant is reversed back to the cardholder’s account.`);
 
@@ -164,9 +149,7 @@ export const disputeReversal = (amount: MinorUnits): Draft =>
 export const issuerLoss = (amount: MinorUnits): Draft =>
   draft('ISSUER_LOSS', 'FRAUD_LOSS_EXPENSE', 'CUST_CASA', amount, `Liability sits with the issuer: the cardholder is refunded ${formatAud(amount)} and the bank books the loss.`);
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Turning drafts into numbered lines
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function toEntries(drafts: readonly Draft[], txId: Id, timestamp: EpochMs, currency: string = DEFAULT_CURRENCY): GLEntry[] {
   const out: GLEntry[] = [];
@@ -177,9 +160,7 @@ export function toEntries(drafts: readonly Draft[], txId: Id, timestamp: EpochMs
   return out;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Rules for a token that has reached an end event
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A funds check that found enough puts a hold. The hold stands only if the payment goes through. */
 function fundsDrafts(payload: Readonly<BankingPayload>, derived: Readonly<DerivedFacts>, outcome: Outcome): Draft[] {
@@ -264,18 +245,14 @@ function disputeDrafts(payload: Readonly<BankingPayload>, derived: Readonly<Deri
   }
 }
 
-/**
- * The ledger lines a transaction posts, read from its journey. Returns nothing for a token that has not finished, and
- * nothing for a decline that moved no money. Each family of rules runs only if the matching capability was on the path.
- */
+/** The ledger lines a transaction posts, read from its journey. */
 export function postToken(token: Readonly<SimulationToken>): GLEntry[] {
   const outcome = token.finalOutcome;
   if (outcome === null) return [];
   const caps: ReadonlySet<BankingCapability> = new Set(token.executionPathHistory.flatMap((s) => (s.capability ? [s.capability] : [])));
   const { payload, derived } = token;
   const drafts: Draft[] = [];
-  // An account-to-account payment is not a card purchase: its funds check puts no card hold on the account, because the payment
-  // itself (a2aDrafts below) is what debits the customer.
+  // An account-to-account payment is not a card purchase.
   if (caps.has('CORE_LEDGER_CHECK') && !payload.a2a) drafts.push(...fundsDrafts(payload, derived, outcome));
   if (caps.has('RECON_DESK')) drafts.push(...settlementDrafts(payload, derived, outcome));
   if (caps.has('A2A_GATEWAY') && payload.a2a) drafts.push(...a2aDrafts(payload, derived, outcome));

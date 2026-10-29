@@ -1,7 +1,4 @@
-/**
- * The Message & Ledger Inspector's examples. They are not typed in by hand: each one is a real preset payment played through a
- * quiet headless bank, so the ISO 8583 message and the GL lines a lesson shows are what the engine really produces.
- */
+/** The Message & Ledger Inspector's examples. */
 
 import type { FlowId } from '../types/viewport';
 import { BankSimulation } from './bankSimulation';
@@ -52,10 +49,7 @@ export function sampleFor(preset: PresetId): InspectorSample | null {
   return sample;
 }
 
-/**
- * The sample a level shows. A level at a guided flow shows that flow's main payment; the night flow (chapter 6) shows the
- * ordinary $20 swipe, whose hold is what the batch turns into postings. Null for a desk no payment preset covers.
- */
+/** The sample a level shows. */
 export function sampleForLevel(level: Pick<AcademyLevel, 'flow'>): InspectorSample | null {
   if (level.flow === null) return null;
   return sampleFor(level.flow === 4 ? PRIMARY_PRESET[1] : PRIMARY_PRESET[level.flow as FlowId]);

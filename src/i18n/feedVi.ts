@@ -1,12 +1,4 @@
-/**
- * The Living Bank's feed, alerts and desk activity lines in Vietnamese.
- *
- * The simulation writes its log in English from a fixed set of sentence templates (bankSimulation.ts, narration.ts) and
- * keeps it that way: the log is also what the tests and the CSV exports read. On screen, `feedText` turns each line into
- * Vietnamese by recognising its template and re-building the sentence around the same values (amounts, names, times).
- * Pieces that are themselves translatable (a payment's scenario, a 3DS verdict, a decline reason) are translated too.
- * A line no template matches is shown as written, so nothing is ever lost.
- */
+/** The Living Bank's feed, alerts and desk activity lines in Vietnamese. */
 
 import { activeLocale } from './localeCore';
 import { localizeScenarioText } from '../sim/scenarios';

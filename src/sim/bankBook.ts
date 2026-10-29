@@ -1,18 +1,4 @@
-/**
- * The bank's running books: its capital reserves and its customer base, carried from one day to the next.
- *
- * The simulation itself models payments, not accounts, so both are kept deliberately simple and fully deterministic:
- *
- *   Reserves   start at STARTING_RESERVES_CENTS and move by each day's net result (the Day result line of the P&L).
- *   Customers  start at STARTING_CUSTOMERS. Each day:
- *                - churn   = genuine customers turned away by friction or a false decline (the "Good customers lost" count:
- *                            an expired code, an OTP they walked away from, a 3DS reject, a long wait). They take their
- *                            business elsewhere.
- *                - signups = one in SIGNUP_EVERY approved payments came from a first-time customer who now has an account.
- *
- * Each day's report stores where the books ended, so the next day starts from there even after a reload or once early
- * reports have dropped out of the saved history.
- */
+/** The bank's running books: its capital reserves and its customer base, carried from one day to the next. */
 
 import type { DayKpis, DayReport } from './types';
 

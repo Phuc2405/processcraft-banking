@@ -1,7 +1,4 @@
-/**
- * Message bundles and placeholders, the pure core of the i18n SDK (utils/i18nHelper.ts re-exports all of this and adds the
- * React side: useMessages, formatNodes). Free of React, so the simulation can word its messages through it.
- */
+/** Message bundles and placeholders, the pure core of the i18n SDK (utils/i18nHelper.ts re-exports all of this and adds the React side: useMessages, formatNodes). */
 
 import { activeLocale, pick, type Locale, type Localized } from './localeCore';
 
@@ -22,10 +19,7 @@ export interface MessageBundle<K extends string = string> {
 
 const BUNDLES = new Map<string, MessageBundle>();
 
-/**
- * Declares the copy of a feature. Every key needs every language (the compiler checks it), and the bundle is registered so the
- * i18n test can check its placeholders and spot an untranslated entry. Define bundles at module level, never inside a component.
- */
+/** Declares the copy of a feature. */
 export function defineMessages<K extends string>(id: string, messages: Readonly<Record<K, Localized<string>>>): MessageBundle<K> {
   const bundle: MessageBundle<K> = { id, messages };
   BUNDLES.set(id, bundle as MessageBundle);

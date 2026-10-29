@@ -1,14 +1,4 @@
-/**
- * Turns one example payment into a step-by-step story for the Learning Hub.
- *
- * Nothing here decides anything. The payment is run through the same reference diagram the bank uses, with
- * the rules the learner has dialled in, and each node it visits becomes a step: the lesson's words say what
- * the node is for, the runner's own note says what it did to this payment.
- *
- * Two lessons visit boxes the diagram does not model. The 3DS challenge sends the customer to their phone and
- * back (the diagram then runs a second time), and the night cycle has a batch, a scheme file and a suspense
- * account around the reconciliation desk. Those appear as "synthetic" steps, with the same text structure.
- */
+/** Turns one example payment into a step-by-step story for the Learning Hub. */
 
 import { activeLocale } from '../i18n/localeCore';
 import { noteText } from '../i18n/notesVi';
@@ -74,9 +64,7 @@ export interface Walkthrough {
   broken: boolean;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Small helpers
-// ─────────────────────────────────────────────────────────────────────────────
 
 const lessonGraphs = new Map<string, ProcessGraph>();
 
@@ -224,9 +212,7 @@ function describeWire(lesson: Lesson, graphKey: GraphKey, edge: ProcessEdge | un
   return reading ? `${reading} ${middle}` : middle;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Building the story
-// ─────────────────────────────────────────────────────────────────────────────
 
 function syntheticNode(lesson: Lesson, id: string): SyntheticNode {
   const found = lesson.layout.synthetic.find((s) => s.id === id);
@@ -284,8 +270,7 @@ const START_PLACE: Record<GraphKey, PlaceId | null> = {
   bnpl: 'GATE_ECOM',
   settle: null,
   a2a: 'GATE_A2A',
-  // The bank has no AML or dispute desk of its own on the floor: screening is done at the fraud and identity desk, and a dispute
-  // starts there too, by looking up how the purchase was authenticated.
+  // The bank has no AML or dispute desk of its own on the floor.
   aml: 'SEC_3DS',
   dispute: 'SEC_3DS',
 };
@@ -433,8 +418,7 @@ export function buildWalkthrough(lessonId: ProcessId, exampleId: string, rulesIn
     return { outcome: result.outcome, reason: result.reasonCode, finalFacts };
   };
 
-  // ── Lesson-specific shape ──────────────────────────────────────────────────
-  // Only the four checkout diagrams are planned across the floor; the other kinds never reach planCheckout.
+  // ── Lesson-specific shape ────────────────────────────────────────────────── Only the four checkout diagrams are planned across the floor.
   const checkoutKind: CheckoutKind = example.kind === 'VIRTUAL' || example.kind === 'ECOM' || example.kind === 'BNPL' || example.kind === 'A2A' ? example.kind : 'POS';
   const customer: Customer = { id: payload.txId, kind: checkoutKind, scenario: '', minute: 0, payload, otpCompletes: example.otpCompletes ?? false };
 
@@ -495,10 +479,7 @@ export function buildWalkthrough(lessonId: ProcessId, exampleId: string, rulesIn
   return activeLocale() === 'vi' ? localizeWalk(walk) : walk;
 }
 
-/**
- * The walkthrough in Vietnamese: the engine's and the builder's sentences rebuilt by noteText. Fact and carry labels stay in
- * English on purpose (the quizzes look them up by label); the screen translates them as it draws them.
- */
+/** The walkthrough in Vietnamese: the engine's and the builder's sentences rebuilt by noteText. */
 function localizeWalk(w: Walkthrough): Walkthrough {
   return {
     ...w,

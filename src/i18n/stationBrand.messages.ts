@@ -1,10 +1,7 @@
 import { defineMessages } from './messageCore';
 import type { StationId } from '../sim/topology';
 
-/**
- * Desks whose name depends on the market: one global rail name per language, plus a caption naming the local brands.
- * Applies in both vocabularies (Fintech Expert and Concept Explorer).
- */
+/** Desks whose name depends on the market: one global rail name per language, plus a caption naming the local brands. */
 export const stationBrandMessages = defineMessages('stationBrand', {
   a2a_title: { en: 'Instant Bank Transfer (PayID / Real-Time Rail)', vi: 'Chuyển tiền Tức thời (Napas247 / VietQR)' },
   a2a_short: { en: 'Instant A2A', vi: 'Chuyển tiền 24/7' },

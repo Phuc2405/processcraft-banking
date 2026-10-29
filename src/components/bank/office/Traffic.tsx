@@ -26,10 +26,7 @@ const SHAPE: Record<PacketKind, Shape> = { VIRTUAL: 'card', POS: 'card', ECOM: '
 
 const GOLD = '#f2c14e';
 
-/**
- * Miniature payments. A card payment is a glowing chip card, a Pay-in-4 is a stack of coin tokens, a settlement is a
- * file folder. Each is a few boxes in the payment's colour.
- */
+/** Miniature payments. */
 function packetParts(kind: PacketKind): Part[] {
   const hex = PACKET_HEX[kind];
   switch (SHAPE[kind]) {
@@ -86,11 +83,7 @@ const TAGS = 6;
 /** The payments' clock: it stops while the bank is paused, so a payment in flight hangs where it is to be looked at. */
 const now = (): number => motionNow();
 
-/**
- * The payments on their way between desks. Every move the simulation reports in a beat becomes a small glowing card,
- * coin stack or folder that flies the wire's lane with its corners rounded by Bezier curves, hopping gently, with the
- * same timing the 2D map gives its tokens. A fixed pool of meshes is reused, so a busy beat costs no allocations.
- */
+/** The payments on their way between desks. */
 export const Packets = memo(function Packets() {
   const tick = useBankStore((s) => s.view.tick);
   const flights = useRef<Record<PacketKind, Flight[]>>({ VIRTUAL: [], POS: [], ECOM: [], BNPL: [], A2A: [], ATM: [], ONBOARD: [], QR: [], TELLER: [], SWIFT: [], DISPUTE: [], SETTLEMENT: [] });
@@ -224,10 +217,7 @@ export const Packets = memo(function Packets() {
   );
 });
 
-/**
- * Customers walking to the desks' lines (WorldEngine.arrivals): from their car in the car park in at the side door to a
- * counter, or down the pavement to an ATM's booth, each looking as they will in the line. This only draws them.
- */
+/** Customers walking to the desks' lines (WorldEngine.arrivals). */
 export const Arrivals = memo(function Arrivals() {
   const world = useWorld();
   const walks = world.arrivals;

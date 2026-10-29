@@ -1,7 +1,4 @@
-/**
- * Vietnamese for every fixed label read through `t()`, keyed by the English.
- * The i18n test checks that every `t('…')` in the source has an entry here.
- */
+/** Vietnamese for every fixed label read through `t()`, keyed by the English. */
 
 export const VI_DICTIONARY: Readonly<Record<string, string>> = {
   " a desk or a person to inspect it": " vào quầy hoặc người để xem chi tiết",

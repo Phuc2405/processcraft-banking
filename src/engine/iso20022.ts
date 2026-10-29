@@ -1,17 +1,4 @@
-/**
- * ISO 20022 for account-to-account (A2A) payments: the pacs.008 message and the gateway that decides what to do with it.
- *
- * pacs.008 is the "FI to FI Customer Credit Transfer": the message one bank sends another to say "move this money for
- * my customer". The four fields the Academy teaches:
- *
- *   EndToEndId                  the reference the sender gave the payment; it travels unchanged, hop to hop, to the receiver
- *   DebtorAgent  (DbtrAgt)      the sending bank, by BIC
- *   CreditorAgent (CdtrAgt)     the receiving bank, by BIC
- *   InterbankSettlementAmount   the amount the two banks settle between themselves
- *
- * Two rails carry it: an instant rail (seconds, capped per payment) and RTGS (real-time gross settlement: one payment at a
- * time, no cap, backed by the central bank). The gateway in front of both has a queue and a liquidity budget.
- */
+/** ISO 20022 for account-to-account (A2A) payments: the pacs.008 message and the gateway that decides what to do with it. pacs.008 is the "FI to FI Customer Credit Transfer". */
 
 import { tr } from '../i18n/localeCore';
 import type { A2aContext, BankingPayload, MinorUnits } from '../types/processLearning';
@@ -111,9 +98,7 @@ export function gateway(payload: Readonly<BankingPayload>, policy: GatewayPolicy
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The message itself
-// ─────────────────────────────────────────────────────────────────────────────
 
 const money = formatAud;
 

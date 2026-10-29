@@ -3,10 +3,7 @@ import { t } from '../../i18n/t';
 import { useMessages } from '../../utils/i18nHelper';
 import { mapLegendMessages, type MapLegendKey } from './mapLegend.messages';
 
-/**
- * The legend of the bank map, shared by the 2D blueprint and the 3D office so both explain their lines, gateways, frames and
- * wire words the same way. Both views place it in the top-right corner of the viewport.
- */
+/** The legend of the bank map, shared by the 2D blueprint and the 3D office so both explain their lines, gateways, frames and wire words the same way. */
 
 const LEGEND_LINES: ReadonlyArray<{ key: MapLegendKey; stroke: string; dash?: string }> = [
   { key: 'lineReject', stroke: '#fb7185', dash: '5 4' },

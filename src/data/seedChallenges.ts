@@ -1,15 +1,4 @@
-/**
- * ProcessCraft Banking: the curriculum.
- *
- *   LEVELS                10 challenge levels, in the order they were written (levels 1-4 first, then the Academy levels).
- *   CURRICULUM            the same levels in teaching order, grouped into six stages
- *   REFERENCE_SOLUTIONS   one known-good graph per level (server-side only)
- *
- * The node catalog and the condition variables live in nodeCatalog.ts, the helpers for writing levels in seedKit.ts, and
- * levels 5-10 in academyLevels.ts. They are re-exported here so everything that reads seed data still imports it from this file.
- *
- * Money is integer cents (AUD): 8950 means $89.50.
- */
+/** ProcessCraft Banking: the curriculum. */
 
 import type {
   BankingPayload,
@@ -43,9 +32,7 @@ import {
 
 export { CONDITION_VARIABLES, NODE_CATALOG };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Level 1: Virtual Card & Dynamic CVV Ingestion
-// ─────────────────────────────────────────────────────────────────────────────
 
 const L1_TESTS: TestCase[] = [
   {
@@ -232,9 +219,7 @@ const L1_REFERENCE: ProcessGraph = {
   ],
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Level 2: 3DS 2.x Risk-Based Routing
-// ─────────────────────────────────────────────────────────────────────────────
 
 const card = (over: Partial<BankingPayload> & Pick<BankingPayload, 'txId'>): BankingPayload =>
   payload({ cardType: 'CREDIT', availableBalance: 250000, creditLimit: 500000, ...over });
@@ -444,9 +429,7 @@ const L2_REFERENCE: ProcessGraph = {
   ],
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Level 3: EOD 3-Way Reconciliation & Suspense Account
-// ─────────────────────────────────────────────────────────────────────────────
 
 const recon = (txId: Id, amount: number, s: SettlementContext): BankingPayload =>
   payload({
@@ -636,14 +619,9 @@ const L3_REFERENCE: ProcessGraph = {
   ],
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Level 4: BNPL Pay-in-4 Underwriting & Fallback Routing
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * A checkout with a Pay-in-4 application. The checkout always offers the standard 25% down payment,
- * rounded up to the cent. `funding` is the linked card: its type and what it can spend.
- */
+/** A checkout with a Pay-in-4 application. */
 const bnplCart = (
   txId: Id,
   amount: number,
@@ -851,15 +829,11 @@ const L4_REFERENCE: ProcessGraph = {
   ],
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Exports
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const LEVELS: ChallengeLevel[] = [LEVEL_1, LEVEL_2, LEVEL_3, LEVEL_4, ...ACADEMY_LEVELS];
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Curriculum: the six stages of the Banking Operations & Architecture Academy
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface CurriculumStage {
   /** 1-based position in the Academy. */

@@ -1,13 +1,4 @@
-/**
- * Real-world context for every payment: not "a $62.80 POS swipe" but "🛒 Supermarket Groceries ($62.80)".
- *
- * Each channel has a short catalogue of everyday scenarios. A scenario fixes what the customer was doing and exactly how
- * much it cost, so the badge on a moving packet, the line in the inspector log and the title of a ledger entry all say the
- * same recognisable thing. The scenarios named in the brief come first in each list; the extra ones (marked `extra`) fill
- * the gaps the brief left (Pay-in-4 baskets, and the expensive purchases a fraudster makes) so every packet has a story.
- *
- * Everything is a pure function of the scenario id, so a packet only has to carry the id.
- */
+/** Real-world context for every payment: not "a $62.80 POS swipe" but "🛒 Supermarket Groceries ($62.80)". */
 
 import { formatAud } from '../engine/money';
 import { activeLocale, type Locale } from '../i18n/localeCore';
@@ -105,10 +96,7 @@ export const SCENARIOS: readonly Scenario[] = [
   s('DISPUTE', 'claim-friendly-fraud', '🎣', 'Friendly-Fraud Chargeback', 480, 0, 100, true),
 ];
 
-/**
- * The payments the learner sends with the preset action buttons of the guided flows. They are looked up by id like any other
- * scenario, but are not in SCENARIOS, so the daily traffic never draws them and every generated day stays exactly as it was.
- */
+/** The payments the learner sends with the preset action buttons of the guided flows. */
 export const PRESET_SCENARIOS: readonly Scenario[] = [
   s('POS', 'preset-pos-20', '🎯', 'Practice Swipe', 20, 0, 0, true),
   s('POS', 'preset-pos-500', '🎯', 'Practice Swipe, Big Basket', 500, 0, 0, true),
@@ -231,11 +219,7 @@ const VI_TO_EN = new Map(Object.entries(SCENARIO_TITLE_VI).map(([en, vi]) => [vi
 const swapToVi = titleSwapper(EN_TO_VI);
 const swapToEn = titleSwapper(VI_TO_EN);
 
-/**
- * Shows the scenario names inside a piece of simulation text in the chosen language. The simulation writes English
- * ("Debiting 💬 QR Bill Split ($18.50) from the account…"), so this is the single place the names change language.
- * It works both ways: Vietnamese names found in English text are put back, so a line can never come out half and half.
- */
+/** Shows the scenario names inside a piece of simulation text in the chosen language. */
 export function localizeScenarioText(text: string, locale: Locale = activeLocale()): string {
   if (!text) return text;
   return locale === 'vi' ? swapToVi(text) : swapToEn(text);

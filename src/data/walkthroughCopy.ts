@@ -1,8 +1,4 @@
-/**
- * Everything the guided walkthrough says that is not about a particular payment: the opening scene of each process, the
- * headings, the button labels, the words of the quiz feedback. One `Localized` table, so a second language is one more
- * entry and not a change to any component.
- */
+/** Everything the guided walkthrough says that is not about a particular payment. */
 
 import { pick, type Localized } from '../i18n/localeCore';
 import type { ProcessId } from '../sim/learning';

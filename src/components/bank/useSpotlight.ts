@@ -59,14 +59,7 @@ export function useSpotlightFocus(): Focus | null {
 
 const wordCount = (...texts: string[]): number => texts.join(' ').split(/\s+/).filter(Boolean).length;
 
-/**
- * The timing of a tour, shared by the 2D map and the 3D office. Returns true once the token has arrived at the step (so the
- * explanation card can appear), and drives auto-play: stay on a step long enough to read it, wait for any question to be
- * answered, then move on. `travelMs` is how long this view takes to bring the token to the step (0 for an instant arrival).
- *
- * The arrival is remembered against the step it belongs to, so the card of a new step can never show for a frame before the
- * token gets there.
- */
+/** The timing of a tour, shared by the 2D map and the 3D office. */
 export function useTourPlayback(focus: Focus | null, travelMs: (focus: Focus) => number): boolean {
   const next = useBankStore((s) => s.spotlightNext);
   const setAuto = useBankStore((s) => s.setSpotlightAuto);

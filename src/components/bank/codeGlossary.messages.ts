@@ -1,10 +1,6 @@
 import { defineMessages } from '../../utils/i18nHelper';
 
-/**
- * Plain-language meanings for the raw codes the desks, the core ledger and the audit report print: desk IDs, status codes,
- * GL accounts and banking acronyms. Basic view shows these instead of the code; Advanced view shows the code and puts the
- * meaning on hover. Lookups go through codeGlossary.ts, which skips any code this bundle does not know.
- */
+/** Plain-language meanings for the raw codes the desks, the core ledger and the audit report print: desk IDs, status codes, GL accounts and banking acronyms. */
 export const codeGlossaryMessages = defineMessages('codeGlossary', {
   // ── Zoom and pointer ───────────────────────────────────────────────────
   zoomLabel: { en: 'Preview zoom', vi: 'Thu phóng bản xem trước' },

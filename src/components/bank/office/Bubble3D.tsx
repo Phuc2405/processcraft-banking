@@ -3,10 +3,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { CanvasTexture, SpriteMaterial, SRGBColorSpace, type Sprite } from 'three';
 import { motion } from '../../../engine/simulation/motion';
 
-/**
- * A speech bubble (💬) or a thought bubble (💭) floating over people who are talking, drawn once on a canvas and shown as
- * a sprite that always faces the camera. It bobs gently and now and then pops a little, as if someone just spoke.
- */
+/** A speech bubble (💬) or a thought bubble (💭) floating over people who are talking, drawn once on a canvas and shown as a sprite that always faces the camera. */
 
 export type BubbleKind = 'speech' | 'thought';
 

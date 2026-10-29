@@ -1,14 +1,4 @@
-/**
- * The plan behind Spotlight ("Learn & Explore"): where on the bank map each step of a lesson happens, and the wires a
- * single walkthrough token rides to get there.
- *
- * Nothing is decided here. The steps come from walkthrough.ts, which runs the real process diagram for one example
- * payment; this file only places each step on a desk of the map and finds the wires between consecutive desks.
- *
- *   - A step that has its own desk (a task, the gate) happens there.
- *   - A decision stays at the desk that just worked: a gateway reads what the desk found.
- *   - The last step of a run happens where the payment ends up: Approved, Declined, Settled, or the holding box.
- */
+/** The plan behind Spotlight ("Learn & Explore"): where on the bank map each step of a lesson happens, and the wires a single walkthrough token rides to get there. */
 
 import { activeLocale } from '../i18n/localeCore';
 import { LESSONS, type ProcessId } from './learning';
@@ -64,8 +54,7 @@ const END_PLACE: Record<string, PlaceId> = {
   n_end_sanctions: 'OUT_DECLINED',
   n_end_edd: 'CUSTOMER_OTP',
   n_end_escalate: 'SUSPENSE',
-  // Chapter 6, part two: a dispute ends in the night desk's books (settled or parked). A claim that is refused simply closes: no money moves,
-  // so the case is filed as settled rather than sent down the decline lane (the night desk has no wire to it).
+  // Chapter 6, part two: a dispute ends in the night desk's books (settled or parked).
   n_end_retrieval: 'SUSPENSE',
   n_end_filed: 'SUSPENSE',
   n_end_represent: 'SUSPENSE',
@@ -84,9 +73,7 @@ const PLACE_OVERRIDE: Partial<Record<ProcessId, Record<string, PlaceId>>> = {
 /** Where the token starts when the story begins somewhere other than the first desk. */
 const ORIGIN: Partial<Record<ProcessId, PlaceId>> = { D: 'OUT_APPROVED' };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Finding a way along the wires
-// ─────────────────────────────────────────────────────────────────────────────
 
 const NEXT = new Map<PlaceId, PlaceId[]>();
 for (const [from, to] of WIRES) NEXT.set(from, [...(NEXT.get(from) ?? []), to]);
@@ -121,9 +108,7 @@ export function wiresOfRoute(route: readonly PlaceId[]): string[] {
   return out;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The plan
-// ─────────────────────────────────────────────────────────────────────────────
 
 function resolvePlace(process: ProcessId, step: WalkStep, previous: PlaceId | null): PlaceId {
   if (step.place) return step.place;
@@ -161,9 +146,7 @@ export function spotPlan(process: ProcessId, exampleId: string, rules: Partial<B
   return plan;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // What stays lit
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface SpotScope {
   /** Every desk and tally the process uses. Everything else on the map is dimmed. */

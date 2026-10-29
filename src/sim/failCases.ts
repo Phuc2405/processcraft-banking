@@ -1,10 +1,4 @@
-/**
- * What can go wrong at each box of each process: the "fail cases" that Spotlight and the guided walkthrough show next to
- * the explanation of the step. They are short on purpose. Each one names a thing that really happens in a bank and says
- * what it costs.
- *
- * Keyed by process, then by the same box ids the lessons use (nodes of the process graph, and the synthetic boxes).
- */
+/** What can go wrong at each box of each process: the "fail cases" that Spotlight and the guided walkthrough show next to the explanation of the step. */
 
 import { pick, type Localized } from '../i18n/localeCore';
 import type { ProcessId } from './learning';

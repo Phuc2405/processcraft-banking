@@ -5,13 +5,7 @@ import { DAY_INTRO_FADE_MS, DAY_INTRO_MS, dayIntroCopy, introDue } from './dayIn
 import { dayIntroMessages } from './dayIntro.messages';
 import { useTerms } from './useTerms';
 
-/**
- * The start-of-day banner: "Day 03 – An ordinary day", what is going on today, and what to watch. It is drawn once, over the
- * map frame that both views share, so the 2D blueprint and the 3D office show the very same banner at the same moment, and
- * switching views while it is up keeps it up. It opens as each day starts (after the end-of-day report is closed), fades
- * after a few seconds, and can be closed at once. It is see-through (a light tint over a blur of the office behind it), and
- * however it goes, timed out or closed, it fades away over half a second rather than vanishing.
- */
+/** The start-of-day banner: "Day 03 – An ordinary day", what is going on today, and what to watch. */
 export function DayIntroBanner() {
   const terms = useTerms();
   const m = useMessages(dayIntroMessages);

@@ -82,9 +82,7 @@ export function Sign({ text, fg, bg, position, rotationY = 0, width = 1.8 }: { t
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Walls
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A wall running along local x with its room-side face toward +z: wainscot, skirting, a cap, and windows. */
 function wallParts(len: number, windows: readonly number[]): { body: Part[]; lights: Part[] } {
@@ -116,10 +114,7 @@ const DOOR = 1.5;
 const BACK_WINDOWS = WALL_WINDOWS.filter((w) => w.wall === 'back').map((w) => w.at);
 const RIGHT_WINDOWS = WALL_WINDOWS.filter((w) => w.wall === 'right').map((w) => w.at - WALL_T / 2);
 
-/**
- * The right-hand wall, in pieces between its side doors onto the park: each piece keeps the windows that fall on it, and
- * over each doorway the wall carries on above a lintel.
- */
+/** The right-hand wall, in pieces between its side doors onto the park. */
 function rightWall(windows: readonly number[]): { body: Part[]; lights: Part[] } {
   const len = FLOOR_SLAB.d - WALL_T;
   // Along the wall's own x, which is world z less half a wall's thickness.
@@ -164,8 +159,7 @@ export const Walls = memo(function Walls() {
     }
     if (HZ > from) pieces.push([from, HZ]);
     for (const [a, c] of pieces) parts.push(box([-HX + WALL_T / 2, KERB_H / 2, (a + c) / 2], [WALL_T, KERB_H, c - a], SET.wainscot), box([-HX + WALL_T / 2, KERB_H + 0.02, (a + c) / 2], [WALL_T + 0.06, 0.04, c - a + 0.04], SET.wallCap));
-    // The front of the building, towards the street: a low plinth, open wherever a lane runs out to the pavement, and at
-    // the main entrance.
+    // The front of the building, towards the street: a low plinth, open wherever a lane runs out to the pavement, and at the main entrance.
     const g0 = MAIN_GATE.x - MAIN_GATE.width / 2;
     const g1 = MAIN_GATE.x + MAIN_GATE.width / 2;
     for (const r of frontPlinth().runs) {
@@ -211,9 +205,7 @@ export const Walls = memo(function Walls() {
   );
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Glass rooms
-// ─────────────────────────────────────────────────────────────────────────────
 
 const GLASS_H = 2.3;
 
@@ -298,9 +290,7 @@ export const VaultRoom = memo(function VaultRoom() {
   );
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Server racks
-// ─────────────────────────────────────────────────────────────────────────────
 
 const LED_SPOTS: V3[] = [[-0.28, 0.5, 0.455], [-0.28, 0.9, 0.455], [-0.28, 1.3, 0.455], [-0.28, 1.7, 0.455]];
 
@@ -355,9 +345,7 @@ export const ServerRoom = memo(function ServerRoom() {
   );
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Plants
-// ─────────────────────────────────────────────────────────────────────────────
 
 function plantParts(kind: PlantKind): Part[] {
   const [l0, l1, l2] = SET.leaf;
@@ -420,9 +408,7 @@ export const Plants = memo(function Plants() {
   );
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Gates: stanchion ropes and the ATM
-// ─────────────────────────────────────────────────────────────────────────────
 
 const stanchion = (x: number, z: number): Part[] => [cyl([x, 0.02, z], 0.15, 0.16, 0.04, SET.brass, 10), cyl([x, 0.45, z], 0.025, 0.025, 0.84, SET.brass, 8), ball([x, 0.89, z], 0.055, SET.brass)];
 
@@ -440,9 +426,7 @@ export const GateStanchions = memo(function GateStanchions() {
   return <mesh geometry={geo} material={satin} castShadow name="office-stanchions" />;
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The tallies and the phone
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const KIOSKS: readonly ExternalId[] = ['OUT_APPROVED', 'OUT_DECLINED', 'OUT_SETTLED', 'CUSTOMER_OTP'];
 

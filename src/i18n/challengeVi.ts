@@ -1,11 +1,4 @@
-/**
- * Vietnamese for the ten Build Lab levels: the title, the brief, the goals, the hints, every test's name and description,
- * and the labels of the locked boxes the starter canvases come with.
- *
- * The levels themselves stay English (the grader, the saved canvases and the tests key on them). `localChallenge` returns a
- * copy with the Vietnamese laid over the English, and `canvasLabel` translates a box's label as the canvas draws it.
- * Reason codes, outcome names, field names and conditions are code and stay as they are in both languages.
- */
+/** Vietnamese for the ten Build Lab levels: the title, the brief, the goals, the hints, every test's name and description, and the labels of the locked boxes the starter canvases come with. */
 
 import type { ChallengeLevel, Id } from '../types/processLearning';
 import { activeLocale, type Locale } from './localeCore';

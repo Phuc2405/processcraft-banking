@@ -1,13 +1,4 @@
-/**
- * The end-of-day audit report: what an internal auditor would ask of the day, in one CSV file.
- *
- *   1. Summary        volumes, approval rate, fraud, the ledger's trial balance and the suspense account
- *   2. Chaos Monkey   the scripted scenario and every fault injected, with what each one cost
- *   3. Exceptions     the payments an auditor samples first: fraud approved, chaos-touched, timeouts, disputes
- *   4. Audit trail    every customer payment with its ISO response code and the audit flags raised on it
- *
- * Pure functions over data the simulation already keeps; nothing is computed while the day is played.
- */
+/** The end-of-day audit report: what an internal auditor would ask of the day, in one CSV file. 1. */
 
 import type { ChaosTag, ChaosView } from '../engine/chaos';
 import { trialBalance } from '../engine/ledger';

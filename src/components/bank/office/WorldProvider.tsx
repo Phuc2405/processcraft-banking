@@ -6,11 +6,7 @@ import type { WorldEngine } from '../../../engine/simulation/WorldEngine';
 import { simulation } from '../useSimulation';
 import { liveMix, weatherStore } from '../../../engine/world/weather';
 
-/**
- * The 3D office's bridge to its world engine (engine/WorldEngine.ts): one engine per scene, made when the scene mounts,
- * handed to every view that draws part of the world (useWorld), and ticked by one frame callback that runs before anything
- * draws. The views only read the engine; nothing but WorldTicker steps it.
- */
+/** The 3D office's bridge to its world engine (engine/WorldEngine.ts). */
 const WorldContext = createContext<WorldEngine | null>(null);
 
 /** The world engine of the scene a view is drawn in. */

@@ -1,22 +1,9 @@
-/**
- * Pure conversion between the React Flow world (what the canvas draws) and the
- * ProcessGraph world (what the engine runs and the evaluator grades).
- *
- * The rule that keeps this lossless: a React Flow node carries the whole pure
- * ProcessNode in `data.node`, and React Flow only owns position, selection and
- * measured size. An edge's port ids ARE its handle ids, so there is nothing to
- * translate. Converting there and back gives the same graph, apart from
- * `position` (which React Flow fills in for nodes that had none) and `updatedAt`.
- *
- * No store, no React, no DOM in this file, so it is trivial to test.
- */
+/** Pure conversion between the React Flow world (what the canvas draws) and the ProcessGraph world (what the engine runs and the evaluator grades). */
 
 import type { Edge, Node } from '@xyflow/react';
 import type { Id, NodeType, Port, ProcessEdge, ProcessGraph, ProcessNode } from '../types/processLearning';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // React Flow shapes
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type FlowNodeKind = 'task' | 'gateway' | 'event';
 
@@ -47,9 +34,7 @@ export interface XY {
   y: number;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Node and edge kinds
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function flowKindOf(type: NodeType): FlowNodeKind {
   switch (type) {
@@ -64,9 +49,7 @@ export function flowKindOf(type: NodeType): FlowNodeKind {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // ProcessGraph → React Flow
-// ─────────────────────────────────────────────────────────────────────────────
 
 function withoutPosition(node: ProcessNode): ProcessNodeData['node'] {
   const copy: ProcessNode = structuredClone(node);
@@ -106,10 +89,7 @@ const COLUMN_WIDTH = 300;
 const ROW_HEIGHT = 170;
 const LAYOUT_ORIGIN: XY = { x: 60, y: 80 };
 
-/**
- * Left-to-right layers by breadth-first distance from the Start event. Only used for nodes that
- * have no saved position (reference solutions, imported graphs). Never read by the simulator.
- */
+/** Left-to-right layers by breadth-first distance from the Start event. */
 export function autoLayout(graph: ProcessGraph): Map<Id, XY> {
   const next = new Map<Id, Id[]>();
   for (const e of graph.edges) {
@@ -155,9 +135,7 @@ export function fromProcessGraph(graph: ProcessGraph): { nodes: ProcessFlowNode[
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // React Flow → ProcessGraph
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function toProcessNode(flow: ProcessFlowNode): ProcessNode {
   return {
@@ -167,11 +145,7 @@ export function toProcessNode(flow: ProcessFlowNode): ProcessNode {
   };
 }
 
-/**
- * React Flow can leave a handle id null when a node has a single handle on that side.
- * Resolve that when it is unambiguous. Otherwise return '' so the evaluator reports
- * "leaves from a port it does not have" instead of this layer hiding the problem.
- */
+/** React Flow can leave a handle id null when a node has a single handle on that side. */
 function resolvePortId(handle: string | null | undefined, ports: readonly Port[] | undefined): Id {
   if (handle) return handle;
   return ports && ports.length === 1 && ports[0] ? ports[0].id : '';
@@ -212,9 +186,7 @@ export function toProcessGraph(
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Placement
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Rough footprint of each kind of node, used to keep click-to-add from stacking nodes on top of each other. */
 export const NODE_FOOTPRINT: Record<FlowNodeKind, { width: number; height: number }> = {
@@ -223,11 +195,7 @@ export const NODE_FOOTPRINT: Record<FlowNodeKind, { width: number; height: numbe
   event: { width: 220, height: 64 },
 };
 
-/**
- * The free spot nearest `around` where a box of `size` fits without touching an existing node.
- * Searches outwards on a grid, so the first node goes exactly where asked and later ones fan out.
- * Falls back to `around` if the canvas is somehow full.
- */
+/** The free spot nearest `around` where a box of `size` fits without touching an existing node. */
 export function findFreeSpot(nodes: readonly ProcessFlowNode[], around: XY, size: { width: number; height: number }): XY {
   const gap = 24;
   const boxes = nodes.map((n) => ({

@@ -1,8 +1,4 @@
-/**
- * The preset actions of the guided flows: one click sends a scripted customer into the live bank ("Swipe $20"), or, for the
- * night flow, runs the clock to 23:00. A scripted customer takes the same desks, queues and ledger postings as everyone
- * else; its payload is simply chosen so the outcome is the one on the button, under whatever rules the bank runs now.
- */
+/** The preset actions of the guided flows: one click sends a scripted customer into the live bank ("Swipe $20"), or, for the night flow, runs the clock to 23:00. */
 
 import type { BankingPayload, CardType } from '../types/processLearning';
 import type { FlowId } from '../types/viewport';
@@ -90,10 +86,7 @@ export function challengeScore(rules: BankRules): number {
   return Math.round((rules.frictionlessBelow + rules.rejectAtOrAbove - 1) / 2);
 }
 
-/**
- * The scripted customer behind a payment preset, or null for the night-cycle action. Its id and arrival minute are set by
- * the bank when it is sent in (BankSimulation.inject).
- */
+/** The scripted customer behind a payment preset, or null for the night-cycle action. */
 export function presetCustomer(id: PresetId, rules: BankRules): Customer | null {
   const def = presetById(id);
   const scenario = def?.scenario ? scenarioById(def.scenario) : null;

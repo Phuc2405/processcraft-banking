@@ -1,28 +1,4 @@
-/**
- * Evaluator and grader.
- *
- *   validateGraph()      static checks on a learner's diagram, before anything runs
- *   evaluateChallenge()  runs every test in a level, scores the result, and explains each failure
- *
- * How a diagram is graded
- *   1. validateGraph() looks for structural problems: no start event, bad ports or edges, conditions
- *      that do not parse or that read hidden variables, node settings out of range, palette and
- *      budget violations, tampered starter nodes, unreachable nodes.
- *   2. Each TestCase runs on a fresh ProcessRunner. A test passes only if every check holds:
- *        - no token faulted (no exception, no deadlock),
- *        - the transaction ended with the expected outcome (and reason code, when the test sets one),
- *        - it finished within maxLatencyMs,
- *        - its path visited every required capability and none of the forbidden ones.
- *   3. correctnessScore = weighted share of passed tests, minus the level's penalty for each distinct
- *      ERROR anomaly. The level is passed when correctnessScore >= passMark.
- *   4. efficiencyScore compares nodes placed and average latency with the level's benchmark. It is
- *      only scored once the level is passed.
- *   5. Every failed test gets a plain-English explanation in feedbackLogs. Hidden tests are explained
- *      without their decision trace or facts, and their execution traces are withheld (a trace
- *      carries the payload), unless revealHidden is set.
- *
- * The evaluator is pure: it does not mutate the graph or the level.
- */
+/** Evaluator and grader. validateGraph() static checks on a learner's diagram, before anything runs evaluateChallenge() runs every test in a level, scores the result, and explains each failure How a diagram is graded 1. validateGraph() looks for structural problems. */
 
 import { CONDITION_VARIABLES, NODE_CATALOG } from '../data/seedChallenges';
 import { configLabel, nodeDefLabel, portLabel } from '../i18n/catalogVi';
@@ -62,9 +38,7 @@ export interface EvaluateOptions {
 
 type AnomalyDraft = Omit<DetectedAnomaly, 'severity'>;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Static validation
-// ─────────────────────────────────────────────────────────────────────────────
 
 const stableJson = (value: unknown): string =>
   JSON.stringify(value, (_key, v: unknown) =>
@@ -278,9 +252,7 @@ export function validateGraph(graph: ProcessGraph, level: ChallengeLevel, option
   return found;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Judging one test
-// ─────────────────────────────────────────────────────────────────────────────
 
 function judge(test: TestCase, run: RunResult): TestFailureReason[] {
   const reasons: TestFailureReason[] = [];
@@ -300,9 +272,7 @@ function judge(test: TestCase, run: RunResult): TestFailureReason[] {
   return reasons;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Diagnostics
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface ExplainContext {
   graph: ProcessGraph;
@@ -456,9 +426,7 @@ function dedupeAnomalies(list: DetectedAnomaly[]): DetectedAnomaly[] {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // evaluateChallenge
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function evaluateChallenge(graph: ProcessGraph, level: ChallengeLevel, options: EvaluateOptions = {}): EvaluationResult {
   const catalog = options.catalog ?? NODE_CATALOG;

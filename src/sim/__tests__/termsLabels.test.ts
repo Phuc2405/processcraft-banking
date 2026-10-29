@@ -8,12 +8,7 @@ import { DEPARTMENTS, DEPARTMENT_IDS, STATIONS, STATION_IDS } from '../topology'
 import { DAY_EVENTS } from '../traffic';
 import { departmentName, departmentTitle, foldRepeats, modeLabel, plainText, stationName, stationTitle } from '../terms';
 
-/**
- * The string-duplication bugs of the plain-English switch ("Virtual Card card masking", "Buy Now Pay Later Buy Now Pay Later
- * (4-split payment)", "The extra identity check Risk Engine") all had one cause: a replacement landed next to words that already
- * said the same thing. These tests run every label and sentence the app can show through the switch and look for any such
- * stutter, so a new chapter or a new glossary line cannot bring one back.
- */
+/** The string-duplication bugs of the plain-English switch ("Virtual Card card masking", "Buy Now Pay Later Buy Now Pay Later (4-split payment)", "The extra identity check Risk Engine") all had one cause. */
 
 /** The first immediate repeat of a word run (one to six words long), or null. Case, punctuation and "&" are ignored. */
 function stutter(text: string): string | null {

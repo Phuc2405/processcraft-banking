@@ -1,17 +1,7 @@
 import { GUARD_CABIN, KERB_Z, MAIN_GATE, STREET, type V2 } from '../plan/layout3d';
 import { AISLE, BACK_LANE, GUARD_DOOR, GUARD_POST, guardPatrol, HANDOVER_S, LOT, LOT_SIDE, shiftOf } from './parking';
 
-/**
- * The security guard at the branch's main entrance, and their cabin beside it. By day in fair weather the guard on duty
- * stands at a post by the entrance and now and then walks a slow beat along the front of the branch and back. In rain,
- * a storm, hail or snow, and at night, they go into the cabin (in at its door, on the side towards the entrance) and keep
- * watch from behind the glass under its lamp. Three guards share the day in eight-hour shifts (06:00, 14:00, 22:00); at a
- * change the next one walks up the pavement to take over and the one going off duty walks away down it. Everything here is
- * pure, stepped on the motion clock (and so frozen on pause).
- *
- * The car park's gate has a guard and a cabin of its own (PARKING_POST), run the same way: a post beside the drive, a
- * short patrol, the cabin in the wet and at night, and the change of shift by way of the lane behind the block.
- */
+/** The security guard at the branch's main entrance, and their cabin beside it. */
 
 /** A cabin: its middle, its size along x and z, and its height. Its door is in the side facing +x or -x (`door`). */
 export interface Cabin {
@@ -23,8 +13,7 @@ export interface Cabin {
   door: 1 | -1;
 }
 
-/** Everything a guard post needs: the cabin, where the guard stands and patrols, the way in and out of the cabin by its door,
- * and where guards come on and go off duty. */
+/** Everything a guard post needs: the cabin, where the guard stands and patrols, the way in and out of the cabin by its door, and where guards come on and go off duty. */
 export interface GuardPostPlan {
   cabin: Cabin;
   post: V2;
@@ -96,11 +85,7 @@ export const FRONT_PLAN: GuardPostPlan = {
   shiftOut: SHIFT_OUT,
 };
 
-/**
- * The car park's guard cabin: beside the guard's post at the gate, on the outer side of the drive, in the corner the bays
- * leave free (before the first bay of the outer row), its door on the side towards the post. The roof keeps the guard dry in
- * the rain and hail; guards change over by way of the lane behind the block.
- */
+/** The car park's guard cabin: beside the guard's post at the gate, on the outer side of the drive, in the corner the bays leave free (before the first bay of the outer row), its door on the side towards the post. */
 export const PARKING_CABIN: Cabin = { x: LOT_SIDE * (AISLE + 2.75), z: LOT.gateZ + 0.55, w: 1.1, d: 1.0, h: 2.1, door: (-LOT_SIDE) as 1 | -1 };
 const PARKING_ROUTES = cabinRoutes(PARKING_CABIN, GUARD_POST);
 export const PARKING_PLAN: GuardPostPlan = {

@@ -1,12 +1,4 @@
-/**
- * Saving the living bank. What is kept is the state at the START of a day: which day it is, the rules in
- * force, the completed days' reports, and what the last night left behind (the suspense account and any
- * records the night team did not finish). Playing a day is deterministic, so that is all it takes to
- * come back to the same bank.
- *
- * Nothing read back is trusted. Every number is checked, every list is capped, and a report that does
- * not have exactly the shape the screen expects is dropped.
- */
+/** Saving the living bank. */
 
 import { isFlowId, isScope, type FlowId, type Scope } from '../types/viewport';
 import type { CardType, Id } from '../types/processLearning';
@@ -68,9 +60,7 @@ export function encodeBank(bank: Omit<SavedBank, 'version' | 'savedAt'>, savedAt
   return JSON.stringify(saved);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Checking what comes back
-// ─────────────────────────────────────────────────────────────────────────────
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isFiniteNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -226,9 +216,7 @@ export function clearBank(storage: KeyValueStorage | null): void {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Preferences: how the learner likes to look at the bank
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** The two ways to look at the same bank: the 2D blueprint map, or the 3D isometric office. */
 export type ViewMode = '2d' | '3d';
@@ -276,9 +264,7 @@ export function savePrefs(storage: KeyValueStorage | null, prefs: BankPrefs): vo
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Layout preferences: the 3D label density and how wide the inspector drawer is
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Floating name badges over the 3D workstations: always on, or only for the workstation under the pointer. */
 export type LabelMode = 'always' | 'hover';
@@ -336,9 +322,7 @@ export function saveUiPrefs(storage: KeyValueStorage | null, prefs: UiPrefs): vo
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Career: lifetime XP, badges and the streaks that lead to them
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const CAREER_KEY = `processcraft:v${STORAGE_VERSION}:career`;
 
@@ -385,9 +369,7 @@ export function saveCareer(storage: KeyValueStorage | null, career: CareerProgre
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Retail core ledger: account balances and the latest journals
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const RETAIL_LEDGER_KEY = `processcraft:v${STORAGE_VERSION}:retailLedger`;
 
@@ -429,10 +411,7 @@ function decodeJournal(v: unknown): JournalEntry | null {
   return { caseId: o.caseId, ...source, decision: o.decision, statusCode: o.statusCode, lines: lines as LedgerLine[], ...stamp };
 }
 
-/**
- * Reads the ledger back. Books that do not sum to zero cannot be trusted, so they restart from the opening balances; that
- * includes books saved before an account was retired from the chart (Phase 11 moved the waterfall onto revenue accounts).
- */
+/** Reads the ledger back. */
 export function decodeRetailLedger(raw: string | null): RetailLedger {
   if (!raw) return openingLedger();
   try {
@@ -466,9 +445,7 @@ export function saveRetailLedger(storage: KeyValueStorage | null, ledger: Retail
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Audit trail: every desk decision, kept beside the ledger it posted to
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const AUDIT_LOG_KEY = `processcraft:v${STORAGE_VERSION}:auditLog`;
 

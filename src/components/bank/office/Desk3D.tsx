@@ -160,12 +160,8 @@ function DeskBody({ id, accent }: { id: StationId; accent: string }) {
   );
 }
 
-/**
- * Who works the desk: people on a human desk, server racks on an automated node (sim/nodeKind.ts). A rack stands in the seat
- * of the thread it represents, so the count follows the engine's workers and clicking a rack selects that thread.
- */
-/** Who is walking to or from a desk: their way (home, or in to their seat), and how long they have been walking (seconds of
- * drawn time). */
+/** Who works the desk: people on a human desk, server racks on an automated node (sim/nodeKind.ts). */
+/** Who is walking to or from a desk: their way (home, or in to their seat), and how long they have been walking (seconds of drawn time). */
 /** Staff walking in before their shift and home at its end (WorldEngine.staff): this only draws them. */
 function StaffWalker({ walks, walk, pose, accent }: { walks: StaffWalks; walk: StaffWalk; pose: ReturnType<typeof deskPose>; accent: string }) {
   const root = useRef<Group>(null);
@@ -267,10 +263,7 @@ function PhoneToken({ phase }: { phase: number }) {
   );
 }
 
-/**
- * The customer at an ATM, facing its panel and keying in: the right hand goes out to the keypad and taps it in short bursts,
- * with a pause now and then to read the screen. On the motion clock, so it stops on pause.
- */
+/** The customer at an ATM, facing its panel and keying in: the right hand goes out to the keypad and taps it in short bursts, with a pause now and then to read the screen. */
 function AtmUser({ index, shirt, phase }: { index: number; shirt: string; phase: number }) {
   const reach = useMemo(() => ({ current: 0.42 }), []);
   useFrame(() => {
@@ -284,10 +277,7 @@ function AtmUser({ index, shirt, phase }: { index: number; shirt: string; phase:
 /** The arm's reach while keying in at time `t`: out to the keypad (about 0.42) with a quick tap down and up on each press. */
 export const atmPress = (t: number): number => 0.42 + 0.05 * Math.max(0, Math.sin(t * 9));
 
-/**
- * The customer at the front of a counter's line, talking to the teller: the right hand comes up now and then as they
- * explain, and goes back down while they listen. Standing still on their spot (only the arm moves).
- */
+/** The customer at the front of a counter's line, talking to the teller: the right hand comes up now and then as they explain, and goes back down while they listen. */
 function CounterUser({ index, shirt, phase }: { index: number; shirt: string; phase: number }) {
   const hand = useMemo(() => ({ current: 0 }), []);
   useFrame(() => {
@@ -323,10 +313,7 @@ function ServedCustomer({ id, s, line }: { id: StationId; s: Served; line: DeskL
   );
 }
 
-/**
- * A case waiting at an internal desk: a wire tray on a short stand with a few case folders in it, a coloured tab on top.
- * Only the bank's own staff and systems work these desks, so what queues there is paperwork, never a customer.
- */
+/** A case waiting at an internal desk: a wire tray on a short stand with a few case folders in it, a coloured tab on top. */
 function FileToken({ phase, tab }: { phase: number; tab: string }) {
   const body = useMemo(
     () =>
@@ -360,11 +347,7 @@ function FileToken({ phase, tab }: { phase: number; tab: string }) {
   );
 }
 
-/**
- * What waits at the front of a desk, drawn from the world engine's line (WorldEngine.line): customers at the desks customers
- * come to (at an ATM the one at the machine keying in, at a counter the one at the front talking), phones at a digital gate,
- * case files at an internal desk; and the customers being served, from their journey's state.
- */
+/** What waits at the front of a desk, drawn from the world engine's line (WorldEngine.line). */
 export function DeskQueue({ id }: { id: StationId }) {
   const line = useWorld().line(id);
   usePeopleVersion((w) => w.line(id).version);
@@ -414,10 +397,7 @@ export function DeskQueue({ id }: { id: StationId }) {
   );
 }
 
-/**
- * The floating badge above a desk: its name and how many are waiting. Click it to open the inspector. In "Hover Only" label
- * mode it is hidden until the pointer is over its workstation, which keeps the diorama clean.
- */
+/** The floating badge above a desk: its name and how many are waiting. */
 export function DeskPin({ id, height }: { id: StationId; height?: number }) {
   // The same status stream the 2D desk cards read (SimulationEngine.desks).
   const { status, waiting: queueLength, working } = useDeskStatus(id);
@@ -437,10 +417,7 @@ export function DeskPin({ id, height }: { id: StationId; height?: number }) {
   );
 }
 
-/**
- * The description that opens above a desk while it is pointed at, over everything in the scene: its name, what it does, the
- * conditions that pass or decline a case there, and its status. Solid, so no floor, mesh or label shows through it.
- */
+/** The description that opens above a desk while it is pointed at, over everything in the scene. */
 /** The description's size on screen, for placing it (its real height varies a little with the rules it lists). */
 const TIP_3D = { w: 260, h: 176 } as const;
 
@@ -454,10 +431,7 @@ const TIP_SHIFT: Record<TipSide3d, string> = {
 
 const projected = new Vector3();
 
-/**
- * Where the description opens: the side (tipSide3d) whose card covers none of this desk's own condition badges on screen,
- * from an anchor on that side of the desk: its top, its front, or its flanks.
- */
+/** Where the description opens: the side (tipSide3d) whose card covers none of this desk's own condition badges on screen, from an anchor on that side of the desk. */
 function useTipPlacement(id: StationId, top: number): { side: TipSide3d; at: [number, number, number] } {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
@@ -526,11 +500,7 @@ function DeskTooltip3D({ id, top }: { id: StationId; top: number }) {
   );
 }
 
-/**
- * The badge itself: the status dot, the desk's name, how many are waiting ("3 waiting", amber when anyone is), and beside it
- * a green "2 working" while cases are being worked on at the counter, so a busy desk with an empty queue never reads as
- * idle: "X waiting · Y working", the same as the 2D map's desk cards.
- */
+/** The badge itself: the status dot, the desk's name, how many are waiting ("3 waiting", amber when anyone is), and beside it a green "2 working" while cases are being worked on at the counter, so a busy desk with an empty queue never reads as idle. */
 function PinBadge({ id, top, status, queueLength, working, selected, name }: { id: StationId; top: number; status: keyof typeof STATUS_HEX; queueLength: number; working: number; selected: boolean; name: string }) {
   const bm = useMessages(deskBadgeMessages);
   return (
@@ -559,10 +529,7 @@ function PinBadge({ id, top, status, queueLength, working, selected, name }: { i
   );
 }
 
-/**
- * One desk of the bank, standing in the office. Everything is read from the same bank store as the 2D map; clicking the
- * counter, a person or the pin selects the station, so the inspector opens exactly as it does in 2D.
- */
+/** One desk of the bank, standing in the office. */
 export const Desk3D = memo(function Desk3D({ id }: { id: StationId }) {
   const pose = useMemo(() => deskPose(id), [id]);
   const accent = accentOf(id);

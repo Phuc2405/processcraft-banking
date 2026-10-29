@@ -1,8 +1,4 @@
-/**
- * The shape of the bank: which departments exist, which desks are inside them, and which wires
- * connect the desks. This is the map the learner sees. It is fixed ("pre-wired"): the four process
- * diagrams decide which of these wires a payment actually takes.
- */
+/** The shape of the bank: which departments exist, which desks are inside them, and which wires connect the desks. */
 
 import type { BankingCapability } from '../types/processLearning';
 
@@ -25,7 +21,6 @@ export const STATION_IDS = [
   'GATE_ATM',
   'ATM_CASH',
   // Phase 8, the extended flows: onboarding, branch cash, QR and SWIFT gateways, biometrics, fraud detection, AML and disputes.
-  // Appended for the same reason: every older desk keeps its staff.
   'GATE_EKYC',
   'GATE_QR',
   'TELLER_CASH',
@@ -142,8 +137,7 @@ export interface StationDef {
   processes: Array<'A' | 'B' | 'C' | 'D' | 'E' | 'F'>;
   /** A machine, not a team: it has no one to tire out and nobody to make a mistake. */
   automated?: boolean;
-  /** Customers arrive as messages (from an app, a website's checkout or a shop's card terminal), not on foot: no walk-in
-   * queue in the 3D office; the messages come in as signals instead. */
+  /** Customers arrive as messages (from an app, a website's checkout or a shop's card terminal), not on foot. */
   digital?: boolean;
 }
 
@@ -225,8 +219,7 @@ export const STATIONS: Record<StationId, StationDef> = {
     kind: 'DESK',
     capability: 'CORE_LEDGER_CHECK',
     minutesPerItem: 1.2,
-    // Three, not two: every instant (A2A) transfer is checked here as well as the card payments, and with two people the desk
-    // ran flat out all day and the same clerk ended every day exhausted.
+    // Three, not two: every instant (A2A) transfer is checked here as well as the card payments, and with two people the desk ran flat out all day and the same clerk ended every day exhausted.
     staff: 3,
     processes: ['A', 'B', 'C', 'E'],
   },
@@ -428,11 +421,7 @@ export const STATIONS: Record<StationId, StationDef> = {
   },
 };
 
-/**
- * The order desks are served in during a beat. Every wire points forward in this list (the OTP round
- * trip excepted, which is a wait on the customer's phone), so a payment can cross several desks in one beat
- * when staff have time, and queues build only where a desk is genuinely short of hands.
- */
+/** The order desks are served in during a beat. */
 export const SERVICE_ORDER: StationId[] = [
   'GATE_VIRTUAL',
   'GATE_POS',

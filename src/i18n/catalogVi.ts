@@ -1,11 +1,4 @@
-/**
- * Vietnamese for the Build Lab's node catalog: each node type's name and description, its ports, its settings, and the
- * descriptions of the facts a condition can read.
- *
- * The catalog stays English (definitions are saved with the canvas and the grader matches on them). These accessors give
- * the learner-facing text in the active language. Node, port and setting labels the learner did not type are recognised
- * by their English text; anything else is shown as written.
- */
+/** Vietnamese for the Build Lab's node catalog: each node type's name and description, its ports, its settings, and the descriptions of the facts a condition can read. */
 
 import { activeLocale } from './localeCore';
 

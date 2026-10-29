@@ -1,17 +1,4 @@
-/**
- * Languages the learner-facing text can be shown in: English and Vietnamese.
- *
- * Every table of learner-facing words in the app (the plain-English terms, the mental models, the stage briefings, the quiz
- * questions, the button labels, the lessons) is typed `Localized<...>`, which means "one entry per language in LOCALES".
- * Adding a third language is: add it to LOCALES, run `npm run typecheck`, fill in every table the compiler lists.
- *
- * The chosen language lives in a small Zustand store (`localeStore`) and is remembered in this browser. `pick()` reads the
- * store, so plain functions get the right words; `useLocale()` (locale.ts) re-renders a component when the language
- * changes, and the app root is keyed by the locale so every `pick()` reader below it redraws in the new language.
- *
- * This is the pure core, free of React and the page: the simulation reads its words through it. locale.ts adds the React
- * hook and keeps the page's `lang` attribute in step, and re-exports all of this.
- */
+/** Languages the learner-facing text can be shown in: English and Vietnamese. */
 
 import { createStore } from 'zustand/vanilla';
 

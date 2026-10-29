@@ -60,9 +60,7 @@ import { useWorld, WorldProvider } from './WorldProvider';
 
 import { CustomerFigure } from './Avatars';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Camera
-// ─────────────────────────────────────────────────────────────────────────────
 
 type Controls = {
   enableDamping: boolean;
@@ -75,14 +73,12 @@ type Controls = {
 const RESET_MS = 520;
 const easeInOut = (u: number): number => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
 
-/** The height of the camera above the point it looks at, and how far it stands from it on the floor, at the isometric tilt;
- * and how far it stands from that point, whatever the tilt. */
+/** The height of the camera above the point it looks at, and how far it stands from it on the floor, at the isometric tilt. */
 const CAM_HEIGHT = CAMERA_DISTANCE / Math.sqrt(CAMERA_DIRECTION[0] ** 2 + CAMERA_DIRECTION[1] ** 2 + 1);
 const CAM_REACH = CAM_HEIGHT * Math.hypot(CAMERA_DIRECTION[0], CAMERA_DIRECTION[1]);
 const CAM_RADIUS = Math.hypot(CAM_HEIGHT, CAM_REACH);
 
-/** Where the camera stands to look at `target` from the direction `az` (radians round the vertical axis, 0 = straight in
- * front), tilted `polar` from straight up (the isometric tilt unless the learner has lowered the view). */
+/** Where the camera stands to look at `target` from the direction `az` (radians round the vertical axis, 0 = straight in front), tilted `polar` from straight up (the isometric tilt unless the learner has lowered the view). */
 const standAt = (target: Vector3, az: number, polar: number = ISO_POLAR): Vector3 =>
   new Vector3(target.x + Math.sin(az) * Math.sin(polar) * CAM_RADIUS, target.y + Math.cos(polar) * CAM_RADIUS, target.z + Math.cos(az) * Math.sin(polar) * CAM_RADIUS);
 
@@ -103,16 +99,7 @@ interface Glide {
   toZoom: number;
 }
 
-/**
- * The isometric camera. It is orthographic and looks down at the isometric angle; the learner can pan (drag), zoom (scroll
- * or pinch), swing the view a little either side and tilt it lower, down to a nearly eye-level look across the lobby
- * (right-drag), all with damping, and cannot lose the office: the point the camera looks at is kept over the floor. "Reset
- * view" glides back to the whole office, at the isometric tilt.
- *
- * During a guided tour `focus` says where the camera should be for the current step. The camera dollies over the desks in play
- * and orbits a little towards them, and glides back home when the tour ends. The learner can still pan and zoom by hand
- * during a tour; the next step takes the camera back to where the story is.
- */
+/** The isometric camera. */
 export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFocus | null }) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
@@ -201,8 +188,7 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
     glideTo(f.x, f.z, f.az, f.zoom, TOUR_GLIDE_MS);
   };
 
-  // Fit the floor on first show, glide home (or back to the step in a tour) whenever the learner presses "Reset view",
-  // and re-fit when the window changes a lot.
+  // Fit the floor on first show, glide home (or back to the step in a tour) whenever the learner presses "Reset view", and re-fit when the window changes a lot.
   useEffect(() => {
     const pressed = resetKey !== lastReset.current;
     lastReset.current = resetKey;
@@ -357,9 +343,7 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Floor
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Warm wooden planks, drawn once on a canvas: four world units square, eight planks, each a slightly different tone. */
 function usePlanks(): CanvasTexture {
@@ -441,14 +425,9 @@ const Floor = memo(function Floor() {
   );
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Departments
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * A name painted on the floor: a flat plane with the words drawn on a canvas. Unlike a floating label it sits in the
- * scene, so a desk or a person can stand in front of it, and it never covers anything. Long names wrap to two lines.
- */
+/** A name painted on the floor: a flat plane with the words drawn on a canvas. */
 function FloorLabel({ text, color, width, selected }: { text: string; color: string; width: number; selected: boolean }) {
   const made = useMemo(() => {
     const PX = 150; // canvas pixels per world unit
@@ -556,12 +535,7 @@ const Rug = memo(function Rug({ id }: { id: DepartmentId }) {
   );
 });
 
-/**
- * A lane painted on the floor along every wire of the 2D map, with rounded corners: the same path the packets fly, and the
- * same line type (red dashed declines, purple dotted OTP, solid blue and amber). Pointing at a desk lights its own lanes (a
- * sub-process lights its route) in the 2D Map Legend's own colours: a bright stripe over a soft additive halo, the floor's
- * stand-in for an emissive glow, with pulses of light running along them, while every other lane fades to LANE_DIM.
- */
+/** A lane painted on the floor along every wire of the 2D map, with rounded corners. */
 const Lanes = memo(function Lanes() {
   const geometry = useMemo(
     () =>
@@ -735,11 +709,7 @@ function LaneBadge({ text, at, focus }: { text: string; at: readonly [number, nu
   return <sprite material={material} position={[at[0], lit ? 0.36 : 0.32, at[1]]} scale={[h * aspect, h, 1]} renderOrder={lit ? 9 : 6} />;
 }
 
-/**
- * The conditions on the lanes, in the active language: the same words, and the same rules, as the 2D map (laneLabelShown).
- * Pointing at a desk lights its own lanes' badges bright yellow and fades every other badge in the bank; a sub-process keeps
- * its own badges in full and lets every other one all but disappear (badgeFocus).
- */
+/** The conditions on the lanes, in the active language: the same words, and the same rules, as the 2D map (laneLabelShown). */
 const LaneLabels = memo(function LaneLabels() {
   useLocale();
   const flow = useBankStore((s) => (s.spotlight ? null : activeFlowOf(s)));
@@ -754,14 +724,9 @@ const LaneLabels = memo(function LaneLabels() {
   );
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The scene
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * `window.__officeProbe(stationId)` answers where a counter is on screen, in CSS pixels from the top-left of the page.
- * It exists so the 3D view can be driven by a browser test, which cannot see inside a canvas.
- */
+/** `window.__officeProbe(stationId)` answers where a counter is on screen, in CSS pixels from the top-left of the page. */
 function Probe() {
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
@@ -813,11 +778,7 @@ function Probe() {
   return null;
 }
 
-/**
- * Daylight that follows the bank's clock: a sun from the front-left, a sky-and-floor bounce, and a cool fill from behind so
- * the shaded faces are not black. The colours and strengths come from the time-of-day presets in atmosphere.ts (morning,
- * noon, afternoon, night) and dim under rain; after dusk the street lamps and the city's windows take over.
- */
+/** Daylight that follows the bank's clock: a sun from the front-left, a sky-and-floor bounce, and a cool fill from behind so the shaded faces are not black. */
 function Lights() {
   const sky = useRef<HemisphereLight>(null);
   const sun = useRef<DirectionalLight>(null);
@@ -845,8 +806,7 @@ function Lights() {
       // The sun moves across the sky: low in the east in the morning, high at noon, low and raking from the west late on.
       sun.current.position.set(a.sun.dir[0], a.sun.dir[1], a.sun.dir[2]);
     }
-    // The branch's own lights: as the weather darkens the daylight (cloud, storm, smog), the office lights make up the
-    // difference, so the floor, the desks and their words stay bright however wild it is outside.
+    // The branch's own lights: as the weather darkens the daylight (cloud, storm, smog), the office lights make up the difference, so the floor, the desks and their words stay bright however wild it is outside.
     const clearSun = atmosphereAt(s.view.minute).sun.intensity;
     const gloom = clearSun > 0 ? Math.max(0, Math.min(1, 1 - a.sun.intensity / clearSun)) : 0;
     if (ambient.current) ambient.current.intensity = (0.28 + 0.6 * gloom) * keep(TOUR_DAYLIGHT.ambient);
@@ -877,8 +837,7 @@ const TrafficRenderer = memo(function TrafficRenderer() {
   );
 });
 
-/** The people outside the desks' lines: the park, the passers-by, the guard at the main entrance, customers walking in and
- * (at closing time) walking out. */
+/** The people outside the desks' lines: the park, the passers-by, the guard at the main entrance, customers walking in and (at closing time) walking out. */
 const CrowdRenderer = memo(function CrowdRenderer() {
   return (
     <group name="crowd-renderer">
@@ -891,8 +850,7 @@ const CrowdRenderer = memo(function CrowdRenderer() {
   );
 });
 
-/** The desks and the machines, with their staff, lines and badges; the queue ropes; and the payments and signals flowing
- * between them. */
+/** The desks and the machines, with their staff, lines and badges; the queue ropes; and the payments and signals flowing between them. */
 const DeskRenderer = memo(function DeskRenderer() {
   return (
     <group name="desk-renderer">
@@ -905,12 +863,7 @@ const DeskRenderer = memo(function DeskRenderer() {
   );
 });
 
-/**
- * The world of the 3D office behind one front (Facade): the scene hands it its fixed parts (`children`: the building, the
- * street, the camera and lights) and it does the rest. It makes the world engine and ticks it once a frame before anything
- * draws (WorldProvider), and draws the world through four renderers that only read it: the weather, the traffic, the crowd
- * and the desks.
- */
+/** The world of the 3D office behind one front (Facade). */
 function BankingWorldFacade({ children }: { children: ReactNode }) {
   return (
     <WorldProvider>
@@ -936,8 +889,7 @@ export function OfficeScene({ resetKey }: { resetKey: number }) {
       <FrameDriver />
       <Environment3D />
       <ContactShadows position={[0, -0.66, 0]} scale={[FLOOR_SLAB.w + 6, FLOOR_SLAB.d + 6]} far={0.9} blur={2.8} opacity={0.4} resolution={512} frames={1} color="#6b4f35" />
-      {/* Soft contact shadows under every desk, person and plant on the office floor, baked once. They replace the real-time
-          shadow map of the sun, which redrew the whole office a second time on every frame. */}
+      {/* Soft contact shadows under every desk, person and plant on the office floor, baked once. */}
       <ContactShadows position={[0, 0.03, 0]} scale={[FLOOR_SLAB.w, FLOOR_SLAB.d]} far={2.4} blur={2} opacity={0.4} resolution={1024} frames={1} color="#5b4330" />
       {DEPARTMENT_IDS.map((id) => (
         <Rug key={id} id={id} />
@@ -958,15 +910,8 @@ export function OfficeScene({ resetKey }: { resetKey: number }) {
 /** How long the office keeps drawing after anything in the bank changed, so fades and glides can finish. */
 const AWAKE_MS = 1600;
 
-/**
- * The canvas draws on demand (frameloop="demand"): a frame is drawn only when something asks for one. This keeps it drawing
- * while the bank clock runs, while a tour plays, and for a moment after any change or any pointer move over the office, and
- * otherwise lets it rest, so a paused office costs the graphics card nothing.
- */
-/**
- * Closing time: when the bank clock passes 17:00 (never on a pause), everyone queuing at a customer desk walks out through
- * the nearest way out, the main entrance or a side door, on the motion clock (evacuation.ts).
- */
+/** The canvas draws on demand (frameloop="demand"): a frame is drawn only when something asks for one. */
+/** Closing time: when the bank clock passes 17:00 (never on a pause), everyone queuing at a customer desk walks out through the nearest way out, the main entrance or a side door, on the motion clock (evacuation.ts). */
 function Evacuation() {
   // Who walks out and where each of them is: the world engine's (ClosingWalkout). This only draws them.
   const world = useWorld();

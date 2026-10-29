@@ -1,10 +1,4 @@
-/**
- * "What would tomorrow look like if I changed this rule?"
- *
- * The same customers, the same tonight's records and the same people are run through the bank twice:
- * once with the rules as they are, once with the tweak. Traffic never depends on the rules (see traffic.ts),
- * so every difference in the numbers is down to the rule.
- */
+/** "What would tomorrow look like if I changed this rule?" The same customers, the same tonight's records and the same people are run through the bank twice. */
 
 import { BankSimulation, type BankSimOptions } from './bankSimulation';
 import { compareReports, type KpiComparisonRow } from './kpis';

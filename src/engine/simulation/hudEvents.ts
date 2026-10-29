@@ -1,7 +1,4 @@
-/**
- * HUD toasts: small alerts over the map when a payment fails in one of three ways a learner should notice. Detected by watching
- * the day's decline counters between snapshots, so the simulation itself is untouched and nothing extra runs per payment.
- */
+/** HUD toasts: small alerts over the map when a payment fails in one of three ways a learner should notice. */
 
 import type { DeclineReason } from '../../sim/types';
 
@@ -25,10 +22,7 @@ export interface HudToast {
 
 export type DeclineCounts = Readonly<Partial<Record<DeclineReason, number>>>;
 
-/**
- * What happened between two snapshots of the day's decline counters: one entry per watched event that went up, with how many.
- * A counter that went down means a new day or a reset, not an event, so nothing is reported for it.
- */
+/** What happened between two snapshots of the day's decline counters: one entry per watched event that went up, with how many. */
 export function newEvents(before: DeclineCounts | null, after: DeclineCounts): Array<{ kind: HudKind; count: number }> {
   if (!before) return [];
   const out: Array<{ kind: HudKind; count: number }> = [];

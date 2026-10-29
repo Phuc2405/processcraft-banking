@@ -2,21 +2,7 @@ import { CitRun, LOADING_BAY } from './citRun';
 import { CAR_PARK_FOOTWAY_X, CUSTOMER_DOOR, deskPose, ENTRANCES, FLOOR_SLAB, FRONT_AISLE_Z, LEFT_WALK_X, smoothLane, WALK_IN_DESKS, type V2 } from '../plan/layout3d';
 import { pathLength, pointAlongPath } from '../plan/path';
 
-/**
- * The car park on the left of the branch (the park is on the right, Park3D), reached from the quiet lane behind the
- * block: two rows of car bays either side of a wide aisle, and a sheltered section of motorbike slots, with a gate, a
- * barrier, a booth and a guard. Walkways cross the inner row in front of each of the branch's side doors, so drivers walk
- * straight in. Pure and deterministic, so the tests can run it for twenty minutes and check that no two vehicles ever touch.
- *
- * How nothing ever overlaps:
- *   - a bay is reserved (occupiedBy) the moment a vehicle is sent for it, and freed only once that vehicle has driven
- *     away, so no two vehicles are ever given the same bay;
- *   - only one vehicle moves in the lot at a time (the "mover"): arriving, or reversing out and driving away. Everyone
- *     else is parked, each in its own bay, and bays are wider and deeper than what parks in them;
- *   - a vehicle only turns in when a bay is free; when the lot is full nobody is sent;
- *   - the cash van (CitRun) drives in to its own loading bay in the inner row, against the left wall, and out again, with
- *     the lot's turn like any mover; standing in its bay, it is clear of every car bay and of the drive.
- */
+/** The car park on the left of the branch (the park is on the right, Park3D), reached from the quiet lane behind the block. */
 
 const HX = FLOOR_SLAB.w / 2;
 const HZ = FLOOR_SLAB.d / 2;
@@ -55,8 +41,7 @@ export interface Row {
 
 /** The middle of the drive down the lot, as |x|: wide enough for a car to pass a car backing out. */
 export const AISLE = HX + 4.45;
-/** Where people walk down the lot, as |x|: between the inner row and the drive (the customers' walk in to the side doors
- * follows it too: carParkApproach). */
+/** Where people walk down the lot, as |x|: between the inner row and the drive (the customers' walk in to the side doors follows it too: carParkApproach). */
 export const FOOTWAY = -CAR_PARK_FOOTWAY_X;
 
 const FIRST = LOT.gateZ + 2.3;
@@ -143,11 +128,7 @@ export const counterSpot = (s: Pick<Slot, 'index'>): V2 => {
   return [pose.x + 0.55, pose.z + pose.d / 2 + 0.45];
 };
 
-/**
- * Where someone walks between their bay and the counter they came for: out of the bay, down the footway, across the
- * walkway and in at the customers' side door, along the inside of the left wall to the clear aisle at the front of the
- * hall, and up to the counter. (Walking back, they set off from the counter.) Nobody appears or vanishes at a doorway.
- */
+/** Where someone walks between their bay and the counter they came for. */
 export function walkPath(s: Slot): V2[] {
   const len = SIZE[s.kind].len;
   // Beside the vehicle, inside its own bay, at its aisle end.
@@ -200,8 +181,7 @@ export function leavingPaths(s: Slot): { reverse: V2[]; forward: V2[] } {
   };
 }
 
-/** The cash van's drives: in through the gate, down the drive and nose-in to its bay; backing out into the drive; and back
- * up the drive, out through the gate and away along the lane. */
+/** The cash van's drives: in through the gate, down the drive and nose-in to its bay. */
 export function citRoutes(): { arrive: V2[]; reverse: V2[]; depart: V2[] } {
   const { x, z } = LOADING_BAY;
   const turn = z + 2.4;
@@ -306,10 +286,7 @@ export class ParkingLot {
     return this.slots.filter((s) => s.occupiedBy === null && (!kind || s.kind === kind));
   }
 
-  /**
-   * Opens or closes the branch to customers. At closing time everyone in the branch (or on their way in) walks back to their
-   * car and drives off, and nobody new parks until it opens again: no customer is ever inside after hours.
-   */
+  /** Opens or closes the branch to customers. */
   setClosed(closed: boolean): void {
     if (closed === this.closed) return;
     this.closed = closed;
@@ -366,8 +343,7 @@ export class ParkingLot {
       if (this.mover === null) this.mover = CIT_MOVER;
     } else if (this.mover === CIT_MOVER) this.mover = null;
     if (this.mover !== null) return;
-    // The lot is still: someone back at their car drives off (they have the lot until they are gone), or else a newcomer is
-    // sent to a free bay. Leavers and newcomers take turns at the gate. Nobody new comes while the branch is closed.
+    // The lot is still: someone back at their car drives off (they have the lot until they are gone), or else a newcomer is sent to a free bay.
     const due = this.vehicles.find((v) => v.phase === 'ready');
     const arrivalDue = !this.closed && this.t >= this.nextArrival && this.vacant().length > 0;
     if (due && !(arrivalDue && this.lastLeft)) {
@@ -438,9 +414,7 @@ export class ParkingLot {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The guards' shifts
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Three eight-hour shifts a day: 06:00-14:00, 14:00-22:00 and 22:00-06:00. */
 export const SHIFT_HOURS = 8;
@@ -453,10 +427,7 @@ export const HANDOVER_S = 9;
 export const GUARD_POST: V2 = [LOT_SIDE * (AISLE + 1.75), LOT.gateZ + 0.6];
 export const GUARD_DOOR: V2 = [LOT_SIDE * (AISLE + 1.75), BACK_LANE.out - 0.6];
 
-/**
- * Where a guard on post is at time `t`: standing at the post facing the lane, now and then pacing beside the gate towards
- * the lane and back (a slow patrol, clear of the drive, of the bays and of the guard's cabin next to the post).
- */
+/** Where a guard on post is at time `t`: standing at the post facing the lane, now and then pacing beside the gate towards the lane and back (a slow patrol, clear of the drive, of the bays and of the guard's cabin next to the post). */
 export function guardPatrol(t: number): { at: V2; heading: number; walking: boolean } {
   const cycle = 24;
   const u = ((t % cycle) + cycle) % cycle;

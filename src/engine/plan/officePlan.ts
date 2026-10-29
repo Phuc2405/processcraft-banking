@@ -1,6 +1,4 @@
 // Frozen 3D floor plan (pre-Phase 1A 2D geometry). 2D layout changes must not move 3D rooms.
-// Phase 8 adds a wing inside the front of the building for the extended flows (the band of the 2D map, same shape) and moves
-// the sidewalk ATM down with the new front wall (+370 stage units).
 
 import type { DepartmentId, PlaceId } from '../../sim/topology';
 import { bandBoxes, bandDepts, bandRoutes, buildWires, CARD, R, type DeptBox, type PlaceBox, type RouteSpec, type Wire } from './layout';
@@ -58,8 +56,7 @@ const OFFICE_ROUTES: Record<string, RouteSpec> = {
   // Card present
   'GATE_POS>LEDGER_DEBIT': R(['r'], ['l', 6], { labelAt: [250, 242] }),
   'GATE_POS>LEDGER_CREDIT': R(['r', 8], ['l', -12], { bendX: 640 }),
-  // Instant account-to-account transfers: out of the A2A gate, up the channel between the columns, along the open corridor
-  // above the card-present wire, and straight into the top of the debit CASA ledger. A malformed message takes the lane above.
+  // Instant account-to-account transfers: out of the A2A gate, up the channel between the columns, along the open corridor above the card-present wire, and straight into the top of the debit CASA ledger.
   'GATE_A2A>LEDGER_DEBIT': R(['r', -10], ['t', -8], { via: [[196, 372], [196, 190], [772, 190]], labelAt: [470, 190] }),
   'GATE_A2A>OUT_DECLINED': R(['r', 10], ['l', 22], { via: [[204, 392], [204, 172]], labelAt: [800, 172] }),
   // Online
@@ -85,8 +82,7 @@ const OFFICE_ROUTES: Record<string, RouteSpec> = {
   'RECON>OUT_SETTLED': R(['t'], ['t'], { via: [[540, 664], [985, 664]], labelAt: [760, 664] }),
   'RECON>SUSPENSE': R(['r'], ['l']),
   'SUSPENSE>OUT_SETTLED': R(['r'], ['l']),
-  // The sidewalk ATM. A jam goes straight up into the suspense account. Declines join the lane the 3DS rejections already take up the
-  // right-hand margin; cash paid out gets a lane of its own beside it.
+  // The sidewalk ATM.
   'GATE_ATM>ATM_CASH': R(['r'], ['l'], { quiet: true }),
   'GATE_ATM>OUT_DECLINED': R(['b', -30], ['r'], { via: [[550, 956 + WING_SHIFT], [1066, 956 + WING_SHIFT], [1066, 150]], labelAt: [680, 956 + WING_SHIFT] }),
   'ATM_CASH>OUT_DECLINED': R(['b', 30], ['r'], { via: [[810, 946 + WING_SHIFT], [1066, 946 + WING_SHIFT], [1066, 150]], quiet: true }),

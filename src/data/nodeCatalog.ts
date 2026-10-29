@@ -1,15 +1,8 @@
-/**
- * The palette's building blocks and the names an edge condition may use.
- *
- *   NODE_CATALOG          node definitions the palette draws from
- *   CONDITION_VARIABLES   names usable in edge conditions, and which are off limits
- */
+/** The palette's building blocks and the names an edge condition may use. */
 
 import type { ConditionVariable, Id, NodeDefinition, Outcome, Port } from '../types/processLearning';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Port templates
-// ─────────────────────────────────────────────────────────────────────────────
 
 const inPort = (id: Id = 'in', maxEdges = 4): Port => ({
   id,
@@ -35,9 +28,7 @@ const errorPort = (): Port => ({
 
 const OUTCOMES: Outcome[] = ['APPROVED', 'DECLINED', 'ROUTED_TO_SUSPENSE', 'CHALLENGE_REQUIRED'];
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Node catalog
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const NODE_CATALOG: NodeDefinition[] = [
   // 1. Start event
@@ -461,9 +452,7 @@ export const NODE_CATALOG: NodeDefinition[] = [
   },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Condition variables (what edge conditions may reference)
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const CONDITION_VARIABLES: ConditionVariable[] = [
   { name: 'amount', type: 'number', source: 'PAYLOAD', producedBy: null, learnerVisible: true, description: 'Transaction amount in cents.' },

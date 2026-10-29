@@ -1,20 +1,4 @@
-/**
- * The two vocabularies of the Living Bank.
- *
- *   Fintech Expert   the names a payments team uses: Token Vault, dCVV, 3DS, CASA, EOD reconciliation, suspense.
- *   Concept Explorer the same desks in plain English, each with a one-sentence "what is this" tooltip.
- *                    (The stored id of this mode stays 'beginner', so saved preferences keep working.)
- *
- * Nothing here changes how the bank behaves. The simulation keeps its own ids and the expert names; the screen asks
- * this file what to call a thing (`stationName`) and what to say about it (`stationTip`). Free text that mentions
- * jargon (the feed, the lesson steps) goes through `termText`, which swaps the jargon for plain words in Concept Explorer mode.
- *
- * Two rules keep the plain words from tripping over themselves:
- *   - a curated name (a desk, a department, a chapter title) is never rewritten again: it is matched whole and left alone, and
- *   - if two replacements ever land side by side and repeat ("Virtual Card card masking"), the repeat is folded away.
- *
- * The words themselves sit in one `Localized` table so another language is a data change (see i18n/locale.ts).
- */
+/** The two vocabularies of the Living Bank. */
 
 import { activeLocale, pick, type Localized } from '../i18n/localeCore';
 import { STATION_BRAND, stationBrandMessages } from '../i18n/stationBrand.messages';
@@ -510,17 +494,12 @@ export const TERMS: Localized<TermBook> = { en: EN, vi: VI };
 
 const book = (): TermBook => pick(TERMS);
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Names
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const modeLabel = (mode: TermMode): string => book().modeLabel[mode];
 export const modeHint = (mode: TermMode): string => book().modeHint[mode];
 
-/**
- * The professional (Fintech Expert) names in Vietnamese: the Vietnamese banking term, with the industry name kept where a
- * Vietnamese bank would keep it too (Token Vault, dCVV, 3DS, CASA).
- */
+/** The professional (Fintech Expert) names in Vietnamese. */
 const EXPERT_STATION_VI: Readonly<Record<StationId, { name: string; blurb: string }>> = {
   GATE_VIRTUAL: { name: 'Cổng thẻ ảo', blurb: 'Nhận các giao dịch thanh toán bằng số thẻ ảo kèm CVV động.' },
   GATE_POS: { name: 'Cổng POS', blurb: 'Nhận giao dịch chip-và-PIN và chạm thẻ từ máy POS tại cửa hàng.' },
@@ -624,9 +603,7 @@ export const placeTitle = (id: PlaceId, mode: TermMode): string => (isStation(id
 /** Any place on the map, by its one-sentence tooltip. */
 export const placeTip = (id: PlaceId, mode: TermMode): string => (isStation(id) ? stationTip(id, mode) : externalTip(id, mode));
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Free text
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface Compiled {
   re: RegExp;
@@ -642,7 +619,6 @@ function glossaryFor(b: TermBook): Compiled {
   if (hit) return hit;
   const map = new Map(b.glossary.map(([from, to]) => [from.toLowerCase(), to] as const));
   // The expert names of the desks and departments are jargon too, wherever a sentence mentions one.
-  // A hand-written glossary line wins: it reads naturally in the middle of a sentence ("holding box"), the desk name does not.
   for (const id of Object.keys(STATIONS) as StationId[]) {
     const key = STATIONS[id].name.toLowerCase();
     if (!map.has(key)) map.set(key, b.stations[id].short);
@@ -651,8 +627,7 @@ function glossaryFor(b: TermBook): Compiled {
     const key = DEPARTMENTS[id].name.toLowerCase();
     if (!map.has(key)) map.set(key, b.departments[id].short);
   }
-  // Names that are already plain must pass through a second time untouched. They go in the table as themselves, so the
-  // longest-match rule swallows them whole before the single words inside them ("Token Vault", "BNPL", "3DS") are looked at.
+  // Names that are already plain must pass through a second time untouched.
   const keep = new Set<string>();
   const plainNames = [
     ...Object.values(b.stations).flatMap((t) => [t.plain, t.short]),
@@ -668,7 +643,6 @@ function glossaryFor(b: TermBook): Compiled {
   const keys = [...map.keys()].sort((a, c) => c.length - a.length);
   const escaped = keys.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
   // Whole words only: "pos" must not match inside "position", and "otp" not inside "footprint".
-  // An optional "a"/"an" in front is part of the match, so the article can agree with the plain word that replaces the jargon.
   const re = new RegExp(`(?<![A-Za-z0-9])(?:(an?)\\s+)?(?:${escaped.join('|')})(?![A-Za-z0-9])`, 'gi');
   const out = { re, map, keep };
   compiled.set(b, out);
@@ -681,11 +655,7 @@ function articleFor(word: string): 'a' | 'an' {
   return /^[aeiou]/i.test(word) ? 'an' : 'a';
 }
 
-/**
- * Folds a phrase that has landed twice in a row into one: "Virtual Card card masking" reads "Virtual Card masking",
- * "Buy Now Pay Later Buy Now Pay Later (4-split payment)" reads "Buy Now Pay Later (4-split payment)". Whole words only,
- * compared without case or punctuation, and only words that contain a letter (so "1 1" and "- -" are left alone).
- */
+/** Folds a phrase that has landed twice in a row into one. */
 export function foldRepeats(text: string): string {
   if (!text || !/[A-Za-z]/.test(text)) return text;
   const parts = text.split(/(\s+)/);

@@ -1,7 +1,6 @@
 import type { V2 } from './layout3d';
 
-/** Polylines on the floor: how long one is, and the point a given distance along it. Pure geometry, for everything that
- * walks, drives or flies a path. */
+/** Polylines on the floor: how long one is, and the point a given distance along it. */
 
 /** The length of a path. */
 export function pathLength(path: readonly V2[]): number {

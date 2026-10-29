@@ -11,11 +11,7 @@ import { ROLE_ICON, ROLE_STATION, type StaffRoleId } from '../../sim/staffRolepl
 /** The quick role selector's order: compliance first, then front office and back office. */
 const ROLE_PICKS: readonly StaffRoleId[] = ['aml', 'ekyc', 'fds', 'dispute', 'bnpl', 'cashier', 'swift'];
 
-/**
- * "Choose Your Experience Mode": one question, three answers. It opens by itself on the first visit (uiStore remembers that it
- * has been seen) and again whenever the learner presses [🔄 Switch Experience Mode] in the header. Escape or a click on the
- * backdrop closes it without changing anything.
- */
+/** "Choose Your Experience Mode": one question, three answers. */
 
 export { ONBOARDED_KEY } from '../../store/uiStore';
 

@@ -1,7 +1,4 @@
-/**
- * The path of the walkthrough token. It rides the same hand-routed wires the bank's own packets use (layout.ts),
- * from the resting place at one desk to the resting place at the next.
- */
+/** The path of the walkthrough token. */
 
 import type { PlaceId } from '../../sim/topology';
 import { edgeId } from '../../sim/topology';
@@ -56,10 +53,7 @@ export function pointAlong(points: readonly Pt[], d: number): Pt {
   return points[points.length - 1] as Pt;
 }
 
-/**
- * How long the token takes over a polyline. The tour locks the bank clock to 0.25×, and this is that pace: about a
- * quarter of the speed of the bank's own packets, with a floor so a short hop is still easy to follow.
- */
+/** How long the token takes over a polyline. */
 export const TOUR_PX_PER_MS = 0.22;
 export const travelMs = (points: readonly Pt[]): number => (points.length < 2 ? 0 : Math.round(Math.min(3000, Math.max(700, polylineLength(points) / TOUR_PX_PER_MS))));
 

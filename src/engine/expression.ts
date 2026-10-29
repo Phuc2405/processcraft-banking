@@ -1,23 +1,4 @@
-/**
- * Condition expressions for XOR gateway edges.
- *
- * Grammar (see ProcessEdge in the metamodel):
- *   expr    := or
- *   or      := and ('||' and)*
- *   and     := cmp ('&&' cmp)*
- *   cmp     := unary (('==' | '!=' | '<' | '<=' | '>' | '>=') unary)?
- *   unary   := '!' unary | primary
- *   primary := number | 'string' | "string" | true | false | identifier | '(' expr ')'
- *
- * Two entry points:
- *   checkExpression()    static: syntax, known variables, hidden variables, types, enum values.
- *                        Used by the grader before simulation and by the future editor for live feedback.
- *   evaluateExpression() dynamic: evaluates a parsed expression against a token's facts.
- *
- * A fact that no node has produced yet is "unset". Unset facts never equal anything, fail every
- * ordering comparison, and count as false in boolean logic. They are reported back so the grader
- * can tell the learner that a decision is reading a fact that does not exist yet on that path.
- */
+/** Condition expressions for XOR gateway edges. */
 
 import { variableDescription } from '../i18n/catalogVi';
 import { tr } from '../i18n/localeCore';
@@ -45,9 +26,7 @@ export class ExpressionError extends Error {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Tokenizer
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface Token {
   kind: 'number' | 'string' | 'identifier' | 'operator' | 'end';
@@ -115,9 +94,7 @@ function tokenize(src: string): Token[] {
   return tokens;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Parser
-// ─────────────────────────────────────────────────────────────────────────────
 
 const WORD_OPERATORS: Record<string, string> = { and: '&&', or: '||', not: '!' };
 
@@ -224,9 +201,7 @@ export function collectIdentifiers(ast: Ast, into: string[] = []): string[] {
   return into;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Static check
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface ExpressionCheck {
   errors: string[];
@@ -346,9 +321,7 @@ export function checkExpression(src: string, variables: readonly ConditionVariab
   return { errors: [...errors], identifiers: collectIdentifiers(ast) };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Evaluation
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface ExpressionResult {
   value: boolean;

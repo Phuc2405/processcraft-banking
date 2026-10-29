@@ -20,8 +20,7 @@ import { timingVars } from './timing';
 import type { ProcessFlowEdge, ProcessFlowNode } from '../../store/graphConversion';
 import { useWorkflowStore } from '../../store/workflowStore';
 
-// Leave room above the diagram for the run controls (top centre) and the overview map (top left) that float
-// over the canvas, so the token at a desk, its warning badges and its red cross are never hidden underneath them.
+// Leave room above the diagram for the run controls (top centre) and the overview map (top left) that float over the canvas, so the token at a desk, its warning badges and its red cross are never hidden underneath them.
 const FIT_VIEW = { padding: { top: '190px', right: '70px', bottom: '70px', left: '70px' }, maxZoom: 1 } as const;
 
 const NOTICE_COLOR = {
@@ -54,10 +53,7 @@ function Notice() {
   );
 }
 
-/**
- * The drawing surface: React Flow on a dark grid, wired to the workflow store.
- * Must be rendered inside a <ReactFlowProvider> so the palette can share its viewport.
- */
+/** The drawing surface: React Flow on a dark grid, wired to the workflow store. */
 export function ProcessCanvas() {
   const levelId = useWorkflowStore((s) => s.level.id);
   const epoch = useWorkflowStore((s) => s.canvasEpoch);

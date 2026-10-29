@@ -7,10 +7,7 @@ import { formatAud } from '../../engine/money';
 import type { AccountId, GLEntry } from '../../types/processLearning';
 import { useTerms } from '../bank/useTerms';
 
-/**
- * The live double-entry mini ledger: the journal lines a run posted, grouped by payment, and the trial balance that proves
- * the books still add up. Pure display; the lines come from the engine (engine/postings.ts) and are never edited here.
- */
+/** The live double-entry mini ledger: the journal lines a run posted, grouped by payment, and the trial balance that proves the books still add up. */
 
 export interface LedgerBatch {
   id: string;
@@ -172,11 +169,7 @@ function TrialBalance({ tb }: { tb: Trial }) {
   );
 }
 
-/**
- * The journal, then the trial balance. Shows `empty` when there is nothing to show. Pass `trial` when the batches are only the latest
- * lines and the balance should cover more. `split` puts the trial balance beside the
- * journal on a wide screen (the results drawer); the default stacks them (a narrow card).
- */
+/** The journal, then the trial balance. */
 export function LedgerView({ batches, empty, split = false, trial, actions }: { batches: readonly LedgerBatch[]; empty?: string; split?: boolean; trial?: Trial; actions?: (batch: LedgerBatch) => ReactNode }) {
   const ui = ledgerUi();
   const all = useMemo(() => batches.flatMap((b) => b.entries), [batches]);

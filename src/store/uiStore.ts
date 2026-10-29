@@ -1,9 +1,4 @@
-/**
- * Which overlay is open over the app (the welcome chooser, the AML desk, the payment-rail benchmark, the Chaos Monkey panel,
- * the audit report) and whether sound is on. Nothing here knows about the bank; the overlays read the bank themselves.
- *
- * Only the sound switch and the "has seen the welcome" flag are remembered in the browser.
- */
+/** Which overlay is open over the app (the welcome chooser, the AML desk, the payment-rail benchmark, the Chaos Monkey panel, the audit report) and whether sound is on. */
 
 import { useStore } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';

@@ -16,17 +16,7 @@ import { DepthToggle } from '../shell/SegmentedToggle';
 import { ScenarioPicker } from './ScenarioPicker';
 import { walkMessages } from './walkthrough.messages';
 
-/**
- * The guided walkthrough: the part of Learn & Explore the learner reads and answers.
- *
- *   Kickoff        the opening scene ("Customer An has just bought a shirt online…") before the token moves
- *   StepCard       at every desk: What is happening here? / Key takeaway / What can go wrong
- *   QuizGate       at every decision (XOR gateway): a question the learner must answer before the token carries on
- *   GuidedBar      the sticky bar at the bottom: Previous step, Auto-play / Pause / Resume, Next step, Exit tutorial
- *
- * The map side (dimming, the glowing path, the token that rides the wires) is in bank/Spotlight.tsx. Everything here
- * reads and writes the same bank store as the rest of the screen.
- */
+/** The guided walkthrough: the part of Learn & Explore the learner reads and answers. */
 
 const TONE: Record<StepTone, string> = {
   neutral: 'bg-slate-800 text-slate-200 ring-slate-600',
@@ -44,7 +34,6 @@ function Section({ title, children, testId }: { title: string; children: ReactNo
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 /** The tour bar's terminology switch, over the same store setting as the Living Bank header. */
 function WalkDepth() {
   const depth = useBankStore(dataDepthOf);
@@ -53,7 +42,6 @@ function WalkDepth() {
 }
 
 // Kickoff
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function Kickoff({ focus }: { focus: Focus }) {
   const ui = walkUi();
@@ -74,8 +62,7 @@ export function Kickoff({ focus }: { focus: Focus }) {
   }, [begin]);
 
   return (
-    // A workspace-size card, drawn flat: no transform or scale anywhere on it or its parents (the map mounts it outside its
-    // panned, zoomed stage), so the words render on whole pixels, crisp.
+    // A workspace-size card, drawn flat: no transform or scale anywhere on it or its parents (the map mounts it outside its panned, zoomed stage), so the words render on whole pixels, crisp.
     <div className="absolute inset-0 z-40 grid place-items-center overflow-y-auto p-6 antialiased" data-testid="walk-kickoff">
       <div className="absolute inset-0 bg-[#050810]/85" onClick={exit} aria-hidden="true" />
       <div role="dialog" aria-modal="true" aria-label={`${ui.tour}: ${lesson.title}`} className="relative w-full max-w-3xl select-text rounded-2xl border bg-[#0b1120] p-8 shadow-2xl" style={{ borderColor: focus.accent, boxShadow: `0 0 0 1px ${focus.accent}55, 0 0 48px ${focus.accent}33` }}>
@@ -128,9 +115,7 @@ export function Kickoff({ focus }: { focus: Focus }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The question at a decision
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function QuizGate({ focus }: { focus: Focus }) {
   const ui = walkUi();
@@ -199,9 +184,7 @@ export function QuizGate({ focus }: { focus: Focus }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The explanation at a desk
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const StepCard = forwardRef<HTMLDivElement, { focus: Focus; style?: React.CSSProperties; side?: string; docked?: boolean }>(function StepCard({ focus, style, side, docked = false }, ref) {
   const ui = walkUi();
@@ -295,9 +278,7 @@ export const StepCard = forwardRef<HTMLDivElement, { focus: Focus; style?: React
   );
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The bar at the bottom
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function GuidedBar() {
   const focus = useSpotlightFocus();
@@ -436,14 +417,9 @@ export function GuidedBar() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The step card folded away, and the way back into a tour that was left
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * [📘 Chapter 5: Step 1/4]: the chapter chip at the map's bottom-left, on screen for the whole tour. It glows when the step
- * changes (new content to read) and clicking it opens or folds the step-details column. State lives in useWalkthroughDock.
- */
+/** [📘 Chapter 5: Step 1/4]: the chapter chip at the map's bottom-left, on screen for the whole tour. */
 export function WalkChip() {
   const m = useMessages(walkMessages);
   const dock = useWalkthroughDock();

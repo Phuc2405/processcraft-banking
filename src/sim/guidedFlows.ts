@@ -1,15 +1,4 @@
-/**
- * The four guided flows of the Beginner scope. Each one lights a short path through the Living Bank and dims the rest,
- * so a newcomer follows one payment story at a time:
- *
- *   01  In-Store POS      a card tapped in a shop: POS gate → Debit CASA → the authorisation answer
- *   02  Web & 3DS         an online checkout: token vault and dCVV, or the 3DS risk desk and an SMS code
- *   03  Automated Cash Deposit   cash paid in at the sidewalk machine, credited to the account straight away
- *   04  Overnight EOD     the night cycle: batch clearing, Visa settlement, 3-way reconciliation
- *
- * Every flow is written twice: as the logical nodes of the brief (pos_terminal, casa_desk, auth_engine, ...) and as the real
- * places on the map that play each part. Pure data and pure functions, so the 2D map, the 3D office and the tests share them.
- */
+/** The four guided flows of the Beginner scope. */
 
 import type { DataDepth, FlowId, ViewportSettings } from '../types/viewport';
 import { edgeId, isStation, STATIONS, WIRES, type DepartmentId, type PlaceId } from './topology';
@@ -199,10 +188,7 @@ export function flowPlaces(flow: FlowId): ReadonlySet<PlaceId> {
 
 const isFlowNode = (id: string): id is FlowNodeId => Object.values(GUIDED_FLOW_NODES).some((nodes) => (nodes as readonly string[]).includes(id));
 
-/**
- * Whether a node stays lit. Everything is lit in the Advanced scope. In the Beginner scope a node is lit when the active flow
- * uses it. `nodeId` may be a logical node of the brief ("casa_desk") or a place on the map ("LEDGER_DEBIT").
- */
+/** Whether a node stays lit. */
 export function isNodeFocused(nodeId: string, viewport: ViewportSettings): boolean {
   if (viewport.scope !== 'beginner' || viewport.activeFlow === null) return true;
   const flow = viewport.activeFlow;
@@ -234,10 +220,7 @@ export type StepStatus = 'upcoming' | 'in-progress' | 'completed';
 
 export const STEP_STATUS_LABEL: Record<StepStatus, string> = { upcoming: 'Upcoming', 'in-progress': 'In Progress', completed: 'Completed' };
 
-/**
- * Where the learner's last preset payment is along a flow. With no payment on the way (or one from another flow) every
- * step is upcoming. A step is in progress while the payment is at one of its places and completed once it has passed one.
- */
+/** Where the learner's last preset payment is along a flow. */
 export function stepStatus(flow: FlowId, index: number, trace: PacketTrace | null): StepStatus {
   const s = GUIDED_FLOWS[flow].steps[index];
   if (!s || !trace) return 'upcoming';
@@ -255,9 +238,7 @@ export function stepAt(flow: FlowId, place: PlaceId): { number: number; total: n
   return found ? { number: i + 1, total: steps.length, step: found } : null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Language
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface FlowWords {
   title: string;

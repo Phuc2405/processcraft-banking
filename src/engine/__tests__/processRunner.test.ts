@@ -42,9 +42,7 @@ const withAge = (p: BankingPayload, ageMs: number): BankingPayload => {
   return p;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Stepping
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('step() and runToCompletion()', () => {
   const makeRunner = (testId: Id) => new ProcessRunner(referenceGraph(L1), testById(L1, testId), { runnerConfig: L1.runnerConfig });
@@ -109,9 +107,7 @@ describe('step() and runToCompletion()', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // AND gateway
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('AND gateway', () => {
   const forkJoin = (): ProcessGraph =>
@@ -206,9 +202,7 @@ describe('AND gateway', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Anomalies
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('anomaly detection', () => {
   const payload = testById(L2, 'L2-T01').inputPayload;
@@ -296,9 +290,7 @@ describe('anomaly detection', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Capability handlers
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('capability: TOKEN_VAULT', () => {
   it('maps a DPAN to its card and funding account', () => {
@@ -510,9 +502,7 @@ describe('capability: BNPL_UNDERWRITER', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Expressions
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('expressions: evaluation', () => {
   const run = (src: string, scope: Record<string, string | number | boolean | undefined> = {}) =>

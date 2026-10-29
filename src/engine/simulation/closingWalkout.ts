@@ -3,12 +3,7 @@ import { pathLength, pointAlongPath } from '../plan/path';
 import type { V2 } from '../plan/layout3d';
 import { evacuees, EXIT_PACE } from '../world/evacuation';
 
-/**
- * Closing time's walk-out (EvacuatingState for everyone queuing at a customer desk when the doors close at 17:00). When the
- * bank closes, everyone in the counters' lines sets off for the exit their place gives them (evacuation.ts), a moment apart,
- * the head of each line first, and walks out at EXIT_PACE; once the last is out the walk-out is over. When the bank opens
- * again it is cleared. Pure, stepped on the motion clock: the 3D view only draws it.
- */
+/** Closing time's walk-out (EvacuatingState for everyone queuing at a customer desk when the doors close at 17:00). */
 
 /** One person walking out: where they are, which way they face, and whether they are still in view. */
 export interface WalkoutPose {
@@ -33,8 +28,7 @@ export class ClosingWalkout {
     this.wasClosed = closed;
   }
 
-  /** Follows the bank's doors: closing sets the lines walking out (their lengths now from `queueLength`); opening clears it.
-   * True when who is walking changed. */
+  /** Follows the bank's doors: closing sets the lines walking out (their lengths now from `queueLength`); opening clears it. */
   update(closed: boolean, queueLength: (id: StationId) => number): boolean {
     let changed = false;
     if (closed && !this.wasClosed) {

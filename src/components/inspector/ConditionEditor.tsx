@@ -28,12 +28,7 @@ function clause(v: ConditionVariable, op: string, value: string): string {
   return v.type === 'string' ? `${v.name} ${op} '${value}'` : `${v.name} ${op} ${value}`;
 }
 
-/**
- * Edits the routing rule on one branch leaving an XOR gateway.
- * The learner can type the expression, click a variable to drop its name in, or build a clause
- * from three dropdowns. The text is checked as they type with the same checker the grader uses, so
- * "Unknown variable 'riskscor'. Did you mean 'riskScore'?" appears before they ever submit.
- */
+/** Edits the routing rule on one branch leaving an XOR gateway. */
 export function ConditionEditor({ edge }: { edge: ProcessFlowEdge }) {
   const variables = useWorkflowStore((s) => s.conditionVariables);
   const nodes = useWorkflowStore((s) => s.nodes);

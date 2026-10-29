@@ -1,19 +1,7 @@
 import { laneAt, type V2 } from '../plan/layout3d';
 import { pointAlongPath } from '../plan/path';
 
-/**
- * The journey of a customer served at a counter or an ATM, as a state machine (State pattern). Each state knows how long
- * it lasts, what the customer looks like in it, and which state follows:
- *
- *   WalkingState      walking up to the counter or machine (only someone who reached the line after their turn came)
- *   InteractingState  standing at it, facing it: keying in at the machine or talking to the teller
- *   TurningState      finishing up and turning round smoothly to face the way out
- *   DepartingState    walking away along the way out, off down the street or out of the side door
- *   GoneState         off the scene (the view stops drawing them)
- *
- * Pure: the journey is a function of the time since it began, so the tests can walk one through, and pausing the motion
- * clock freezes it where it is.
- */
+/** The journey of a customer served at a counter or an ATM, as a state machine (State pattern). */
 
 /** What the customer looks like at a moment of their journey. */
 export interface CustomerPose {

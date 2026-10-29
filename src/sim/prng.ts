@@ -1,7 +1,4 @@
-/**
- * A small seeded random number generator. The bank's day must be reproducible: the same seed and day
- * always bring the same customers, so a rule change can be compared against "tomorrow, unchanged".
- */
+/** A small seeded random number generator. */
 
 /** FNV-1a over the text of the parts. Stable across runs and platforms. */
 export function hashSeed(...parts: Array<string | number>): number {

@@ -7,12 +7,7 @@ import { TrafficSim, VEHICLES, type Vehicle } from '../world/vehicles';
 import { PEDESTRIANS, type Pedestrian } from '../world/weather';
 import { StaffEntity, NIGHT_SHIFT_SCHEDULE, MORNING_SHIFT_SCHEDULE } from './staff';
 
-/**
- * Factory for everyone and everything that moves in the 3D office's world: the fleet on the avenue, the car park (with its
- * cash van), the park's people, the guards at a post, the passers-by on the pavement and the staff coming in to a desk.
- * The world engine makes all of them here and nowhere else, so what the world is made of is in one place, and a test (or a
- * variant of the scene) can hand the engine a factory of its own.
- */
+/** Factory for everyone and everything that moves in the 3D office's world. */
 export class EntityFactory {
   constructor(
     private readonly fleet: readonly Vehicle[] = VEHICLES,

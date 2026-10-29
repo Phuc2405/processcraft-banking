@@ -1,13 +1,4 @@
-/**
- * A tiny kit for building low-poly furniture and people.
- *
- * A piece of furniture is a handful of boxes, cylinders and blobs, each with its own colour. Drawing them as separate
- * meshes would cost a draw call apiece (a desk has dozens), so the pieces are merged into ONE geometry with the colour
- * baked into the vertices. The whole office is then a few hundred draw calls rather than several thousand, which is what
- * keeps the 3D view smooth while the inspector opens over it.
- *
- * No DOM, no GPU: geometries and colours are plain data, so the kit is unit-tested in node.
- */
+/** A tiny kit for building low-poly furniture and people. */
 
 import { BoxGeometry, BufferGeometry, Color, CylinderGeometry, Euler, Float32BufferAttribute, IcosahedronGeometry, Matrix4, Path, QuadraticBezierCurve3, Quaternion, Shape, SphereGeometry, TorusGeometry, TubeGeometry, Vector3 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -111,9 +102,7 @@ export function merge(parts: readonly Part[]): BufferGeometry {
   return out ?? new BufferGeometry();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Colour
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A blend of two #rrggbb colours: t = 0 is a, t = 1 is b. */
 export function mix(a: string, b: string, t: number): string {
@@ -127,9 +116,7 @@ export const tint = (hex: string, t: number): string => mix(hex, '#ffffff', t);
 /** The colour toward black. */
 export const shade = (hex: string, t: number): string => mix(hex, '#000000', t);
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Ribbons (painted lanes)
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface RibbonData {
   /** x, y, z triples. */
@@ -138,10 +125,7 @@ export interface RibbonData {
   index: Uint32Array;
 }
 
-/**
- * A flat strip along a floor path: the lanes the payments follow. Each segment is a quad lying at height y; segments are
- * butted together, which is smooth enough because the paths have rounded corners.
- */
+/** A flat strip along a floor path: the lanes the payments follow. */
 export function ribbon(points: readonly P2[], width: number, y: number): RibbonData {
   const segs = Math.max(0, points.length - 1);
   const position = new Float32Array(segs * 4 * 3);

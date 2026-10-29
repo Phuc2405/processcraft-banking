@@ -1,7 +1,4 @@
-/**
- * Colours, categories and worker personas shared by the node components, the palette and the minimap.
- * Tailwind only generates classes it can see as whole strings, so every class below is written out in full.
- */
+/** Colours, categories and worker personas shared by the node components, the palette and the minimap. */
 
 import type { NodeRunStatus } from '../../store/liveSimulation';
 import type { BankingCapability, NodeType, Outcome } from '../../types/processLearning';
@@ -47,9 +44,7 @@ export function categoryOf(node: { type: NodeType; bankingCapability: BankingCap
   return node.type === 'GATEWAY_XOR' || node.type === 'GATEWAY_AND' ? 'ROUTING' : 'EVENT';
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The people behind the desks
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type Accessory = 'glasses' | 'tie' | 'headset' | 'badge';
 
@@ -77,9 +72,7 @@ export const WORKER_PROFILE: Record<BankingCapability, WorkerProfile> = {
   CHARGEBACK_DESK: { role: 'Disputes Analyst', desk: 'Chargeback desk', skin: '#8d5a3b', hair: '#171717', shirt: '#b91c1c', accessory: 'tie' },
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // End-event outcomes
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface OutcomeTheme {
   label: string;
@@ -104,9 +97,7 @@ export function minimapColor(node: { type: NodeType; bankingCapability: BankingC
   return CATEGORY_THEME[categoryOf(node)].accent;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Runtime status
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const STATUS_TEXT: Record<NodeRunStatus, { label: string; dot: string; text: string }> = {
   IDLE: { label: 'Idle', dot: 'bg-slate-600', text: 'text-slate-400' },

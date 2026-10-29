@@ -1,13 +1,4 @@
-/**
- * The Academy in Vietnamese: the 22 four-section lessons, the level titles and goals, the chapter and track names.
- *
- * The English originals stay where they were (academyLessons.ts, academyCatalog.ts) because the store, the map focus and the
- * tests key off them. This file only carries the words, keyed by the same ids, and academyCatalog.ts swaps them in through
- * `localLevel` / `localChapter` / `localTrack` when the learner picks Tiếng Việt.
- *
- * Response codes ("RC 51") and GL codes ("1110") are kept in the text on purpose: plainLanguage.ts rewrites them for the
- * Beginner View, in the active language.
- */
+/** The Academy in Vietnamese: the 22 four-section lessons, the level titles and goals, the chapter and track names. */
 
 import type { EdgeCase, LessonContent } from '../sim/academyLessons';
 

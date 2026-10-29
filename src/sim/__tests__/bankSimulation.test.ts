@@ -124,8 +124,7 @@ describe('an ordinary day', () => {
     expect(r.close.reconBacklog).toBe(0);
     expect(r.close.nightDoneMinute).not.toBeNull();
     expect(r.close.nightDoneMinute!).toBeLessThanOrEqual(DAY_END);
-    // Only card payments go through tonight's clearing: an instant transfer settles on its own rail, ATM cash is counted at the
-    // machine, and the Phase 8 channels post straight to the CASA ledger.
+    // Only card payments go through tonight's clearing: an instant transfer settles on its own rail, ATM cash is counted at the machine, and the Phase 8 channels post straight to the CASA ledger.
     const x = k.ext;
     const extended = x.accountsOpened + x.qrPaid + x.swiftSent + x.tellerDeposits + x.tellerWithdrawals + x.disputesRefunded;
     expect(k.recon.records).toBe(k.approved - k.a2a.released - k.atm.dispensed - extended);

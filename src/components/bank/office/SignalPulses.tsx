@@ -36,11 +36,7 @@ function towerParts() {
   };
 }
 
-/**
- * The digital gates' customers arriving as signals (signals.ts): whenever a gate takes in new cases in a beat, a few
- * glowing pulses leave the cell tower's antennas (a ripple spreading at the top) and arc down onto the gate's desk, where a
- * ripple spreads as each lands. On the motion clock: they hang where they are on pause.
- */
+/** The digital gates' customers arriving as signals (signals.ts). */
 export const SignalPulses = memo(function SignalPulses() {
   const tick = useBankStore((s) => s.view.tick);
   const parts = useMemo(towerParts, []);

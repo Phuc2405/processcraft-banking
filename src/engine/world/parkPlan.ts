@@ -2,11 +2,7 @@ import { FLOOR_SLAB, type V2 } from '../plan/layout3d';
 import { LOT } from './parking';
 import { pathLength, pointAlongPath } from '../plan/path';
 
-/**
- * Where everything in the public park is (the park on the right of the branch, between it and the houses): the lawn, the
- * cobbled loop path, the fountain plaza, the benches, the playground and the picnic corner. Park3D draws it; parkLife moves
- * its people about it.
- */
+/** Where everything in the public park is (the park on the right of the branch, between it and the houses). */
 
 const HX = FLOOR_SLAB.w / 2;
 
@@ -35,10 +31,7 @@ export const PARK_BENCHES: ReadonlyArray<{ at: V2; facing: number }> = [0, 1, 2,
   return { at: [FOUNTAIN.x + Math.cos(a) * r, FOUNTAIN.z + Math.sin(a) * r] as V2, facing: Math.atan2(-Math.cos(a), -Math.sin(a)) };
 });
 
-/**
- * The park's lamp posts: along both sides of the loop path, and four round the fountain plaza just behind the benches, so
- * whoever sits out on a bench in the evening sits in a pool of lamplight. `height` is where the lamp head hangs.
- */
+/** The park's lamp posts: along both sides of the loop path, and four round the fountain plaza just behind the benches, so whoever sits out on a bench in the evening sits in a pool of lamplight. */
 export const PARK_LAMP_HEIGHT = 2.4;
 export const PARK_LAMPS: readonly V2[] = [
   [LOOP.x0 - 0.65, LOOP.z0 + 3],
@@ -59,11 +52,7 @@ export const HEDGES: ReadonlyArray<{ x0: number; x1: number; z0: number; z1: num
   { x0: PARK.x1 - 4.4, x1: PARK.x1 - 0.4, z0: PARK.z1 - 0.24, z1: PARK.z1 },
 ];
 
-/**
- * The flowerbeds round the fountain plaza, set off the cross paths: a pair past the plaza's edge at the front and back, and
- * (the park being narrow, with the loop path close by on either side) a smaller pair tucked in at each side, between the
- * benches. `at` is the bed's middle and `size` its side.
- */
+/** The flowerbeds round the fountain plaza, set off the cross paths. */
 export const FLOWERBEDS: ReadonlyArray<{ at: V2; size: number }> = [
   ...[-1, 1].flatMap((sz) => [-1, 1].map((e) => ({ at: [FOUNTAIN.x + e * 0.95, FOUNTAIN.z + sz * (FOUNTAIN.r + 0.7)] as V2, size: 0.8 }))),
   ...[-1, 1].flatMap((sx) => [-1, 1].map((e) => ({ at: [FOUNTAIN.x + sx * 2.3, FOUNTAIN.z + e * 0.95] as V2, size: 0.6 }))),

@@ -17,11 +17,7 @@ export function rackLedHex(load: number): string {
   return '#34d399';
 }
 
-/**
- * One server rack: a dark cabinet with six blade servers facing the counter, a status LED on every blade and a bot badge on
- * top. The LEDs blink in a ripple while the thread is processing and hold steady while it idles; their colour follows the
- * load. Clicking the rack selects its thread, like clicking the person who used to sit there.
- */
+/** One server rack: a dark cabinet with six blade servers facing the counter, a status LED on every blade and a bot badge on top. */
 export const ServerRack3D = memo(function ServerRack3D({ load, working, temp, accent, selected, onSelect }: { load: number; working: boolean; temp: boolean; accent: string; selected: boolean; onSelect: () => void }) {
   const body = useMemo(() => {
     const parts = [

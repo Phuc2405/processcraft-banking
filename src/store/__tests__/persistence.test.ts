@@ -36,9 +36,7 @@ const passes = (store: WorkflowStore): number => evaluateChallenge(store.getStat
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Encoding and decoding
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('encode and decode', () => {
   it.each(REFERENCE_SOLUTIONS.map((r) => [r.challengeId, r] as const))('%s: a saved reference solution comes back as the same graph', (_id, ref) => {
@@ -160,9 +158,7 @@ describe('encode and decode', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Autosave
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('autosave', () => {
   it('writes an edit after the delay, not before, and reports pending then saved', () => {
@@ -263,9 +259,7 @@ describe('autosave', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Restore on open and on level switch
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('restoring', () => {
   it('a new session (a page reload) gets the diagram back, with a notice, and it still grades', () => {
@@ -364,9 +358,7 @@ describe('restoring', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Reset to starter
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('resetToStarter', () => {
   it('clears the saved entry and returns the level to its starter graph', () => {
@@ -452,9 +444,7 @@ describe('resetToStarter', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // When storage misbehaves
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe('storage that is missing or failing', () => {
   it('with no storage the app still works and says it is not saving', () => {

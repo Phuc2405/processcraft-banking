@@ -35,10 +35,7 @@ export function laneKind(to: string, from: string): LaneKind {
   return 'approve';
 }
 
-/**
- * How each kind of lane is drawn: its pastel tape on the warm floor; the legend colour it glows in when lit (the 2D Map
- * Legend's own strokes: red, blue, amber, purple); and its dashes in world units (red dashed, purple dotted, as in 2D).
- */
+/** How each kind of lane is drawn: its pastel tape on the warm floor. */
 export const LANE_STYLE: Readonly<Record<LaneKind, { tape: string; glow: string; dash?: readonly [number, number] }>> = {
   reject: { tape: '#f0a3b3', glow: '#fb7185', dash: [0.42, 0.3] },
   approve: { tape: '#c9c2b4', glow: '#38bdf8' },

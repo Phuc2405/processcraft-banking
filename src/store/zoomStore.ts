@@ -1,9 +1,4 @@
-/**
- * The map's zoom, shared between the floating zoom toolbar and whichever view is on screen (the 2D blueprint or the 3D office).
- *
- * The toolbar sends commands (`zoomIn`, `zoomOut`, `fit`); the view on screen carries them out and reports back the zoom it
- * ended at as a percentage, which the toolbar shows. Each view keeps its own camera; this store only carries the messages.
- */
+/** The map's zoom, shared between the floating zoom toolbar and whichever view is on screen (the 2D blueprint or the 3D office). */
 
 import { useStore } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
@@ -34,11 +29,7 @@ export const clampZoom = (z: number, min: number = ZOOM_2D.min, max: number = ZO
 /** The zoom after a wheel movement: smooth and proportional to how far the wheel turned. */
 export const wheelZoom = (zoom: number, deltaY: number): number => clampZoom(zoom * Math.exp(-deltaY * 0.0015));
 
-/**
- * Where the scroll position must go so the point under the cursor stays put when the scale changes from `from` to `to`.
- * `cursor` is the cursor's offset inside the scrolling frame, `scroll` the frame's scroll offset, `pad` the content's offset
- * inside the scrolled area (the stage is centred, so it may start some way in).
- */
+/** Where the scroll position must go so the point under the cursor stays put when the scale changes from `from` to `to`. */
 export function scrollToKeep(cursor: number, scroll: number, pad: number, from: number, to: number): number {
   const stagePoint = (scroll + cursor - pad) / from;
   return stagePoint * to + pad - cursor;

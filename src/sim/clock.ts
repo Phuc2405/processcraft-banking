@@ -1,16 +1,4 @@
-/**
- * The bank's clock. A day runs from 07:00, as the day's staff start arriving for their 08:00 shift, to midnight; the
- * hours the bank sleeps through (00:00 to 07:00) are skipped, and tired people recover during them.
- *
- *   PRE_OPEN     07:00-09:00  the day's staff walk in (07:00-08:00), then the systems check and briefing
- *   WORKING      09:00-17:00  live customers: checkouts, BNPL purchases, POS swipes
- *   AFTER_HOURS  17:00-23:00  no new customers; the last queues drain; the night's staff walk in (22:00-23:00)
- *   EOD          23:00-24:00  the night cycle: batch clearing, Visa settlement, 3-way reconciliation
- *
- * The simulation moves in beats. A beat is a few minutes of bank time, and how many depends on how
- * much is going on: customers arrive in 5-minute beats, the quiet hours pass an hour at a time. The two hours before a
- * shift (PRE_SHIFT) tick in 5-minute beats too, so the clock moves on steadily while the staff walk in to their desks.
- */
+/** The bank's clock. */
 
 import { activeLocale } from '../i18n/localeCore';
 
@@ -69,10 +57,7 @@ export function formatClock(minute: number): string {
   return `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`;
 }
 
-/**
- * Real milliseconds one beat takes at the Relaxed (1x) speed. The busy phases are slow enough to follow with your
- * eyes (one beat every 1.5 seconds); the quiet hours pass a little faster because nothing much happens in them.
- */
+/** Real milliseconds one beat takes at the Relaxed (1x) speed. */
 const BEAT_MS: Record<Phase, number> = { PRE_OPEN: 900, WORKING: 1500, AFTER_HOURS: 900, EOD: 1500 };
 /** A 5-minute beat before a shift, at 1x: the staff's hour in about half a minute, time for everyone to walk in. */
 const PRE_SHIFT_MS = 2400;

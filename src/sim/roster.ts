@@ -1,7 +1,4 @@
-/**
- * The people. Every desk has named staff who get tired over a shift and slow down as they do.
- * Names, looks and pace are fixed by the seed, so the same bank has the same people every time it is opened.
- */
+/** The people. */
 
 import { hashSeed, Rng } from './prng';
 import { STATION_IDS, STATIONS, type StationId } from './topology';
@@ -141,26 +138,18 @@ export function rosterFor(seed: number): Record<StationId, WorkerSeed[]> {
   return out;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Tiredness
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A fresh person works at 1. A worn-out one at about half. */
 export const productivityFor = (fatigue: number): number => 1 - 0.45 * (Math.min(100, Math.max(0, fatigue)) / 100) ** 1.6;
 
-/**
- * How much more tired someone gets over `minutes` of bank time if they were busy `busyShare` (0-1) of it.
- * Being at a desk wears you down a little; being flat out wears you down a lot; idle moments let you recover.
- */
+/** How much more tired someone gets over `minutes` of bank time if they were busy `busyShare` (0-1) of it. */
 export function fatigueChange(minutes: number, busyShare: number): number {
   const u = Math.min(1, Math.max(0, busyShare));
   return minutes * (0.03 + 0.145 * u - 0.06 * (1 - u));
 }
 
-/**
- * Stamina recovery: while a desk's load (the share of the beat its people were busy) stays below `belowLoad`, everyone on
- * shift there gets their breath back on top of the idle recovery in fatigueChange, so a quiet spell after a rush refills the bar.
- */
+/** Stamina recovery: while a desk's load (the share of the beat its people were busy) stays below `belowLoad`, everyone on shift there gets their breath back on top of the idle recovery in fatigueChange, so a quiet spell after a rush refills the bar. */
 export const STAMINA_RECOVERY = { belowLoad: 0.3, perMinute: 0.12 } as const;
 
 /** Fatigue points recovered over `minutes` at a desk running at `deskLoad` (0-1). */
@@ -174,12 +163,7 @@ export const mistakeChance = (fatigue: number): number => (fatigue <= 60 ? 0 : (
 
 export const MAX_COVER_PER_STATION = 2;
 
-/**
- * The night team works through the body's low point, so a minute of work tires them more than the same minute by day. How much
- * more depends on how hard they are working: someone keeping up with a light night barely feels it, someone flat out on a
- * heavy one tires about three and a half times as fast. `busyShare` is the share of the beat the person was working (their
- * throughput against their capacity), so the drop follows the load instead of being a fixed penalty on whoever is on shift.
- */
+/** The night team works through the body's low point, so a minute of work tires them more than the same minute by day. */
 export const NIGHT_FATIGUE = { idle: 1.2, flatOut: 3.6 } as const;
 export const nightFatigueFactor = (busyShare: number): number => NIGHT_FATIGUE.idle + (NIGHT_FATIGUE.flatOut - NIGHT_FATIGUE.idle) * Math.min(1, Math.max(0, busyShare));
 
@@ -187,9 +171,7 @@ export const nightFatigueFactor = (busyShare: number): number => NIGHT_FATIGUE.i
 export const NIGHT_START_FATIGUE = 18;
 export const DAY_START_FATIGUE = 6;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The night rota
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** The desks of the night shift, in the order seats are handed out. */
 export const NIGHT_STATIONS = ['EOD_BATCH', 'EOD_VISA', 'RECON'] as const satisfies readonly StationId[];
@@ -201,11 +183,7 @@ export const NIGHT_RESERVES = 3;
 /** The night seats: how many people each night desk needs. */
 export const NIGHT_SEATS: number = NIGHT_STATIONS.reduce((n, id) => n + STATIONS[id].staff, 0);
 
-/**
- * Everyone on the night team. The first ones are the people `rosterFor` seats at the night desks (so day 1 is the same crew as
- * always); the reserves are drawn after the whole roster, so no one else's name changes. Each person can work any night desk:
- * their id, name, look and pace are their own, and the desk they sit at decides their role and uniform for the night.
- */
+/** Everyone on the night team. */
 export function nightPoolFor(seed: number): WorkerSeed[] {
   const roster = rosterFor(seed);
   const taken = new Set(STATION_IDS.flatMap((id) => roster[id].map((w) => w.name)));
@@ -221,11 +199,7 @@ export interface NightRota {
   resting: number[];
 }
 
-/**
- * Who works which night desk on `day`. The pool turns by NIGHT_RESERVES places a day, so with 9 people and 6 seats everyone
- * works two nights in three and has the third off, and the one-person desks (Batch Clearing, Visa Settlement) change hands
- * every night. It is a pure function of the day, so reloading the page, "Reset day" and the what-if runs all see the same crew.
- */
+/** Who works which night desk on `day`. */
 export function nightRotaFor(day: number, poolSize = NIGHT_SEATS + NIGHT_RESERVES): NightRota {
   const shift = (((Math.max(1, Math.floor(day)) - 1) * NIGHT_RESERVES) % poolSize + poolSize) % poolSize;
   const order = Array.from({ length: poolSize }, (_, i) => (i + shift) % poolSize);

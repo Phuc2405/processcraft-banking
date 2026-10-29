@@ -1,15 +1,4 @@
-/**
- * Where everything stands in the 3D office. Pure numbers and no three.js, so the placement can be tested without a GPU.
- *
- * Desks, departments and wires come from officePlan.ts, a frozen copy of the original 2D stage geometry, so 2D layout
- * changes never move the 3D rooms.
- *
- *   world x  = (stage x - stage width / 2) / WORLD_SCALE      to the right on the 2D map
- *   world z  = (stage y - stage height / 2) / WORLD_SCALE     down the 2D map (towards the viewer)
- *   world y  = up
- *
- * A desk is a teller counter that faces +z: customers queue on that side, the staff sit behind it.
- */
+/** Where everything stands in the 3D office. */
 
 import { DEPARTMENTS, STATION_IDS, STATIONS, type DepartmentId, type PlaceId, type StationId } from '../../sim/topology';
 import type { StationStatus } from '../../sim/types';
@@ -22,16 +11,10 @@ export const WORLD_SCALE = 40;
 /** A point on the floor: [x, z]. */
 export type V2 = readonly [number, number];
 
-/**
- * The origin is the middle of the BUILDING, not of the whole 2D stage: the stage also holds the pavement below the branch
- * (the sidewalk ATMs), which in 3D is a street outside the office and not part of its floor.
- */
+/** The origin is the middle of the BUILDING, not of the whole 2D stage. */
 export const toWorld = (sx: number, sy: number): V2 => [(sx - BUILDING.width / 2) / WORLD_SCALE, (sy - BUILDING.height / 2) / WORLD_SCALE];
 
-/**
- * Phase 8 made the building 370 units deeper for the extended-flows wing, which moved the origin. Positions placed by hand in
- * world units before then (server room, plants, right-hand windows) are written in the old frame and shifted by this.
- */
+/** Phase 8 made the building 370 units deeper for the extended-flows wing, which moved the origin. */
 export const LEGACY_Z = (BUILDING.height / 2 - 405) / WORLD_SCALE;
 const legacyZ = (z: number): number => z - LEGACY_Z;
 
@@ -46,14 +29,9 @@ export const FLOOR = {
 
 export const FLOOR_SLAB = { w: FLOOR.w + FLOOR.margin * 2, d: FLOOR.d + FLOOR.margin * 2 } as const;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The street in front of the branch
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Outside the front of the building: a pavement with the sidewalk ATMs on it, a kerb, and a strip of road. The pavement
- * starts where the office slab ends, so a customer at an ATM stands on the street, not in the lobby.
- */
+/** Outside the front of the building: a pavement with the sidewalk ATMs on it, a kerb, and a strip of road. */
 export const STREET = {
   /** The front edge of the office slab, where the pavement begins. */
   z0: FLOOR_SLAB.d / 2,
@@ -72,10 +50,7 @@ export const KERB_Z = STREET.z0 + STREET.walk;
 /** The far edge of the road that is drawn. */
 export const ROAD_END = KERB_Z + STREET.road;
 
-/**
- * The avenue's markings, shared by the drawn street and its continuation: four lanes, a motorbike lane along each kerb
- * (tinted) and a car lane inside it, dashed lines between them, a double line down the middle and an edge line each side.
- */
+/** The avenue's markings, shared by the drawn street and its continuation. */
 export function avenueMarkings(x0: number, x1: number, y: number): Array<{ at: [number, number, number]; size: [number, number, number]; color: string }> {
   const z0 = KERB_Z + STREET.kerbW;
   const lane = (ROAD_END - z0) / 4;
@@ -101,9 +76,7 @@ export const SCENE = (() => {
   return { x0: -x1, x1, z0, z1, w: 2 * x1, d: z1 - z0, cx: 0, cz: (z0 + z1) / 2 } as const;
 })();
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Desks and departments
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface Pose {
   x: number;
@@ -145,9 +118,7 @@ export const STATION_POSES: Readonly<Record<StationId, Pose>> = Object.fromEntri
 /** The desk's department accent, the colour of its edge strip. */
 export const accentOf = (id: StationId): string => DEPARTMENTS[STATIONS[id].department].accent;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // People
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Staff sit behind the counter, four to a row. Offsets are from the counter's centre; z is negative (behind). */
 export const SEAT_ROW = 4;
@@ -169,19 +140,14 @@ export function seatOffsets(count: number): V2[] {
 /** The most customers drawn in a queue; the rest are a number on the sign. */
 export const QUEUE_VISIBLE = 5;
 
-/** A desk's own offset to the looks of the people in its line, so two lines never wear the same faces in the same order:
- * the person in place `i` of a line is `processedToday + i + queueSalt(id)` (the same person as the line moves up). */
+/** A desk's own offset to the looks of the people in its line, so two lines never wear the same faces in the same order. */
 export const queueSalt = (id: StationId): number => {
   const p = deskPose(id);
   return Math.abs(Math.trunc(p.x * 7 + p.z * 13));
 };
 export const QUEUE_GAP = 0.34;
 
-/**
- * Where the customers of a queue stand, head of the queue first: in front of the counter, in a slightly zig-zag line. At a
- * sidewalk ATM they stand inside its glass booth (atmBooth): the one using the machine at it, the rest in a short line
- * across the booth behind the rope, never out on the open pavement.
- */
+/** Where the customers of a queue stand, head of the queue first: in front of the counter, in a slightly zig-zag line. */
 export function queueSlots(id: StationId, count: number): V2[] {
   const pose = STATION_POSES[id];
   const n = Math.min(count, QUEUE_VISIBLE);
@@ -196,20 +162,13 @@ export function queueSlots(id: StationId, count: number): V2[] {
   return out;
 }
 
-/**
- * The waiting line painted on a sidewalk ATM booth's floor, behind the rope: a yellow "wait here" line across the booth
- * between the machine and the line (nobody steps over it until the one at the machine has gone), and a pair of footprints
- * where each person in the line stands.
- */
+/** The waiting line painted on a sidewalk ATM booth's floor, behind the rope. */
 export function atmQueueMarks(id: StationId): { line: { x0: number; x1: number; z: number }; spots: V2[] } {
   const b = atmBooth(id);
   return { line: { x0: b.x0 + 0.12, x1: b.x1 - 0.12, z: (b.head + b.line) / 2 }, spots: queueSlots(id, QUEUE_VISIBLE).slice(1) };
 }
 
-/**
- * The glass booth round a sidewalk ATM: from the alcove wall behind the machine to a rope across its open front, as wide
- * as the machine's paved pad. `head` is where the customer at the machine stands; `line`, where the others wait.
- */
+/** The glass booth round a sidewalk ATM: from the alcove wall behind the machine to a rope across its open front, as wide as the machine's paved pad. */
 export function atmBooth(id: StationId): Rect & { head: number; line: number; front: number } {
   const pose = STATION_POSES[id];
   const kx = pose.x - 0.5;
@@ -217,17 +176,10 @@ export function atmBooth(id: StationId): Rect & { head: number; line: number; fr
   return { x0: kx - 1.15, x1: kx + 1.15, z0: STREET.z0 + 0.05, z1: front, head: pose.z + 0.78, line: pose.z + 1.2, front };
 }
 
-/**
- * A gate whose customers arrive as messages, never on foot: a card tapped at a shop's terminal, a virtual card or a
- * checkout online, a transfer, a QR payment, a SWIFT message, an eKYC selfie. No one walks in for it; its queue is a stack
- * of phones, and its arrivals come in as signal pulses from the cell tower (SignalPulses).
- */
+/** A gate whose customers arrive as messages, never on foot. */
 export const isDigital = (id: StationId): boolean => STATIONS[id].digital === true || STATIONS[id].capability === 'A2A_GATEWAY';
 
-/**
- * The desks customers come to in person, inside the branch: the teller's cash counter and the disputes desk. They come
- * from their cars in the car park, in at a side door in the left wall (or off the street, in at the main entrance).
- */
+/** The desks customers come to in person, inside the branch: the teller's cash counter and the disputes desk. */
 export const WALK_IN_DESKS: readonly StationId[] = ['TELLER_CASH', 'DISPUTE_DESK'];
 
 /** Every desk that customers walk up to: the teller and the disputes desk, and the sidewalk ATMs. */
@@ -236,11 +188,7 @@ export const WALKER_STATIONS: readonly StationId[] = STATION_IDS.filter((id) => 
 /** A desk that no member of staff sits at: a machine on the pavement. */
 export const isMachine = (id: StationId): boolean => STATIONS[id].automated === true;
 
-/**
- * What waits at a desk: people at the desks customers come to (and the ATMs); phones at a digital gate; and at every
- * internal desk (the vault, the ledgers, the night's batch, settlement, reconciliation and suspense, the compliance and
- * fraud desks) case files, since only the bank's own staff and systems ever work there: no customer is ever inside at them.
- */
+/** What waits at a desk: people at the desks customers come to (and the ATMs). */
 export const queueStyle = (id: StationId): 'people' | 'phones' | 'files' =>
   isDigital(id) ? 'phones' : WALK_IN_DESKS.includes(id) || STATIONS[id].kind === 'ATM' ? 'people' : 'files';
 
@@ -263,12 +211,7 @@ export function entrancePoint(id: StationId): V2 {
   return CUSTOMER_DOOR;
 }
 
-/**
- * Where a queue is entered. A gate's rope lane is open only at its back end, so a customer comes round behind the ropes (in
- * the aisle between the rope ends and the chairs of the next desk back) and walks in from there. An ATM booth is glass on both
- * sides with a rope across its front, so the way in is the gap at the rope's right-hand end; `outside` is the spot on the
- * pavement just in front of it.
- */
+/** Where a queue is entered. */
 export function queueMouth(id: StationId): { inside: V2; outside: V2 } {
   if (STATIONS[id].kind === 'ATM') {
     const b = atmBooth(id);
@@ -284,17 +227,10 @@ export function queueMouth(id: StationId): { inside: V2; outside: V2 } {
 export const ROPE_START = 0.45;
 export const ROPE_END = 1.25;
 
-/**
- * Where people walk down the car park on the branch's left (as world x): the footway between its inner row of bays and the
- * drive. The walkways striped across the inner row bring them from it to the side doors (parking.ts).
- */
+/** Where people walk down the car park on the branch's left (as world x): the footway between its inner row of bays and the drive. */
 export const CAR_PARK_FOOTWAY_X = -(FLOOR_SLAB.w / 2 + 3.5);
 
-/**
- * The walk from a parked car to a side door in the left wall: from beside the car, along the car park's footway to the
- * walkway in front of the door, and across it to the door. Nobody appears at a side door out of nowhere. `k` picks which
- * side of the door the car is parked (alternately up and down the footway).
- */
+/** The walk from a parked car to a side door in the left wall. */
 export function carParkApproach(door: V2, k: number): V2[] {
   const hz = FLOOR_SLAB.d / 2;
   const z = Math.min(hz - 0.6, Math.max(-hz - 1.0, door[1] + (k % 2 ? -2.2 : 2.2)));
@@ -305,12 +241,7 @@ export function carParkApproach(door: V2, k: number): V2[] {
   ];
 }
 
-/**
- * The way a customer walks to the back of the queue, never through a rope, a post, a desk or a booth's glass: a desk's
- * customer comes from their car in the car park, along its footway and across the walkway to the side door, in along the
- * inside of the left wall to the clear aisle at the front of the hall, along it, and up to the tail of the queue; an ATM's
- * comes along the pavement in front of the booths, in at the gap by the rope, and across to the end of the line.
- */
+/** The way a customer walks to the back of the queue, never through a rope, a post, a desk or a booth's glass. */
 export function arrivalPath(id: StationId, queued: number): V2[] {
   const door = entrancePoint(id);
   const slots = queueSlots(id, Math.max(1, Math.min(QUEUE_VISIBLE, queued + 1)));
@@ -323,11 +254,7 @@ export function arrivalPath(id: StationId, queued: number): V2[] {
 /** The walking line along the pavement: between the ATM booths' fronts and the street lamps at the kerb. */
 export const WALKWAY_Z = KERB_Z - 0.75;
 
-/**
- * The way in for someone who arrives at the kerb at `x` (off a bus, out of a taxi, off the back of a motorbike): along the
- * pavement to the main entrance, in through it, along the clear aisle at the front of the hall and up to the back of the
- * teller's queue. Never through a booth, a desk or a wall.
- */
+/** The way in for someone who arrives at the kerb at `x` (off a bus, out of a taxi, off the back of a motorbike). */
 export function lobbyWalkIn(x: number): V2[] {
   const aisle = FLOOR_SLAB.d / 2 - 1.35;
   const tail = queueSlots('TELLER_CASH', 3)[2] as V2;
@@ -340,10 +267,7 @@ export function lobbyWalkIn(x: number): V2[] {
   ];
 }
 
-/**
- * The way a customer leaves an ATM after their turn: a step back from the machine, along the inside of the booth to the gap
- * by the rope, out onto the pavement and off along it to the right, past the end of the street.
- */
+/** The way a customer leaves an ATM after their turn: a step back from the machine, along the inside of the booth to the gap by the rope, out onto the pavement and off along it to the right, past the end of the street. */
 export function atmExitPath(id: StationId): V2[] {
   const b = atmBooth(id);
   const mouth = queueMouth(id);
@@ -354,24 +278,15 @@ export function atmExitPath(id: StationId): V2[] {
 /** The side doors in the left wall, onto the car park (the customers come in at the front one, CUSTOMER_DOOR). */
 export const ENTRANCES: ReadonlyArray<{ at: V2 }> = LEFT_DOORS_Z.map((z) => ({ at: [CUSTOMER_DOOR[0], z] as V2 }));
 
-/**
- * The ways in and out of the branch: the grand main entrance in the front, on the clear aisle that runs from the back of
- * the hall to the street (no desk stands on it); the three side doors in the left wall (onto the car
- * park); and three side doors in the right wall, onto the park, placed clear of its windows and the server room.
- */
+/** The ways in and out of the branch: the grand main entrance in the front, on the clear aisle that runs from the back of the hall to the street (no desk stands on it). */
 export const MAIN_GATE = { x: -3.25, width: 3.0 } as const;
 
-/**
- * The security guard's cabin on the pavement beside the main entrance, to its left as you face the branch: a glass box with
- * a roof, its door on the side towards the entrance. (x, z) is its middle.
- */
+/** The security guard's cabin on the pavement beside the main entrance, to its left as you face the branch. */
 export const GUARD_CABIN = { x: MAIN_GATE.x - MAIN_GATE.width / 2 - 1.3, z: FLOOR_SLAB.d / 2 + 0.72, w: 1.3, d: 1.15, h: 2.25 } as const;
 export const SIDE_DOOR_W = 1.5;
 export const SIDE_DOORS_RIGHT: readonly number[] = [-11.75, 7.6, 11.4];
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Lanes and packets
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** The floor lane of a wire, from the same routes the 2D map draws. */
 export function wireLane(edge: string): V2[] | null {
@@ -385,10 +300,7 @@ export const LANES: ReadonlyArray<{ id: string; from: PlaceId; to: PlaceId; poin
 /** The lanes a pointed-at desk or kiosk lights up: its own, in and out (the 3D twin of the 2D map's hover focus). */
 export const lanesOf = (place: string | null): ReadonlySet<string> => new Set(place ? LANES.filter((l) => l.from === place || l.to === place).map((l) => l.id) : []);
 
-/**
- * Whether a lane's condition shows, by the 2D map's rules: a decline's condition only while its desk is pointed at; the others
- * with "Labels: Always Show", and always for the pointed-at desk.
- */
+/** Whether a lane's condition shows, by the 2D map's rules. */
 export const laneLabelShown = (l: { from: string; to: string }, hover: string | null, always: boolean): boolean => {
   const own = hover !== null && (l.from === hover || l.to === hover);
   return own || (always && l.to !== 'OUT_DECLINED');
@@ -427,15 +339,9 @@ export function hopTiming(at: number, beatMs: number): { delayMs: number; durati
   return { delayMs: Math.round(at * beatMs * 0.55), durationMs: Math.round(Math.max(240, Math.min(720, beatMs * 0.5))) };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Camera
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * True isometric: the camera sits on a diagonal and looks at the middle of the floor. It stands in front of the bank and to
- * the left, which is the 2D blueprint turned a quarter-turn-and-a-half: left to right on the map runs from the near corner
- * up to the far one, so the journey of a payment still reads from the gates to the Approved and Declined bins.
- */
+/** True isometric: the camera sits on a diagonal and looks at the middle of the floor. */
 export const CAMERA_DIRECTION: V2 = [-1, 1];
 export const CAMERA_DISTANCE = 60;
 export const ZOOM_LIMITS = { min: 12, max: 110 } as const;
@@ -484,9 +390,7 @@ export const HOME_TARGET: V2 = [SCENE.cx, SCENE.cz];
 const CUSTOMER_SHIRTS = ['#38bdf8', '#f472b6', '#facc15', '#a3e635', '#fb923c', '#c084fc', '#2dd4bf', '#f87171'] as const;
 export const customerShirt = (n: number): string => CUSTOMER_SHIRTS[Math.abs(Math.trunc(n)) % CUSTOMER_SHIRTS.length] as string;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Grid
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** The line segments of the floor grid, as x/z pairs ready for a line-segments geometry (y is added by the scene). */
 export function gridSegments(width: number, depth: number, step = 1): Float32Array {
@@ -501,9 +405,7 @@ export function gridSegments(width: number, depth: number, step = 1): Float32Arr
 }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Furniture shared by the scene and the tests
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** An L-shaped desk: the counter plus a return that runs back from its right-hand end. Two staff or fewer fit beside it. */
 export const WING = { w: 0.72, len: 1.25 } as const;
@@ -519,9 +421,7 @@ export const WALL_H = 2.9;
 export const WALL_T = 0.2;
 export const KERB_H = 0.34;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // People at work
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Past this much fatigue (out of 100) a member of staff slumps over the keyboard. */
 export const SLUMP_FATIGUE = 80;
@@ -542,16 +442,11 @@ export function typingRate(o: { working: boolean; productivity: number; surge: n
   return 7 + 5 * clamp(o.productivity) + 8 * clamp(o.surge);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Curved paths for the packets
-// ─────────────────────────────────────────────────────────────────────────────
 
 const dist = (a: V2, b: V2): number => Math.hypot(b[0] - a[0], b[1] - a[1]);
 
-/**
- * A lane with its corners rounded by quadratic Bezier curves. The painted wires turn at right angles; a packet that
- * followed them exactly would jerk round every corner, so it flies the rounded version. Straight runs are kept as they are.
- */
+/** A lane with its corners rounded by quadratic Bezier curves. */
 export function smoothLane(points: readonly V2[], radius = 0.9, steps = 6): V2[] {
   if (points.length < 3) return points.slice();
   const out: V2[] = [points[0] as V2];
@@ -596,9 +491,7 @@ export function packetLane(edge: string): V2[] | null {
 /** How high a packet is above the floor `u` (0 to 1) of the way through a hop: a gentle hop, low at both ends. */
 export const hopHeight = (u: number, peak = 0.34): number => Math.sin(Math.max(0, Math.min(1, u)) * Math.PI) * peak;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Glass partitions
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface Rect {
   x0: number;
@@ -643,10 +536,7 @@ export function crossings(rect: Rect, side: WallSide, lanes: ReadonlyArray<reado
   return out.sort((x, y) => x - y);
 }
 
-/**
- * The walls of a glass room: each chosen side is cut open wherever a lane crosses it, so the payments can pass through
- * a doorway instead of the glass. Doorways close together are merged into one.
- */
+/** The walls of a glass room: each chosen side is cut open wherever a lane crosses it, so the payments can pass through a doorway instead of the glass. */
 export function partition(rect: Rect, sides: readonly WallSide[], lanes: ReadonlyArray<readonly V2[]>, gap = 1.1): { runs: WallRun[]; doors: WallDoor[] } {
   const runs: WallRun[] = [];
   const doors: WallDoor[] = [];
@@ -675,10 +565,7 @@ export function partition(rect: Rect, sides: readonly WallSide[], lanes: Readonl
   return { runs, doors };
 }
 
-/**
- * The Security & 3DS Risk Vault, in glass. The room runs from the front of the department right back to the wall, so the
- * vault door can hang on the wall behind its desk. The back side is the wall itself.
- */
+/** The Security & 3DS Risk Vault, in glass. */
 export function vaultRoom(): Rect {
   const f = departmentFloor('SECURITY');
   return { x0: f.x - f.w / 2, x1: f.x + f.w / 2, z0: -FLOOR_SLAB.d / 2 + WALL_T + 0.02, z1: f.z + f.d / 2 };
@@ -692,17 +579,12 @@ export const SERVER_ROOM: Rect & { racks: V2[] } = (() => {
   return { x0: hx - WALL_T - 1.45, x1: hx - WALL_T - 0.02, z0, z1: z0 + 4.5, racks };
 })();
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Gates: stanchion ropes, and the ATM nook
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Half the width of a rope-lined queue lane. */
 export const QUEUE_HALF = 0.58;
 
-/**
- * The posts and ropes that guide a gate's queue. The line of customers stands half a unit left of the counter's middle
- * (see queueSlots), so the posts straddle that line. Two posts a side keep the ropes clear of the next gate's staff.
- */
+/** The posts and ropes that guide a gate's queue. */
 export function stanchionLine(id: StationId): { posts: V2[]; ropes: Array<[V2, V2]> } {
   const pose = STATION_POSES[id];
   if (STATIONS[id].kind === 'ATM') {
@@ -731,9 +613,7 @@ export function stanchionLine(id: StationId): { posts: V2[]; ropes: Array<[V2, V
 /** The queues guided by a rope line: the two ATM bays. */
 export const ROPED_QUEUES: readonly StationId[] = STATION_IDS.filter((id) => STATIONS[id].kind === 'ATM');
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The sidewalk ATMs
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** An ATM kiosk: a blue machine on the pavement, its screen and card slot facing the street. */
 export const ATM_KIOSK = { w: 0.96, d: 0.8, h: 1.72 } as const;
@@ -772,9 +652,7 @@ export function frontPlinth(): { runs: WallRun[]; doors: WallDoor[] } {
   return partition({ x0: -hx, x1: hx, z0: -hz, z1: hz }, ['front'], LANES.map((l) => l.points), 1.0);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Plants and windows
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type PlantKind = 'ficus' | 'monstera' | 'palm';
 export interface PlantSpot {
@@ -821,16 +699,11 @@ export const WALL_WINDOWS: readonly WallWindow[] = [
   { wall: 'right', at: legacyZ(9.0) },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Camera, continued
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** The polar angle of a true isometric view, measured from straight up (54.74 degrees): the camera looks down at 35.26 degrees. */
 export const ISO_POLAR = Math.acos(1 / Math.sqrt(3));
-/**
- * The lowest the learner may tilt the camera (right-drag up and down), from straight up (73 degrees): looking down at only 17
- * degrees, a nearly eye-level view across the lobby. Home, and "Reset view", is the isometric ISO_POLAR.
- */
+/** The lowest the learner may tilt the camera (right-drag up and down), from straight up (73 degrees). */
 export const EYE_POLAR = 1.27;
 /** The home azimuth of the camera, from the +z axis: front-left, 45 degrees. */
 export const ISO_AZIMUTH = Math.atan2(CAMERA_DIRECTION[0], CAMERA_DIRECTION[1]);

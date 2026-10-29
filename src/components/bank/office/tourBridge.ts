@@ -1,10 +1,4 @@
-/**
- * A one-way channel from the 3D canvas to the page: where the desks of the tour are on the screen right now.
- *
- * The explanation card is ordinary HTML laid over the canvas, so it needs to know which part of the canvas to stay clear of.
- * The scene (which owns the camera) works that out and publishes it here; the card reads it. It is a tiny external store
- * rather than React state so that the canvas can publish every frame while the camera moves without re-rendering the scene.
- */
+/** A one-way channel from the 3D canvas to the page: where the desks of the tour are on the screen right now. */
 
 import { useSyncExternalStore } from 'react';
 

@@ -101,11 +101,7 @@ function PersistenceRow() {
   );
 }
 
-/**
- * Test picker, play / pause / step / reset, speed, and Submit.
- * "Play" watches one visible test travel through the diagram. "Submit" grades the whole suite,
- * including the hidden tests, which are never replayed.
- */
+/** Test picker, play / pause / step / reset, speed, and Submit. */
 export function RunControls() {
   const level = localChallenge(useWorkflowStore((s) => s.level));
   const selectedTestId = useWorkflowStore((s) => s.selectedTestId);

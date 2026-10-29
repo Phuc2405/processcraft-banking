@@ -4,13 +4,9 @@ import type { FlowId } from '../../../types/viewport';
 import { LANES, type V2 } from '../../../engine/plan/layout3d';
 import { pathLength, pointAlongPath } from './tour3d';
 
-/**
- * What the 3D office brings forward and what it lets fade, and the staff walking home. Pure, so the tests can check them.
- */
+/** What the 3D office brings forward and what it lets fade, and the staff walking home. */
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Focus: a pointed-at desk, or a guided scenario
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** How strongly the rest of the office fades: to 20% round a pointed-at desk, to 10% outside a sub-process (guided scenario). */
 export const DIM = { hover: 0.2, flow: 0.1 } as const;
@@ -47,11 +43,7 @@ export function litLanes(hover: PlaceId | null, flow: FlowId | null): { lanes: R
 
 export type BadgeFocus = 'lit' | 'dim' | 'plain' | 'faded';
 
-/**
- * How a lane's condition badge shows. A pointed-at desk: its own lanes' badges bright yellow ('lit'), every other badge
- * faded to LANE_DIM ('dim'). A sub-process: its own wires' badges as usual and in full ('plain'), every other badge almost
- * gone ('faded', FLOW_BADGE_DIM). Otherwise as usual ('plain'). A pointed-at desk wins over the sub-process.
- */
+/** How a lane's condition badge shows. */
 export function badgeFocus(l: { id?: string; from: PlaceId; to: PlaceId }, hover: PlaceId | null, flow: FlowId | null = null): BadgeFocus {
   if (hover !== null) return l.from === hover || l.to === hover ? 'lit' : 'dim';
   if (flow !== null) return l.id !== undefined && flowScope(flow).wires.has(l.id) ? 'plain' : 'faded';
@@ -61,10 +53,7 @@ export function badgeFocus(l: { id?: string; from: PlaceId; to: PlaceId }, hover
 /** A badge's opacity for its focus. */
 export const badgeOpacity = (f: BadgeFocus): number => (f === 'dim' ? LANE_DIM : f === 'faded' ? FLOW_BADGE_DIM : 1);
 
-/**
- * A lane cut into dashes, `dash` = [on, off] in world units (none: the whole lane), each dash its own run of points, so a
- * ribbon drawn over them reads dashed or dotted like the 2D wire.
- */
+/** A lane cut into dashes, `dash` = [on, off] in world units (none. */
 export function dashLane(points: readonly V2[], dash?: readonly [number, number]): V2[][] {
   if (!dash) return [points.slice()];
   const len = pathLength(points);
@@ -87,15 +76,11 @@ export const PULSE = { perLane: 2, speed: 3.2 } as const;
 /** Where pulse `k` of a lane of length `len` is at time `t`: evenly spaced, looping from the start. */
 export const pulseDistance = (len: number, k: number, t: number): number => (len <= 0 ? 0 : (((t * PULSE.speed + (k * len) / PULSE.perLane) % len) + len) % len);
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Staff coming and going: the engine's (engine/staff.ts), re-exported for the views that draw them
-// ─────────────────────────────────────────────────────────────────────────────
 
 export { ARRIVE_SPEED, arriveRoute, arrivalMinute, arrivalState, isOffShift, LEAVE_SPEED, leaveAt, leaveRoute, STAFF_ARRIVAL } from '../../../engine/simulation/staff';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Where a desk's description opens, clear of its own badges
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type TipSide3d = 'above' | 'below' | 'right' | 'left';
 export const TIP_SIDES_3D: readonly TipSide3d[] = ['above', 'below', 'right', 'left'];
@@ -127,11 +112,7 @@ export function tipRect3d(side: TipSide3d, at: { x: number; y: number }, tip: { 
 
 const overlaps = (a: ScreenRect, b: ScreenRect): boolean => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
 
-/**
- * The side a pointed-at desk's description opens on in 3D: the first of above, below, right and left that stays on the
- * screen and covers none of the desk's own condition badges (they light up yellow on hover, so the card must leave them
- * readable); failing that, the first that covers none of them; failing that, the first on the screen.
- */
+/** The side a pointed-at desk's description opens on in 3D. */
 export function tipSide3d(anchors: Readonly<Record<TipSide3d, { x: number; y: number }>>, tip: { w: number; h: number }, badges: readonly ScreenRect[], view: { w: number; h: number }): TipSide3d {
   const rect = (s: TipSide3d) => tipRect3d(s, anchors[s], tip);
   const onScreen = (s: TipSide3d) => {

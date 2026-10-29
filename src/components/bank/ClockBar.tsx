@@ -35,12 +35,7 @@ function IconButton({ label, onClick, disabled, children, tone = 'plain', testId
 
 const icon = { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'currentColor', 'aria-hidden': true } as const;
 
-/**
- * The 08:00-24:00 bar, and the scrubber on it. Click anywhere on the bar, or drag the thumb, to put the bank at that time:
- * the clock, the queues, the KPIs and the ledger all jump there (backwards replays today from 08:00 with the same customers).
- * While dragging, the thumb and a time label follow the pointer; the bank moves when the pointer is let go. The arrow keys move
- * a quarter of an hour, Page Up and Page Down an hour, Home and End to the ends of the day.
- */
+/** The 08:00-24:00 bar, and the scrubber on it. */
 function Timeline({ minute, dayOver }: { minute: number; dayOver: boolean }) {
   const scrubTo = useBankStore((s) => s.scrubTo);
   const bar = useRef<HTMLDivElement>(null);

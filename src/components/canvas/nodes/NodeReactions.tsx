@@ -4,27 +4,13 @@ import { tr } from '../../../i18n/locale';
 import type { DroppedMarker, NodeAlarm, NodeRuntime } from '../../../store/liveSimulation';
 import { TokenGlyph } from '../tokens/TokenGlyph';
 
-/**
- * How a desk reacts to what is happening to it. These are overlays drawn on top of a node by
- * TaskNode, GatewayNode and EventNode, so all three react the same way:
- *
- *   TokenDock         the token at the desk: being worked on, or waiting its turn
- *   CongestionBadges  stacked warnings when more tokens are in line than the desk can carry
- *   FrostOverlay      a deadlocked join, frozen over
- *   AlarmRing/Badge   crimson flashing and a siren: a fraud slip or a reconciliation break
- *   DroppedToken      a token that stopped for good, shredded, with a red cross left behind
- *
- * Timing comes from the CSS custom properties set on the canvas (see timing.ts), so everything
- * follows the playback speed. Every overlay ignores the pointer so it never gets in the way of wiring.
- */
+/** How a desk reacts to what is happening to it. */
 
 export type NodeShape = 'box' | 'pill' | 'diamond';
 
 const DIAMOND_CLIP = 'polygon(50% 0, 100% 50%, 50% 100%, 0 50%)';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Icons
-// ─────────────────────────────────────────────────────────────────────────────
 
 function Warning({ size = 12 }: { size?: number }) {
   return (
@@ -58,15 +44,9 @@ export function Siren({ size = 14 }: { size?: number }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Tokens at the desk
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * The token being worked on (for the working part of the tick) and any tokens waiting here.
- * `settles` keeps the worked token on show afterwards: used at End events, where it has nowhere to go.
- * `bornHere` skips the arrival delay, for the Start event, where a token appears rather than arrives.
- */
+/** The token being worked on (for the working part of the tick) and any tokens waiting here. */
 export function TokenDock({ runtime, settles = false, bornHere = false, className = '' }: { runtime: NodeRuntime; settles?: boolean; bornHere?: boolean; className?: string }) {
   const { worked, chips } = runtime;
   if (!worked && chips.length === 0) return null;
@@ -98,9 +78,7 @@ export function TokenDock({ runtime, settles = false, bornHere = false, classNam
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Congestion
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Warning badges stacked like a pile of paperwork, with how many are in line. The caller also shakes the card. */
 export function CongestionBadges({ runtime, className = '' }: { runtime: NodeRuntime; className?: string }) {
@@ -132,9 +110,7 @@ export function CongestionBadges({ runtime, className = '' }: { runtime: NodeRun
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Deadlock
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Ice over the whole desk, and a badge that says what it is waiting for. */
 export function FrostOverlay({ shape, runtime, className = '' }: { shape: NodeShape; runtime: NodeRuntime; className?: string }) {
@@ -166,15 +142,9 @@ export function FrostOverlay({ shape, runtime, className = '' }: { shape: NodeSh
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Alarms
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * A crimson ring around the desk that flashes. Fraud and settled breaks keep flashing until the
- * simulation is reset. A break the recon desk merely found flashes a few times and then rests as a
- * steady ring. Keyed by the tick it was raised, so a new alarm always restarts the flash.
- */
+/** A crimson ring around the desk that flashes. */
 export function AlarmRing({ alarm, shape }: { alarm: NodeAlarm; shape: NodeShape }) {
   const loud = alarm.kind !== 'RECON_BREAK';
   const className = loud ? 'pc-alarm-ring' : 'pc-alarm-ring pc-alarm-once';
@@ -214,9 +184,7 @@ export function AlarmBadge({ alarm, className = '' }: { alarm: NodeAlarm; classN
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Dropped transactions
-// ─────────────────────────────────────────────────────────────────────────────
 
 const STRIPS = 6;
 const PAPER = [
@@ -228,11 +196,7 @@ const PAPER = [
   { x: 24, d: 110, r: 12 },
 ] as const;
 
-/**
- * The token falls apart into strips of shredded paper at the desk where it stopped, and a red
- * cross is left on the desk's corner. `anchorClass` is where the desk shows its token (the same
- * place the TokenDock uses), so the shredding starts from the token the learner was just watching.
- */
+/** The token falls apart into strips of shredded paper at the desk where it stopped, and a red cross is left on the desk's corner. */
 export function DroppedToken({ marker, anchorClass = '-top-8 left-3', crossClass = '-right-3 -top-3' }: { marker: DroppedMarker; anchorClass?: string; crossClass?: string }) {
   return (
     <div key={marker.tick} data-testid="dropped-token" data-token-kind={marker.look.kind} className="pointer-events-none absolute inset-0 z-20">

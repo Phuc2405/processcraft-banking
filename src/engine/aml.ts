@@ -1,20 +1,8 @@
-/**
- * Anti-money-laundering screening: the maths behind the AML nodes.
- *
- * Three questions a bank asks about a payment, in the order it asks them:
- *   1. Is the customer on a sanctions list (OFAC) or a list of politically exposed persons (PEP)?  Fuzzy name matching.
- *   2. Is the customer cutting cash into pieces just under the reporting line?                     Structuring.
- *   3. If a name matched, is it the same person?                                                  Investigation.
- *
- * Name matching is fuzzy on purpose: lists transliterate names, so "Aleksandr" and "Alexander" must score high. The
- * price is false positives, which is why step 3 exists. Everything is pure and deterministic.
- */
+/** Anti-money-laundering screening: the maths behind the AML nodes. */
 
 import type { AmlContext, AuditEvent, CustomerProfile, MinorUnits, WatchlistEntry } from '../types/processLearning';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Names
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Lower case, accents removed, punctuation gone, single spaces: "Nguyễn  Văn-An" becomes "nguyen van an". */
 export function normalizeName(name: string): string {
@@ -43,10 +31,7 @@ export function editDistance(a: string, b: string): number {
   return prev[b.length] as number;
 }
 
-/**
- * Jaro-Winkler similarity, 0 to 1. The standard measure for matching names: it forgives the small slips transliteration
- * makes ("Alexander" and "Aleksandr" score 0.90) and rewards a shared beginning, which is where names agree most.
- */
+/** Jaro-Winkler similarity, 0 to 1. */
 export function jaroWinkler(a: string, b: string): number {
   if (a === b) return 1;
   if (a.length === 0 || b.length === 0) return 0;
@@ -87,11 +72,7 @@ export function tokenSimilarity(a: string, b: string): number {
   return jaroWinkler(a, b);
 }
 
-/**
- * 0 to 100: how alike two names are. Words are paired off best-first, so the order they are written in does not matter
- * ("Petrov Aleksandr" is "Aleksandr Petrov"); a word with no partner counts against the score. It is the Dice
- * coefficient on letters: 100 means identical after normalising.
- */
+/** 0 to 100: how alike two names are. */
 export function nameSimilarity(a: string, b: string): number {
   const ta = normalizeName(a).split(' ').filter(Boolean);
   const tb = normalizeName(b).split(' ').filter(Boolean);
@@ -130,9 +111,7 @@ export function bestWatchlistMatch(name: string, watchlist: readonly WatchlistEn
   return best;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Structuring
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A deposit counts as "just under the line" when it is at least this share of the reporting threshold. */
 export const NEAR_THRESHOLD_PCT = 80;
@@ -145,10 +124,7 @@ export interface StructuringResult {
   total: MinorUnits;
 }
 
-/**
- * Structuring (also called smurfing) is splitting cash into deposits that each stay under the reporting threshold so
- * that none is reported. The pattern: several deposits just under the line whose sum is over it.
- */
+/** Structuring (also called smurfing) is splitting cash into deposits that each stay under the reporting threshold so that none is reported. */
 export function detectStructuring(deposits: readonly MinorUnits[], thresholdMinor: MinorUnits, minDeposits: number): StructuringResult {
   const floor = (thresholdMinor * NEAR_THRESHOLD_PCT) / 100;
   const nearThreshold = deposits.filter((d) => d >= floor && d < thresholdMinor);
@@ -156,9 +132,7 @@ export function detectStructuring(deposits: readonly MinorUnits[], thresholdMino
   return { suspected: nearThreshold.length >= minDeposits && total >= thresholdMinor, nearThreshold, total };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Screening
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface ScreeningPolicy {
   /** Name-match score from which a name counts as a hit. */
@@ -187,9 +161,7 @@ export function screen(aml: Readonly<AmlContext>, policy: ScreeningPolicy): Scre
   return { status, score: best?.score ?? 0, list, best, structuring };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Investigation
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type Agreement = 'MATCH' | 'MISMATCH' | 'UNKNOWN';
 export type CaseVerdict = 'FALSE_POSITIVE' | 'TRUE_MATCH' | 'INCONCLUSIVE';
@@ -208,13 +180,7 @@ const IDENTITY_EVENTS: ReadonlySet<AuditEvent['kind']> = new Set(['KYC_VERIFIED'
 
 const agree = (known: readonly string[], listed: string): Agreement => (known.length === 0 ? 'UNKNOWN' : known.every((k) => k === listed) ? 'MATCH' : 'MISMATCH');
 
-/**
- * Is the customer the person on the list? The profile alone is not proof, because anyone can type a date of birth, so the
- * comparison uses only what the audit log says was verified from a document. A verdict needs that evidence:
- *   same date of birth and not a different nationality      -> TRUE_MATCH
- *   different date of birth and not the same nationality    -> FALSE_POSITIVE
- *   no identity evidence, conflicting evidence, or mixed signals -> INCONCLUSIVE (escalate, do not guess)
- */
+/** Is the customer the person on the list? */
 export function investigate(customer: Readonly<CustomerProfile>, listed: Readonly<WatchlistEntry> | null, auditLog: readonly AuditEvent[]): Investigation {
   if (!listed) {
     return { verdict: 'INCONCLUSIVE', evidence: [], dateOfBirth: 'UNKNOWN', nationality: 'UNKNOWN', reasons: ['There is no listed person to compare against.'] };

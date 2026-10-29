@@ -22,9 +22,7 @@ const HAIRS = ['#1c1917', '#44281a', '#7c4a1d', '#d6b370', '#6b7280', '#111827']
 const TROUSERS = ['#3b4760', '#4b5563', '#6b4f3a', '#334155', '#52525b'] as const;
 const pick = <T,>(list: readonly T[], n: number): T => list[Math.abs(Math.trunc(n)) % list.length] as T;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Heads and hair (shared by staff and customers)
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A chibi head with its origin at the base of the neck, facing +z. Four hair styles, chosen by `style`. */
 function headParts(skin: string, hair: string, style: number): Part[] {
@@ -53,9 +51,7 @@ function headParts(skin: string, hair: string, style: number): Part[] {
   return parts;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Staff: seated at a desk, facing the customers
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface StaffRig {
   lower: BufferGeometry;
@@ -147,13 +143,7 @@ interface SeatedProps {
 const HIP = 0.62;
 const SHOULDER = 0.44;
 
-/**
- * A low-poly member of staff in an office chair, facing the customers.
- *
- * They always type: lazily and with an idle head bob when there is nothing to do, briskly when they are working, and
- * frantically when the desk is in a surge. Spent (fatigue above 80) they slump: the shoulders drop, the head falls
- * forward and the hands barely move.
- */
+/** A low-poly member of staff in an office chair, facing the customers. */
 export const SeatedAvatar = memo(function SeatedAvatar({ id, profile, working, fatigue, productivity, surge, temp, accent, selected, onSelect }: SeatedProps) {
   const seed = useMemo(() => phaseOf(id), [id]);
   const look = useMemo(() => Math.floor(seed * 100), [seed]);
@@ -253,9 +243,7 @@ export const SeatedAvatar = memo(function SeatedAvatar({ id, profile, working, f
   );
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Customers
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface WalkerRig {
   body: BufferGeometry;
@@ -325,8 +313,7 @@ interface CustomerProps {
   wear?: Wear;
   /** How far the right arm is raised overhead (holding an umbrella, waving a car in), 0-1, read every frame. */
   raise?: { current: number };
-  /** How far the legs swing when walking, 0-1: 0 stands still (a guard waving cars in). Read every frame when a ref, for
-   * someone who stands a while and then walks off. */
+  /** How far the legs swing when walking, 0-1: 0 stands still (a guard waving cars in). */
   stride?: number | { current: number };
   /** How quick the steps are: 1 a walk, more a run (quicker, longer strides and a lean into it). */
   tempo?: number;
@@ -406,10 +393,7 @@ function Wearables({ wear, index }: { wear: Wear; index: number }) {
   );
 }
 
-/**
- * A customer. Smaller than the staff so a queue reads as a crowd at the front of a counter. Standing, they shift their
- * weight; walking, their legs and arms swing and they bob along.
- */
+/** A customer. */
 export const CustomerFigure = memo(function CustomerFigure({ index, shirt, phase = 0, walking = false, scale = 0.72, wear = 'none', raise, stride = 1, tempo = 1 }: CustomerProps) {
   return walking ? (
     <Walker index={index} shirt={shirt} phase={phase} scale={scale} wear={wear} raise={raise} stride={stride} tempo={tempo} />
@@ -420,10 +404,7 @@ export const CustomerFigure = memo(function CustomerFigure({ index, shirt, phase
 
 type FigureProps = Required<Omit<CustomerProps, 'walking' | 'raise' | 'stride' | 'tempo'>> & { raise?: { current: number }; stride?: CustomerProps['stride']; tempo?: number };
 
-/**
- * Someone sitting (on a park bench), facing +z: knees forward, hands in the lap, rocking gently as they talk. The seat is
- * at 0.48 in the figure's own units.
- */
+/** Someone sitting (on a park bench), facing +z: knees forward, hands in the lap, rocking gently as they talk. */
 export const SittingFigure = memo(function SittingFigure({ index, shirt, phase = 0, scale = 0.7, wear = 'none' }: Omit<CustomerProps, 'walking' | 'raise'>) {
   const geometry = useMemo(() => {
     const { skin, hair, trousers, style } = customerLook(index);
@@ -485,7 +466,6 @@ function Walker({ index, shirt, phase, scale, wear, raise, stride = 1, tempo = 1
   const armR = useRef<Group>(null);
   useFrame(() => {
     // The stride follows the motion clock, so legs swing in step with how fast the person moves (and stop on pause).
-    // A run: quicker steps, a longer swing and a lean forward into it.
     const t = motion.t * 9 * tempo + phase;
     const swing = Math.sin(t) * (typeof stride === 'number' ? stride : stride.current) * Math.min(1.5, tempo);
     if (root.current) {

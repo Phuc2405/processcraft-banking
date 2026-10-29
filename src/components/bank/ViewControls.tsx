@@ -2,10 +2,7 @@ import { modeHint, modeLabel, TERM_MODES, type TermMode } from '../../sim/terms'
 import { useBankStore } from '../../store/bankStore';
 import { SegmentedToggle } from '../shell/SegmentedToggle';
 
-/**
- * The vocabulary switch in the header of the Build Lab: Fintech Expert | Concept Explorer. (In the Living Bank the same
- * setting is the Standard | Expert data depth of the viewport dock, see ViewportControls.tsx.)
- */
+/** The vocabulary switch in the header of the Build Lab: Fintech Expert | Concept Explorer. */
 
 const SHORT_MODE: Record<TermMode, string> = { expert: 'Expert', beginner: 'Explorer' };
 

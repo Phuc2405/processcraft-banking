@@ -68,10 +68,7 @@ function DisputeAction({ batch }: { batch: LedgerBatch }) {
 /** The bank's clock as a minute of the day, read back off a line's timestamp (see `BankSimulation.postLines`). */
 const minuteOf = (timestamp: number): number => Math.round((timestamp % 86_400_000) / 60_000);
 
-/**
- * The Live Double-Entry Mini Ledger. A drawer over the map showing the latest journal lines, newest payment first, and the
- * trial balance for the whole day. It only reads `view.ledger`; the lines are written by the simulation as payments finish.
- */
+/** The Live Double-Entry Mini Ledger. */
 export function LedgerDrawer() {
   const open = useBankStore((s) => s.ledgerOpen);
   const touring = useBankStore((s) => s.spotlight !== null);

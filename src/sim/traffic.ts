@@ -1,16 +1,4 @@
-/**
- * Who walks into the bank today, and what tonight's records look like.
- *
- * Everything here is a pure function of (seed, day) and never of the bank's rules, so "tomorrow with
- * the old rules" and "tomorrow with the new rules" see exactly the same customers. That is what makes
- * a what-if fair.
- *
- * The numbers are chosen so the trade-offs the four processes teach are real:
- *   - most genuine customers score low on 3DS risk, a few look unusual; most fraud scores high, some hides low
- *   - fraudsters replay an old dynamic CVV; customers type it fresh but sometimes slowly
- *   - most Pay-in-4 customers put down 25%, and weak scores are more likely to default
- *   - most settlement records agree to the cent, some differ by rounding dust, a few are real breaks
- */
+/** Who walks into the bank today, and what tonight's records look like. */
 
 import type { A2aContext, BankingPayload, CardType, FundingSource, Id, MinorUnits } from '../types/processLearning';
 import { clamp, hashSeed, Rng } from './prng';
@@ -20,9 +8,7 @@ import type { AtmSession, CheckoutKind, Customer, DayEvent, DayEventId, Extended
 import { audToVnd, buildVietQr } from './amlEngine';
 import { activeLocale } from '../i18n/localeCore';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Days and their events
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const DAY_EVENTS: Record<DayEventId, DayEvent> = {
   NORMAL: {
@@ -86,10 +72,7 @@ const RANDOM_EVENTS: ReadonlyArray<readonly [DayEventId, number]> = [
   ['PAYDAY', 11],
 ];
 
-/**
- * Day 1 is an ordinary day so a learner sees the baseline. Day 2 is a flash sale so they meet a queue early.
- * After that the calendar is random but fixed by the seed, and never has two special days in a row.
- */
+/** Day 1 is an ordinary day so a learner sees the baseline. */
 const eventCache = new Map<string, DayEvent>();
 
 export function eventForDay(seed: number, day: number): DayEvent {
@@ -107,23 +90,15 @@ export function eventForDay(seed: number, day: number): DayEvent {
   return event;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Arrivals through the working day
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Customers per working beat at intensity 1, on an ordinary day. */
 const BASE_RATE = { POS: 3.0, ECOM: 2.5, VIRTUAL: 1.3, BNPL: 1.1 } as const;
 
-/**
- * The A2A gate and the sidewalk ATM arrived after the four card channels. They draw from their own random stream, so
- * adding them left every card customer of every seeded day exactly as it was.
- */
+/** The A2A gate and the sidewalk ATM arrived after the four card channels. */
 const EXTRA_RATE = { A2A: 0.6, ATM: 1.0 } as const;
 
-/**
- * The Phase 8 channels: eKYC onboarding, VietQR, the teller counter, SWIFT and claims. They draw from a third stream, so
- * adding them left every card, A2A and ATM customer of every seeded day exactly as it was.
- */
+/** The Phase 8 channels: eKYC onboarding, VietQR, the teller counter, SWIFT and claims. */
 export const PHASE8_RATE: Readonly<Record<ExtendedKind, number>> = { ONBOARD: 0.25, QR: 1.0, TELLER: 0.5, SWIFT: 0.18, DISPUTE: 0.12 };
 /** Free blocks under 5001 (A2A), so the four-digit TX ids keep their shape: the card channels never reach 2000 in a day. */
 const PHASE8_SERIAL: Readonly<Record<ExtendedKind, number>> = { ONBOARD: 2000, QR: 2500, TELLER: 3000, SWIFT: 3500, DISPUTE: 4000 };
@@ -223,9 +198,7 @@ export function generateDay(seed: number, day: number): DayTraffic {
   return { day, event, customers, beats };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // One customer
-// ─────────────────────────────────────────────────────────────────────────────
 
 const cents = (dollars: number): MinorUnits => Math.max(100, Math.round(dollars * 100));
 
@@ -250,10 +223,7 @@ function amountFor(rng: Rng, kind: CardKind, fraud: boolean): MinorUnits {
   return cents(clamp(rng.lognormal(spec.median, spec.sigma), spec.min, spec.max));
 }
 
-/**
- * What the customer was doing, and so how much it cost. Picked from a stream of its own (keyed on the customer) so choosing
- * a scenario never moves any other draw about that customer.
- */
+/** What the customer was doing, and so how much it cost. */
 function scenarioFor(seed: number, day: number, id: Id, kind: CheckoutKind, fraud: boolean): { id: string; amount: MinorUnits } {
   const options = scenariosFor(kind, fraud);
   const pool = options.length > 0 ? options : scenariosFor(kind, !fraud);
@@ -303,8 +273,7 @@ export function makeCustomer(seed: number, day: number, id: Id, kind: CheckoutKi
   const rng = new Rng(hashSeed(seed, 'customer', day, id));
   const fraudRate = clamp(FRAUD_RATE[kind] * (event.fraud[kind] ?? 1), 0, 0.5);
   const fraud = rng.chance(fraudRate);
-  // The old random amount is still drawn, and thrown away, so every other draw about this customer (funds, risk, OTP,
-  // dCVV) falls exactly where it did before the scenarios existed.
+  // The old random amount is still drawn, and thrown away, so every other draw about this customer (funds, risk, OTP, dCVV) falls exactly where it did before the scenarios existed.
   if (kind === 'POS' || kind === 'ECOM' || kind === 'VIRTUAL' || kind === 'BNPL') amountFor(rng, kind, fraud);
   const scenario = scenarioFor(seed, day, id, kind, fraud);
   const amount = scenario.amount;
@@ -483,9 +452,7 @@ export function makeCustomer(seed: number, day: number, id: Id, kind: CheckoutKi
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Phase 8: what each extended customer brings to the checkpoints
-// ─────────────────────────────────────────────────────────────────────────────
 
 const GIVEN = ['Minh', 'Lan', 'Huy', 'Thao', 'Quang', 'Mai', 'Duc', 'Ngoc', 'Tuan', 'Hoa', 'James', 'Olivia', 'Arjun', 'Sofia', 'Kenji', 'Amara'] as const;
 const FAMILY = ['Nguyen', 'Tran', 'Le', 'Pham', 'Hoang', 'Vu', 'Dang', 'Bui', 'Smith', 'Patel', 'Garcia', 'Okafor', 'Sato', 'Rossi'] as const;
@@ -580,9 +547,7 @@ function extendedContext(rng: Rng, day: number, kind: ExtendedKind, scenario: st
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Tonight's settlement records
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Chance that a record's three legs differ by a few cents of rounding or FX dust, and how big the dust is. */
 const NOISE_RATE = 0.22;
@@ -604,10 +569,7 @@ export interface SettlementRecord {
   truth: SettlementTruth;
 }
 
-/**
- * The three records for one approved payment. What the legs say is decided by the seed, the day it was
- * approved and its id, so it is the same whichever rules are in force.
- */
+/** The three records for one approved payment. */
 export function makeSettlement(seed: number, bornDay: number, txId: Id, cardType: CardType, heldCents: MinorUnits, glitch: number): SettlementRecord {
   const rng = new Rng(hashSeed(seed, 'settle', bornDay, txId));
   const roll = rng.next();

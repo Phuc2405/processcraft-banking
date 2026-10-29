@@ -1,16 +1,4 @@
-/**
- * The Build Lab guided tour: what the learner has open, which step they are on, what they answered.
- *
- * The tour never touches the learner's diagram. It builds its own canvas store (`createWorkflowStore`, no saving) holding a
- * copy of the diagram it walks, steps that copy's runner one box at a time at a locked slow speed, and publishes the dimming
- * and the glowing path as `spotlight` on that copy. The learner's own canvas, selection and saved work stay exactly as they were.
- *
- * Step `i` of the tour is "the token has just arrived at box `i` and is waiting": the runner has taken `i` steps. Pressing Next
- * takes one more, so the box does its work and the token rides the wire the diagram chose. The last step is the End event; the
- * Next after it finishes the run and opens the verdict.
- *
- * No timers here (the components own the auto-play clock), which keeps the store deterministic and testable.
- */
+/** The Build Lab guided tour: what the learner has open, which step they are on, what they answered. */
 
 import { useStore } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
@@ -97,11 +85,7 @@ export function createLabTourStore(host: LabTourHost): LabTourStore {
   };
 
   return createStore<LabTourState>()((set, get) => {
-    /**
-     * Put the private canvas at step `index`: replay from the start so that Previous and jumping work the same way as Next,
-     * pause it, and light the path. The deciding token is followed, so a diagram that splits into parallel branches still
-     * shows the branch the card is about.
-     */
+    /** Put the private canvas at step `index`: replay from the start so that Previous and jumping work the same way as Next, pause it, and light the path. */
     const place = (index: number): void => {
       const { canvas, tour, testId } = get();
       if (!canvas || !tour || !testId) return;
@@ -238,9 +222,7 @@ export function createLabTourStore(host: LabTourHost): LabTourStore {
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // App-wide instance
-// ─────────────────────────────────────────────────────────────────────────────
 
 let appHost: LabTourHost | null = null;
 

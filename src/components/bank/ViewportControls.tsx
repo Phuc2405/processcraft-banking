@@ -6,17 +6,7 @@ import { dataDepthOf, useBankStore } from '../../store/bankStore';
 import { webglAvailable } from './office/webgl';
 import { DepthToggle, SegmentedToggle, type SegmentOption } from '../shell/SegmentedToggle';
 
-/**
- * The viewport dock, floating at the top centre of the Living Bank (clear of the walkthrough card, which is placed beside
- * the desk it explains): three two-way switches that combine into eight views, and, in the Sub-process scope (the store's
- * 'beginner'), a bar of the guided flows that slides down beneath it.
- *
- *   Scope        🧩 Sub-process | 🔄 Full process
- *   Dimension    2D | 3D
- *   Terminology  💡 Standard | </> Expert   (the shared DepthToggle)
- *
- * Over the 3D office the dock is a solid panel: a backdrop blur over a live WebGL canvas makes the browser re-blur every frame.
- */
+/** The viewport dock, floating at the top centre of the Living Bank (clear of the walkthrough card, which is placed beside the desk it explains). */
 
 const SchematicIcon = () => (
   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
@@ -122,10 +112,7 @@ function ViewportControlsView() {
 
 export const ViewportControls = memo(ViewportControlsView);
 
-/**
- * The left edge for a panel centred over the map: the middle of the space the inspector leaves free, so the dock and the
- * preset bar never slide under the drawer when it opens.
- */
+/** The left edge for a panel centred over the map: the middle of the space the inspector leaves free, so the dock and the preset bar never slide under the drawer when it opens. */
 export function useMapCentre(): string {
   const shift = useBankStore((s) => (s.selection.kind !== 'none' ? Math.round(s.inspectorWidth / 2) : 0));
   return shift ? `calc(50% - ${shift}px)` : '50%';

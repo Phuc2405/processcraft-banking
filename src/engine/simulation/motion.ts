@@ -1,11 +1,4 @@
-/**
- * The clock everything that moves in the 3D office runs on: the people (customers, staff, passers-by, drivers, guards),
- * the vehicles and the payments in flight. It follows the simulation: frozen while the bank is paused, so the learner can
- * stop the world and inspect any desk, badge or person where it stands; and running at the bank's own speed multiplier
- * (0.25x to 10x) while it plays, so the whole scene speeds up and slows down in lockstep.
- *
- * The weather (rain, clouds, swaying trees) is not on this clock: it keeps going, as weather does.
- */
+/** The clock everything that moves in the 3D office runs on: the people (customers, staff, passers-by, drivers, guards), the vehicles and the payments in flight. */
 export const motion = {
   /** Seconds of motion so far, scaled by the multiplier (what walking, driving and animations read). */
   t: 0,

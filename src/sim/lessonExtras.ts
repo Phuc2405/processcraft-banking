@@ -1,9 +1,4 @@
-/**
- * What sits under every Academy lesson: its key terms (flip-cards inline, and a door to the Flashcards tab filtered to the
- * chapter) and "Explore Deeper", two or three advanced topics to read up on next.
- *
- * Every word is in both languages; ids follow the lesson ids ("2.3"). Pure data and pure functions.
- */
+/** What sits under every Academy lesson: its key terms (flip-cards inline, and a door to the Flashcards tab filtered to the chapter) and "Explore Deeper", two or three advanced topics to read up on next. */
 
 import { pick, type Localized } from '../i18n/localeCore';
 

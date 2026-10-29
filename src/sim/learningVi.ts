@@ -1,11 +1,4 @@
-/**
- * The six Learning Hub / guided-tour lessons in Vietnamese: titles, intros, the words for every box of every diagram, the
- * wire labels, the example payments and the takeaways.
- *
- * learning.ts keeps the English and the structure (diagrams, payloads, dials). `localLesson` returns a lesson with these words
- * swapped in when the learner has chosen Tiếng Việt; ids, layouts and payloads never change, so the tours, quizzes and tests
- * run exactly the same in both languages.
- */
+/** The six Learning Hub / guided-tour lessons in Vietnamese. */
 
 import { activeLocale, type Locale } from '../i18n/localeCore';
 import { LESSONS, PROCESS_SHORT, type GraphKey, type Lesson, type LessonLayout, type ProcessId, type StepText } from './learning';

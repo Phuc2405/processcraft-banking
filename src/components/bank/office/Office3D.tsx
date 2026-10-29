@@ -65,11 +65,7 @@ export const WEATHER_HINT: Record<WeatherChoice, string> = {
   snow: 'Falling snow settling on the ground: coats, scarves and beanies (pick by hand only)',
 };
 
-/**
- * In random mode, moves the weather on: once on arrival, then whenever the weather's spell is over (WEATHER_SPAN, in the
- * bank's minutes: a fair spell an hour or more, a shower a quarter of an hour, a storm ten minutes or so). A new day, or the
- * clock wound back, starts a new spell. A manual pick stops it.
- */
+/** In random mode, moves the weather on: once on arrival, then whenever the weather's spell is over (WEATHER_SPAN, in the bank's minutes. */
 function RandomWeather() {
   const random = useWeather((s) => s.choice === 'random');
   const minute = useBankStore((s) => s.view.minute);
@@ -85,10 +81,7 @@ function RandomWeather() {
 
 const CHOICES: readonly WeatherChoice[] = ['random', ...WEATHERS];
 
-/**
- * The weather dropdown: random (the default) or one of the nine weathers. In random mode the button also names the weather
- * now. The sky eases to a new weather over two seconds.
- */
+/** The weather dropdown: random (the default) or one of the nine weathers. */
 function WeatherMenu({ compact = false }: { compact?: boolean }) {
   const choice = useWeather((s) => s.choice);
   const weather = useWeather((s) => s.weather);
@@ -176,14 +169,7 @@ function WeatherControls({ compact }: { compact: boolean }) {
 /** Where the 3D toolbar sits: one row in the top-left corner, always, whatever panel is open beside the map. */
 export const TOOLBAR_CLASS = 'absolute left-4 top-3 z-40 flex flex-row flex-nowrap items-center gap-1.5';
 
-/**
- * The 3D Isometric Office: the same bank as the 2D blueprint, as a bright low-poly diorama. It reads the same store, so
- * the desks, the queues, the staff and the payments on the move are the ones the 2D map shows, and clicking a counter
- * opens the same inspector. It is loaded on demand (LivingBank lazy-imports it), so the 2D view never pays for three.js.
- *
- * The component takes no props and is memoised: when the inspector opens over it, nothing here re-renders and the canvas
- * keeps its size, so there is no resize and no layout work.
- */
+/** The 3D Isometric Office: the same bank as the 2D blueprint, as a bright low-poly diorama. */
 
 class OfficeBoundary extends Component<{ onBack: () => void; children: ReactNode }, { error: string | null }> {
   override state = { error: null as string | null };
@@ -285,8 +271,7 @@ function Office3DView() {
           <b className="font-semibold text-slate-800">{t('Click')}</b>{t(' a desk or a person to inspect it')}
         </span>
       </div>
-      {/* One row in the top-left corner, never pushed down into the view: beside the Academy panel, where the map is narrow,
-          the buttons shrink to their icons instead (the full words are in their tooltips). */}
+      {/* One row in the top-left corner, never pushed down into the view: beside the Academy panel, where the map is narrow, the buttons shrink to their icons instead (the full words are in their tooltips). */}
       <div className={TOOLBAR_CLASS} data-testid="office-toolbar">
         <button
           type="button"

@@ -1,11 +1,6 @@
 import { nextRandomWeather, weatherSpan, type Weather } from './atmosphere';
 
-/**
- * Random weather as spells (atmosphere.ts WEATHER_SPAN): each weather holds for its spell, in the bank's minutes (a fair
- * spell an hour or more, a shower a quarter of an hour, a storm ten minutes or so), then the next comes in, never the same
- * twice running. A new day, or the clock wound back, starts a new spell. On the bank's clock, so the weather holds while the
- * bank is paused. Pure: the dice come in as `roll`, so a test can play a day of weather.
- */
+/** Random weather as spells (atmosphere.ts WEATHER_SPAN). */
 export class WeatherCycle {
   private spell: { from: number; until: number } | null = null;
 

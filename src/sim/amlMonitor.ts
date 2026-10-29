@@ -1,15 +1,4 @@
-/**
- * The AML monitoring desk: three steps an analyst works through every day.
- *
- *   1. Monitor      rules run over the day's finished payments and raise alerts automatically:
- *                     LARGE_VALUE     any payment above $10,000 (the threshold-transaction line)
- *                     VELOCITY_BURST  eight or more card-not-present payments of $5 or less inside five minutes, the
- *                                     signature of a bot testing stolen cards
- *   2. Investigate  the analyst opens an alert, sees the payments behind it and the risk factors, and decides.
- *   3. Report       a suspicious activity report (SAR) is filed with the regulator, or the alert is closed as a false positive.
- *
- * Pure functions over the transaction log the simulation already keeps.
- */
+/** The AML monitoring desk: three steps an analyst works through every day. 1. */
 
 import { BOT_SCENARIO_ID, AML_TEST_SCENARIO_ID, scenarioLabelEn } from './scenarios';
 import { makeCustomer } from './traffic';
@@ -112,9 +101,7 @@ export function amlTestCustomer(seed: number, day: number, minute: number, event
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The SAR form
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type SarActivity = 'STRUCTURING' | 'CARD_TESTING' | 'LARGE_UNUSUAL' | 'SANCTIONS' | 'OTHER';
 export const SAR_ACTIVITIES: readonly SarActivity[] = ['LARGE_UNUSUAL', 'CARD_TESTING', 'STRUCTURING', 'SANCTIONS', 'OTHER'];

@@ -8,13 +8,7 @@ import { spotPlan } from '../../sim/spotlightPlan';
 import { useBankStore } from '../../store/bankStore';
 import { useTerms } from './useTerms';
 
-/**
- * The Academy: one button in the header and the Course Catalog it opens.
- *
- * The catalog lists the six chapters in the order to take them. "Start Chapter" closes the catalog and begins the guided tour on
- * whichever view the learner is in: the rest of the screen dims so only the desks of the chapter stay lit, the speed locks to
- * 0.25×, and the Walkthrough Dock opens along the bottom.
- */
+/** The Academy: one button in the header and the Course Catalog it opens. */
 
 const DIFFICULTY_STYLE: Record<Difficulty, string> = {
   Beginner: 'bg-emerald-400/10 text-emerald-200 ring-emerald-400/40',

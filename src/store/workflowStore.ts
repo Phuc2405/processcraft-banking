@@ -1,16 +1,4 @@
-/**
- * Workflow store: the learner's diagram, as React Flow wants it, plus playback and grading state.
- *
- * Source of truth: `nodes` and `edges` (React Flow shapes, see graphConversion.ts). The pure
- * ProcessGraph that the engine runs and the evaluator grades is always rebuilt from them with
- * `getProcessGraph()`, never kept in parallel, so the two cannot drift apart.
- *
- * Playback is driven by calling `stepSimulation()`. The playback side has no timers, which keeps it
- * deterministic and testable. The canvas runs a small interval that calls it while `isRunning`.
- *
- * Progress is saved to the browser per level (see persistence.ts): every edit is autosaved after a
- * short delay, `loadChallenge` restores what was saved, and `resetToStarter` throws it away.
- */
+/** Workflow store: the learner's diagram, as React Flow wants it, plus playback and grading state. */
 
 import { nodeDefLabel, portLabel } from '../i18n/catalogVi';
 import { localChallenge } from '../i18n/challengeVi';
@@ -71,9 +59,7 @@ import {
 export { deriveActiveTokens, deriveEdgeTraffic, deriveNodeRuntime, IDLE_RUNTIME } from './liveSimulation';
 export type { ActiveToken, EdgeTraffic, NodeAlarm, NodeRunStatus, NodeRuntime, TokenChip, TokenLook } from './liveSimulation';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Public types
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface Notice {
   /** Changes on every notice, so the UI can tell two identical messages apart. */
@@ -184,10 +170,7 @@ export interface WorkflowState {
   selectedTestId: Id | null;
   simulation: SimulationInfo | null;
   playbackLog: PlaybackLogLine[];
-  /**
-   * The general-ledger lines the replayed payment posted, once it has finished. Always derived from the finished run
-   * (see engine/postings.ts), so it is empty while the payment is still travelling and for a payment that moved no money.
-   */
+  /** The general-ledger lines the replayed payment posted, once it has finished. */
   ledgerEntries: GLEntry[];
   /** A guided tour's dimming and glowing path. Null outside a tour. */
   spotlight: GraphSpotlight | null;
@@ -240,9 +223,7 @@ export interface ConnectionLike {
   targetHandle?: string | null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Pure helpers (exported so they can be tested and reused by the UI)
-// ─────────────────────────────────────────────────────────────────────────────
 
 const portOf = (ports: readonly Port[], id: string | null | undefined): Port | undefined =>
   id ? ports.find((p) => p.id === id) : ports.length === 1 ? ports[0] : undefined;
@@ -329,9 +310,7 @@ function nextEdgeId(edges: readonly ProcessFlowEdge[]): Id {
   return `e${max + 1}`;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Store
-// ─────────────────────────────────────────────────────────────────────────────
 
 const CLEAN_RUN = {
   isRunning: false,
@@ -375,10 +354,7 @@ export function createWorkflowStore(config: WorkflowStoreConfig = {}): WorkflowS
 
   const attemptId = (level: ChallengeLevel): Id => `g_attempt_${level.id}`;
 
-  /**
-   * The content a level opens with. With `restore`, the learner's saved diagram wins over the starter
-   * graph, and a short notice says so (including anything that could not be brought back).
-   */
+  /** The content a level opens with. */
   const contentFor = (level: ChallengeLevel, restore: boolean) => {
     const saved = restore ? loadSavedDiagram(storage, level, catalog) : null;
     const starter = level.starterGraph;
@@ -778,8 +754,7 @@ export function createWorkflowStore(config: WorkflowStoreConfig = {}): WorkflowS
       getProcessGraph,
 
       runEvaluation: () => {
-        // The grader reads ids, payloads and expected outcomes, which are the same in both languages; the test names in its
-        // feedback come out in the language on screen.
+        // The grader reads ids, payloads and expected outcomes, which are the same in both languages; the test names in its feedback come out in the language on screen.
         const result = evaluateChallenge(getProcessGraph(), localChallenge(get().level), { catalog, conditionVariables });
         set({ lastEvaluationResult: result, isEvaluationStale: false });
         return result;
@@ -861,16 +836,11 @@ export function createWorkflowStore(config: WorkflowStoreConfig = {}): WorkflowS
   return store;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // App-wide instance and React hook
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const workflowStore = createWorkflowStore({ storage: browserStorage() });
 
-/**
- * Which store the components below read. The app uses the one shared store; a guided tour gives its own canvas a
- * separate store, so a tour can run a diagram without touching the learner's.
- */
+/** Which store the components below read. */
 const StoreContext = createContext<WorkflowStore>(workflowStore);
 export const WorkflowStoreProvider = StoreContext.Provider;
 
@@ -878,11 +848,7 @@ export function useWorkflowStore<T>(selector: (state: WorkflowState) => T): T {
   return useStore(useContext(StoreContext), selector);
 }
 
-/**
- * After a language switch: the grader's feedback, the playback log and the last notice were written in the old language.
- * A fresh grade is re-run in the new one (only when it still describes the diagram on the canvas), the playback is cleared
- * and the notice dropped. Nothing about the diagram changes.
- */
+/** After a language switch: the grader's feedback, the playback log and the last notice were written in the old language. */
 export function relocalizeWorkflow(store: typeof workflowStore = workflowStore): void {
   const s = store.getState();
   if (s.notice) s.dismissNotice();

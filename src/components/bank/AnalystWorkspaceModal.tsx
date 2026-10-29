@@ -82,17 +82,7 @@ import { DepthToggle, SegmentedToggle, ViewModeToggle } from '../shell/Segmented
 import { useTerms } from './useTerms';
 import { glossText, useGlossary, type Glossary, type ViewMode } from './codeGlossary';
 
-/**
- * Phase 8 Step 2: the Staff Roleplay Workspace, a scenario-driven review desk in two registers.
- *
- *   ⌂  Header: desk picker (switching desks asks first, then restarts at Task 1), task picker (instant), language, complexity.
- *   A  Mission brief, regulatory reference (Expert), the current task of the 28-task matrix (or the retail queue) and its SOP.
- *   B  The 4-part scenario card: persona & story, trigger context, highlighted payload tags, risk & benefit analysis.
- *   C  Approve / Reject, a 2-second consequence overlay (+XP or an error), and the shift objective.
- *
- * Decisions go through useBankStore.staffTrain, which grades the task case against its SOP and books the shift. A retail-operations
- * decision also posts its double-entry journal to the core ledger, shown in the 📒 balance sheet.
- */
+/** Phase 8 Step 2: the Staff Roleplay Workspace, a scenario-driven review desk in two registers. ⌂ Header. */
 
 export type WorkspaceMode = 'standard' | 'expert';
 type M = Translate<AnalystWorkspaceKey>;
@@ -178,9 +168,7 @@ function Kicker({ children }: { children: ReactNode }) {
   return <div className="text-[12px] font-semibold uppercase tracking-wider text-slate-500">{children}</div>;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Mode toggle
-// ─────────────────────────────────────────────────────────────────────────────
 
 function ModeToggle({ mode, onChange, m }: { mode: WorkspaceMode; onChange: (mode: WorkspaceMode) => void; m: M }) {
   return (
@@ -253,10 +241,7 @@ export const dragScrollTo = (from: { x: number; y: number; left: number; top: nu
   top: from.top - (y - from.y),
 });
 
-/**
- * Left-button drag-to-scroll on a native scroll container, while `enabled`. It moves scrollLeft/scrollTop only, so the wheel,
- * two-finger touchpad scrolling and the scrollbars keep working in both modes. Returns whether a drag is in progress.
- */
+/** Left-button drag-to-scroll on a native scroll container, while `enabled`. */
 function useDragScroll(ref: RefObject<HTMLElement>, enabled: boolean): boolean {
   const [dragging, setDragging] = useState(false);
   useEffect(() => {
@@ -298,10 +283,7 @@ function useDragScroll(ref: RefObject<HTMLElement>, enabled: boolean): boolean {
   return dragging;
 }
 
-/**
- * Scales a fixed-width page with `transform: scale()`. A transform does not change layout, so the outer box takes the scaled
- * size (measured from the page) and the scrolling viewport around it scrolls exactly as far as the visible page reaches.
- */
+/** Scales a fixed-width page with `transform: scale()`. */
 function ZoomFrame({ zoom, width, children }: { zoom: number; width: number; children: ReactNode }) {
   const page = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number | null>(null);
@@ -323,9 +305,7 @@ function ZoomFrame({ zoom, width, children }: { zoom: number; width: number; chi
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Panel A
-// ─────────────────────────────────────────────────────────────────────────────
 
 function MissionPanel({ role, task, mode, m, deskName, sla = STAFF_SLA_SECONDS, crisis = null, crisisBatch = CRISIS_BATCH.default, crisisStream = false }: { role: StaffRoleId; task: StaffTaskNo; mode: WorkspaceMode; m: M; deskName: string; sla?: number; crisis?: IncidentId | null; crisisBatch?: number; crisisStream?: boolean }) {
   const expert = mode === 'expert';
@@ -397,9 +377,7 @@ function MissionPanel({ role, task, mode, m, deskName, sla = STAFF_SLA_SECONDS, 
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Decision Support Engine / Risk Advisory
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type AdviceAction = 'approve' | 'reject' | 'freeze' | 'escalate';
 export const ADVICE_ACTIONS: readonly AdviceAction[] = ['approve', 'reject', 'freeze', 'escalate'];
@@ -429,11 +407,7 @@ const ADVICE_DRIVERS = { min: 2, max: 3 } as const;
 
 const linesFor = (c: StaffCase, d: StaffDecision): readonly LedgerLine[] => (c.retail ? (d === 'APPROVE' ? c.retail.approve : c.retail.reject) : caseJournalLines(c, d));
 
-/**
- * The engine's read of a case, from what the card itself shows: a visible SOP breach is decisive (reject, or freeze when the
- * rejection moves the funds to frozen assets); otherwise confidence is the share of fields verified clean, an operational alert
- * counting half and a field hidden by an incident not at all, and below ESCALATE_BELOW_PCT the engine escalates.
- */
+/** The engine's read of a case, from what the card itself shows. */
 export function adviseCase(c: StaffCase, masked: ReadonlySet<string> = NONE_MASKED): Advice {
   const visible = c.fields.filter((f) => !masked.has(f.key));
   const hidden = c.fields.length - visible.length;
@@ -492,10 +466,7 @@ export function confidenceBand(pct: number): 'High' | 'Medium' | 'Low' {
   return pct >= 90 ? 'High' : pct >= ESCALATE_BELOW_PCT ? 'Medium' : 'Low';
 }
 
-/**
- * The advisory card. It starts collapsed in both modes, so the learner weighs the case first; the 👁️ toggle shows and hides
- * it. In Expert mode showing it forfeits the case's combo bonus.
- */
+/** The advisory card. */
 export function AdvisoryCard({
   current,
   masked = NONE_MASKED,
@@ -600,9 +571,7 @@ function AdviceBody({ advice, head, mode, m }: { advice: Advice; head: ReactNode
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Panel B: the 4-part scenario card
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** What CORRUPTED_PAYLOAD leaves of a field's value. */
 export const MASK = '██████';
@@ -801,9 +770,7 @@ function RiskBox({ tone, title, text, testId }: { tone: keyof typeof RISK_TONE; 
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Panel C: decision, consequence overlay, shift objective
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface Consequence {
   result: StaffDecisionResult;
@@ -886,9 +853,7 @@ export function ConsequenceOverlay({ consequence, mode, m }: { consequence: Cons
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Core ledger: journal lines, the four KPIs and the balance sheet
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A journal's Debit and Credit lines, debits first; a decision that moves no money shows the memo note. */
 export function JournalLines({ lines, m, compact = false }: { lines: readonly LedgerLine[]; m: M; compact?: boolean }) {
@@ -1157,10 +1122,7 @@ const SHEET_SIDES: readonly { side: GlSide; title: AnalystWorkspaceKey }[] = [
   { side: 'expense', title: 'ledgerExpense' },
 ];
 
-/**
- * The confirmation a reset needs: it erases every posted journal and the whole audit trail, and nothing brings them back.
- * Escape or Cancel keeps the data; focus starts on Cancel so a stray Enter cannot wipe anything.
- */
+/** The confirmation a reset needs: it erases every posted journal and the whole audit trail, and nothing brings them back. */
 export function LedgerResetConfirm({ journals, audit, m, onCancel, onConfirm }: { journals: number; audit: number; m: M; onCancel: () => void; onConfirm: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -1358,9 +1320,7 @@ export function CoreLedgerSheet({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Audit trail export: CSV and the printable (PDF) audit report
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** The journal's Debit/Credit account codes, e.g. "Dr 2011 / Cr 1520 / Cr 4540"; `memo` when nothing posted. */
 export function ledgerEntryCode(lines: readonly LedgerLine[], memo: string): string {
@@ -1397,10 +1357,7 @@ export const AUDIT_CSV_COLUMNS: readonly AnalystWorkspaceKey[] = [
   'auditColCompliance',
 ];
 
-/**
- * Vietnamese text in Unicode Form C: each accented letter as one precomposed code point. Decomposed text (a base letter plus
- * combining marks) prints with gaps in many PDF fonts ("Khô ́ i"), so everything the report and the CSV render goes through this.
- */
+/** Vietnamese text in Unicode Form C: each accented letter as one precomposed code point. */
 export const nfc = (text: string): string => text.normalize('NFC');
 const nfcMessages = (m: M): M => ((key, values) => nfc(m(key, values))) as M;
 
@@ -1474,10 +1431,7 @@ const PRINT_CSS = `.pc-audit-print{display:none}
   .pc-audit-print{display:block!important;background:#fff;color:#000}
 }`;
 
-/**
- * Section III's columns: starting widths (the table lays out automatically, so a code column grows to fit its longest code
- * rather than breaking it), and which columns are numeric (right-aligned).
- */
+/** Section III's columns: starting widths (the table lays out automatically, so a code column grows to fit its longest code rather than breaking it), and which columns are numeric (right-aligned). */
 const AUDIT_TABLE_COLS: readonly { key: AnalystWorkspaceKey; width: string; numeric?: boolean }[] = [
   { key: 'rptColNo', width: '3.5%', numeric: true },
   { key: 'auditColTime', width: '11%' },
@@ -1778,9 +1732,7 @@ function AuditButton({ count, onOpen, m }: { count: number; onOpen: () => void; 
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Time-Attack Challenge Mode
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** "02:47" for a number of seconds left. */
 export function clockText(sec: number): string {
@@ -1932,9 +1884,7 @@ export function ChallengeScorecard({ tally, m, onAgain, onClose, onExport }: { t
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Combo multiplier, SOP-violation pulse, sound toggle
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function ComboBadge({ combo, m }: { combo: number; m: M }) {
   const tier = comboTier(combo);
@@ -1985,14 +1935,9 @@ function SoundToggle({ m }: { m: M }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Incident Mode: toggle, live-incident banner, power-failover flicker
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Text that changes with a control's state, in a box as wide as its widest state: every state is laid out in the same grid
- * cell and only the current one is visible, so switching never changes the control's width or moves what sits beside it.
- */
+/** Text that changes with a control's state, in a box as wide as its widest state. */
 export function StableLabel({ value, states }: { value: string; states: Readonly<Record<string, ReactNode>> }) {
   return (
     <span className="inline-grid justify-items-center" data-stable={value}>
@@ -2098,9 +2043,7 @@ export function IncidentBanner({ incident, batch = CRISIS_BATCH.default, stream 
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Career rank card, badge collection and the unlock celebration
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function CareerCard({ career, m }: { career: CareerProgress; m: M }) {
   const st = careerStanding(career.xp);
@@ -2297,9 +2240,7 @@ function DecisionPanel({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Header pickers and the desk-switch guard
-// ─────────────────────────────────────────────────────────────────────────────
 
 const PICKER = 'min-w-[11rem] max-w-[16rem] shrink-0 truncate rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-[14px] font-semibold text-slate-100 transition hover:border-slate-500 focus:border-sky-400 focus:outline-none';
 
@@ -2343,10 +2284,7 @@ export function DeskKindBadge({ role, m }: { role: StaffRoleId; m: M }) {
 
 type BatchChoice = `${(typeof CRISIS_BATCHES)[number]}` | 'custom';
 
-/**
- * [ 3 cases | 5 cases | 10 cases | ⚙️ Custom ] and [ 🌀 Mixed crisis stream ]: how long each crisis of the emergency queue
- * lasts. A batch of one, or the stream switch, gives every case a different crisis. Shown while Incident Mode is on.
- */
+/** [ 3 cases | 5 cases | 10 cases | ⚙️ Custom ] and [ 🌀 Mixed crisis stream ]: how long each crisis of the emergency queue lasts. */
 export function CrisisBatchPicker({ batch, stream, onBatch, onStream, m, disabled = false }: { batch: number; stream: boolean; onBatch: (n: number) => void; onStream: (on: boolean) => void; m: M; disabled?: boolean }) {
   const preset = (CRISIS_BATCHES as readonly number[]).includes(batch);
   const [custom, setCustom] = useState(!preset);
@@ -2446,7 +2384,6 @@ export function SwitchDeskDialog({ target, m, onCancel, onConfirm }: { target: S
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface AnalystWorkspaceViewProps {
   desk: StationId;
@@ -2651,9 +2588,7 @@ export function AnalystWorkspaceView({
               {m('close')}
             </button>
           </div>
-          {/* Two fixed tiers that never wrap (a narrow window scrolls them sideways instead). Tier 1, the controls: the incident
-              switch and its batch settings, then sound, language, difficulty and the challenge. Tier 2, the records: badges, the
-              core ledger summary and the audit export. Incident Mode only changes states inside tier 1. */}
+          {/* Two fixed tiers that never wrap (a narrow window scrolls them sideways instead). */}
           <div className="bk-scroll flex flex-nowrap items-center gap-3 overflow-x-auto pb-0.5" data-testid="workspace-toolbar">
             <div className="flex shrink-0 items-center gap-2" data-testid="workspace-incident-controls">
               <IncidentToggle on={incidentMode} onToggle={onToggleIncidentMode} m={m} />

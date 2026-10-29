@@ -9,19 +9,9 @@ import { publishTourScreen, type ScreenRect } from './tourBridge';
 import { frameFocus, framedPlaces, MAX_POOLS, placeFootprint, placeXZ, pointAlongPath, pathLength, poolPlaces, TOKEN_HEIGHT, tourPath, tourTravelMs, type CamFocus } from './tour3d';
 import type { V2 } from '../../../engine/plan/layout3d';
 
-/**
- * The 3D half of a guided tour (the words are the same StepCard the 2D map uses, laid over the canvas by Office3D):
- *
- *   useTourCamera   where the camera should be for the current step (OfficeScene hands it to the CameraRig)
- *   TourStage       a soft ring of light on the floor round every desk of the chapter, real pools of light on the nearest ones,
- *                   and a glowing token that travels the floor lanes from desk to desk
- *
- * The daylight itself is dimmed by the Lights of the scene while a tour runs, so the lit desks stand out.
- */
+/** The 3D half of a guided tour (the words are the same StepCard the 2D map uses, laid over the canvas by Office3D). */
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Camera
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** The camera for the tour step on screen, or null when there is no tour. The briefing shows the whole chapter at once. */
 export function useTourCamera(): CamFocus | null {
@@ -42,9 +32,7 @@ export function arrivalMs3d(focus: Focus): number {
   return tourTravelMs(tourPath(focus.current.route));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Light on the floor
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type Role = 'here' | 'next' | 'visited' | 'lit';
 
@@ -133,9 +121,7 @@ function PoolLight({ place, role, accent }: { place: PlaceId | null; role: Role;
   return <pointLight ref={light} color={accent} intensity={0} distance={9} decay={1.6} position={[0, 3.4, 0]} />;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The token
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** The path the token takes to arrive at the current step: forward along the route, back along the next one, or set straight down. */
 function arrivalPath(focus: Focus, from: number | null): V2[] {
@@ -205,9 +191,7 @@ function TourToken({ focus }: { focus: Focus }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Telling the page where the desks are on screen
-// ─────────────────────────────────────────────────────────────────────────────
 
 const probe = new Vector3();
 
@@ -261,7 +245,6 @@ function ScreenPublisher({ focus }: { focus: Focus }) {
   return null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Everything the tour adds to the office. Nothing at all when there is no tour. */
 export function TourStage() {

@@ -1,8 +1,4 @@
-/**
- * The 08:00-24:00 time bar, as numbers. The bar is drawn on a stretched scale (the one-hour night cycle is as wide as a
- * fifth of the bar, so it is as easy to hit as the working day), so turning a click into a clock time and a clock time into
- * a position both go through the phases. Pure, so the scrubber's arithmetic can be tested without a browser.
- */
+/** The 08:00-24:00 time bar, as numbers. */
 
 import { DAY_END, DAY_START, PHASES, type Phase } from '../../sim/clock';
 

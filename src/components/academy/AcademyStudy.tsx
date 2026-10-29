@@ -12,14 +12,9 @@ import { bankStore, useBankStore } from '../../store/bankStore';
 import { postingKindLabel } from '../../data/ledgerCopy';
 import type { PostingKind } from '../../types/processLearning';
 
-/**
- * The Academy's study views: flashcards and glossary, the chapter quizzes, the message and ledger inspector, and the
- * "[▶ Simulate this Flow]" button that hands a lesson over to the live map. Every word follows the language switch.
- */
+/** The Academy's study views: flashcards and glossary, the chapter quizzes, the message and ledger inspector, and the "[▶ Simulate this Flow]" button that hands a lesson over to the live map. */
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Simulate
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Closes the lesson panel and plays the flow on the map. Disabled where no guided flow covers the desk. */
 export function SimulateButton({ flow, testId = 'simulate-flow' }: { flow: FlowId | null; testId?: string }) {
@@ -38,9 +33,7 @@ export function SimulateButton({ flow, testId = 'simulate-flow' }: { flow: FlowI
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Chapter chips
-// ─────────────────────────────────────────────────────────────────────────────
 
 function ChapterChips({ value, onChange, withAll, extra }: { value: ChapterId | 'all'; onChange: (v: ChapterId | 'all') => void; withAll?: boolean; extra?: (c: ChapterId) => string }) {
   const locale = useLocale();
@@ -62,9 +55,7 @@ function ChapterChips({ value, onChange, withAll, extra }: { value: ChapterId | 
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Flashcards and glossary
-// ─────────────────────────────────────────────────────────────────────────────
 
 function Flashcard({ entry, flipped, onFlip }: { entry: GlossaryEntry; flipped: boolean; onFlip: () => void }) {
   const chapter = chapterById(entry.chapter);
@@ -95,10 +86,7 @@ function Flashcard({ entry, flipped, onFlip }: { entry: GlossaryEntry; flipped: 
   );
 }
 
-/**
- * The flashcards, one at a time or as a glossary list. The chapter filter lives in the academy store, so a lesson's
- * [📇 Practice in Flashcards Tab] can open this tab already filtered to its chapter.
- */
+/** The flashcards, one at a time or as a glossary list. */
 export function FlashcardsView() {
   const locale = useLocale();
   const chapter = useAcademyStore((s) => s.cardsChapter);
@@ -169,9 +157,7 @@ export function FlashcardsView() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Quiz
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function QuizView() {
   const locale = useLocale();
@@ -259,9 +245,7 @@ export function QuizView() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Message & ledger inspector
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** The raw ISO 8583 message and the double-entry GL postings of a real example payment for the lesson in focus. */
 export function MessageInspector({ level }: { level: Pick<AcademyLevel, 'flow'> }) {

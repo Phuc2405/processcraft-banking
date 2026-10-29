@@ -3,13 +3,7 @@ import { tr, type Localized } from '../../i18n/locale';
 import { uiStore, useUiStore } from '../../store/uiStore';
 import { Modal } from '../shell/Modal';
 
-/**
- * Payment Rail Benchmark: card schemes (ISO 8583), instant account-to-account (ISO 20022) and BNPL Pay-in-4, side by side on
- * latency, settlement, merchant fees, fraud risk and chargeback rights. Each cell has the fact and a 1-5 score from the
- * merchant's point of view (5 is best for the merchant), drawn as a bar so the trade-offs show at a glance.
- *
- * Figures are typical Australian market ranges for teaching, not quotes from any provider.
- */
+/** Payment Rail Benchmark: card schemes (ISO 8583), instant account-to-account (ISO 20022) and BNPL Pay-in-4, side by side on latency, settlement, merchant fees, fraud risk and chargeback rights. */
 
 type RailId = 'card' | 'a2a' | 'bnpl';
 type MetricId = 'latency' | 'settlement' | 'mdr' | 'fraud' | 'chargeback' | 'standard' | 'finality';

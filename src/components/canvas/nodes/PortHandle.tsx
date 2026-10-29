@@ -18,10 +18,7 @@ interface Props {
 
 const ERROR_COLOR = '#fb7185';
 
-/**
- * One port on a node. The handle id IS the port id, which is what lets the store turn a drawn wire
- * into ProcessEdge.sourcePortId / targetPortId without any lookup.
- */
+/** One port on a node. */
 export function PortHandle({ port, side, accent, style, caption }: Props) {
   const nodeId = useNodeId();
   const isInput = port.direction === 'IN';

@@ -1,8 +1,4 @@
-/**
- * The Learning Hub's four lessons. Each lesson explains one of the bank's processes by replaying a payment
- * through the real process diagram (see walkthrough.ts), so the words here only have to say what is going
- * on and why. Nothing in here decides an outcome: the diagram does, with the rules the learner has dialled in.
- */
+/** The Learning Hub's four lessons. */
 
 import type { BankingPayload } from '../types/processLearning';
 import { LESSON_E, LESSON_F } from './learningAcademy';
@@ -112,9 +108,7 @@ export interface Lesson {
   takeaways: string[];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Example payments
-// ─────────────────────────────────────────────────────────────────────────────
 
 const TS = 1_800_000_000_000;
 
@@ -148,9 +142,7 @@ const bnpl = (score: number, downPct: number, over: Partial<BankingPayload> = {}
   return payment({ amount, bnpl: { underwritingScore: score, downPaymentMinor: Math.ceil((amount * downPct) / 100) }, ...over });
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Process A: virtual card tokenization and dynamic CVV
-// ─────────────────────────────────────────────────────────────────────────────
 
 const LESSON_A: Lesson = {
   id: 'A',
@@ -275,9 +267,7 @@ const LESSON_A: Lesson = {
   ],
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Process B: 3-D Secure risk engine
-// ─────────────────────────────────────────────────────────────────────────────
 
 const LESSON_B: Lesson = {
   id: 'B',
@@ -414,9 +404,7 @@ const LESSON_B: Lesson = {
   ],
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Process C: Buy Now Pay Later
-// ─────────────────────────────────────────────────────────────────────────────
 
 const LESSON_C: Lesson = {
   id: 'C',
@@ -534,9 +522,7 @@ const LESSON_C: Lesson = {
   ],
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Process D: end-of-day reconciliation
-// ─────────────────────────────────────────────────────────────────────────────
 
 const LESSON_D: Lesson = {
   id: 'D',

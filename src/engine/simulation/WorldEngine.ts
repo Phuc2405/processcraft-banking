@@ -16,16 +16,7 @@ import { ArrivalWalks, DeskLine, StaffWalks } from './people';
 import { StreetPeople } from '../world/streetPeople';
 import { EntityFactory } from './EntityFactory';
 
-/**
- * The world around the bank in the 3D office, as one pure simulation: the motion clock, the traffic on the avenue, the car
- * park (and the cash van's run), the park's people, the guards at their posts, the passers-by on the pavement and the sky's
- * weather blend. It owns every one of them and steps them all, in a fixed order, once a frame (`tick`); the 3D view only
- * reads them to draw. No React, no three.js, no DOM: everything it needs from outside (the bank's clock and speed, the
- * weather picked) comes in as WorldInputs, so it can be stepped in a test exactly as on screen.
- *
- * Pieces shared with the drawing of the bank's own desks (the pavement's steering, the hand-off of customers to the desks'
- * lines) are module singletons; the engine holds them too, so there is one place to find all of the world's state.
- */
+/** The world around the bank in the 3D office, as one pure simulation. */
 
 /** What the world needs from outside each frame. */
 export interface WorldInputs {
@@ -103,12 +94,7 @@ export class WorldEngine {
     return g;
   }
 
-  /**
-   * One frame: the motion clock moves on (frozen on pause, at the bank's speed in play), then every system steps by it in
-   * small substeps, in the order they always have: the guards, the traffic, the park, the car park (which closes to new
-   * arrivals at closing time), the pavement's people; and last the sky's blend eases towards the weather picked (on real
-   * time: weather keeps moving while the bank is paused).
-   */
+  /** One frame: the motion clock moves on (frozen on pause, at the bank's speed in play), then every system steps by it in small substeps, in the order they always have. */
   tick(input: WorldInputs): WorldTickResult {
     advanceMotion(input.realDt, input.playing, input.speed);
     this.minute = input.minute;
@@ -166,10 +152,7 @@ export class WorldEngine {
     return s;
   }
 
-  /**
-   * The bank moved on (call it as soon as the bank's view changes, and once at the start): customers set off for the lines on
-   * a new beat, the lines take in who has been served, and the staff who went off shift or are due in start walking.
-   */
+  /** The bank moved on (call it as soon as the bank's view changes, and once at the start). */
   onBank(view: BankView): void {
     if (view === this.seenView) return;
     this.seenView = view;

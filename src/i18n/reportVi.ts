@@ -1,10 +1,4 @@
-/**
- * Vietnamese for the End-of-Day report: the P&L line names, the tiles, the glossary tooltips, the decline labels and groups,
- * and the coach's tips.
- *
- * reportSummary.ts and reportGlossary.ts stay in English: the CSV exports and the tests read them, and the CSV is a data file
- * whose column values are matched by downstream spreadsheets. The modal reads everything it shows through these accessors.
- */
+/** Vietnamese for the End-of-Day report: the P&L line names, the tiles, the glossary tooltips, the decline labels and groups, and the coach's tips. reportSummary.ts and reportGlossary.ts stay in English. */
 
 import type { DeclineReason } from '../sim/types';
 import { activeLocale } from './localeCore';

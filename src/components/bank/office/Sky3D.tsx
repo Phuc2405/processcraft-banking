@@ -7,12 +7,7 @@ import { atmosphereAt, type WeatherMix } from '../../../engine/world/atmosphere'
 import { FLOOR_SLAB, KERB_Z } from '../../../engine/plan/layout3d';
 import { liveMix } from '../../../engine/world/weather';
 
-/**
- * The sky over the diorama: the sun (with a soft glare) or the moon, and a layer of low-poly clouds drifting across. The
- * camera looks down at the city, so there is no horizon to put them on: they are drawn in the band of the view above the
- * branch, the way a painted backdrop hangs behind a stage, and whatever would cover the office fades away. They follow the
- * camera as it pans and zooms, so the sky stays where the sky is.
- */
+/** The sky over the diorama: the sun (with a soft glare) or the moon, and a layer of low-poly clouds drifting across. */
 
 /** How cloudy the sky is, 0-1, and how dark its clouds are, 0-1. */
 export const cloudCover = (w: WeatherMix): number => Math.min(1, 0.15 + 0.85 * w.overcast + 0.4 * w.rain + 0.5 * w.storm + 0.4 * w.snow + 0.5 * w.hail + 0.3 * w.smog);

@@ -1,16 +1,4 @@
-/**
- * The Academy levels (5 to 10). Levels 1 to 4 are in seedChallenges.ts; this file adds six more and seedChallenges.ts
- * puts all ten into teaching order.
- *
- *   5   The First Swipes                    a funds check and a graceful decline
- *   6   Card-Testing at Midnight            stop a burst of micro-payments without challenging genuine customers
- *   7   A2A Payments & ISO 20022            instant versus RTGS, the gateway queue, the liquidity cap, payroll priority
- *   8   The 23:59 Night Run: FX Breaks      fifteen foreign-exchange breaks to the FX gain and loss suspense accounts
- *   9   Sanctions Storm                     a VIP flagged by a false-positive sanctions hit
- *   10  Chargeback Warfare                  the dispute cycle, and who pays when 3-D Secure was used
- *
- * Money is integer cents (AUD): 8950 means $89.50.
- */
+/** The Academy levels (5 to 10). */
 
 import type {
   A2aContext,
@@ -50,9 +38,7 @@ import {
 const lockedEnd = (id: Id, label: string, outcome: Outcome, reasonCode: string, x: number, y: number) =>
   makeNode(END, id, label, { outcome, reasonCode }, { locked: true, x, y });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Level 5: The First Swipes
-// ─────────────────────────────────────────────────────────────────────────────
 
 const swipe = (txId: Id, amount: number, availableBalance: number, over: Partial<BankingPayload> = {}): BankingPayload =>
   payload({ txId, amount, channel: 'POS', cardType: 'DEBIT', riskScore: 6, availableBalance, creditLimit: 0, ...over });
@@ -224,9 +210,7 @@ const L5_REFERENCE: ProcessGraph = {
   ],
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Level 6: Card-Testing at Midnight
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** 2026-10-10 00:12 in Sydney (UTC+10), the hour card-testing bots like. */
 const MIDNIGHT = Date.UTC(2026, 9, 9, 14, 12, 0);
@@ -481,9 +465,7 @@ const L6_REFERENCE: ProcessGraph = {
   ],
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Level 7: A2A Payments & ISO 20022
-// ─────────────────────────────────────────────────────────────────────────────
 
 const A2A_BASE: A2aContext = {
   endToEndId: 'INV-2026-000417',
@@ -769,9 +751,7 @@ const L7_REFERENCE: ProcessGraph = {
   ],
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Level 8: The 23:59 Night Run, FX Breaks
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** AUD cents for a foreign amount (in the foreign currency's cents) at a micro-AUD rate, rounded to the cent. */
 export const audLeg = (foreignMinor: number, rateMicro: number): number => Math.round((foreignMinor * rateMicro) / 1_000_000);
@@ -1016,9 +996,7 @@ const L8_REFERENCE: ProcessGraph = {
   ],
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Level 9: Sanctions Storm
-// ─────────────────────────────────────────────────────────────────────────────
 
 // All of these people are invented.
 const OFAC_VOLKANOV: WatchlistEntry = { list: 'OFAC', name: 'Dmitri Volkanov', dateOfBirth: '1962-04-11', country: 'RU' };
@@ -1297,9 +1275,7 @@ const L9_REFERENCE: ProcessGraph = {
   ],
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Level 10: Chargeback Warfare
-// ─────────────────────────────────────────────────────────────────────────────
 
 const claim = (
   txId: Id,
@@ -1611,9 +1587,7 @@ const L10_REFERENCE: ProcessGraph = {
   ],
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Exports
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const ACADEMY_LEVELS: ChallengeLevel[] = [LEVEL_5, LEVEL_6, LEVEL_7, LEVEL_8, LEVEL_9, LEVEL_10];
 

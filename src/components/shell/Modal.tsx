@@ -1,10 +1,7 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { tr } from '../../i18n/locale';
 
-/**
- * A centred dialog over a dark veil: title bar with a close button, a scrolling body and an optional footer. Escape and a click
- * on the veil close it, and focus moves into it when it opens and back where it was when it closes.
- */
+/** A centred dialog over a dark veil: title bar with a close button, a scrolling body and an optional footer. */
 export function Modal({ title, subtitle, icon, onClose, children, footer, actions, width = 'max-w-4xl', testId, z = 'z-50' }: { title: string; subtitle?: string; icon?: string; onClose: () => void; children: ReactNode; footer?: ReactNode; /** Controls in the title bar, before the close button, that govern the whole dialog. */ actions?: ReactNode; width?: string; testId: string; z?: string }) {
   const titleId = useId();
   const box = useRef<HTMLDivElement>(null);

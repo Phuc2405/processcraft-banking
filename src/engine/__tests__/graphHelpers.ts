@@ -1,6 +1,4 @@
-/**
- * Small builders shared by the engine tests. Not a test file itself.
- */
+/** Small builders shared by the engine tests. */
 
 import { LEVELS, NODE_CATALOG, REFERENCE_SOLUTIONS } from '../../data/seedChallenges';
 import type {

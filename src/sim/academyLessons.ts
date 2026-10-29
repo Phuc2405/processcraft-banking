@@ -1,14 +1,4 @@
-/**
- * The body of every Academy lesson, in four sections:
- *
- *   📌 realWorldScenario   an everyday story the step happens in
- *   🔄 stepByStepFlow      the exact operational steps, each with the party that does it
- *   🧠 whyItMatters        why the bank does it this way, in business terms
- *   ⚠️ edgeCasesAndErrors  the response codes and failures a real desk sees here
- *
- * Text may mention response codes ("RC 51") and GL codes ("1110"); plainLanguage.ts rewrites them for the Beginner View.
- * Pure data, keyed by level id ("2.3"). academyCatalog.ts attaches each entry to its level and fails loudly if one is missing.
- */
+/** The body of every Academy lesson, in four sections. */
 
 export interface FlowStepLine {
   /** Who acts: the customer, the terminal and switch, the core banking engine, and so on. */

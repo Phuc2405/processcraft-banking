@@ -205,10 +205,7 @@ function RunLog() {
 
 type LedgerSource = 'replay' | 'graded';
 
-/**
- * The live double-entry mini ledger. Two views of the same engine: the lines the payment on the canvas posted when its replay
- * finished, and the lines every visible test would post on the diagram as last graded.
- */
+/** The live double-entry mini ledger. */
 function LedgerTab() {
   const ui = ledgerUi();
   const level = localChallenge(useWorkflowStore((s) => s.level));

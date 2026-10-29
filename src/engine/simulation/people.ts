@@ -30,9 +30,7 @@ export interface FigurePose {
   visible: boolean;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Customers walking to the desks' lines
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface ArrivalWalk {
   path: V2[];
@@ -127,9 +125,7 @@ export class ArrivalWalks {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // A desk's line, and the customers served at it
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A customer served at a desk, through their journey (customerLifecycle.ts). */
 export interface Served {
@@ -150,11 +146,7 @@ export interface ServedPose {
   busy: boolean;
 }
 
-/**
- * What waits at a desk (people at the customers' desks, phones at a digital gate, case files at an internal desk), each
- * stepping up a place when the one in front is served; those served finish up, turn and walk away. The figures' positions
- * are the desk's own (desk-local), served customers' are the world's.
- */
+/** What waits at a desk (people at the customers' desks, phones at a digital gate, case files at an internal desk), each stepping up a place when the one in front is served. */
 export class DeskLine {
   readonly id: StationId;
   /** How many of the line are drawn, and the count of served the figures' looks follow (place i is processed + i + salt). */
@@ -308,9 +300,7 @@ export class DeskLine {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Staff walking in before their shift and out at its end
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface StaffWalk {
   id: string;

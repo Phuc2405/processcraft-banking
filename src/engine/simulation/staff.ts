@@ -4,23 +4,12 @@ import type { StationId } from '../../sim/topology';
 import { COUNTER, FRONT_AISLE_Z, KERB_Z, MAIN_GATE, STREET, type Pose, type V2 } from '../plan/layout3d';
 import { pathLength, pointAlongPath } from '../plan/path';
 
-/**
- * The people who work the desks, coming in before their shift (Strategy: ShiftScheduleStrategy). The day's tellers and
- * officers and the night's reconciliation clerks are the same kind of StaffEntity; what differs is the schedule they keep:
- * when they set off for work, and whether they sit ready ahead of the simulation putting them on duty. Pure, so the tests
- * can check every member of staff is seated before their shift.
- */
+/** The people who work the desks, coming in before their shift (Strategy: ShiftScheduleStrategy). */
 
-/**
- * When the staff come in: [first to set off, last to set off], in the bank's minutes. The day's staff set off between 07:00
- * and 07:20 for their 08:00 shift, the night's between 22:00 and 22:20 for the night's work at 23:00. The hour before each
- * shift ticks in short beats (sim/clock.ts PRE_SHIFT) and they walk in briskly (ARRIVE_SPEED), so everyone is seated well
- * before it starts.
- */
+/** When the staff come in: [first to set off, last to set off], in the bank's minutes. */
 export const STAFF_ARRIVAL = { day: [DAY_START, DAY_START + 20], night: [EOD_START - 60, EOD_START - 40] } as const;
 
-/** Where a member of staff is, as far as the 3D office shows it: not in yet, in and sitting ready (before the simulation has
- * them on duty), or as the simulation has them (at the desk, or gone home). */
+/** Where a member of staff is, as far as the 3D office shows it. */
 export type StaffPresence = 'away' | 'ready' | 'roster';
 
 /** A shift's schedule: one per shift, shared by everyone on it. */
@@ -76,8 +65,7 @@ export class StaffEntity {
     return this.schedule.setOff(this.id, this.seat);
   }
 
-  /** Where they are at `minute`: not in yet (their shift's window has opened, their time has not come), sitting ready
-   * ahead of the shift, or as the simulation has them. */
+  /** Where they are at `minute`: not in yet (their shift's window has opened, their time has not come), sitting ready ahead of the shift, or as the simulation has them. */
   presence(minute: number): StaffPresence {
     const [from] = this.schedule.arrival;
     const due = this.setOff;
@@ -87,27 +75,19 @@ export class StaffEntity {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Staff coming and going
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** The simulation's own words for a member of staff who has gone home (bankSimulation.ts workerView). */
 export const isOffShift = (activity: string): boolean => /^(Off shift|Desk closed)/.test(activity);
 
-/** How fast staff walk out, in world units a second; and how briskly they come in before a shift, to be at their desks
- * well before it starts. */
+/** How fast staff walk out, in world units a second; and how briskly they come in before a shift, to be at their desks well before it starts. */
 export const LEAVE_SPEED = 1.4;
 export const ARRIVE_SPEED = 3.5;
 
 /** The pavement's inner walking lane (clear of the ATM booths and the guard's cabin), where staff come and go. */
 const STAFF_LANE_Z = KERB_Z - 0.85;
 
-/**
- * The way out for someone seated at `seat` (relative to the desk at `pose`): up from the chair, along the back of the counter
- * to its end, down the aisle beside the desk to the clear aisle along the front of the hall, along it to the main entrance,
- * out onto the pavement and off down the street (`k` odd to the left, even to the right). Every leg runs straight along x
- * or z: never through a desk, the front wall or an ATM booth.
- */
+/** The way out for someone seated at `seat` (relative to the desk at `pose`). */
 export function leaveRoute(pose: Pose, seat: V2, k = 0): V2[] {
   const sx = pose.x + seat[0];
   const sz = pose.z + seat[1];
@@ -123,15 +103,10 @@ export function leaveRoute(pose: Pose, seat: V2, k = 0): V2[] {
   ];
 }
 
-/** The minute the `k`th member of staff at a desk sets off for work: spread through their shift's arrival window, steady per
- * person (their shift's ShiftScheduleStrategy). */
+/** The minute the `k`th member of staff at a desk sets off for work: spread through their shift's arrival window, steady per person (their shift's ShiftScheduleStrategy). */
 export const arrivalMinute = (night: boolean, seed: string, k: number): number => (night ? NIGHT_SHIFT_SCHEDULE : MORNING_SHIFT_SCHEDULE).setOff(seed, k);
 
-/**
- * At `minute`, who of a desk's staff (`ids`, in seat order) is not in yet (`away`: their shift's arrival window has begun
- * and their time to set off has not come), and, at a night desk, who has come in and sits ready before the night's work
- * starts (`early`: the simulation still has them off shift until 23:00). Each is a StaffEntity on their shift's schedule.
- */
+/** At `minute`, who of a desk's staff (`ids`, in seat order) is not in yet (`away`. */
 export function arrivalState(night: boolean, ids: readonly string[], minute: number): { away: string[]; early: string[] } {
   const schedule = night ? NIGHT_SHIFT_SCHEDULE : MORNING_SHIFT_SCHEDULE;
   const away: string[] = [];

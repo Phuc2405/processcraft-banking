@@ -1,29 +1,11 @@
-/**
- * What the canvas shows while a transaction travels through the diagram.
- *
- * Everything here is a pure function of the runner's tokens and the events of the latest step, so it
- * can be tested without React. The store calls these after each step and publishes the result;
- * components only read it.
- *
- *   TokenLook      what a token looks like (glowing card, Pay-in-4 split badge, settlement folder)
- *   EdgeTraffic    tokens that took a wire in the latest step, so the wire can animate them
- *   NodeRuntime    per-desk state: busy, queueing, congested, frozen, alarmed, or dropping a token
- */
+/** What the canvas shows while a transaction travels through the diagram. */
 
 import type { RunEvent, StepResult } from '../engine/processRunner';
 import type { CardType, Id, NodeType, SimulationToken, TokenState } from '../types/processLearning';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Token looks
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * - CARD         a debit, credit, prepaid or virtual card payment: a glowing chip card
- * - BNPL         a Pay-in-4 application that has not been turned down: a badge split in four
- * - SETTLEMENT   an end-of-day record being reconciled: a document folder
- * - TRANSFER     an instant account-to-account transfer: a lightning-bolt badge
- * - CASH         a sidewalk ATM withdrawal: a banknote
- */
+/** - CARD a debit, credit, prepaid or virtual card payment. */
 export type TokenKind = 'CARD' | 'BNPL' | 'SETTLEMENT' | 'TRANSFER' | 'CASH';
 
 export interface TokenLook {
@@ -45,11 +27,7 @@ const CARD_LABEL: Record<CardType, string> = {
   VIRTUAL_DPAN: 'Virtual card payment',
 };
 
-/**
- * A token's look follows what it is right now, not what it started as. A Pay-in-4 application is a
- * split badge until the underwriter says no; from then on it is a plain card payment, which is what
- * the fallback path will charge.
- */
+/** A token's look follows what it is right now, not what it started as. */
 export function lookOfToken(token: Pick<SimulationToken, 'payload' | 'derived'>): TokenLook {
   const { payload, derived } = token;
   if (payload.settlement) return { kind: 'SETTLEMENT', cardType: payload.cardType, label: 'Settlement record' };
@@ -67,24 +45,15 @@ export function lookOfToken(token: Pick<SimulationToken, 'payload' | 'derived'>)
 
 const lookKey = (l: TokenLook): string => `${l.kind}:${l.cardType}`;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Desk state
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * What a workstation is doing right now. When several apply, the later one wins:
- * IDLE, QUEUED, PROCESSING, WAITING, DONE, FAULTED, FROZEN.
- */
+/** What a workstation is doing right now. */
 export type NodeRunStatus = 'IDLE' | 'QUEUED' | 'PROCESSING' | 'WAITING' | 'DONE' | 'FAULTED' | 'FROZEN';
 
 // A join that has just parked a token did run this tick, but what the learner needs to see is that it is holding.
 const STATUS_RANK: Record<NodeRunStatus, number> = { IDLE: 0, QUEUED: 1, PROCESSING: 2, WAITING: 3, DONE: 4, FAULTED: 5, FROZEN: 6 };
 
-/**
- * - FRAUD_SLIP    a fraudulent payment was approved
- * - RECON_BREAK   the recon desk found the three records disagree (shown on the desk)
- * - BREAK_SLIP    a payment with a reconciliation break was settled as approved
- */
+/** - FRAUD_SLIP a fraudulent payment was approved - RECON_BREAK the recon desk found the three records disagree (shown on the desk) - BREAK_SLIP a payment with a reconciliation break was settled as approved */
 export type AlarmKind = 'FRAUD_SLIP' | 'RECON_BREAK' | 'BREAK_SLIP';
 
 export interface NodeAlarm {
@@ -149,11 +118,7 @@ export const IDLE_RUNTIME: NodeRuntime = Object.freeze({
   dropped: null,
 });
 
-/**
- * How many tokens a desk can carry at once. A task or decision handles one transaction at a time, so
- * two arriving together queue up. An AND gateway is where parallel branches are meant to meet, and an
- * End event just collects, so neither can be congested.
- */
+/** How many tokens a desk can carry at once. */
 export function capacityOf(type: NodeType): number {
   switch (type) {
     case 'GATEWAY_AND':
@@ -190,9 +155,7 @@ export function deriveActiveTokens(tokens: readonly SimulationToken[]): ActiveTo
   }));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Wires
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface EdgeTraffic {
   tokenId: Id;
@@ -213,9 +176,7 @@ export function deriveEdgeTraffic(events: readonly RunEvent[], tokens: readonly 
   return traffic;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Alarms
-// ─────────────────────────────────────────────────────────────────────────────
 
 const pretty = (s: string): string => s.replace(/^BREAK_/, '').replace(/_/g, ' ').toLowerCase();
 
@@ -242,9 +203,7 @@ export function detectAlarms(events: readonly RunEvent[], tokens: readonly Simul
   return found;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Desk state, per step
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface RuntimeNode {
   id: Id;
@@ -272,10 +231,7 @@ const sameRuntime = (a: NodeRuntime, b: NodeRuntime): boolean =>
   a.joinWaiting?.expected === b.joinWaiting?.expected &&
   sameChips(a.chips, b.chips);
 
-/**
- * Turns the runner's tokens and the events of the step just taken into per-desk display state.
- * A desk that is unchanged keeps its previous object, so components can skip re-rendering.
- */
+/** Turns the runner's tokens and the events of the step just taken into per-desk display state. */
 export function deriveNodeRuntime(
   nodes: readonly RuntimeNode[],
   tokens: readonly SimulationToken[],

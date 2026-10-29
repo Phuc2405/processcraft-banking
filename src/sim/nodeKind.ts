@@ -1,11 +1,4 @@
-/**
- * How each of the 24 map stations is presented: a machine run by server threads, or a desk run by people.
- *
- * This is the inspector's vocabulary, not the engine's. The engine keeps one strain number per worker (0–100) and one queue
- * per desk for every station, which is what drives the Day 2 and Day 3 scenarios; on an automated node that same number is
- * read as CPU / thread load, on a human desk as fatigue. Only the ATM's two stations are machines in the engine too
- * (`StationDef.automated`), and they are automated here as well.
- */
+/** How each of the 24 map stations is presented: a machine run by server threads, or a desk run by people. */
 
 import type { StationId } from './topology';
 
@@ -95,11 +88,7 @@ const ENGINE: Partial<Record<NodeFamily, MachineEngine>> = { ekyc: 'ekyc', biome
 
 export type MachineWorkerName = { kind: 'cluster'; letter: string } | { kind: 'thread'; n: string } | { kind: 'engine'; engine: MachineEngine; n: string };
 
-/**
- * The name an automated node's worker goes by: gateways run clusters ("Gateway Cluster Alpha"), the identity, biometric and
- * fraud nodes run AI engines ("eKYC Identity Bot #01"), everything else runs threads ("Server Thread #01"). `index` is the
- * worker's place in the station's list, so the names are stable for the day.
- */
+/** The name an automated node's worker goes by: gateways run clusters ("Gateway Cluster Alpha"), the identity, biometric and fraud nodes run AI engines ("eKYC Identity Bot #01"), everything else runs threads ("Server Thread #01"). */
 export function machineWorkerName(id: StationId, index: number): MachineWorkerName {
   const family = NODE_FAMILY[id];
   const n = String(index + 1).padStart(2, '0');

@@ -1,7 +1,4 @@
-/**
- * One-line explanations for the End-of-Day report, for learners who have never worked in finance. Each entry is shown as a
- * tooltip on the (?) next to its label. Keep every entry to a single plain sentence.
- */
+/** One-line explanations for the End-of-Day report, for learners who have never worked in finance. */
 
 import type { DeclineReason } from '../sim/types';
 

@@ -1,8 +1,4 @@
-/**
- * The bank's policy dials. These are the numbers a risk or operations manager actually gets to turn,
- * and each one lands on a node setting in one of the four process diagrams, so the same
- * ProcessRunner that grades the Build Lab runs the bank.
- */
+/** The bank's policy dials. */
 
 export interface BankRules {
   /** Virtual card: how long a dynamic CVV stays valid, in seconds. (dCVV Verifier: validityWindowMs) */

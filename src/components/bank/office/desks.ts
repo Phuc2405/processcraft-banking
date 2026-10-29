@@ -1,13 +1,4 @@
-/**
- * The desks, as parts. Two designs share one footprint (COUNTER):
- *
- *  - an L-shaped office desk for the back-office stations: the counter, a return running back from its right-hand end
- *    with a rounded tip, dual monitors for every member of staff, a keyboard and mouse, a PC tower;
- *  - a podium for the Ingestion Gates: a stadium-shaped counter under a gantry, with a terminal on top.
- *
- * The monitors face the staff, so the camera sees their backs; the back of every screen shows a lit customer display,
- * so the desk still reads as switched on.
- */
+/** The desks, as parts. */
 
 import { STATIONS, type StationId } from '../../../sim/topology';
 import { box, cyl, mix, shade, tint, xform, type Part } from './kit';

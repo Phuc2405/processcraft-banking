@@ -15,12 +15,7 @@ import { bodyParts, Rider } from './Vehicles3D';
 import { outfitOf, outfitShirt } from '../../../engine/world/weather';
 import { useWeather } from './useWeather';
 
-/**
- * The car park on the left of the branch, drawn from ParkingLot (parking.ts): asphalt with white bay lines, walkways
- * striped across to the branch's side doors, a sheltered run of motorbike slots, a barrier at the gate and the guard's
- * cabin beside it with the guard on duty (patrolling, into the cabin in the wet and at night, and changing over every eight
- * hours), the vehicles parked in their bays, the one vehicle moving, and the drivers walking in.
- */
+/** The car park on the left of the branch, drawn from ParkingLot (parking.ts). */
 
 const ASPHALT = '#5b616b';
 const LINE = '#f8fafc';
@@ -181,8 +176,7 @@ export const Parking3D = memo(function Parking3D() {
       <mesh geometry={lit} material={glow} />
       <Sign text="P  CARS · MOTORBIKES" fg="#ffffff" bg="#1d4ed8" position={[s * (LOT.x0 + 4.4), 1.45, LOT.z1 - 0.3]} width={2.6} />
       <Barrier lot={lot} />
-      {/* The guard's cabin by the gate, and the guard: a raised hand to a driver only while a vehicle is at the gate (and the
-          guard is standing at the post, not walking or sheltering in the cabin). */}
+      {/* The guard's cabin by the gate, and the guard: a raised hand to a driver only while a vehicle is at the gate (and the guard is standing at the post, not walking or sheltering in the cabin). */}
       {/* The cash van's run in through the gate to its loading bay against the left wall: it shares the drive, so the lot steps it. */}
       <LoadingBay3D run={lot.cit} />
       <GuardCabin3D plan={PARKING_PLAN} name="parking-guard-cabin" guardName="parking-guard" looks={GUARD_LOOK} raiseFor={() => lot.barrier() > 0} />

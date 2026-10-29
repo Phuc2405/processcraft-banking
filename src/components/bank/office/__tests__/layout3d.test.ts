@@ -293,9 +293,7 @@ describe('the camera', () => {
 });
 
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The diorama
-// ─────────────────────────────────────────────────────────────────────────────
 
 const footprints = (): Array<{ name: string; x0: number; x1: number; z0: number; z1: number }> => {
   const out: Array<{ name: string; x0: number; x1: number; z0: number; z1: number }> = [];
@@ -561,8 +559,7 @@ describe('desks and gates', () => {
       expect(z - ATM_KIOSK.d / 2).toBeGreaterThan(STREET.z0);
       expect(z + ATM_KIOSK.d / 2).toBeLessThan(KERB_Z);
       expect(Math.abs(x) + ATM_KIOSK.w / 2).toBeLessThan(STREET.halfWidth);
-      // The customer at the machine stands straight in front of it; the rest wait in a line across its glass booth, every
-      // one inside the booth, behind its rope, never out on the open pavement.
+      // The customer at the machine stands straight in front of it.
       const slots = queueSlots(id, 40);
       const booth = atmBooth(id);
       expect(Math.abs(slots[0]![0] - x)).toBeLessThanOrEqual(0.01);

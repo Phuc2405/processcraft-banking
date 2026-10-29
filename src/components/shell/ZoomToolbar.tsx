@@ -16,10 +16,7 @@ const Btn = ({ onClick, label, title, testId, children }: { onClick: () => void;
   </button>
 );
 
-/**
- * The floating zoom toolbar over the map: ➕ zoom in, ➖ zoom out, ⊡ fit the whole bank, and the zoom in percent. The mouse wheel
- * zooms about the cursor in both the 2D blueprint and the 3D office. It keeps clear of the inspector on the right.
- */
+/** The floating zoom toolbar over the map: ➕ zoom in, ➖ zoom out, ⊡ fit the whole bank, and the zoom in percent. */
 export function ZoomToolbar() {
   const percent = useZoomStore((s) => s.percent);
   const inspecting = useBankStore((s) => s.selection.kind !== 'none');

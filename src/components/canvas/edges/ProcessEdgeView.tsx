@@ -19,12 +19,7 @@ const PILL: Record<Tone, string> = {
 
 const ERROR_COLOR = '#fb7185';
 
-/**
- * A smooth bezier wire with an arrowhead. Its label is a button: on an XOR branch it shows the
- * condition (or "default", or a nudge to write one), and clicking it opens the editor.
- * While a simulation runs, the wire a token just took lights up and the token itself (a chip card,
- * a Pay-in-4 badge or a settlement folder) glides along it.
- */
+/** A smooth bezier wire with an arrowhead. */
 function ProcessEdgeViewImpl({
   id,
   source,

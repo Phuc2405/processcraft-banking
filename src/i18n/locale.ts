@@ -1,8 +1,4 @@
-/**
- * Languages the learner-facing text can be shown in, for the app's components: everything in localeCore.ts (the language
- * store, `pick`, `tr`), plus `useLocale()`, which re-renders a component when the language changes, and the page's `lang`
- * attribute kept in step with the language picked.
- */
+/** Languages the learner-facing text can be shown in, for the app's components. */
 
 import { useSyncExternalStore } from 'react';
 import { localeStore, type Locale } from './localeCore';

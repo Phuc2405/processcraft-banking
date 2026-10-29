@@ -14,11 +14,7 @@ import { ALIGHT, BUS_DOORS, BUS_PEOPLE, BUS_X, kerbZ, LENGTH, WIDTH, VEHICLES, t
 import type { StreetPose } from '../../../engine/world/streetPeople';
 import { Html } from '@react-three/drei';
 
-/**
- * The traffic on the avenue (vehicles.ts says where everything is): motorbikes, many carrying two, cars, green taxis and
- * the city bus, with the people getting on and off at the kerb. (The armoured cash van's body is drawn here too, but it
- * drives the lane behind the block to the vault's loading bay: LoadingBay3D.) Riders put on their raincoats when it rains.
- */
+/** The traffic on the avenue (vehicles.ts says where everything is). */
 
 const WHEEL = '#1f2937';
 /** The amber of an indicator lamp, lit. */
@@ -47,8 +43,7 @@ export function bodyParts(v: Pick<Vehicle, 'kind' | 'color'>): { body: Part[]; l
         lights: [box([0.47, 0.66, 0], [0.04, 0.08, 0.12], '#fff7d6'), box([-0.47, 0.44, 0], [0.03, 0.05, 0.1], '#ef4444')],
       };
     case 'cit': {
-      // An armoured cash-in-transit truck: a heavy, tall steel body on big wheels, a small armoured cab window, a bull bar,
-      // black-and-yellow hazard chevrons along both flanks and across the back doors, gun-port slits and an amber beacon.
+      // An armoured cash-in-transit truck: a heavy, tall steel body on big wheels, a small armoured cab window, a bull bar, black-and-yellow hazard chevrons along both flanks and across the back doors, gun-port slits and an amber beacon.
       const chevrons: Part[] = [];
       for (let i = 0; i < 9; i++) for (const zs of [1, -1]) chevrons.push(box([-1.2 + i * 0.24, 0.5, zs * 0.605], [0.12, 0.26, 0.012], i % 2 ? '#111827' : '#facc15', [0.7 * zs, 0, 0]));
       for (let i = 0; i < 5; i++) chevrons.push(box([-1.455, 0.5, -0.48 + i * 0.24], [0.012, 0.26, 0.12], i % 2 ? '#111827' : '#facc15', [0.7, 0, 0]));
@@ -75,8 +70,7 @@ export function bodyParts(v: Pick<Vehicle, 'kind' | 'color'>): { body: Part[]; l
       };
     }
     case 'bus': {
-      // A city bus: a long, tall body with a band of windows, a lit destination board, and two doors on the kerb side (its +z
-      // side: it runs on the near side, facing -x, so its doors' world offsets are mirrored here).
+      // A city bus: a long, tall body with a band of windows, a lit destination board, and two doors on the kerb side (its +z side.
       const windows: Part[] = [];
       for (let i = 0; i < 6; i++) for (const zs of [1, -1]) windows.push(box([-1.75 + i * 0.6, 1.25, zs * 0.605], [0.5, 0.48, 0.012], GLASS));
       return {
@@ -125,10 +119,7 @@ export function bodyParts(v: Pick<Vehicle, 'kind' | 'color'>): { body: Part[]; l
 /** Raincoat colours: bright ponchos in the rain. */
 const PONCHO = ['#2563eb', '#facc15', '#16a34a', '#e11d48', '#7c3aed'];
 
-/**
- * A rider on a motorbike, at `x` along it: in their own clothes and a helmet, or, in the rain, under a poncho. With
- * `pillion`, the driver's poncho is the big two-person kind that covers the passenger too.
- */
+/** A rider on a motorbike, at `x` along it: in their own clothes and a helmet, or, in the rain, under a poncho. */
 export function Rider({ x, index, rain, wide }: { x: number; index: number; rain: boolean; wide: boolean }) {
   const parts = useMemo(() => {
     const skin = SKIN[index % SKIN.length]!;
@@ -260,10 +251,7 @@ function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Ma
   );
 }
 
-/**
- * The yellow ▼ over the cash van, bobbing gently: the objective marker that says "follow the cash" wherever it is on its
- * way to the vault. An overlay, so it reads at any zoom.
- */
+/** The yellow ▼ over the cash van, bobbing gently: the objective marker that says "follow the cash" wherever it is on its way to the vault. */
 export function CitMarker() {
   const g = useRef<Group>(null);
   useFrame(({ clock }) => {
@@ -346,10 +334,7 @@ function KerbBays() {
   return <mesh geometry={bays} material={solid} name="kerb-bays" />;
 }
 
-/**
- * The whole fleet, drawn from the world engine's TrafficSim (WorldEngine.traffic), which it steps once a frame before the
- * vehicles read where they are. It runs only while the canvas draws, like the pedestrians.
- */
+/** The whole fleet, drawn from the world engine's TrafficSim (WorldEngine.traffic), which it steps once a frame before the vehicles read where they are. */
 export const Vehicles3D = memo(function Vehicles3D() {
   const live = useWorld().trafficView;
   return (

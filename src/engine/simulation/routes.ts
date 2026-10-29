@@ -3,12 +3,7 @@ import { evacuationRoute } from '../world/evacuation';
 import { arriveRoute, leaveRoute } from './staff';
 import { arrivalPath, atmExitPath, queueSlots, type Pose, type V2 } from '../plan/layout3d';
 
-/**
- * How people find their way in the 3D office (Strategy). A customer's way to and from a desk depends on the kind of desk:
- * down the pavement and into a sidewalk ATM's booth, or from the car park in at the side door to a counter; staff come and
- * go by the main entrance. Each kind is one strategy, and whoever moves people asks the desk's strategy for the way rather
- * than knowing every kind of route. All routes keep clear of ropes, posts, desks, booth glass and the machines.
- */
+/** How people find their way in the 3D office (Strategy). */
 
 /** A customer's ways at one desk. */
 export interface PathfindingStrategy {

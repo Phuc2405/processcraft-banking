@@ -1,13 +1,4 @@
-/**
- * Sorts a lesson's example payments into the two groups the test-scenario picker shows:
- *
- *   happy   approved under the bank's default rules, not fraud, and no desk on the way raises a warning or a failure
- *           (no OTP challenge, no fallback, no flag): the straight-through path (Luồng chuẩn)
- *   edge    anything else: a decline, a hold in suspense, a detour, or fraud that slips through (Tình huống lỗi & Ngoại lệ)
- *
- * The group is read from the walkthrough's own verdict under DEFAULT_RULES, so it can never disagree with what the tour
- * shows on its first run, and it does not move when a learner turns a dial. Pure, memoised per lesson.
- */
+/** Sorts a lesson's example payments into the two groups the test-scenario picker shows. */
 
 import { LESSONS, type LessonExample, type ProcessId } from './learning';
 import { DEFAULT_RULES } from './rules';

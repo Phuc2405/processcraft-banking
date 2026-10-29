@@ -1,25 +1,14 @@
-/**
- * Where everything sits on the bank map, and the wires between the desks.
- *
- * The map is drawn on a fixed stage (STAGE.width by STAGE.height) that the screen scales to fit, so every
- * number here is in stage units. Wires are routed by hand as right-angle runs with rounded corners:
- * a handful of channels are reserved between the columns so that no two wires share a vertical run.
- */
+/** Where everything sits on the bank map, and the wires between the desks. */
 
 import { VI_DICTIONARY } from '../../i18n/viDictionary';
 import { edgeId, WIRES, type DepartmentId, type PlaceId } from '../../sim/topology';
 
-/**
- * The branch itself is the BUILDING (the old stage). The pavement outside, with the sidewalk ATM and the right-hand gutter that
- * its wires run up, is the extra STAGE area around it.
- */
+/** The branch itself is the BUILDING (the old stage). */
 export const BUILDING = { width: 1080, height: 1180 } as const;
-// 2D stage (Phase 1A compact grid: EOD moved under the outcome column; Phase 8 adds the extended-flows band below it,
-// raised flush under the processing grid once the ATM moved to the top-right).
+// 2D stage (Phase 1A compact grid: EOD moved under the outcome column.
 export const STAGE = { width: 1352, height: 1000 } as const;
 
-// Right-side clusters (Flows 3 and 4): `right` px of extra free space so the zoom toolbar never covers them and the camera
-// never parks against the edge. Triggered by an edge within `band` of the stage's right side, or a centre past `centre`.
+// Right-side clusters (Flows 3 and 4): `right` px of extra free space so the zoom toolbar never covers them and the camera never parks against the edge.
 export const EDGE_PAD = { right: 120, band: 240, centre: 0.55 } as const;
 export const needsRightPad = (r: { x0: number; x1: number }): boolean => r.x1 >= STAGE.width - EDGE_PAD.band || (r.x0 + r.x1) / 2 >= STAGE.width * EDGE_PAD.centre;
 
@@ -41,21 +30,9 @@ export interface PlaceBox {
 
 const card = (cx: number, cy: number): PlaceBox => ({ cx, cy, ...CARD });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Phase 8: the extended-flows band (shared by the 2D map and the 3D office)
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Two rows of four, under the rest of the bank:
- *
- *   SWIFT      eKYC      VietQR     FDS          ← row 1 (y = r1)
- *   Disputes   Teller    FacePay    AML desk     ← row 2 (y = r1 + 140)
- *
- * Every ledger-bound wire joins one trunk at x 884 that climbs to the right side of the Debit CASA card; every decline joins a
- * lane above row 1 or below row 2 and leaves by `decline` (a gutter on the 2D map, the existing right-hand lane in 3D).
- * Lanes above row 1, top to bottom: declines, eKYC → CASA, SWIFT → FDS. Between the rows: eKYC → AML, SWIFT → FacePay.
- * Below row 2: teller → AML, the ledger lane, declines.
- */
+/** Two rows of four, under the rest of the bank: SWIFT eKYC VietQR FDS ← row 1 (y = r1) Disputes Teller FacePay AML desk ← row 2 (y = r1 + 140) Every ledger-bound wire joins one trunk at x 884 that climbs to the right side of the Debit CASA card. */
 export const BAND = { cols: [100, 300, 500, 700] as const, rowGap: 140, trunk: 884 } as const;
 
 const bandCard = (cx: number, cy: number): PlaceBox => ({ cx, cy, w: 160, h: 92 });
@@ -129,9 +106,7 @@ export const DEPT_BOX: Record<DepartmentId, DeptBox> = {
   ...bandDepts(BAND_ROW_2D),
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Wires
-// ─────────────────────────────────────────────────────────────────────────────
 
 type Side = 'l' | 'r' | 't' | 'b';
 type Port = readonly [Side, number?];
@@ -151,16 +126,10 @@ export interface RouteSpec {
 
 export const R = (from: Port, to: Port, extra: Partial<RouteSpec> = {}): RouteSpec => ({ from, to, ...extra });
 
-/**
- * How a decline leaves the band from a lane at `y`: the corners after the lane, and the port it enters Declined by. `slot`
- * (0-7) is the wire's own lane on every shared run, so a tail can keep the eight declines apart.
- */
+/** How a decline leaves the band from a lane at `y`: the corners after the lane, and the port it enters Declined by. */
 export type DeclineTail = (y: number, slot: number) => { via: readonly Pt[]; to: Port };
 
-/**
- * The band's declines in lane order, top lane first. Row 1 leaves upwards and row 2 downwards; within each row the desk
- * further right takes the lane nearer its cards. With every later run nested the same way, no decline crosses another.
- */
+/** The band's declines in lane order, top lane first. */
 export const DECLINE_SLOT = { GATE_SWIFT: 0, GATE_EKYC: 1, GATE_QR: 2, SEC_FDS: 3, AML_DESK: 4, SEC_FACEPAY: 5, TELLER_CASH: 6, DISPUTE_DESK: 7 } as const;
 
 /** `laneStep`: the gap between the row-1 declines' own lanes above the band (0 keeps them on one lane, as the 3D plan does). */
@@ -175,10 +144,7 @@ export function bandRoutes(r1: number, decline: DeclineTail, laneStep = 0): Reco
   const B1 = r2 + 64;
   const B2 = r2 + 76;
   const B3 = r2 + 88;
-  /**
-   * The ledger trunk's own lane and port per wire, when `laneStep` spreads them (the 2D map). A wire that joins the trunk
-   * higher takes the lane nearer the Debit card and enters it lower, so the five green wires climb side by side and never cross.
-   */
+  /** The ledger trunk's own lane and port per wire, when `laneStep` spreads them (the 2D map). */
   const lane = (k: number): number => T - (4 - k) * laneStep;
   const port = (k: number): number => (laneStep ? 18 + (4 - k) * 6 : [40, 20, 30, 40, 40][k]!);
   /** Teller's approval runs just above the dispute desk's on the ledger lane below row 2. */
@@ -216,30 +182,9 @@ export function bandRoutes(r1: number, decline: DeclineTail, laneStep = 0): Reco
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // BPMN collector gateways (2D map only)
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Exclusive (XOR) join gateways: where several wires converge on one place, they end at a compact diamond and a single trunk
- * goes on. Local collectors sit right beside the desks they serve and cascade into the next one, so no run of parallel lanes is
- * left along the floor or the right-hand gutter:
- *
- *   GATEWAY_XOR_REJECT_ROW1     row 1's four declines (SWIFT, eKYC, VietQR, FDS) on their lanes above the band.
- *   GATEWAY_XOR_REJECT_ROW2_A   row 2 on the floor bus: the disputes decline joins the teller's under the teller desk,
- *   GATEWAY_XOR_REJECT_ROW2_B   then FacePay's under FacePay,
- *   GATEWAY_XOR_REJECT_ROW2_C   then the AML desk's under the AML desk.
- *   GATEWAY_XOR_REJECT_BAND     row 1's trunk and the floor bus, beside the ledger trunk; one trunk runs on to the gutter.
- *
- * The collectors partway along the floor bus (B, C) and the band join only pass a line that is already one trunk, so they are
- * drawn as small junction dots, not diamonds (`junction`).
- *   GATEWAY_XOR_REJECT          the band's trunk and the online (3DS) decline, in the gutter; its trunk enters Declined.
- *   GATEWAY_XOR_APPROVE         the band's five clean approvals; its trunk enters Debit CASA from the right.
- *   GATEWAY_XOR_NIGHT           the two night handovers (matched, cleared); its trunk enters Settled.
- *
- * Gateways are drawn on the map, not modelled in the topology: every wire still runs from its desk to its place, through each
- * diamond on its way, so packets, tours and the simulation are unchanged. Each feeder meets its diamond at its own point.
- */
+/** Exclusive (XOR) join gateways: where several wires converge on one place, they end at a compact diamond and a single trunk goes on. */
 export type GatewayId =
   | 'GATEWAY_XOR_REJECT_ROW1'
   | 'GATEWAY_XOR_REJECT_ROW2_A'
@@ -384,15 +329,11 @@ export const gatewayCarries = (g: Gateway): readonly string[] => [...g.wires, ..
 /** Drops a point that repeats the one before it (a lane that is already on the gateway's centre line). */
 const dedupe = (points: readonly Pt[]): Pt[] => points.filter((p, i) => i === 0 || p[0] !== points[i - 1]![0] || p[1] !== points[i - 1]![1]);
 
-/**
- * Re-routes a gateway's wires: each runs as before until its first leg that crosses the diamond's centre line, stops on the
- * diamond's edge there (the feeder that is drawn), passes through the centre under the diamond, and leaves by the trunk.
- */
+/** Re-routes a gateway's wires: each runs as before until its first leg that crosses the diamond's centre line, stops on the diamond's edge there (the feeder that is drawn), passes through the centre under the diamond, and leaves by the trunk. */
 function throughGateway(w: Wire, g: Gateway, cascade = false): Wire {
   const pts = [...w.points];
   for (let i = 1; i < pts.length; i++) {
-    // A merging gateway pulls the approach leg onto its centre line (with the corner before it), so its feeders share one
-    // stroke into the diamond's corner. A leg that starts at the desk itself keeps its own line.
+    // A merging gateway pulls the approach leg onto its centre line (with the corner before it), so its feeders share one stroke into the diamond's corner.
     if (g.merge && !cascade && i > 1) {
       const [px, py] = pts[i - 1]!;
       const [qx, qy] = pts[i]!;
@@ -441,12 +382,7 @@ const ONLINE_DECLINE_X = GATEWAY_AT.GATEWAY_XOR_REJECT[0] - 8;
 /** Declined's centre on the 2D map: the entry points are offsets from it. */
 const PLACE_BOX_DECLINED_CX = PLACE_BOX.OUT_DECLINED.cx;
 
-/**
- * The lanes the 2D map's declines run on, one per wire, `step` apart (2 px strokes, so a clear gap between neighbours).
- * Slots 0-7 are the band (DECLINE_SLOT); slot -1 is the online (3DS) decline. Nesting rules that keep them from crossing:
- * the trunk and the floor go outward with the slot, the gutter outward with the slot, and the top lane and the entry point
- * inward, so each wire turns inside the ones it meets.
- */
+/** The lanes the 2D map's declines run on, one per wire, `step` apart (2 px strokes, so a clear gap between neighbours). */
 export const DECLINE_LANES = {
   step: 4,
   /** Row 1 drops beside the ledger trunk: FDS (slot 3) nearest it. */
@@ -468,16 +404,14 @@ const ROUTES: Record<string, RouteSpec> = {
   // Card present
   'GATE_POS>LEDGER_DEBIT': R(['r'], ['l', 6], { labelAt: [250, 242] }),
   'GATE_POS>LEDGER_CREDIT': R(['r', 8], ['l', -12], { bendX: 640 }),
-  // Instant account-to-account transfers: out of the A2A gate, up the channel between the columns, along the open corridor
-  // above the card-present wire, and straight into the top of the debit CASA ledger. A malformed message takes the lane above.
+  // Instant account-to-account transfers: out of the A2A gate, up the channel between the columns, along the open corridor above the card-present wire, and straight into the top of the debit CASA ledger.
   'GATE_A2A>LEDGER_DEBIT': R(['r', -10], ['t', -8], { via: [[196, 372], [196, 190], [772, 190]], labelAt: [470, 190] }),
   // Its label sits under the vault cards, clear of the Balance & credit frame's title.
   'GATE_A2A>OUT_DECLINED': R(['r', 10], ['l', 22], { via: [[204, 392], [204, 172]], labelAt: [330, 172] }),
   // Online
   'GATE_ECOM>SEC_3DS': R(['r', -14], ['l'], { bendX: 200 }),
   'GATE_ECOM>BNPL': R(['r', 14], ['l'], { bendX: 204 }),
-  // The code goes out on the upper channel and comes back on the lower one; the return bends nearer the phone, so the two
-  // run side by side and never cross.
+  // The code goes out on the upper channel and comes back on the lower one; the return bends nearer the phone, so the two run side by side and never cross.
   'SEC_3DS>CUSTOMER_OTP': R(['r', -30], ['l', -22], { bendX: 396, quiet: true }),
   'CUSTOMER_OTP>SEC_3DS': R(['l', 18], ['r', -14], { bendX: 410, quiet: true }),
   'SEC_3DS>LEDGER_DEBIT': R(['r', 4], ['l', 14], { bendX: 652 }),
@@ -502,15 +436,13 @@ const ROUTES: Record<string, RouteSpec> = {
   'RECON>OUT_SETTLED': R(['b', -40], ['t'], { via: [[GATEWAY_AT.GATEWAY_XOR_NIGHT[0] + 65, GATEWAY_AT.GATEWAY_XOR_NIGHT[1]], GATEWAY_AT.GATEWAY_XOR_NIGHT], labelAt: [1170, 740] }),
   'RECON>SUSPENSE': R(['l'], ['r']),
   'SUSPENSE>OUT_SETTLED': R(['b', 40], ['t'], { via: [[GATEWAY_AT.GATEWAY_XOR_NIGHT[0] - 65, GATEWAY_AT.GATEWAY_XOR_NIGHT[1]], GATEWAY_AT.GATEWAY_XOR_NIGHT], labelAt: [1040, 740] }),
-  // Sidewalk ATM (top-right). Card & PIN declines go straight left into Declined; cash paid out straight left into Approved;
-  // a cash jam drops between the night-cycle columns into the top of Suspense.
+  // Sidewalk ATM (top-right).
   'GATE_ATM>ATM_CASH': R(['b'], ['t'], { quiet: true }),
   'GATE_ATM>OUT_DECLINED': R(['l', -20], ['r', -20], { quiet: true }),
   'ATM_CASH>OUT_DECLINED': R(['l', -30], ['r', 20], { via: [[1080, 324], [1080, 170]], quiet: true }),
   'ATM_CASH>OUT_APPROVED': R(['l', 10], ['r', 10], { quiet: true }),
   'ATM_CASH>SUSPENSE': R(['b', -70], ['t', 40], { via: [[1120, 614], [1040, 614]], quiet: true }),
-  // Phase 8 band: declines drop beside the trunk to the floor lane and climb the right-hand gutter, each on its own lane of
-  // every run (DECLINE_LANES), until the reject gateway collects them (GATEWAYS) and one trunk carries them into Declined.
+  // Phase 8 band: declines drop beside the trunk to the floor lane and climb the right-hand gutter, each on its own lane of every run (DECLINE_LANES), until the reject gateway collects them (GATEWAYS) and one trunk carries them into Declined.
   ...bandRoutes(
     BAND_ROW_2D,
     (y, slot) => {
@@ -632,9 +564,7 @@ export function buildWires(boxes: Record<PlaceId, PlaceBox>, routes: Record<stri
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Every wire's label, placed on its own run (2D map)
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface Box {
   x0: number;
@@ -654,13 +584,7 @@ export const deptTitleBox = (d: DeptBox): Box => ({ x0: d.x + 8, x1: d.x + d.w -
 
 const hits = (a: Box, b: Box, gap = 0): boolean => a.x0 < b.x1 + gap && a.x1 > b.x0 - gap && a.y0 < b.y1 + gap && a.y1 > b.y0 - gap;
 
-/**
- * Gives every labelled wire a visible label: at its route's own spot when that is clear, otherwise at the clear spot on its
- * drawn run nearest the desk it leaves (on the line first, then just beside it), and for a hop too short to hold its words,
- * at the nearest clear spot around it as a callout with a leader line. Clear means off every desk, department title, gateway
- * and label already placed, in both languages, and off every other wire wherever the map has room for that. Wires with the
- * fewest spots are placed first.
- */
+/** Gives every labelled wire a visible label: at its route's own spot when that is clear, otherwise at the clear spot on its drawn run nearest the desk it leaves (on the line first, then just beside it), and for a hop too short to hold its words, at the nearest clear spot around it as a callout with a leader line. */
 function placeLabels(wires: Wire[], routes: Record<string, RouteSpec>): Wire[] {
   const fixed: Box[] = [
     ...Object.values(PLACE_BOX).map((b) => ({ x0: b.cx - b.w / 2, y0: b.cy - b.h / 2, x1: b.cx + b.w / 2, y1: b.cy + b.h / 2 })),
@@ -695,8 +619,7 @@ function placeLabels(wires: Wire[], routes: Record<string, RouteSpec>): Wire[] {
     const side = chars * 2.7 + 4;
     const out: Spot[] = [];
     for (const { on, vertical, run } of along(w, 3)) {
-      // On the line, then just beside it, then a little further off: a label beside a vertical run sits clear of it. Nearer
-      // the desk the wire leaves is better: a condition reads as the desk's own outcome, not as noise in a shared corridor.
+      // On the line, then just beside it, then a little further off: a label beside a vertical run sits clear of it.
       const offsets = vertical ? [0, side + 3, -(side + 3), side + 12, -(side + 12)] : [0, 11, -11, 20, -20];
       offsets.forEach((off, k) => {
         const at: Pt = vertical ? [on[0] + off, on[1]] : [on[0], on[1] + off];
@@ -738,10 +661,7 @@ function placeLabels(wires: Wire[], routes: Record<string, RouteSpec>): Wire[] {
 
 export const BANK_WIRES: Wire[] = placeLabels(withGateways(buildWires(PLACE_BOX, ROUTES), GATEWAYS), ROUTES);
 
-/**
- * What a junction dot draws in place of its diamond: a straight spoke from each line that arrives (its feeders' tips and the
- * trunks cascading into it) to its centre, and on to where its own trunk leaves, so the bus reads as one unbroken line.
- */
+/** What a junction dot draws in place of its diamond: a straight spoke from each line that arrives (its feeders' tips and the trunks cascading into it) to its centre, and on to where its own trunk leaves, so the bus reads as one unbroken line. */
 export const GATEWAY_SPOKES: Readonly<Partial<Record<GatewayId, string>>> = Object.fromEntries(
   GATEWAYS.filter((g) => g.junction).map((g) => {
     const tips = [...BANK_WIRES.filter((w) => w.gateway === g.id).map((w) => w.drawPoints.at(-1)!), ...GATEWAYS.filter((o) => o.into === g.id).map((o) => o.trunk.at(-1)!)];
@@ -762,9 +682,7 @@ export function connectedWires(place: PlaceId | null, wires: readonly Wire[] = B
   return place ? new Set(wires.filter((w) => w.from === place || w.to === place).map((w) => w.id)) : null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Where a desk's description opens
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** The size of a desk description, in stage units (it is drawn at this size whatever the zoom). */
 export const HOVER_TIP = { w: 236, h: 84, gap: 6 } as const;
@@ -805,11 +723,7 @@ export const TIP_PREFERENCE: readonly TipSide[] = ['above', 'below', 'right', 'l
 export const ownLabelBoxes = (place: PlaceId): Box[] =>
   BANK_WIRES.filter((w) => w.label && w.labelAt && (w.from === place || w.to === place)).map((w) => labelPill(labelChars(w.label!), w.labelAt!));
 
-/**
- * The side a desk's description opens on: the first side in TIP_PREFERENCE that fits on the stage AND covers none of the
- * desk's own condition labels (they light up on hover, so the card must never sit on them); failing that, the first side
- * that fits. The description is opaque and drawn over everything, so covering the desks around it is fine.
- */
+/** The side a desk's description opens on: the first side in TIP_PREFERENCE that fits on the stage AND covers none of the desk's own condition labels (they light up on hover, so the card must never sit on them). */
 export function tipSideFor(place: PlaceId): TipSide {
   const fits = (side: TipSide): boolean => {
     const r = tipRect(place, side);

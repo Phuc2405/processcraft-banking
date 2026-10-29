@@ -2,13 +2,7 @@ import type { StationId } from '../../sim/topology';
 import { routesFor } from '../simulation/routes';
 import { carParkApproach, CUSTOMER_DOOR, FLOOR_SLAB, FRONT_AISLE_Z, LEFT_WALK_X, MAIN_GATE, queueSlots, SIDE_DOORS_RIGHT, STATION_POSES, WALK_IN_DESKS, type V2 } from '../plan/layout3d';
 
-/**
- * Closing time in the 3D office. At 17:00 the branch closes its doors to customers: everyone still queuing at a customer
- * desk gives up their place and walks out (through a side door in the left wall back to the car park, a side door in the
- * right wall onto the park, or the main entrance at the front), and from then until the next morning no customer is inside
- * at all: the night's desks are worked by the bank's own staff and systems only. The sidewalk ATMs stay open all night. The simulation's own numbers are untouched:
- * this is the office's picture of the day ending. Pausing never sets anyone walking; only the clock reaching 17:00 does.
- */
+/** Closing time in the 3D office. */
 
 /** When the doors close to customers, and when the next day opens (the bank day starts at 08:00). */
 export const CLOSING = 17 * 60;
@@ -22,12 +16,7 @@ const HZ = FLOOR_SLAB.d / 2;
 
 export type ExitKind = 'main' | 'left' | 'right';
 
-/**
- * The way out for the `k`th person in a desk's queue, standing at `at`: by turns, along the clear aisle at the front of the
- * hall to the main entrance, to the nearest side door in the right wall onto the park, or back the way the car park's
- * customers came in (along the inside of the left wall, out of the side door, across the walkway and back along the car
- * park's footway to their car). Each route ends a few steps outside.
- */
+/** The way out for the `k`th person in a desk's queue, standing at `at`. */
 export function evacuationRoute(at: V2, k: number): { exit: ExitKind; path: V2[] } {
   const front: V2 = [at[0], FRONT_AISLE_Z];
   if (k % 3 === 2) {
@@ -40,12 +29,7 @@ export function evacuationRoute(at: V2, k: number): { exit: ExitKind; path: V2[]
   return { exit: 'right', path: [at, front, [HX - 1.2, FRONT_AISLE_Z], [HX - 1.2, d], [HX + 1.2, d]] };
 }
 
-/**
- * The way the customer just served at desk `id` walks off, from their place in its line (`k`, 0 at the counter or the
- * machine): at a sidewalk ATM along the inside of its booth, out by the gap at the rope's end and off down the street; at a
- * counter back the way they came, along the front aisle and the inside of the left wall, out of the side door and across
- * to their car. Nobody vanishes where they were served.
- */
+/** The way the customer just served at desk `id` walks off, from their place in its line (`k`, 0 at the counter or the machine). */
 export function servedExit(id: StationId, k = 0): V2[] {
   return routesFor(id).depart(k);
 }

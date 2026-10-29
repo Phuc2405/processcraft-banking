@@ -134,9 +134,7 @@ function drawEdge(from: Shape, to: Shape, route: EdgeRoute | undefined): Drawn {
   return { d: `M${a[0]} ${a[1]}C${c1[0]} ${c1[1]} ${c2[0]} ${c2[1]} ${b[0]} ${b[1]}`, label: route?.labelAt ?? mid };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Node drawings
-// ─────────────────────────────────────────────────────────────────────────────
 
 function NodeShape({ s, color, state, current }: { s: Shape; color: string; state: 'ahead' | 'seen' | 'off'; current: boolean }) {
   const fill = state === 'off' ? '#0a0f1a' : '#101a2e';
@@ -233,9 +231,7 @@ function NodeShape({ s, color, state, current }: { s: Shape; color: string; stat
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The diagram
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface Props {
   lesson: Lesson;

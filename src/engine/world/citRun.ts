@@ -2,24 +2,11 @@ import { FLOOR_SLAB, type V2 } from '../plan/layout3d';
 import { pathLength, pointAlongPath } from '../plan/path';
 import { LENGTH, WIDTH } from './vehicles';
 
-/**
- * The armoured cash-in-transit van's run to the vault. It comes along the lane behind the block, indicates, turns in at
- * the car park's gate and drives down the drive to its own painted loading bay in the car park's inner row, against the
- * branch's left wall, where the camera looks straight at it; noses in and stops. Its guard opens the rear doors and carries
- * the cash (boxes and a bag) one at a time from the back of the van, round its side to the vault's loading door in the
- * left wall, which rolls up while they work and where one of the vault's staff takes each load in; then the doors are
- * shut, and the van indicates, backs out, and drives back up the drive and away along the lane. Pure and stepped on the
- * motion clock, so it freezes on pause and keeps pace with the speed multiplier.
- *
- * The van shares the drive with the car park's own traffic, so it only drives in or out while the car park is still, and
- * holds the car park's turn (ParkingLot gives it the lot as it would its own mover) until it is in its bay or gone: nothing
- * ever drives into it. Its bay is kept clear of the car bays, so standing there it is in nobody's way.
- */
+/** The armoured cash-in-transit van's run to the vault. */
 
 const HX = FLOOR_SLAB.w / 2;
 
-/** The painted bay: where the van stands (its middle) nose-in to the left wall, and the bay's size (`len` across the
- * row, `w` along it). Between the second and third side doors, where none of the car park's walkways run. */
+/** The painted bay: where the van stands (its middle) nose-in to the left wall, and the bay's size (`len` across the row, `w` along it). */
 export const LOADING_BAY = (() => {
   const len = LENGTH.cit + 0.5;
   return { x: -(HX + 0.35 + LENGTH.cit / 2), z: -4.6, len, w: WIDTH.cit + 0.7 } as const;

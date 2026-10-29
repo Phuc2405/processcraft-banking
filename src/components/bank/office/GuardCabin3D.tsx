@@ -12,12 +12,7 @@ import { glow, pane, solid } from './materials';
 import { motion } from '../../../engine/simulation/motion';
 import { liveMix } from '../../../engine/world/weather';
 
-/**
- * The security guard's cabin by the main entrance (guardCabin.ts says where the guard is): a small glass booth on a plinth,
- * a solid lower wall, glass windows on three sides and the door side open towards the entrance, a flat roof with an
- * overhang, and a lamp inside that glows warmer as the evening comes on. The guard on duty patrols by day and keeps watch
- * from inside it in the wet and at night; at a change of shift the next guard walks up and the other walks off.
- */
+/** The security guard's cabin by the main entrance (guardCabin.ts says where the guard is). */
 
 const WALL = 0.95;
 const FRAME = '#334155';
@@ -55,8 +50,7 @@ function cabinParts({ x, z, w, d, h, door }: Cabin): { solid: Part[]; glass: Par
 
 const LOOKS = [93, 97, 101];
 
-/** The guard on duty and (during a handover) the guard going off, moved every frame from their FrontGuard. A hand raised
- * to a driver only when `raiseFor` says so (the car park's gate), and never while walking or in the cabin. */
+/** The guard on duty and (during a handover) the guard going off, moved every frame from their FrontGuard. */
 function Guards({ guard, looks, name, raiseFor }: { guard: FrontGuard; looks: readonly number[]; name: string; raiseFor?: () => boolean }) {
   const duty = useRef<Group>(null);
   const off = useRef<Group>(null);
@@ -90,10 +84,7 @@ function Guards({ guard, looks, name, raiseFor }: { guard: FrontGuard; looks: re
   );
 }
 
-/**
- * A guard's cabin and the guards who keep it (`plan`, guardCabin.ts): the front entrance's by default, or the car park's.
- * Stepped on the motion clock, so frozen on pause.
- */
+/** A guard's cabin and the guards who keep it (`plan`, guardCabin.ts): the front entrance's by default, or the car park's. */
 export const GuardCabin3D = memo(function GuardCabin3D({ plan = FRONT_PLAN, name = 'guard-cabin', guardName = 'front-guard', looks = LOOKS, raiseFor }: { plan?: GuardPostPlan; name?: string; guardName?: string; looks?: readonly number[]; raiseFor?: () => boolean }) {
   const { x, z, w, d, h } = plan.cabin;
   const parts = useMemo(() => cabinParts(plan.cabin), [plan]);

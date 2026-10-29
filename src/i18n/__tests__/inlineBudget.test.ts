@@ -1,10 +1,4 @@
-/**
- * Stops new inline translations in UI components.
- *
- * `tr({ en, vi })` inside a component hides the copy from review and from reuse. New copy goes through `defineMessages` +
- * `useMessages` (src/utils/i18nHelper.ts). The pairs that were already inline are listed in inlineBudget.json, and a file may
- * only go down: when you migrate a file, lower or delete its entry.
- */
+/** Stops new inline translations in UI components. */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';

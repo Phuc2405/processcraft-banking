@@ -2,13 +2,7 @@ import type { StationId } from '../../sim/topology';
 import type { BankView, StationView } from '../../sim/types';
 import { statusAfterWorking, workingCount } from './deskActivity';
 
-/**
- * Desk status as one stream both views subscribe to (Observer). The 2D map's desk cards and the 3D office's desk badges and
- * tooltips show the same thing ("X waiting · Y working", and the status word unless it would only repeat "working"), so it
- * is worked out once, here, from the bank's view; each subscriber hears only about its own desk, and only when its status
- * actually changed. Every figure either view shows for a desk comes from here. Pure: the bank's store comes in as a
- * BankSource.
- */
+/** Desk status as one stream both views subscribe to (Observer). */
 
 /** What a desk's badge says. */
 export interface DeskStatus {
@@ -63,8 +57,7 @@ export class DeskStatusFeed {
 
   constructor(private readonly source: BankSource) {}
 
-  /** The desk's status now (the same object until it changes, so a view re-renders only on a real change). Each desk is
-   * read on its own: reading one never uses up another desk's change before its subscribers have heard of it. */
+  /** The desk's status now (the same object until it changes, so a view re-renders only on a real change). */
   get(id: StationId): DeskStatus {
     const view = this.source.getState().view;
     const e = this.entries.get(id);

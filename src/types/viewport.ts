@@ -1,15 +1,4 @@
-/**
- * The viewport: four independent choices about how the Living Bank is shown. Together they make 2 × 2 × 2 = 8 views, and
- * in the Beginner scope one of four guided flows is in focus.
- *
- *   Scope       beginner  one guided flow is lit, everything else fades to 15%
- *               advanced  the whole Living Bank, every desk lit
- *   Dimension   2d        the blueprint map
- *               3d        the isometric office
- *   Data depth  standard  plain-English names and plain cards in the inspector
- *               expert    professional terms, ISO 8583 response codes, the raw message and the GL journal
- *   Active flow 1-8       only while scope is beginner (5-8 are the Phase 8 extended flows)
- */
+/** The viewport: four independent choices about how the Living Bank is shown. */
 
 export type Scope = 'beginner' | 'advanced';
 export type Dimension = '2d' | '3d';
