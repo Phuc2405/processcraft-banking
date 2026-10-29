@@ -22,6 +22,8 @@ export const CARRY_PATH: readonly V2[] = [VAN_REAR, [VAN_REAR[0], LOADING_BAY.z 
 
 /** How fast the van drives, and how long each step of its stop takes (seconds on the motion clock). */
 export const CIT_RUN = { speed: 5, doors: 1.2, pick: 0.6, hand: 0.7, pace: 0.9, signal: 6, gapMin: 70, gapMax: 100, first: 20 } as const;
+/** Keeping clear of people on foot: the stretch in front of the van (behind it, backing out) it will not drive into while anyone stands there and how wide it is each side of the middle, how far from its bodywork a walker waits for it to pass, and how briskly it brakes and pulls away again. */
+export const CIT_YIELD = { ahead: 3.2, half: WIDTH.cit / 2 + 0.25, wait: 1.6, ease: 5 } as const;
 /** What the guard carries, trip by trip. */
 export const LOADS = ['box', 'bag', 'box'] as const;
 export type Load = (typeof LOADS)[number];
@@ -82,13 +84,23 @@ export class CitRun {
   /** Seconds into the phase. */
   t = 0;
   runs = 0;
+  /** How much of its pace the van has on now, 0-1: it brakes to a stop for anyone in its way and pulls away when they are clear. */
+  go = 1;
   private due: number = CIT_RUN.first;
 
   constructor(readonly routes: CitRoutes) {}
 
-  /** Steps the run on; `lotFree` says whether the car park is still, so the van may drive in or out now. */
-  step(dt: number, lotFree: boolean): void {
-    this.t += dt;
+  /** Steps the run on; `lotFree` says whether the car park is still, so the van may drive in or out now; `walkers` are the people on foot near its drive. */
+  step(dt: number, lotFree: boolean, walkers: readonly V2[] = []): void {
+    if (this.needsLane()) {
+      const want = walkers.some((p) => this.inPath(p)) ? 0 : 1;
+      this.go += (want - this.go) * Math.min(1, dt * CIT_YIELD.ease);
+      if (want === 0 && this.go < 0.05) this.go = 0;
+      this.t += dt * this.go;
+    } else {
+      this.go = 1;
+      this.t += dt;
+    }
     switch (this.phase) {
       case 'away':
         if (this.t >= this.due && lotFree) this.next('arrive');
@@ -125,9 +137,44 @@ export class CitRun {
     this.t = 0;
   }
 
+  /** Whether the van is due and waiting to drive in: the lot sends nobody new up its lane meanwhile. */
+  wantsIn(): boolean {
+    return this.phase === 'away' && this.t >= this.due;
+  }
+
+  /** Whether the van is shut up and waiting to back out: the lot sends nobody else out onto its lane meanwhile. */
+  wantsOut(): boolean {
+    return this.phase === 'close' && this.t >= CIT_RUN.doors;
+  }
+
   /** Whether the van is driving in the car park (or on its way in or out through the gate): it has the lot's turn. */
   needsLane(): boolean {
     return this.phase === 'arrive' || this.phase === 'depart';
+  }
+
+  /** Where `p` is against the van: along the way it is driving (from its middle) and out to the side; null while it is not driving. */
+  private against(p: V2): { along: number; side: number } | null {
+    if (!this.needsLane()) return null;
+    const pose = this.pose();
+    const back = pose.reversing ? -1 : 1;
+    const fx = Math.cos(pose.yaw) * back;
+    const fz = -Math.sin(pose.yaw) * back;
+    const dx = p[0] - pose.x;
+    const dz = p[1] - pose.z;
+    return { along: dx * fx + dz * fz, side: Math.abs(dx * fz - dz * fx) };
+  }
+
+  /** Whether someone at `p` stands in the van's way: in the stretch just ahead of it as it drives (behind it as it backs out). */
+  inPath(p: V2): boolean {
+    const a = this.against(p);
+    return a !== null && a.side < CIT_YIELD.half && a.along > LENGTH.cit / 2 - 0.3 && a.along < LENGTH.cit / 2 + CIT_YIELD.ahead;
+  }
+
+  /** Whether someone on foot at `p` stops and lets the van by: they are close to it as it drives, but not in its way (whoever is in its way walks on and clears it, so neither waits for the other for ever). */
+  makesWait(p: V2): boolean {
+    const a = this.against(p);
+    if (a === null || this.inPath(p)) return false;
+    return Math.abs(a.along) < LENGTH.cit / 2 + CIT_YIELD.wait && a.side < WIDTH.cit / 2 + CIT_YIELD.wait;
   }
 
   pose(): CitPose {

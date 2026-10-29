@@ -5,7 +5,7 @@ import { BEATS_PER_DAY, DAY_END, EOD_START, WORK_END, WORK_START } from '../cloc
 import { COVER_COST_CENTS, pnl } from '../kpis';
 import { DEFAULT_RULES } from '../rules';
 import { STATION_IDS, WIRES, hasWire, isStation } from '../topology';
-import { eventForDay } from '../traffic';
+import { ALWAYS_ON_KINDS, eventForDay, generateDay } from '../traffic';
 import type { DayReport } from '../types';
 import { compareDays, simulateDay, sumReports } from '../whatIf';
 
@@ -53,18 +53,27 @@ describe('time', () => {
     expect(seen.slice(0, 4)).toEqual(['PRE_OPEN', 'WORKING', 'AFTER_HOURS', 'EOD']);
   });
 
-  it('lets customers in only between 09:00 and 17:00', () => {
+  it('lets the branch customers in between 09:00 and 17:00, and the round-the-clock channels at every hour', () => {
     const sim = new BankSimulation({ seed: SEED });
+    const offHours = generateDay(SEED, 1).offHours;
     sim.stepUntil(WORK_START);
-    expect(sim.snapshot().kpis.arrivals).toBe(0);
+    const early = sim.snapshot().kpis.arrivals;
+    // Before the doors open only the machines take customers: card terminals and online checkouts, transfers, the ATM.
+    expect(early).toBeGreaterThan(0);
+    expect(early).toBe(offHours.filter((c) => c.minute < WORK_START).length);
     sim.stepUntil(WORK_START + 60);
     const midMorning = sim.snapshot().kpis.arrivals;
-    expect(midMorning).toBeGreaterThan(0);
+    expect(midMorning).toBeGreaterThan(early);
     sim.stepUntil(WORK_END);
     const atClose = sim.snapshot().kpis.arrivals;
     expect(atClose).toBeGreaterThan(midMorning);
     sim.stepUntil(DAY_END);
-    expect(sim.snapshot().kpis.arrivals).toBe(atClose);
+    const night = offHours.filter((c) => c.minute >= WORK_END);
+    expect(night.length).toBeGreaterThan(0);
+    expect(sim.snapshot().kpis.arrivals).toBe(atClose + night.length);
+    expect(new Set(night.map((c) => c.kind))).toEqual(new Set(ALWAYS_ON_KINDS));
+    // Card payments stop at the 23:00 cut-off, when the night batch takes the day's approvals; transfers and ATM cash go on.
+    for (const c of night) if (c.minute >= EOD_START) expect(['A2A', 'ATM']).toContain(c.kind);
   });
 
   it('the night cycle starts at 23:00: nothing is batched before, records are cleared after', () => {

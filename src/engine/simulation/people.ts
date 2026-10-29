@@ -7,7 +7,9 @@ import type { SidewalkCrowd } from '../world/sidewalk';
 import { journeyPose, type CustomerPose, type Journey } from './customerLifecycle';
 import type { QueueHandoff } from './queueHandoff';
 import { routesFor, MAIN_GATE_STAFF_ROUTE } from './routes';
-import { ARRIVE_SPEED, arrivalState, isOffShift, LEAVE_SPEED, leaveAt } from './staff';
+import { ARRIVE_SPEED, arrivalMinute, arrivalState, isOffShift, LEAVE_SPEED, leaveAt, walkedFor } from './staff';
+import { beatMinutesAt } from '../../sim/clock';
+import { pathLength } from '../plan/path';
 
 /** People of the 3D office the views draw but never move: customers walking to and standing in the desks' lines, the ones being served, and staff walking in and out. */
 
@@ -63,6 +65,7 @@ export class ArrivalWalks {
     const closed = isClosed(minute);
     let changed = false;
     for (const id of WALKER_STATIONS) {
+      let walkUp = false;
       const sv = stations[id];
       // A counter's newcomers are what its queue grew by (its arrivals are counted at the gates the cases came in at).
       const grew = Math.max(0, sv.queueLength - (this.queued[id] ?? sv.queueLength));
@@ -72,10 +75,13 @@ export class ArrivalWalks {
       for (let k = 0; k < count; k++) {
         // The newcomers are the line's last `count`; further back than the line drawn, they join unseen.
         const place = sv.queueLength - count + k;
-        if (place < 0 || place >= QUEUE_VISIBLE) continue;
+        if (place >= QUEUE_VISIBLE) continue;
+        // One served the beat they came in (a quiet machine or counter) still walks up to it, does their business and goes: the line takes them as a late arrival. One at a time, and only with nobody else on the way there, so two never stand at the machine at once.
+        if (place < 0 && (walkUp || this.handoff.pending(id) > 0)) continue;
         const slot = this.freeSlot();
         if (slot < 0) break;
-        const path = routesFor(id).approach(place);
+        if (place < 0) walkUp = true;
+        const path = routesFor(id).approach(Math.max(0, place));
         const pace = ATM_STATIONS.includes(id) ? ARRIVAL_PACE.atm : ARRIVAL_PACE.gate;
         const who = sv.stats.processedToday + place + queueSalt(id);
         this.walks.push({ path, length: laneLength(path), start: now + k * 0.9, pace, slot, desk: id, who });
@@ -87,8 +93,13 @@ export class ArrivalWalks {
     if (changed) this.version++;
   }
 
-  /** Moves everyone on to time `now`, curving round others on the pavement; those at their place are handed to the line. */
-  step(now: number, dt: number): void {
+  /** Moves everyone on to time `now`, curving round others on the pavement; those at their place are handed to the line. Anyone `holds` stops (the cash van driving past) waits where they are. */
+  step(now: number, dt: number, holds: (at: V2) => boolean = () => false): void {
+    for (const w of this.walks) {
+      if (now < w.start) continue;
+      const p = laneAt(w.path, (now - w.start) * w.pace);
+      if (holds([p.x, p.z])) w.start += dt;
+    }
     for (let i = this.walks.length - 1; i >= 0; i--) {
       const w = this.walks[i]!;
       if ((now - w.start) * w.pace > w.length) {
@@ -136,6 +147,8 @@ export interface Served {
   start: number;
   wait: number;
   stopAt: number;
+  /** Doing their business at the counter or machine (a late arrival), not finishing up after being served from the line. */
+  business: boolean;
 }
 
 /** A served customer's pose now (world coordinates), and whether they are doing their business at the counter or machine. */
@@ -203,7 +216,7 @@ export class DeskLine {
         const wait = this.atm ? SERVED.atm : SERVED.counter;
         for (let j = 0; j < Math.min(2, served, this.inLine); j++) {
           const path = servedExit(this.id, j);
-          this.addServed({ key: this.nextKey++, who: before + j + this.salt, path, length: laneLength(path), start: now + j * 0.6, wait, stopAt: 0 }, 4);
+          this.addServed({ key: this.nextKey++, who: before + j + this.salt, path, length: laneLength(path), start: now + j * 0.6, wait, stopAt: 0, business: false }, 4);
           changed = true;
         }
       }
@@ -259,13 +272,19 @@ export class DeskLine {
       f.visible = true;
     }
     if (this.style === 'people') {
+      // Those standing in line on the pavement are people the passers-by walk round, not through.
+      for (let i = 0; i < QUEUE_VISIBLE; i++) {
+        const f = this.figures[i]!;
+        if (f.visible) this.sidewalk.place(`line-${this.id}-${i}`, f.x + this.pose.x, f.z + this.pose.z, dt, true);
+        else this.sidewalk.leave(`line-${this.id}-${i}`);
+      }
       // Someone who got to the line after their turn had come walks up to the counter or machine, does their business, and goes.
       let late = false;
       for (let got = this.handoff.take(this.id, now); got; got = this.handoff.take(this.id, now)) {
         const exit = servedExit(this.id);
         const path: V2[] = [got.at, ...exit];
         const stopAt = Math.hypot(exit[0]![0] - got.at[0], exit[0]![1] - got.at[1]);
-        this.addServed({ key: this.nextKey++, who: got.who, path, length: laneLength(path), start: now, wait: this.atm ? SERVED.business.atm : SERVED.business.counter, stopAt }, 6);
+        this.addServed({ key: this.nextKey++, who: got.who, path, length: laneLength(path), start: now, wait: this.atm ? SERVED.business.atm : SERVED.business.counter, stopAt, business: true }, 6);
         late = true;
       }
       if (late) this.version++;
@@ -286,7 +305,7 @@ export class DeskLine {
 
   private stepServed(now: number, dt: number): void {
     for (const s of [...this.served]) {
-      const journey: Journey = { path: s.path, length: s.length, stopAt: s.stopAt, wait: s.wait, turn: SERVED.turn, pace: SERVED.pace };
+      const journey: Journey = { path: s.path, length: s.length, stopAt: s.stopAt, wait: s.wait, turn: SERVED.turn, pace: SERVED.pace, business: s.business };
       const p: CustomerPose = journeyPose(journey, now - s.start);
       if (p.state === 'gone') {
         this.forget(s);
@@ -324,10 +343,15 @@ export class StaffWalks {
   private wasAway: ReadonlySet<string> | null = null;
   private workers: StationView['workers'] | null = null;
   private awayKey = '';
+  /** The bank minute of the last sync, to tell the clock running on from a jump (the time bar dragged, a reset, the office opened mid-walk). */
+  private lastMinute: number | null = null;
+  /** Where each walker is this frame, after stepping round others on the pavement. */
+  private readonly placed = new Map<string, { at: V2; heading: number }>();
 
   constructor(
     readonly id: StationId,
     automated: boolean,
+    private readonly sidewalk: SidewalkCrowd | null = null,
   ) {
     this.automated = automated;
     this.pose = deskPose(id);
@@ -350,8 +374,23 @@ export class StaffWalks {
       }
       this.onShift = next;
     }
-    const st = this.automated ? { away: [], early: [] } : arrivalState(isNightStation(this.id), workers.map((w) => w.id), minute);
+    const night = isNightStation(this.id);
+    const st = this.automated ? { away: [], early: [] } : arrivalState(night, workers.map((w) => w.id), minute);
     const key = `${st.away.join(',')}|${st.early.join(',')}`;
+    // On a jump the walks in are laid out afresh from the clock: whoever has set off and is not in yet is that far along their way.
+    const jumped = this.lastMinute === null || minute < this.lastMinute || minute - this.lastMinute > beatMinutesAt(this.lastMinute);
+    this.lastMinute = minute;
+    if (jumped && !this.automated) {
+      changed = this.remove((x) => x.arriving) || changed;
+      const midway = workers.flatMap((w, i) => {
+        const seat = seats[i];
+        if (!seat || st.away.includes(w.id)) return [];
+        const route = MAIN_GATE_STAFF_ROUTE.arrive(this.pose, seat, i);
+        const t = walkedFor(arrivalMinute(night, w.id, i), minute);
+        return t >= 0 && t < pathLength(route) / ARRIVE_SPEED ? [{ id: w.id, route, t, index: i, arriving: true }] : [];
+      });
+      if (midway.length) changed = this.replace(midway) || changed;
+    }
     if (key !== this.awayKey || this.wasAway === null) {
       this.awayKey = key;
       this.away = new Set(st.away);
@@ -359,7 +398,7 @@ export class StaffWalks {
       const was = this.wasAway;
       this.wasAway = this.away;
       changed = true;
-      if (was && !this.automated) {
+      if (was && !this.automated && !jumped) {
         // Someone whose time to come in has just come (while the office was watching) walks in to their seat.
         const coming = workers.flatMap((w, i) => (was.has(w.id) && !this.away.has(w.id) && seats[i] ? [{ id: w.id, route: MAIN_GATE_STAFF_ROUTE.arrive(this.pose, seats[i]!, i), t: 0, index: i, arriving: true }] : []));
         if (coming.length) this.replace(coming);
@@ -368,22 +407,36 @@ export class StaffWalks {
     if (changed) this.version++;
   }
 
-  /** Moves the walkers on by `dt` seconds; those who have arrived or are out are done. */
+  /** Moves the walkers on by `dt` seconds, curving round others on the pavement; those who have arrived or are out are done. */
   step(dt: number): void {
     let done = false;
     for (const w of [...this.walks]) {
       w.t += dt;
-      if (leaveAt(w.route, w.t, w.arriving ? ARRIVE_SPEED : LEAVE_SPEED).done) {
+      const p = leaveAt(w.route, w.t, w.arriving ? ARRIVE_SPEED : LEAVE_SPEED);
+      if (p.done) {
         this.walks.splice(this.walks.indexOf(w), 1);
+        this.drop(w.id);
         done = true;
+        continue;
       }
+      const at: V2 = this.sidewalk ? this.sidewalk.place(this.who(w.id), p.at[0], p.at[1], dt) : p.at;
+      this.placed.set(w.id, { at, heading: p.heading });
     }
     if (done) this.version++;
   }
 
   /** Where a walker is now (world coordinates), and which way they face. */
   poseOf(w: StaffWalk): { at: V2; heading: number } {
-    return leaveAt(w.route, w.t, w.arriving ? ARRIVE_SPEED : LEAVE_SPEED);
+    return this.placed.get(w.id) ?? leaveAt(w.route, w.t, w.arriving ? ARRIVE_SPEED : LEAVE_SPEED);
+  }
+
+  private who(id: string): string {
+    return `staff-${this.id}-${id}`;
+  }
+
+  private drop(id: string): void {
+    this.placed.delete(id);
+    this.sidewalk?.leave(this.who(id));
   }
 
   /** Seats left empty: not in yet, or still on the way in. */
@@ -392,14 +445,22 @@ export class StaffWalks {
   }
 
   private replace(list: StaffWalk[]): boolean {
-    for (let i = this.walks.length - 1; i >= 0; i--) if (list.some((g) => g.id === this.walks[i]!.id)) this.walks.splice(i, 1);
+    for (let i = this.walks.length - 1; i >= 0; i--)
+      if (list.some((g) => g.id === this.walks[i]!.id)) {
+        this.drop(this.walks[i]!.id);
+        this.walks.splice(i, 1);
+      }
     this.walks.push(...list);
     return true;
   }
 
   private remove(match: (w: StaffWalk) => boolean): boolean {
     const n = this.walks.length;
-    for (let i = this.walks.length - 1; i >= 0; i--) if (match(this.walks[i]!)) this.walks.splice(i, 1);
+    for (let i = this.walks.length - 1; i >= 0; i--)
+      if (match(this.walks[i]!)) {
+        this.drop(this.walks[i]!.id);
+        this.walks.splice(i, 1);
+      }
     return this.walks.length !== n;
   }
 }

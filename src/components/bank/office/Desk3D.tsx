@@ -25,6 +25,7 @@ import { routingRules } from '../../../engine/plan/routingRules';
 import { motion } from '../../../engine/simulation/motion';
 import { DeskLine, StaffWalks, type Served, type StaffWalk } from '../../../engine/simulation/people';
 import { usePeopleVersion, useWorld } from './WorldProvider';
+import { lodShows, useLabelLod, type LabelLod } from './labelLod';
 export { SERVED, STEP_UP_PACE } from '../../../engine/simulation/people';
 
 export { cursor } from './cursor';
@@ -409,10 +410,13 @@ export function DeskPin({ id, height }: { id: StationId; height?: number }) {
   const visible = hovered || (lit === null ? always : lit);
   const terms = useTerms();
   const top = height ?? (isPodium(id) ? 2.6 : 2.3);
+  // Zoomed out the badge folds to its dot and count; a desk pointed at or picked always says everything.
+  const zoomLod = useLabelLod();
+  const lod = hovered || selected ? 'near' : zoomLod;
   return (
     <>
       {hovered && <DeskTooltip3D id={id} top={top} />}
-      {visible && <PinBadge id={id} top={top} status={status} queueLength={queueLength} working={working} selected={selected} name={terms.station(id)} />}
+      {visible && <PinBadge id={id} top={top} status={status} queueLength={queueLength} working={working} selected={selected} name={terms.station(id)} lod={lod} />}
     </>
   );
 }
@@ -501,8 +505,9 @@ function DeskTooltip3D({ id, top }: { id: StationId; top: number }) {
 }
 
 /** The badge itself: the status dot, the desk's name, how many are waiting ("3 waiting", amber when anyone is), and beside it a green "2 working" while cases are being worked on at the counter, so a busy desk with an empty queue never reads as idle. */
-function PinBadge({ id, top, status, queueLength, working, selected, name }: { id: StationId; top: number; status: keyof typeof STATUS_HEX; queueLength: number; working: number; selected: boolean; name: string }) {
+function PinBadge({ id, top, status, queueLength, working, selected, name, lod }: { id: StationId; top: number; status: keyof typeof STATUS_HEX; queueLength: number; working: number; selected: boolean; name: string; lod: LabelLod }) {
   const bm = useMessages(deskBadgeMessages);
+  const shows = lodShows(lod);
   return (
     <Html position={[0, top, 0.1]} center zIndexRange={[20, 0]}>
       <button
@@ -510,16 +515,17 @@ function PinBadge({ id, top, status, queueLength, working, selected, name }: { i
         onClick={() => pickPlace(id)}
         data-testid={`pin-${id}`}
         data-selected={selected}
+        data-lod={lod}
         title={STATIONS[id].name}
         className="flex items-center gap-1 whitespace-nowrap rounded-full border border-white bg-white/95 py-[2px] pl-1.5 pr-[2px] text-[10px] font-semibold text-slate-700 shadow-[0_2px_6px_rgba(60,40,20,0.28)] transition-transform hover:-translate-y-0.5 data-[selected=true]:border-sky-400 data-[selected=true]:ring-2 data-[selected=true]:ring-sky-300"
       >
         <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: STATUS_HEX[status] }} />
-        <span className="max-w-[118px] truncate">{name}</span>
+        {shows.name && <span className="pc-lod-in max-w-[118px] truncate">{name}</span>}
         <span className="min-w-[16px] shrink-0 rounded-full px-1 text-center tabular-nums" style={queueLength > 0 ? { background: '#fde68a', color: '#78350f' } : { background: '#e2e8f0', color: '#64748b' }} data-testid={`pin-waiting-${id}`}>
-          {queueLength} {t('waiting')}
+          {shows.name ? `${queueLength} ${t('waiting')}` : queueLength}
         </span>
-        {working > 0 && (
-          <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-100 px-1 text-emerald-800" data-testid={`pin-working-${id}`}>
+        {shows.working && working > 0 && (
+          <span className="pc-lod-in flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-100 px-1 text-emerald-800" data-testid={`pin-working-${id}`}>
             <span className="h-1 w-1 animate-pulse rounded-full bg-emerald-500" />
             {bm('working', { n: working })}
           </span>

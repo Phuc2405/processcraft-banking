@@ -76,7 +76,8 @@ export class WorldEngine {
     this.weather = start.weather;
     this.traffic = factory.traffic();
     this.trafficView = { states: this.traffic.states(), t: 0 };
-    this.lot = factory.carPark();
+    // Opening the office after hours, the car park is empty: everyone has driven home.
+    this.lot = factory.carPark(isClosed(start.minute) ? 0 : undefined);
     // Everyone wanted in the park at the start is already in place; after that they come and go on foot.
     this.park = factory.parkCrowd(start.minute);
     this.walkout = new ClosingWalkout(isClosed(start.minute));
@@ -114,13 +115,15 @@ export class WorldEngine {
 
     // At closing time the drivers in the branch walk back to their cars and drive off; nobody parks again until it opens.
     this.lot.setClosed(isClosed(minute));
-    for (const h of steps) this.lot.step(h);
+    // Customers walking in from the car park are in the cash van's way as much as the drivers are.
+    const onFoot = this.arrivals.poses.filter((p) => p.visible).map((p): [number, number] => [p.x, p.z]);
+    for (const h of steps) this.lot.step(h, onFoot);
 
     stepPavementClock(this.pavement, motion.dt, input.weather);
     this.street.step(this.pavement, this.trafficView.states, isClosed(minute), motion.dt);
 
     // The people of the desks: walkers to the lines first (they hand over to the lines), then the lines, then the staff.
-    this.arrivals.step(motion.t, motion.dt);
+    this.arrivals.step(motion.t, motion.dt, (at) => this.lot.cit.makesWait(at));
     for (const line of this.lines.values()) line.step(motion.t, motion.dt);
     for (const staff of this.staffWalks.values()) staff.step(motion.dt);
     this.publishPeople();
@@ -146,7 +149,7 @@ export class WorldEngine {
   staff(id: StationId): StaffWalks {
     let s = this.staffWalks.get(id);
     if (!s) {
-      s = new StaffWalks(id, isAutomatedNode(id));
+      s = new StaffWalks(id, isAutomatedNode(id), this.sidewalk);
       this.staffWalks.set(id, s);
     }
     return s;

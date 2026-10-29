@@ -64,7 +64,7 @@ export const CIT_CLEAR: readonly [number, number] = [LOADING_BAY.z - LOADING_BAY
 
 /** The vehicles: their length and width, and how fast they move in the lot and on the lane. */
 export const SIZE: Readonly<Record<LotKind, { len: number; wid: number }>> = { car: { len: 2.1, wid: 0.97 }, moto: { len: 1.2, wid: 0.34 } };
-const SPEED = 4.4;
+const SPEED = 5.2;
 /** How fast people walk between their bay and the branch. */
 export const WALK_PACE = 1.05;
 
@@ -102,7 +102,8 @@ export function slotsOf(): Slot[] {
   return out;
 }
 
-export type Phase = 'arriving' | 'walkingIn' | 'parked' | 'walkingOut' | 'ready' | 'leaving';
+/** A vehicle's life in the lot: up the lane to just short of the drive (approaching), in through the gate to its bay (arriving: it has the lot's turn), the driver to the branch and back, then out of the bay and through the gate to the lane (leaving: the lot's turn again). Off down the lane it is one of the `departing`. */
+export type Phase = 'approaching' | 'arriving' | 'walkingIn' | 'parked' | 'walkingOut' | 'ready' | 'leaving';
 
 export interface LotVehicle {
   id: string;
@@ -118,6 +119,10 @@ export interface LotVehicle {
 
 const ax = LOT_SIDE * AISLE;
 const fx = LOT_SIDE * FOOTWAY;
+/** Where a vehicle coming up the lane waits its turn for the lot: on the in-lane short of the drive, clear of anything driving out across it. */
+export const LANE_WAIT: V2 = [LOT_SIDE * (AISLE + 3), BACK_LANE.in];
+/** Where a vehicle leaving hands the lot back: on the out-lane just past the drive, pointing away. */
+export const LANE_EXIT: V2 = [LOT_SIDE * (AISLE + 2.5), BACK_LANE.out];
 
 /** The side door nearest `z`. */
 export const nearestDoor = (z: number): number => SIDE_DOORS_LEFT.reduce((best, d) => (Math.abs(d - z) < Math.abs(best - z) ? d : best), SIDE_DOORS_LEFT[0]!);
@@ -148,38 +153,27 @@ export function walkPath(s: Slot): V2[] {
   ];
 }
 
-/** The drive in: along the lane behind the block, through the gate, down the aisle, and nose into the bay. */
+/** The drive up the lane behind the block, from out of sight to where it waits for the lot (LANE_WAIT). */
+export const approachPath = (): V2[] => [[LOT_SIDE * BACK_LANE.far, BACK_LANE.in], LANE_WAIT];
+
+/** The drive in: from the lane, through the gate, down the aisle, and nose into the bay. */
 export function arrivalPath(s: Slot): V2[] {
-  return smoothLane(
-    [
-      [LOT_SIDE * BACK_LANE.far, BACK_LANE.in],
-      [ax, BACK_LANE.in],
-      [ax, s.z],
-      [s.x, s.z],
-    ],
-    0.9,
-    6,
-  );
+  return smoothLane([LANE_WAIT, [ax, BACK_LANE.in], [ax, s.z], [s.x, s.z]], 0.9, 6);
 }
 
-/** The drive out: reverse out of the bay to the aisle, then forward to the gate, out onto the lane and away. */
+/** The drive out: reverse out of the bay to the aisle, then forward through the gate and onto the out-lane (LANE_EXIT). */
 export function leavingPaths(s: Slot): { reverse: V2[]; forward: V2[] } {
   return {
     reverse: [
       [s.x, s.z],
       [ax, s.z],
     ],
-    forward: smoothLane(
-      [
-        [ax, s.z],
-        [ax, BACK_LANE.out],
-        [LOT_SIDE * BACK_LANE.far, BACK_LANE.out],
-      ],
-      0.9,
-      6,
-    ),
+    forward: smoothLane([[ax, s.z], [ax, BACK_LANE.out], LANE_EXIT], 0.9, 6),
   };
 }
+
+/** From the out-lane past the drive, away down the lane and out of sight. */
+export const departPath = (): V2[] => [LANE_EXIT, [LOT_SIDE * BACK_LANE.far, BACK_LANE.out]];
 
 /** The cash van's drives: in through the gate, down the drive and nose-in to its bay. */
 export function citRoutes(): { arrive: V2[]; reverse: V2[]; depart: V2[] } {
@@ -217,6 +211,19 @@ export function citRoutes(): { arrive: V2[]; reverse: V2[]; depart: V2[] } {
   };
 }
 
+/** A vehicle that has left the lot, driving off down the lane (its bay is already free). */
+export interface Departing {
+  id: string;
+  kind: LotKind;
+  color: string;
+  t: number;
+}
+
+/** How long drivers stay (seconds on the motion clock): those already parked when the office opens are there for the day and leave a few at a time; a newcomer's visit is half an hour to an hour or so of the bank's day. */
+export const STAY = { first: [120, 900], visit: [25, 70] } as const;
+/** Seconds between newcomers setting off up the lane: one at a time through the gate, so the lot never takes in more than it lets out. */
+export const ARRIVAL_GAP = [8, 18] as const;
+
 /** The vehicle moving in the lot, wherever it is on its way. */
 export interface MoverPose {
   id: string;
@@ -237,6 +244,17 @@ const rnd = (i: number, k: number): number => {
   const x = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453;
   return x - Math.floor(x);
 };
+
+/** A vehicle `t` seconds into an eased drive along `path` (backing along it if `back`). */
+function onPath(id: string, kind: LotKind, path: readonly V2[], t: number, back: boolean): MoverPose {
+  const len = pathLength(path);
+  const d = len * ease(Math.min(1, t / driveTime(len)));
+  const [x, z] = pointAlongPath(path, d);
+  const [px, pz] = pointAlongPath(path, Math.min(len, d + 0.05));
+  const [bx, bz] = pointAlongPath(path, Math.max(0, d - 0.05));
+  const yaw = yawOf(px - bx, pz - bz) + (back ? Math.PI : 0);
+  return { id, kind, x, z, yaw, reversing: back };
+}
 
 /** The lot's turn, while the cash van has it. */
 export const CIT_MOVER = 'cit-van';
@@ -260,10 +278,13 @@ export class ParkingLot {
   /** The branch is closed to customers: nobody new parks, and everyone still inside walks back to their car. */
   private closed = false;
 
-  constructor(fill = 0.5) {
+  /** Vehicles gone from the lot, driving off down the out-lane. */
+  departing: Departing[] = [];
+
+  constructor(fill = 0.35) {
     this.slots = slotsOf();
     // Start part full, staying for different lengths of time.
-    for (const s of this.slots) if (rnd(s.index, 3) < fill) this.park(s, 'parked', 15 + rnd(s.index, 5) * 160);
+    for (const s of this.slots) if (rnd(s.index, 3) < fill) this.park(s, 'parked', STAY.first[0] + rnd(s.index, 5) * (STAY.first[1] - STAY.first[0]));
     this.nextArrival = 4;
   }
 
@@ -295,7 +316,7 @@ export class ParkingLot {
       return;
     }
     for (const v of this.vehicles) {
-      if (v.phase === 'parked') v.stay = 0;
+      if (v.phase === 'parked' || v.phase === 'approaching' || v.phase === 'arriving') v.stay = 0;
       if (v.phase === 'walkingIn') {
         // Turn round where they are.
         const len = pathLength(walkPath(this.slots[v.slot]!));
@@ -305,15 +326,25 @@ export class ParkingLot {
     }
   }
 
-  step(dt: number): void {
+  /** One step; `walkers` are the other people on foot near the lot (customers walking in to the side doors), whom the cash van gives way to as well. */
+  step(dt: number, walkers: readonly V2[] = []): void {
     const h = Math.min(Math.max(dt, 0), 0.1);
     this.t += h;
-    for (const v of this.vehicles) v.t += h;
+    // People on foot stop for the cash van while it drives past them.
+    const onFoot = this.walkers();
+    const waiting = new Set(onFoot.filter((w) => this.cit.makesWait([w.x, w.z])).map((w) => w.id));
+    for (const v of this.vehicles) if (!waiting.has(v.id)) v.t += h;
+    for (const d of this.departing) d.t += h;
+    // Down the lane and out of sight: gone.
+    this.departing = this.departing.filter((d) => d.t < driveTime(pathLength(departPath())));
     for (const v of [...this.vehicles]) {
       const s = this.slots[v.slot]!;
-      if (v.phase === 'arriving' && v.t >= driveTime(pathLength(arrivalPath(s)))) {
-        // In the bay: the lot is free for the next vehicle, and the driver walks off to the branch.
-        v.phase = 'walkingIn';
+      if (v.phase === 'approaching' && v.t >= driveTime(pathLength(approachPath()))) {
+        // Waiting on the lane for the lot's turn (handed out below).
+        v.t = driveTime(pathLength(approachPath()));
+      } else if (v.phase === 'arriving' && v.t >= driveTime(pathLength(arrivalPath(s)))) {
+        // In the bay: the lot is free for the next vehicle, and the driver walks off to the branch (after hours, they only turn round).
+        v.phase = this.closed ? 'ready' : 'walkingIn';
         v.t = 0;
         this.mover = null;
       } else if (v.phase === 'walkingIn' && v.t >= pathLength(walkPath(s)) / WALK_PACE) {
@@ -330,39 +361,62 @@ export class ParkingLot {
       } else if (v.phase === 'leaving') {
         const { reverse, forward } = leavingPaths(s);
         if (v.t >= driveTime(pathLength(reverse)) + driveTime(pathLength(forward))) {
-          // Gone down the lane and out of sight: only now is the bay free again.
+          // Out through the gate onto the lane: the bay is free again, the lot is the next vehicle's, and it drives off.
           s.occupiedBy = null;
           this.vehicles = this.vehicles.filter((x) => x !== v);
+          this.departing.push({ id: v.id, kind: v.kind, color: v.color, t: 0 });
           this.mover = null;
         }
       }
     }
-    // The cash van drives in (or backs out and leaves) only while the lot is still, and holds the lot's turn while it drives.
-    this.cit.step(h, this.mover === null);
+    // The cash van drives in (or backs out and leaves) only while the lot is still and its lane is clear, and holds the lot's turn while it drives; it gives way to anyone on foot in front of it.
+    const laneFree = this.cit.phase === 'away' ? !this.vehicles.some((v) => v.phase === 'approaching') : this.cit.phase === 'close' ? this.departing.length === 0 : true;
+    this.cit.step(h, this.mover === null && laneFree, [...onFoot.map((w): V2 => [w.x, w.z]), ...walkers]);
     if (this.cit.needsLane()) {
       if (this.mover === null) this.mover = CIT_MOVER;
     } else if (this.mover === CIT_MOVER) this.mover = null;
+    // A newcomer sets off up the lane (one at a time, and not while the cash van is on it) and takes a free bay; it needs the lot only at the gate.
+    const approaching = this.vehicles.find((v) => v.phase === 'approaching');
+    if (!approaching && !this.closed && this.t >= this.nextArrival && this.cit.phase !== 'arrive' && !this.cit.wantsIn()) {
+      this.nextArrival = this.t + ARRIVAL_GAP[0] + rnd(this.serial, 7) * (ARRIVAL_GAP[1] - ARRIVAL_GAP[0]);
+      // A car or a motorbike, to a free bay of its kind (or of the other kind, if its own are all taken).
+      const want: LotKind = rnd(this.serial, 6) < 0.55 ? 'car' : 'moto';
+      const free = this.vacant(want).length ? this.vacant(want) : this.vacant();
+      if (free.length > 0) {
+        const s = free[Math.floor(rnd(this.serial, 8) * free.length)]!;
+        this.park(s, 'approaching', STAY.visit[0] + rnd(this.serial, 9) * (STAY.visit[1] - STAY.visit[0]));
+      }
+    }
     if (this.mover !== null) return;
-    // The lot is still: someone back at their car drives off (they have the lot until they are gone), or else a newcomer is sent to a free bay.
-    const due = this.vehicles.find((v) => v.phase === 'ready');
-    const arrivalDue = !this.closed && this.t >= this.nextArrival && this.vacant().length > 0;
-    if (due && !(arrivalDue && this.lastLeft)) {
+    // The cash van waiting to back out has the next turn: nobody else is given the lot meanwhile.
+    if (this.cit.wantsOut()) return;
+    // The lot is still: whoever has waited longest at their car drives off (they have the lot until they are through the gate), or else the newcomer waiting on the lane drives in; the two take turns.
+    const ready = this.vehicles.filter((v) => v.phase === 'ready');
+    // The cash van due in goes next: the newcomer at the gate drives in to clear its lane, nobody drives out meanwhile.
+    const due = this.cit.wantsIn() ? undefined : ready.reduce<LotVehicle | undefined>((a, v) => (a && a.t >= v.t ? a : v), undefined);
+    const atGate = this.vehicles.find((v) => v.phase === 'approaching' && v.t >= driveTime(pathLength(approachPath())));
+    // With more than one driver back at their car, the lot lets them out first: a backlog never builds up inside it.
+    const backlog = ready.length > 1;
+    if (due && (backlog || !(atGate && this.lastLeft))) {
       due.phase = 'leaving';
       due.t = 0;
       this.mover = due.id;
       this.lastLeft = true;
       return;
     }
-    if (this.closed || this.t < this.nextArrival) return;
-    this.nextArrival = this.t + 5 + rnd(this.serial, 7) * 9;
-    // A car or a motorbike, to a free bay of its kind (or of the other kind, if its own are all taken).
-    const want: LotKind = rnd(this.serial, 6) < 0.55 ? 'car' : 'moto';
-    const free = this.vacant(want).length ? this.vacant(want) : this.vacant();
-    if (free.length === 0) return;
-    const s = free[Math.floor(rnd(this.serial, 8) * free.length)]!;
-    const v = this.park(s, 'arriving', 60 + rnd(this.serial, 9) * 120);
-    this.mover = v.id;
+    if (!atGate) return;
+    atGate.phase = 'arriving';
+    atGate.t = 0;
+    this.mover = atGate.id;
     this.lastLeft = false;
+  }
+
+  /** The vehicles on the lane behind the block: coming up to the lot (or waiting at it), and driving off. */
+  lanePoses(): Array<MoverPose & { color: string }> {
+    const out: Array<MoverPose & { color: string }> = [];
+    for (const v of this.vehicles) if (v.phase === 'approaching') out.push({ ...onPath(v.id, v.kind, approachPath(), v.t, false), color: v.color });
+    for (const d of this.departing) out.push({ ...onPath(d.id, d.kind, departPath(), d.t, false), color: d.color });
+    return out;
   }
 
   /** Where the moving vehicle is, or null when the lot is still. */
@@ -370,19 +424,10 @@ export class ParkingLot {
     const v = this.vehicles.find((x) => x.id === this.mover);
     if (!v || (v.phase !== 'arriving' && v.phase !== 'leaving')) return null;
     const s = this.slots[v.slot]!;
-    const on = (path: readonly V2[], t: number, back: boolean): MoverPose => {
-      const len = pathLength(path);
-      const d = len * ease(Math.min(1, t / driveTime(len)));
-      const [x, z] = pointAlongPath(path, d);
-      const [px, pz] = pointAlongPath(path, Math.min(len, d + 0.05));
-      const [bx, bz] = pointAlongPath(path, Math.max(0, d - 0.05));
-      const yaw = yawOf(px - bx, pz - bz) + (back ? Math.PI : 0);
-      return { id: v.id, kind: v.kind, x, z, yaw, reversing: back };
-    };
-    if (v.phase === 'arriving') return on(arrivalPath(s), v.t, false);
+    if (v.phase === 'arriving') return onPath(v.id, v.kind, arrivalPath(s), v.t, false);
     const { reverse, forward } = leavingPaths(s);
     const tr = driveTime(pathLength(reverse));
-    return v.t < tr ? on(reverse, v.t, true) : on(forward, v.t - tr, false);
+    return v.t < tr ? onPath(v.id, v.kind, reverse, v.t, true) : onPath(v.id, v.kind, forward, v.t - tr, false);
   }
 
   /** The vehicles standing in their bays (including one whose driver is walking to or from it). */

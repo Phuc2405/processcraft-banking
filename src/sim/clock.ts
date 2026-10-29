@@ -26,9 +26,9 @@ export function phaseAt(minute: number): Phase {
 
 const BEAT_MINUTES: Record<Phase, number> = { PRE_OPEN: 60, WORKING: 5, AFTER_HOURS: 60, EOD: 2 };
 
-/** The hours before each shift, when its staff walk in: they tick in 5-minute beats, never jumping the hour. */
+/** The hours before each shift, when its staff walk in: they tick in 5-minute beats, never jumping the hour (the day's from 08:00 for the doors at 09:00, the night's from 22:00 for its 23:00 start). */
 export const PRE_SHIFT: ReadonlyArray<{ from: number; to: number }> = [
-  { from: DAY_START, to: DAY_START + 60 },
+  { from: WORK_START - 60, to: WORK_START },
   { from: EOD_START - 60, to: EOD_START },
 ];
 const PRE_SHIFT_BEAT = 5;
@@ -92,3 +92,6 @@ export const SLOWEST_SPEED_INDEX = 0;
 
 export const beatMs = (phase: Phase, factor: number, minute?: number): number =>
   Math.round((minute !== undefined && isPreShift(minute) ? PRE_SHIFT_MS : BEAT_MS[phase]) / Math.max(0.1, factor));
+
+/** Seconds of the 3D office's motion clock that one bank minute takes around `minute` (the same at every speed: both scale with it). */
+export const motionSecondsPerMinute = (minute: number): number => beatMs(phaseAt(minute), 1, minute) / 1000 / beatMinutesAt(minute);

@@ -208,7 +208,8 @@ describe('desk badges: waiting and working, in 2D and 3D', () => {
 
   it('shows "X waiting · Y working" on the 3D badge, its tooltip, and the 2D desk card, never "Working Working"', () => {
     const desk = read('../Desk3D.tsx');
-    expect(desk).toContain("{queueLength} {t('waiting')}");
+    // Zoomed out the badge folds to its count; from the middle zoom on it says "X waiting" (labelLod.ts).
+    expect(desk).toContain("{shows.name ? `${queueLength} ${t('waiting')}` : queueLength}");
     expect(desk).toContain('data-testid={`pin-working-${id}`}');
     expect(desk).toContain("{bm('working', { n: working })}");
     // The tooltip's line is the shared "X waiting · Y working · status" (engine/simulation/deskStatus.ts deskStatusLine).

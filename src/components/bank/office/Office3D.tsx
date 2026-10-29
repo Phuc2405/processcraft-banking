@@ -12,7 +12,7 @@ import { weatherStore, type WeatherChoice } from '../../../engine/world/weather'
 import { useWeather } from './useWeather';
 import { skyFlash } from './Environment3D';
 import { MapLegend } from '../MapLegend';
-import { useDockInset } from '../ViewportControls';
+import { useDockInset, useMapCentre, WEATHER_BAR_GAP } from '../ViewportControls';
 
 /** The sky behind the diorama: a gradient from the time-of-day presets and the weather blend, redrawn every ten bank minutes and as the weather eases. A white layer over it flashes with the storm's lightning. */
 function SkyBackdrop() {
@@ -169,6 +169,20 @@ function WeatherControls({ compact }: { compact: boolean }) {
 /** Where the 3D toolbar sits: one row in the top-left corner, always, whatever panel is open beside the map. */
 export const TOOLBAR_CLASS = 'absolute left-4 top-3 z-40 flex flex-row flex-nowrap items-center gap-1.5';
 
+/** The weather bar: centred just under the viewport dock (and its flow bar), above the map's banners and cards (z-40) but under every modal (z-50 and up). */
+export const WEATHER_BAR_CLASS = 'pointer-events-auto absolute z-[45] flex -translate-x-1/2 items-center transition-[left] duration-200 ease-out';
+
+/** The weather bar's place: under the dock, over the middle of the map that the inspector leaves free. */
+function WeatherBar({ compact }: { compact: boolean }) {
+  const top = useDockInset() + WEATHER_BAR_GAP;
+  const left = useMapCentre();
+  return (
+    <div className={WEATHER_BAR_CLASS} style={{ top, left }} data-testid="office-weather-bar">
+      <WeatherControls compact={compact} />
+    </div>
+  );
+}
+
 /** The 3D Isometric Office: the same bank as the 2D blueprint, as a bright low-poly diorama. */
 
 class OfficeBoundary extends Component<{ onBack: () => void; children: ReactNode }, { error: string | null }> {
@@ -293,8 +307,8 @@ function Office3DView() {
         >
           {splitOpen ? `🏷 ${labelMode === 'always' ? t('Always Show') : t('Hover Only')}` : `${t('Labels:')} ${labelMode === 'always' ? t('Always Show') : t('Hover Only')}`}
         </button>
-        <WeatherControls compact={splitOpen} />
       </div>
+      <WeatherBar compact={splitOpen} />
       {!touring && <MapLegend top={dockInset + 12} right={legendRight} />}
     </div>
   );

@@ -1,4 +1,4 @@
-import { DAY_START, EOD_START } from '../../sim/clock';
+import { DAY_START, EOD_START, motionSecondsPerMinute, WORK_START } from '../../sim/clock';
 import { DAY_SHIFT, NIGHT_SHIFT } from '../../sim/roster';
 import type { StationId } from '../../sim/topology';
 import { COUNTER, FRONT_AISLE_Z, KERB_Z, MAIN_GATE, STREET, type Pose, type V2 } from '../plan/layout3d';
@@ -6,8 +6,8 @@ import { pathLength, pointAlongPath } from '../plan/path';
 
 /** The people who work the desks, coming in before their shift (Strategy: ShiftScheduleStrategy). */
 
-/** When the staff come in: [first to set off, last to set off], in the bank's minutes. */
-export const STAFF_ARRIVAL = { day: [DAY_START, DAY_START + 20], night: [EOD_START - 60, EOD_START - 40] } as const;
+/** When the staff come in: [first to set off, last to set off], in the bank's minutes: 08:15-08:35 for the doors at 09:00, 22:15-22:35 for the night's work at 23:00, each walk short enough to be seated by then. */
+export const STAFF_ARRIVAL = { day: [WORK_START - 45, WORK_START - 25], night: [EOD_START - 45, EOD_START - 25] } as const;
 
 /** Where a member of staff is, as far as the 3D office shows it. */
 export type StaffPresence = 'away' | 'ready' | 'roster';
@@ -19,6 +19,8 @@ export interface ShiftScheduleStrategy {
   readonly hours: string;
   /** The window its staff set off for work in. */
   readonly arrival: readonly [number, number];
+  /** From when a seat stands empty until its person comes in (the day's from the start of the day, the night's from its window). */
+  readonly awayFrom: number;
   /** Until when someone who is in sits ready at the desk while the simulation still has them off shift (null: never). */
   readonly readyUntil: number | null;
   /** The minute the member of staff `seed` (in seat `seat`) sets off: spread through the window, steady per person. */
@@ -38,6 +40,7 @@ class Schedule implements ShiftScheduleStrategy {
     readonly hours: string,
     readonly arrival: readonly [number, number],
     readonly readyUntil: number | null,
+    readonly awayFrom: number = arrival[0],
   ) {}
 
   setOff(seed: string, seat: number): number {
@@ -45,10 +48,10 @@ class Schedule implements ShiftScheduleStrategy {
   }
 }
 
-/** The day's staff: they set off between 07:00 and 07:20 for the 08:00 shift, which the simulation starts them on. */
-export const MORNING_SHIFT_SCHEDULE: ShiftScheduleStrategy = new Schedule('MORNING', DAY_SHIFT, STAFF_ARRIVAL.day, null);
+/** The day's staff: they set off between 08:15 and 08:35 and are at their desks when the doors open at 09:00. */
+export const MORNING_SHIFT_SCHEDULE: ShiftScheduleStrategy = new Schedule('MORNING', DAY_SHIFT, STAFF_ARRIVAL.day, null, DAY_START);
 
-/** The night's staff: they set off between 22:00 and 22:20 and sit ready until the night's work starts at 23:00. */
+/** The night's staff: they set off between 22:15 and 22:35 and sit ready until the night's work starts at 23:00. */
 export const NIGHT_SHIFT_SCHEDULE: ShiftScheduleStrategy = new Schedule('NIGHT', NIGHT_SHIFT, STAFF_ARRIVAL.night, EOD_START);
 
 /** One member of staff at a desk, on their shift's schedule. */
@@ -65,11 +68,10 @@ export class StaffEntity {
     return this.schedule.setOff(this.id, this.seat);
   }
 
-  /** Where they are at `minute`: not in yet (their shift's window has opened, their time has not come), sitting ready ahead of the shift, or as the simulation has them. */
+  /** Where they are at `minute`: not in yet (their seat stands empty and their time has not come), sitting ready ahead of the shift, or as the simulation has them. */
   presence(minute: number): StaffPresence {
-    const [from] = this.schedule.arrival;
     const due = this.setOff;
-    if (minute >= from && minute < due) return 'away';
+    if (minute >= this.schedule.awayFrom && minute < due) return 'away';
     if (this.schedule.readyUntil !== null && minute >= due && minute < this.schedule.readyUntil) return 'ready';
     return 'roster';
   }
@@ -106,7 +108,10 @@ export function leaveRoute(pose: Pose, seat: V2, k = 0): V2[] {
 /** The minute the `k`th member of staff at a desk sets off for work: spread through their shift's arrival window, steady per person (their shift's ShiftScheduleStrategy). */
 export const arrivalMinute = (night: boolean, seed: string, k: number): number => (night ? NIGHT_SHIFT_SCHEDULE : MORNING_SHIFT_SCHEDULE).setOff(seed, k);
 
-/** At `minute`, who of a desk's staff (`ids`, in seat order) is not in yet (`away`. */
+/** How far into their walk in someone who set off at `setOff` is at `minute`, in seconds of the motion clock (an hour before a shift ticks in short beats, so this is the pace the walk is watched at); negative before they set off. */
+export const walkedFor = (setOff: number, minute: number): number => (minute - setOff) * motionSecondsPerMinute(setOff);
+
+/** At `minute`, who of a desk's staff (`ids`, in seat order) is not in yet (`away`), and who sits ready ahead of the night's work (`early`). */
 export function arrivalState(night: boolean, ids: readonly string[], minute: number): { away: string[]; early: string[] } {
   const schedule = night ? NIGHT_SHIFT_SCHEDULE : MORNING_SHIFT_SCHEDULE;
   const away: string[] = [];

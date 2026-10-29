@@ -162,15 +162,27 @@ The same bank as a daylight diorama, built from low-poly pieces with one warm pa
   queue as phones at the A2A gate.
 * **Outside:** the two blue ATM kiosks stand in an entrance alcove on a tiled pavement in front of the building, with a kerb, the
   road and street lamps that come on as the bank's day turns to evening. They are live stations: customers queue at them,
-  clicking one opens the inspector, and the lamp on top flashes red when the dispenser jams (amber when a card is kept).
+  clicking one opens the inspector, and the lamp on top flashes red when the dispenser jams (amber when a card is kept). They run
+  round the clock: after the branch closes customers still walk up, key in at the machine and walk off down the street.
 * **People:** staff are miniature figures. They type with their arms and nod when idle, type faster while their desk is in
   a surge, and slump (head down, arms limp) when fatigue goes over 80%. Customers stand in line at the counter, and the ones
-  who arrive walk in from the door. The faces in the queue change as people are served, so the line seems to move up.
+  who arrive walk in from the door. The faces in the queue change as people are served, so the line seems to move up. Someone
+  served at a quiet counter or machine still walks up, does their business there and leaves, one at a time. On the pavement
+  everyone steps round everyone else: passers-by, people getting off the bus and motorbikes, staff walking to work, and those
+  standing in the ATM lines.
+* **Car park and cash van:** cars and motorbikes come up the lane behind the block, wait at the gate for their turn, park, and
+  drive out and away down the lane again; one vehicle at a time moves in the lot itself, and drivers waiting at their cars go
+  first when several are ready. The armoured **Cash Transporter (CIT)** gets its turn in and out, stops for anyone on foot in
+  front of it, and people beside its path wait for it to pass. Search finds it as *CIT*, *Cash-in-Transit* or *xe chở tiền*.
 * **Payments:** a card payment is a glowing chip card, a Pay-in-4 is a stack of coin tokens and a settlement is a file folder.
   They fly the wire's lane with its corners rounded by Bezier curves and hop gently, with the same timing as the 2D tokens.
 * **Pins:** every desk has a floating badge with its name, a status dot and how many people are waiting. Click it, the
   counter or a person to open the inspector. **Labels: Always Show / Hover Only** (top left of the view) hides the badges until
-  the pointer is over a workstation, to keep the diorama clean.
+  the pointer is over a workstation, to keep the diorama clean. Badges follow the zoom, like a map (`office/labelLod.ts`): zoomed
+  out below 75% of the fitted view they fold to a status dot and a count, and the kiosks' tallies hide; up to 150% they show the
+  name and "X waiting"; closer, the "Y working" chip fades in too. A desk pointed at or picked always shows everything.
+* **Weather bar:** the time of day and the weather menu sit in their own bar centred under the viewport dock (Sub-process /
+  Full process / 2D / 3D), above the map's banners and cards; the start-of-day banner opens below it.
 
 Camera: the view is a fixed isometric (orthographic) one. **Drag** pans, **scroll** zooms, **right-drag** turns the office a
 little either way (the tilt is locked so the isometric look cannot be lost), all with damping. **Reset view** (top left of the
@@ -241,14 +253,15 @@ Days run **Day 1, Day 2, ...** and carry what they leave behind: the suspense ac
 
 | Time | Phase | What happens |
 | --- | --- | --- |
-| 07:00-08:00 | Staff arrive | The day's staff walk in to their desks (the clock ticks in 5-minute beats) |
-| 08:00-09:00 | Briefing | Read the briefing, look around, or change a rule |
+| 07:00-08:00 | Early | Read the briefing, look around, or change a rule; the machines already take card payments, transfers and ATM cash |
+| 08:00-09:00 | Staff arrive | The day's staff set off 08:15-08:35 and are seated by 09:00 (the clock ticks in 5-minute beats) |
 | 09:00-17:00 | Working hours | Live traffic |
-| 17:00-23:00 | After hours | The day shift goes home; the bank is quiet; the night team walks in from 22:00 (5-minute beats) |
+| 17:00-23:00 | After hours | The branch's counters close and their staff finish what is waiting, then go home; the gateways, 3DS, fraud engine, ledger and ATMs keep working the round-the-clock traffic; the night team walks in 22:15-22:35 (5-minute beats) |
 | 23:00-24:00 | Night cycle | Batch clearing, Visa settlement, 3-way reconciliation, suspense |
 
 **The time bar is a scrubber.** Click anywhere on the 07:00-24:00 bar, or drag its thumb, to put the bank at that time: the
-clock, the queues, the KPIs and the ledger jump there at once. Forward runs the day on; backward replays today from 07:00 with the
+clock, the queues, the KPIs and the ledger jump there at once. In the 3D office the staff jump with it: at 08:40 or 22:45 those
+on their way in are exactly as far along their walk as the clock says (`walkedFor`, engine/simulation/staff.ts). Forward runs the day on; backward replays today from 07:00 with the
 same customers up to the time chosen. With the bar focused, the arrow keys move a quarter of an hour, Page Up and Page Down an
 hour, Home and End to the ends of the day.
 
@@ -559,7 +572,7 @@ src/
 
 ## Tests
 
-`npm test` runs 91 files with 1759 tests. The table below lists the original suites; the 3D office, the engine and its
+`npm test` runs 92 files with 1774 tests. The table below lists the original suites; the 3D office, the engine and its
 patterns have their own under `src/components/bank/office/__tests__` (`engine`, `people`, `patterns`, `street3d`, ...).
 
 | Area | Files (tests) | Covers |
@@ -587,6 +600,8 @@ Until a table has a `vi` entry, `pick()` falls back to English, so the app never
   are readable in the developer tools. Move them server-side before real learners use this.
 * Instant transfers and ATM cash do not go through the Visa night cycle (they settle on their own rails), so the night
   reconciliation only ever sees card payments.
+* The round-the-clock channels bring no card payments between 23:00 and midnight: the night batch takes the day's approvals at
+  23:00 and there is no next-day batch to roll a late approval into, so only transfers and ATM cash come in that hour.
 * The 3D office draws about 65,000 triangles. A laptop with integrated graphics is fine; software WebGL (a VM with no GPU) is
   slow, and the pixel ratio is capped at 1.5 to protect weak GPUs.
 * Money is shown in `$` (AUD in the data). The brief used đ; changing the symbol is `engine/money.ts` and the copy tables.

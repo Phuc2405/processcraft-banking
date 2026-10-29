@@ -130,6 +130,48 @@ function Barrier({ lot }: { lot: ParkingLot }) {
   );
 }
 
+/** The vehicles on the lane behind the block: coming up to the lot, waiting their turn at the gate, and driving off (ParkingLot.lanePoses). */
+function LaneTraffic({ lot }: { lot: ParkingLot }) {
+  const [cars, setCars] = useState<Array<{ id: string; kind: LotKind; color: string }>>([]);
+  const groups = useRef(new Map<string, Group>());
+  const key = useRef('');
+  const outfit = useWeather((st) => outfitOf(st.weather));
+  useFrame(() => {
+    const poses = lot.lanePoses();
+    const k = poses.map((p) => p.id).join(',');
+    if (k !== key.current) {
+      key.current = k;
+      setCars(poses.map((p) => ({ id: p.id, kind: p.kind, color: p.color })));
+    }
+    for (const p of poses) {
+      const g = groups.current.get(p.id);
+      if (!g) continue;
+      g.position.set(p.x, GROUND_Y, p.z);
+      g.rotation.y = p.yaw;
+      g.visible = true;
+    }
+  });
+  return (
+    <>
+      {cars.map((c) => (
+        <group
+          key={c.id}
+          name={`parking-lane-${c.id}`}
+          visible={false}
+          ref={(g) => {
+            if (g) groups.current.set(c.id, g);
+            else groups.current.delete(c.id);
+          }}
+        >
+          <mesh geometry={bodyOf(c.kind, c.color).body} material={solid} castShadow />
+          <mesh geometry={bodyOf(c.kind, c.color).lights} material={glow} />
+          {c.kind === 'moto' && <Rider x={0.05} index={c.id.length * 3} rain={outfit === 'rain'} wide={false} />}
+        </group>
+      ))}
+    </>
+  );
+}
+
 /** The car park, stepped on the motion clock (frozen while the bank is paused). */
 export const Parking3D = memo(function Parking3D() {
   const lot = useWorld().lot;
@@ -190,6 +232,7 @@ export const Parking3D = memo(function Parking3D() {
           {mover.kind === 'moto' && <Rider x={0.05} index={mover.id.length * 3} rain={outfit === 'rain'} wide={false} />}
         </group>
       )}
+      <LaneTraffic lot={lot} />
       {[0, 1, 2, 3].map((i) => (
         <group
           key={i}

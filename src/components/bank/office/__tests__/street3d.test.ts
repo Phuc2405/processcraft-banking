@@ -12,7 +12,7 @@ import { homeLane, LANE_W, LANE_Z, LENGTH, MIN_GAP, OVERTAKE, riderAt, ROAD, SPA
 import { OVERHANG, overhangSpot, PAVEMENT, PEDESTRIANS } from '../../../../engine/world/weather';
 import { ATM_STATIONS } from '../../../../engine/plan/layout3d';
 
-const src = import.meta.glob(['../Environment3D.tsx', '../Office3D.tsx', '../Vehicles3D.tsx', '../Parking3D.tsx', '../GuardCabin3D.tsx', '../Desk3D.tsx', '../Avatars.tsx', '../Traffic.tsx', '../OfficeScene.tsx'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+const src = import.meta.glob(['../Environment3D.tsx', '../../DayIntroBanner.tsx', '../Office3D.tsx', '../Vehicles3D.tsx', '../Parking3D.tsx', '../GuardCabin3D.tsx', '../Desk3D.tsx', '../Avatars.tsx', '../Traffic.tsx', '../OfficeScene.tsx'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 
 /** Runs the street for `seconds` at 60 frames a second, calling `each` after every frame. */
 const people = (import.meta.glob('../../../../engine/simulation/people.ts', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)['../../../../engine/simulation/people.ts']!;
@@ -533,10 +533,22 @@ describe('a desk’s description keeps clear of its own badges', () => {
 });
 
 describe('the 3D toolbar', () => {
-  it('keeps Reset view, Labels, the time and the weather in one row in the top-left corner, whatever panel is open', () => {
+  it('keeps Reset view and Labels in one row in the top-left corner, whatever panel is open', () => {
     const office = src['../Office3D.tsx']!;
     expect(office).toContain("export const TOOLBAR_CLASS = 'absolute left-4 top-3 z-40 flex flex-row flex-nowrap items-center gap-1.5';");
     expect(office).not.toContain("top-[108px]");
-    expect(office).toContain('<WeatherControls compact={splitOpen} />');
+  });
+
+  it('puts the time and the weather in their own bar under the viewport dock, over the banners and cards of the map but under the modals', () => {
+    const office = src['../Office3D.tsx']!;
+    expect(office).toContain('<WeatherBar compact={splitOpen} />');
+    expect(office).toContain('const top = useDockInset() + WEATHER_BAR_GAP;');
+    expect(office).toContain('const left = useMapCentre();');
+    // Above the day banner, the walkthrough cards and the inspector (z-40); under every modal (z-50 and up).
+    expect(office).toContain("WEATHER_BAR_CLASS = 'pointer-events-auto absolute z-[45]");
+    // The day's banner starts under it in 3D.
+    const banner = src['../../DayIntroBanner.tsx']!;
+    expect(banner).toContain('const belowDock = useBelowDock();');
+    expect(banner).not.toContain('top-28');
   });
 });

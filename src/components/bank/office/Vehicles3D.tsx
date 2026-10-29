@@ -1,4 +1,5 @@
 import { useFrame } from '@react-three/fiber';
+import { t } from '../../../i18n/t';
 import { useWorld } from './WorldProvider';
 import { memo, useMemo, useRef, useState } from 'react';
 import type { Group } from 'three';
@@ -261,7 +262,7 @@ export function CitMarker() {
     <group ref={g} position={[0, 2.55, 0]} name="cit-marker">
       <Html center zIndexRange={[11, 0]} style={{ pointerEvents: 'none' }}>
         <div data-testid="cit-marker" className="flex flex-col items-center leading-none" style={{ filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.45))' }}>
-          <span className="rounded bg-yellow-400 px-1 text-[9px] font-black tracking-wide text-slate-900">CIT</span>
+          <span className="whitespace-nowrap rounded bg-yellow-400 px-1 text-[9px] font-black tracking-wide text-slate-900">{t('Cash Transporter (CIT)')}</span>
           <span className="text-[22px] text-yellow-400">▼</span>
         </div>
       </Html>

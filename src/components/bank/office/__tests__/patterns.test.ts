@@ -101,8 +101,8 @@ describe('staff on their shift’s schedule (Strategy) and made by the factory',
   it('keeps someone away until they set off, then as the roster has them (the night’s sitting ready until 23:00)', () => {
     const clerk = new StaffEntity('n1', 'RECON', 0, NIGHT_SHIFT_SCHEDULE);
     expect(clerk.presence(21 * 60)).toBe('roster');
-    expect(clerk.presence(22 * 60)).toBe(clerk.setOff > 22 * 60 ? 'away' : 'ready');
-    expect(clerk.presence(22.5 * 60)).toBe('ready');
+    expect(clerk.presence(22.3 * 60)).toBe(clerk.setOff > 22.3 * 60 ? 'away' : 'ready');
+    expect(clerk.presence(22.7 * 60)).toBe('ready');
     expect(clerk.presence(23 * 60)).toBe('roster');
     const teller = new StaffEntity('d1', 'TELLER_CASH', 0, MORNING_SHIFT_SCHEDULE);
     expect(teller.presence(teller.setOff - 0.5)).toBe('away');

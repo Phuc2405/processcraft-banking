@@ -25,6 +25,8 @@ export interface Journey {
   stopAt: number;
   /** How long they stay at it, the last `turn` of it turning round. */
   wait: number;
+  /** Whether they do their business there (keying in at the machine, talking at the counter), rather than just finishing up after being served from the line; by default, when they walk up to it. */
+  business?: boolean;
   turn: number;
   pace: number;
 }
@@ -76,7 +78,7 @@ const Interacting: JourneyState = {
   name: 'interacting',
   until: (j) => walkUpS(j) + j.wait - j.turn,
   // Keying in or talking only when they came up to do their business here; one just served is finishing up.
-  pose: (j) => ({ state: 'interacting', at: atCounter(j), yaw: Math.PI, walking: false, busy: j.stopAt > 0 }),
+  pose: (j) => ({ state: 'interacting', at: atCounter(j), yaw: Math.PI, walking: false, busy: j.business ?? j.stopAt > 0 }),
   next: Turning,
 };
 

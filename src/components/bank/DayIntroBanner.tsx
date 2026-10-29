@@ -4,6 +4,7 @@ import { useMessages } from '../../utils/i18nHelper';
 import { DAY_INTRO_FADE_MS, DAY_INTRO_MS, dayIntroCopy, introDue } from './dayIntro';
 import { dayIntroMessages } from './dayIntro.messages';
 import { useTerms } from './useTerms';
+import { useBelowDock } from './ViewportControls';
 
 /** The start-of-day banner: "Day 03 – An ordinary day", what is going on today, and what to watch. */
 export function DayIntroBanner() {
@@ -13,6 +14,8 @@ export function DayIntroBanner() {
   const event = useBankStore((s) => s.view.event);
   const reportOpen = useBankStore((s) => s.reportOpen);
   const viewMode = useBankStore((s) => s.viewMode);
+  // In 3D, under the weather bar, so it never covers it.
+  const belowDock = useBelowDock();
   const [shownFor, setShownFor] = useState<number | null>(null);
   const [open, setOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -41,7 +44,7 @@ export function DayIntroBanner() {
     setTimeout(() => setOpen(false), DAY_INTRO_FADE_MS);
   };
   return (
-    <div className={`pointer-events-none absolute inset-x-0 ${viewMode === '3d' ? 'top-28' : 'top-20'} z-40 flex justify-center px-4`}>
+    <div className={`pointer-events-none absolute inset-x-0 ${viewMode === '3d' ? '' : 'top-20'} z-40 flex justify-center px-4`} style={viewMode === '3d' ? { top: belowDock } : undefined}>
       <section
         role="status"
         aria-live="polite"

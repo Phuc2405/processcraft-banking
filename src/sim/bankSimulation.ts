@@ -364,14 +364,13 @@ export class BankSimulation {
     this.announce(phase, start);
 
     if (this.chaosConfig.fatigueSpike) this.spikeFatigue();
-    if (phase === 'WORKING') {
-      const arriving = [...(this.traffic.beats[workingBeatIndex(start)] ?? []), ...this.chaosArrivals(start)];
-      if (options.admit === false) this.heldBack.push(...arriving);
-      else {
-        // Customers held back during a solo run walk in now, as if they had just arrived.
-        const late = this.heldBack.splice(0).map((c) => ({ ...c, minute: start }));
-        for (const customer of [...late, ...arriving]) this.admit(customer);
-      }
+    // In working hours the day's customers come; while the branch is shut only the round-the-clock channels do (card terminals and online checkouts, transfers, the ATM).
+    const arriving = phase === 'WORKING' ? [...(this.traffic.beats[workingBeatIndex(start)] ?? []), ...this.chaosArrivals(start)] : this.traffic.offHours.filter((c) => c.minute >= start && c.minute < start + bm);
+    if (options.admit === false) this.heldBack.push(...arriving);
+    else if (phase === 'WORKING' || arriving.length > 0) {
+      // Customers held back during a solo run walk in now, as if they had just arrived.
+      const late = this.heldBack.splice(0).map((c) => ({ ...c, minute: start }));
+      for (const customer of [...late, ...arriving]) this.admit(customer);
     }
     this.releasePhones(start, bm);
     if (phase === 'EOD' && !this.nightStarted) this.startNight(start);
@@ -1653,7 +1652,7 @@ export class BankSimulation {
     if (phase === 'WORKING') this.log('info', null, `${formatClock(start)} The doors open. Customers are arriving.`, { notable: true });
     else if (phase === 'AFTER_HOURS') {
       const waiting = this.inFlight();
-      this.log('info', null, `${formatClock(start)} No new customers. ${waiting > 0 ? `${waiting} payments are still being worked.` : 'Every queue is clear.'}`, { notable: true });
+      this.log('info', null, `${formatClock(start)} The branch closes. The ATMs, card gateways and online transfers run on through the night. ${waiting > 0 ? `${waiting} payments are still being worked.` : 'Every queue is clear.'}`, { notable: true });
     }
   }
 
@@ -1874,7 +1873,8 @@ export class BankSimulation {
 
   private workerView(st: StationState, w: WorkerState, phase: Phase): WorkerView {
     const recent = w.activity !== null && this.tick - w.activityTick <= 1;
-    const lateEvening = phase === 'EOD' || (phase === 'AFTER_HOURS' && this.minute >= 18 * 60);
+    // The branch closes at 17:00: its people finish what is still waiting at their desk, then go home.
+    const lateEvening = phase === 'EOD' || phase === 'AFTER_HOURS';
     let activity: string;
     let working = false;
     if (recent && w.activity) {
@@ -1887,7 +1887,7 @@ export class BankSimulation {
     } else if (st.id === 'SUSPENSE' && phase !== 'WORKING') {
       activity = st.queue.length > 0 ? `Desk closed. ${st.queue.length} items wait for tomorrow` : 'Desk closed until 09:00';
     } else if (isCustomerStation(st.id) && lateEvening && st.queue.length === 0) {
-      activity = 'Off shift until 08:00';
+      activity = 'Off shift until 08:30';
     } else if (phase === 'PRE_OPEN') {
       activity = 'Morning briefing and systems check';
     } else {

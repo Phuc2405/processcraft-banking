@@ -170,23 +170,25 @@ describe('waiting and talking people stand still; walkers curve smoothly round t
 });
 
 describe('staff walk in before their shift', () => {
-  it('sets the day staff off between 07:00 and 07:20 and the night staff between 22:00 and 22:20', () => {
+  it('sets the day staff off between 08:15 and 08:35 and the night staff between 22:15 and 22:35', () => {
     for (let k = 0; k < 6; k++) {
       const day = arrivalMinute(false, `w${k}`, k);
       const night = arrivalMinute(true, `n${k}`, k);
       expect(day).toBeGreaterThanOrEqual(STAFF_ARRIVAL.day[0]);
       expect(day).toBeLessThan(STAFF_ARRIVAL.day[1]);
-      expect(night).toBeGreaterThanOrEqual(22 * 60);
-      expect(night).toBeLessThan(22 * 60 + 20);
-      expect(day).toBeLessThan(7 * 60 + 20);
+      expect(STAFF_ARRIVAL.day[0]).toBe(8 * 60 + 15);
+      expect(night).toBeGreaterThanOrEqual(22 * 60 + 15);
+      expect(night).toBeLessThan(22 * 60 + 35);
+      expect(day).toBeLessThan(8 * 60 + 35);
     }
   });
 
   it('keeps a seat empty until its person is due, and seats the night staff ready before 23:00', () => {
     const ids = ['a', 'b', 'c'];
-    const at7 = arrivalState(false, ids, 7 * 60);
-    expect(at7.away.length).toBeGreaterThan(0);
-    expect(arrivalState(false, ids, 7.4 * 60).away).toEqual([]);
+    // From the start of the day until they set off, the day's seats stand empty.
+    expect(arrivalState(false, ids, 7 * 60).away).toEqual(ids);
+    expect(arrivalState(false, ids, 8.3 * 60).away.length).toBeGreaterThan(0);
+    expect(arrivalState(false, ids, 8.6 * 60).away).toEqual([]);
     expect(arrivalState(true, ids, 21.9 * 60)).toEqual({ away: [], early: [] });
     expect(arrivalState(true, ids, 22.6 * 60).early).toEqual(ids);
     expect(arrivalState(true, ids, 23 * 60).early).toEqual([]);

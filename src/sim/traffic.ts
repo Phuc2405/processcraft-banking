@@ -2,7 +2,7 @@
 
 import type { A2aContext, BankingPayload, CardType, FundingSource, Id, MinorUnits } from '../types/processLearning';
 import { clamp, hashSeed, Rng } from './prng';
-import { WORK_END, WORK_START, beatMinutes } from './clock';
+import { DAY_END, DAY_START, EOD_START, WORK_END, WORK_START, beatMinutes } from './clock';
 import { scenariosFor } from './scenarios';
 import type { AtmSession, CheckoutKind, Customer, DayEvent, DayEventId, ExtendedContext, ExtendedKind, SettlementTruth } from './types';
 import { audToVnd, buildVietQr } from './amlEngine';
@@ -109,6 +109,41 @@ const FRAUD_RATE: Record<CheckoutKind, number> = { POS: 0.001, ECOM: 0.04, VIRTU
 
 export const WORKING_BEATS = (WORK_END - WORK_START) / beatMinutes('WORKING');
 
+/** The channels that never close, run on the bank's servers with nobody at a desk: card payments at the shops' terminals and online, instant transfers and the sidewalk ATM. */
+export const ALWAYS_ON_KINDS = ['POS', 'ECOM', 'VIRTUAL', 'A2A', 'ATM'] as const satisfies readonly CheckoutKind[];
+export type AlwaysOnKind = (typeof ALWAYS_ON_KINDS)[number];
+/** Customers an hour on them while the branch is shut (07:00-09:00 and from 17:00), on an ordinary day: a quiet trickle. */
+export const OFF_HOURS_RATE: Readonly<Record<AlwaysOnKind, number>> = { POS: 3, ECOM: 3, VIRTUAL: 1, A2A: 1.5, ATM: 3 };
+/** Card payments stop at the night's cut-off (the batch takes the day's approvals at 23:00); transfers and ATM cash settle on their own rails and keep coming until midnight. */
+const CARD_CUTOFF = EOD_START;
+/** Their ids: a block of their own, clear of the card channels, Phase 8, A2A (5001) and ATM (7001). */
+const OFF_HOURS_SERIAL = 6000;
+
+/** The hours the branch is shut, as [from, to) minutes. */
+export const OFF_HOURS: ReadonlyArray<readonly [number, number]> = [
+  [DAY_START, WORK_START],
+  [WORK_END, DAY_END],
+];
+
+/** The round-the-clock customers of a day, in the order they come: from their own random stream, so the working day's traffic is exactly as it was. */
+function offHoursTraffic(seed: number, day: number, event: DayEvent): Customer[] {
+  const rng = new Rng(hashSeed(seed, 'arrivals-off-hours', day));
+  const out: Customer[] = [];
+  let serial = OFF_HOURS_SERIAL;
+  for (const [from, to] of OFF_HOURS)
+    for (let hour = from; hour < to; hour += 60)
+      for (const kind of ALWAYS_ON_KINDS) {
+        const card = kind !== 'A2A' && kind !== 'ATM';
+        if (card && hour >= CARD_CUTOFF) continue;
+        const n = rng.poisson(OFF_HOURS_RATE[kind] * event.volume * (event.mix[kind] ?? 1));
+        for (let i = 0; i < n; i++) {
+          const minute = hour + Math.floor(rng.next() * 60);
+          out.push(makeCustomer(seed, day, `d${day}-${++serial}`, kind, minute, event));
+        }
+      }
+  return out.sort((a, b) => a.minute - b.minute || a.id.localeCompare(b.id));
+}
+
 /** How busy the high street is, 1 on average: a morning ramp, a lunch peak and an after-work bump. */
 function shape(minute: number): number {
   const hour = minute / 60;
@@ -132,6 +167,8 @@ export interface DayTraffic {
   customers: Customer[];
   /** Customers grouped by the working beat they arrive in. */
   beats: Customer[][];
+  /** Customers of the round-the-clock channels while the branch is shut, in the order they come (not in `customers`, which is the working day's). */
+  offHours: Customer[];
 }
 
 const EPOCH_2026 = Date.UTC(2026, 0, 5, 0, 0, 0);
@@ -195,7 +232,7 @@ export function generateDay(seed: number, day: number): DayTraffic {
       }
     }
   }
-  return { day, event, customers, beats };
+  return { day, event, customers, beats, offHours: offHoursTraffic(seed, day, event) };
 }
 
 // One customer

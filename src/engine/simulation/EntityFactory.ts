@@ -19,9 +19,9 @@ export class EntityFactory {
     return new TrafficSim(this.fleet);
   }
 
-  /** The car park, its barrier, its bays and the cash-in-transit van's run. */
-  carPark(): ParkingLot {
-    return new ParkingLot();
+  /** The car park, its barrier, its bays and the cash-in-transit van's run; `fill` is how full it starts (a third, by default). */
+  carPark(fill?: number): ParkingLot {
+    return new ParkingLot(fill);
   }
 
   /** The park's people, with those wanted there at `minute` already in their places. */

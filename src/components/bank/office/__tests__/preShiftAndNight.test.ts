@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { beatMinutesAt, beatMs, DAY_START, EOD_START, isPreShift } from '../../../../sim/clock';
+import { beatMinutesAt, beatMs, DAY_START, EOD_START, isPreShift, WORK_START } from '../../../../sim/clock';
 import { STATION_IDS, STATIONS } from '../../../../sim/topology';
 import { isAutomatedNode } from '../../../../sim/nodeKind';
 import { isNightStation } from '../../../../sim/roster';
@@ -17,14 +17,15 @@ import { BUS_STOP, OVERHANG, PAVEMENT, underCover } from '../../../../engine/wor
 const read = (rel: string): string => readFileSync(join(__dirname, rel), 'utf8');
 
 describe('the hours before a shift tick by, never jumping', () => {
-  it('starts the day at 07:00 and runs 07:00-08:00 and 22:00-23:00 in short beats', () => {
+  it('starts the day at 07:00 and runs 08:00-09:00 and 22:00-23:00, the hours the staff walk in, in short beats', () => {
     expect(DAY_START).toBe(7 * 60);
-    for (let m = 7 * 60; m < 8 * 60; m += 5) expect(beatMinutesAt(m)).toBe(5);
+    for (let m = 8 * 60; m < WORK_START; m += 5) expect(beatMinutesAt(m)).toBe(5);
     for (let m = 22 * 60; m < EOD_START; m += 5) expect(beatMinutesAt(m)).toBe(5);
-    expect(isPreShift(8 * 60)).toBe(false);
+    expect(isPreShift(7 * 60)).toBe(false);
+    expect(isPreShift(WORK_START)).toBe(false);
     expect(isPreShift(21 * 60)).toBe(false);
     // Slower to watch than an ordinary quiet-hour beat.
-    expect(beatMs('PRE_OPEN', 1, 7 * 60)).toBeGreaterThan(beatMs('PRE_OPEN', 1, 8 * 60));
+    expect(beatMs('PRE_OPEN', 1, 8 * 60)).toBeGreaterThan(beatMs('PRE_OPEN', 1, 7 * 60));
   });
 
   it('gets every member of staff walking in seated before their shift starts, at the real pace the clock runs', () => {
@@ -34,7 +35,7 @@ describe('the hours before a shift tick by, never jumping', () => {
       if (isAutomatedNode(id) || STATIONS[id].kind === 'ATM') continue;
       const night = isNightStation(id);
       const [from] = night ? STAFF_ARRIVAL.night : STAFF_ARRIVAL.day;
-      const start = night ? EOD_START : DAY_START + 60;
+      const start = night ? EOD_START : WORK_START;
       const seats = seatOffsets(STATIONS[id].staff);
       seats.forEach((seat, k) => {
         const due = arrivalMinute(night, `${id}-${k}`, k);
@@ -71,7 +72,7 @@ describe('customers are handed from their walk to the line, never shown twice or
     expect(people).toContain('this.handoff.arrive(w.desk, w.path[w.path.length - 1]!, now, w.who);');
     expect(people).toContain("const standing = this.style === 'people' ? Math.max(0, this.shown - this.handoff.pending(this.id)) : this.shown;");
     // Someone who arrives after their turn came walks up, does their business, and leaves.
-    expect(people).toContain('wait: this.atm ? SERVED.business.atm : SERVED.business.counter, stopAt }');
+    expect(people).toContain('wait: this.atm ? SERVED.business.atm : SERVED.business.counter, stopAt, business: true }');
   });
 });
 

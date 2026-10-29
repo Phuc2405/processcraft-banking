@@ -38,7 +38,8 @@ describe('the people of the desks live in the engine', () => {
         // Never more figures than places drawn, and every one shown stands where the engine put it.
         expect(line.figures.filter((f) => f.visible).length).toBeLessThanOrEqual(Math.min(line.shown, QUEUE_VISIBLE));
         served = Math.max(served, line.served.length);
-        if (line.served.some((s) => s.stopAt > 0)) lateServed++;
+        // Someone who walks up to the counter or machine does their business there (keying in, talking).
+        if (line.served.some((s) => s.business)) lateServed++;
         // Everyone being served has a pose the view can draw.
         for (const s of line.served) if (motion.t >= s.start) expect(line.servedPoses.has(s.key)).toBe(true);
       }
@@ -52,8 +53,8 @@ describe('the people of the desks live in the engine', () => {
   it('walks the day’s staff in before their shift, keeping their seats empty until they sit', () => {
     let walkingIn = 0;
     let away = 0;
-    // At the app's own pace: a beat before a shift is on screen 2.4 s at 1x (sim/clock.ts), 72 frames at 30 a second.
-    const { world } = playing(12, (w) => {
+    // At the app's own pace: a beat before a shift is on screen 2.4 s at 1x (sim/clock.ts), 72 frames at 30 a second: 07:00-08:00 in one beat, then 08:00-09:00 in twelve.
+    const { world } = playing(13, (w) => {
       for (const id of STATION_IDS) {
         const staff = w.staff(id);
         walkingIn += staff.walks.filter((x) => x.arriving).length;
@@ -64,7 +65,7 @@ describe('the people of the desks live in the engine', () => {
     }, 72);
     expect(away).toBeGreaterThan(0);
     expect(walkingIn).toBeGreaterThan(0);
-    // By 08:00 everyone is in and seated.
+    // By 09:00, when the doors open, everyone is in and seated.
     for (const id of STATION_IDS) {
       expect(world.staff(id).away.size, id).toBe(0);
       expect(world.staff(id).walks.filter((x) => x.arriving).length, id).toBe(0);

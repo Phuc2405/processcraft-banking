@@ -106,6 +106,8 @@ export function buildSearchIndex(mode: TermMode, locale: Locale = activeLocale()
     });
   }
 
+  out.push(citEntry(locale));
+
   for (const raw of ACADEMY_LEVELS) {
     const level = localLevel(raw, locale);
     out.push({
@@ -145,6 +147,23 @@ export function buildSearchIndex(mode: TermMode, locale: Locale = activeLocale()
 }
 
 const LOCALES_BOTH: readonly Locale[] = ['en', 'vi'];
+
+/** The armoured cash van of the 3D office, in both languages. */
+export const CIT_NAME: Readonly<Record<Locale, string>> = { en: 'Cash Transporter (CIT)', vi: 'Xe chở tiền (CIT)' };
+const CIT_DETAIL: Readonly<Record<Locale, string>> = { en: 'Cash-in-Transit van: brings cash to the vault and the teller', vi: 'Xe vận chuyển tiền (Cash-in-Transit): đưa tiền về kho quỹ và quầy thu ngân' };
+
+/** The cash van (it is not a desk): found by CIT, cash-in-transit or its Vietnamese name, it shows the teller's cash desk it delivers to. */
+export function citEntry(locale: Locale): SearchEntry {
+  const words = ['CIT', 'Cash-in-Transit', 'cash in transit', 'cash transporter', 'armoured van', 'armored truck', 'cash van', 'xe chở tiền', 'xe vận chuyển tiền', 'vận chuyển tiền'];
+  return {
+    id: 'station:CIT_VAN',
+    category: 'station',
+    label: pick(CIT_NAME, locale),
+    detail: pick(CIT_DETAIL, locale),
+    keys: fold([...words, ...LOCALES_BOTH.map((l) => pick(CIT_NAME, l)), ...LOCALES_BOTH.map((l) => pick(CIT_DETAIL, l))].join(' | ')),
+    action: { kind: 'place', place: 'TELLER_CASH' },
+  };
+}
 
 /**
  * The Knowledge Base in the search: the core ledger article's sections, every account the workspace ledger posts to (by GL

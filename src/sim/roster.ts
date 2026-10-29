@@ -87,7 +87,7 @@ export const ROLE: Record<StationId, string> = {
 /** A machine's name where a person's would be. */
 const MACHINE_NAME: Partial<Record<StationId, string>> = { GATE_ATM: 'Card & PIN bay', ATM_CASH: 'Cash bay' };
 
-export const DAY_SHIFT = '08:00 – 18:00';
+export const DAY_SHIFT = '08:30 – 17:00';
 export const NIGHT_SHIFT = '22:30 – 02:00';
 
 export const isNightStation = (station: StationId): boolean => station === 'EOD_BATCH' || station === 'EOD_VISA' || station === 'RECON';

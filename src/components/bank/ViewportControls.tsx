@@ -123,3 +123,14 @@ export function useDockInset(): number {
   const beginnerBar = useBankStore((s) => s.scope === 'beginner' && s.spotlight === null);
   return beginnerBar ? 100 : 60;
 }
+
+/** The 3D office's weather bar, just under the dock: the gap above it and its height. */
+export const WEATHER_BAR_GAP = 6;
+export const WEATHER_BAR_H = 34;
+
+/** Where the first thing under the dock may start: under the weather bar in 3D, straight under the dock in 2D. */
+export function useBelowDock(): number {
+  const inset = useDockInset();
+  const office = useBankStore((s) => s.viewMode === '3d');
+  return office ? inset + WEATHER_BAR_GAP + WEATHER_BAR_H + 8 : inset;
+}

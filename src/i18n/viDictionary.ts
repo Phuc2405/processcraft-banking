@@ -62,6 +62,7 @@ export const VI_DICTIONARY: Readonly<Record<string, string>> = {
   "Cards resolved": "Thẻ đã tra cứu",
   "Case file desk": "Quầy hồ sơ vụ việc",
   "Cash bay": "Khoang tiền mặt",
+  "Cash Transporter (CIT)": "Xe chở tiền (CIT)",
   "Cash paid out": "Tiền đã chi",
   "Challenge": "Thử thách",
   "Challenge brief": "Đề bài thử thách",

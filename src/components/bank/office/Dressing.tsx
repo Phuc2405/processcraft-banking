@@ -34,6 +34,7 @@ import {
 } from '../../../engine/plan/layout3d';
 import { blobMaterial, glow, pane, satin, solid } from './materials';
 import { KIOSK_HEX, SET } from './palette';
+import { lodShows, useLabelLod } from './labelLod';
 
 const HX = FLOOR_SLAB.w / 2;
 const HZ = FLOOR_SLAB.d / 2;
@@ -476,7 +477,9 @@ const Kiosk = memo(function Kiosk({ id }: { id: ExternalId }) {
   const always = useBankStore((s) => s.labelMode === 'always');
   const hovered = useBankStore((s) => s.hoverPlace === id);
   const lit = useTourLit(id);
-  const labelled = hovered || (lit === null ? always : lit);
+  // A tally's badge is a dense sub-label: zoomed right out it shows only when pointed at or lit by a tour.
+  const tally = lodShows(useLabelLod()).tally;
+  const labelled = hovered || (lit === null ? always && tally : lit);
   const setHoverPlace = useBankStore((s) => s.setHoverPlace);
   // A pile that grows with the tally, slowly: one block for a handful, up to nine.
   const blocks = Math.min(9, Math.ceil(Math.sqrt(count)));
@@ -495,7 +498,7 @@ const Kiosk = memo(function Kiosk({ id }: { id: ExternalId }) {
       </mesh>
       {labelled && (
         <Html position={[0, id === 'CUSTOMER_OTP' ? 1.8 : 1.7, 0]} center zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
-          <div className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-white bg-white/95 py-[2px] pl-1.5 pr-[2px] text-[10px] font-semibold text-slate-700 shadow-[0_2px_6px_rgba(60,40,20,0.28)]" data-testid={`office-kiosk-${id}`}>
+          <div className="pc-lod-in flex items-center gap-1.5 whitespace-nowrap rounded-full border border-white bg-white/95 py-[2px] pl-1.5 pr-[2px] text-[10px] font-semibold text-slate-700 shadow-[0_2px_6px_rgba(60,40,20,0.28)]" data-testid={`office-kiosk-${id}`}>
             <span className="h-1.5 w-1.5 rounded-full" style={{ background: hex }} />
             <span>{terms.external(id)}</span>
             <span className="min-w-[16px] rounded-full bg-slate-200 px-1 text-center tabular-nums text-slate-600">{count.toLocaleString()}</span>
