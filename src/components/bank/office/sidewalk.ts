@@ -5,28 +5,35 @@ import { ATM_STATIONS, atmBooth, KERB_Z } from './layout3d';
  * in their two lanes, customers on their way to and from the ATMs, people off the buses and taxis), and those lines cross
  * and run into each other. So each of them, every frame, is steered a little: anyone within arm's reach pushes them aside,
  * across the pavement (never along it, so nobody is slowed down or sped up), and they ease back onto their own line once
- * the way is clear. Two people meeting head on step to either side and pass; someone faster coming up behind steps out
- * and goes by. The steering is bounded by the pavement: never into the ATM booths' glass or off the kerb.
+ * the way is clear, always a smooth sidestep at a walking pace, never a snap. Two people meeting head on each pick a side
+ * and keep to it until they have passed; someone faster coming up behind steps out and goes by. The steering is bounded by
+ * the pavement: never into the ATM booths' glass or off the kerb.
  *
  * Driven by the motion clock's step, so it freezes on pause and keeps pace with the speed multiplier.
  */
 
 /** The strip of pavement where people steer round each other: from just in front of the ATM booths to just short of the
  * kerb. `reach` is how close two people may come side by side (a body's width and a little room); `look`, how far ahead
- * along the pavement they start to make room; `ease` and `back`, how fast they step aside and back. */
+ * along the pavement they start to make room; `ease` and `back`, how fast they step aside and back; `stride`, the most
+ * they move sideways in a second, so a step aside is always a smooth sidestep, never a snap. */
 export const SIDEWALK = {
   z0: Math.max(...ATM_STATIONS.map((id) => atmBooth(id).front)) + 0.12,
   z1: KERB_Z - 0.18,
   reach: 0.55,
-  look: 1.6,
-  ease: 7,
-  back: 1.4,
+  look: 2.0,
+  ease: 5,
+  back: 1.2,
+  stride: 1.1,
 } as const;
 
 interface Agent {
   x: number;
   z: number;
   off: number;
+  /** How fast they are moving sideways now (eased, so a sidestep starts and ends gently). */
+  v: number;
+  /** Which side of each person near them they have chosen to pass on: kept until they are past, so nobody dithers. */
+  sides: Map<string, 1 | -1>;
 }
 
 /** The people on the pavement, and how far each is stepping aside from their own line. */
@@ -44,7 +51,7 @@ export class SidewalkCrowd {
     }
     let a = this.agents.get(id);
     if (!a) {
-      a = { x, z, off: 0 };
+      a = { x, z, off: 0, v: 0, sides: new Map() };
       this.agents.set(id, a);
     }
     const here = z + a.off;
@@ -53,19 +60,33 @@ export class SidewalkCrowd {
       if (other === id) continue;
       const dx = Math.abs(x - o.x);
       const dz = here - o.z;
-      if (dx >= SIDEWALK.look || Math.abs(dz) >= SIDEWALK.reach) continue;
-      // Away from them across the pavement, more the closer they come; dead in line, the two pick opposite sides (always
-      // the same way round).
-      const side = Math.abs(dz) > 1e-3 ? Math.sign(dz) : id < other ? -1 : 1;
-      push += side * (SIDEWALK.reach - Math.abs(dz)) * (1 - dx / SIDEWALK.look);
+      if (dx >= SIDEWALK.look || Math.abs(dz) >= SIDEWALK.reach * 1.6) {
+        a.sides.delete(other);
+        continue;
+      }
+      // The side to pass them on is chosen once, when they first come near: away from them across the pavement, or, dead
+      // in line, opposite sides for the two (always the same way round). It is kept until they are past.
+      let side = a.sides.get(other);
+      if (side === undefined) {
+        side = Math.abs(dz) > 1e-3 ? (Math.sign(dz) as 1 | -1) : id < other ? -1 : 1;
+        a.sides.set(other, side);
+      }
+      // The room still to make on that side, more the closer along the pavement they are.
+      const need = Math.max(0, SIDEWALK.reach - side * dz);
+      push += side * need * (1 - dx / SIDEWALK.look);
     }
     const lo = SIDEWALK.z0 - z;
     const hi = SIDEWALK.z1 - z;
-    // Someone at the edge of the strip who is pushed into it steps the other way instead.
-    if ((a.off + push > hi && push > 0) || (a.off + push < lo && push < 0)) push = -push;
+    // Someone at the edge of the strip who is pushed into it steps the other way instead (and passes on that side).
+    if ((a.off + push > hi && push > 0) || (a.off + push < lo && push < 0)) {
+      push = -push;
+      for (const [k, v] of a.sides) a.sides.set(k, v === 1 ? -1 : 1);
+    }
     const target = push !== 0 ? a.off + 1.6 * push : 0;
     const rate = push !== 0 ? SIDEWALK.ease : SIDEWALK.back;
-    a.off += (target - a.off) * Math.min(1, dt * rate);
+    const want = Math.max(-SIDEWALK.stride, Math.min(SIDEWALK.stride, (target - a.off) * rate));
+    a.v += (want - a.v) * Math.min(1, dt * 10);
+    a.off += a.v * dt;
     a.off = Math.min(hi, Math.max(lo, a.off));
     a.x = x;
     a.z = z + a.off;
@@ -75,6 +96,7 @@ export class SidewalkCrowd {
   /** Someone who has left the pavement (or the scene). */
   leave(id: string): void {
     this.agents.delete(id);
+    for (const a of this.agents.values()) a.sides.delete(id);
   }
 
   /** How many people are being steered now. */

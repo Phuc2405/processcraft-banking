@@ -2,23 +2,24 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { atmosphereAt, GROUND_FOG, WEATHER_MIX } from '../atmosphere';
-import { CIT_RUN, LOADING_BAY, LOADING_DOOR, LOADS, VAN_REAR, type CitPhase } from '../citRun';
+import { CARRY_PATH, CIT_RUN, LOADING_BAY, LOADING_DOOR, LOADS, VAN_REAR, type CitPhase } from '../citRun';
+import { pathLength } from '../tour3d';
 import { chatPhase, MIST_BANKS, MIST_CLIP, MIST_LAYERS } from '../Environment3D';
 import { evacuationRoute } from '../evacuation';
 import { FrontGuard, PARKING_CABIN, PARKING_PLAN } from '../guardCabin';
-import { arrivalPath, ATM_STATIONS, atmBooth, CAR_PARK_FOOTWAY_X, ENTRANCES, FLOOR_SLAB, KERB_Z, queueSlots, ROAD_END, vaultRoom, type V2 } from '../layout3d';
-import { AISLE, CIT_MOVER, LOT, LOT_SIDE, ParkingLot, SIZE, slotsOf } from '../parking';
+import { arrivalPath, ATM_STATIONS, atmBooth, CAR_PARK_FOOTWAY_X, CUSTOMER_DOOR, ENTRANCES, FLOOR_SLAB, KERB_Z, queueSlots, ROAD_END, WALK_IN_DESKS, type V2 } from '../layout3d';
+import { AISLE, CIT_CLEAR, CIT_MOVER, FOOTWAY, LOT, LOT_SIDE, ParkingLot, SIZE, slotsOf } from '../parking';
 import { ParkCrowd, PARK_MEMBERS, talkers } from '../parkLife';
 import { PARK } from '../parkPlan';
 import { SIDEWALK, SidewalkCrowd } from '../sidewalk';
-import { BUS_X, busBoxClear, DROP_ZONE, LENGTH, taxiAction, TrafficSim, VEHICLES } from '../vehicles';
+import { BUS_X, busBoxClear, DROP_ZONE, LENGTH, taxiAction, TrafficSim, VEHICLES, WIDTH } from '../vehicles';
 import { DAY_INTRO_FADE_MS } from '../../dayIntro';
 
 const read = (rel: string): string => readFileSync(join(__dirname, rel), 'utf8');
 const HX = FLOOR_SLAB.w / 2;
 const HZ = FLOOR_SLAB.d / 2;
 
-describe('the cash van’s run to the vault’s loading bay', () => {
+describe('the cash van’s run to the vault’s loading bay in the car park', () => {
   /** Runs the car park (which steps the van) for `seconds`, calling `each` after every step. */
   const run = (seconds: number, each: (lot: ParkingLot) => void): ParkingLot => {
     const lot = new ParkingLot();
@@ -29,21 +30,24 @@ describe('the cash van’s run to the vault’s loading bay', () => {
     return lot;
   };
 
-  it('has a painted bay against the back wall behind the vault, its loading door just behind the van’s rear doors', () => {
-    const vault = vaultRoom();
-    expect(LOADING_DOOR[0]).toBeGreaterThan(vault.x0);
-    expect(LOADING_DOOR[0]).toBeLessThan(vault.x1);
-    // Outside the back wall, clear of the lane behind the block, and nowhere near the car park.
-    expect(LOADING_BAY.z + LOADING_BAY.w / 2).toBeLessThan(-HZ);
-    expect(LOADING_BAY.z - LOADING_BAY.w / 2).toBeGreaterThan(-HZ - 1.75);
-    expect(LOADING_BAY.x + LOADING_BAY.len / 2).toBeLessThan(HX);
-    expect(LOADING_BAY.x - LOADING_BAY.len / 2).toBeGreaterThan(-HX);
+  it('has a painted bay in the car park against the left wall, in the camera’s view, clear of every car bay and walkway', () => {
+    // In the car park's inner row on the branch's left (the side the camera looks at), nose to the wall.
+    expect(LOADING_BAY.x + LENGTH.cit / 2).toBeLessThan(-HX);
+    expect(LOADING_BAY.x - LENGTH.cit / 2).toBeGreaterThan(LOT_SIDE * FOOTWAY);
+    expect(LOADING_DOOR[0]).toBeLessThan(-HX);
+    expect(LOADING_DOOR[0]).toBeGreaterThan(-HX - 0.5);
+    // The door is beside the van's nose, on the side the guard walks.
+    expect(LOADING_DOOR[1]).toBeGreaterThan(LOADING_BAY.z + WIDTH.cit / 2);
     expect(Math.abs(VAN_REAR[0] - (LOADING_BAY.x - LENGTH.cit / 2))).toBeLessThan(0.6);
-    const src = read('../Parking3D.tsx');
-    expect(src).toContain('<LoadingBay3D run={lot.cit} />');
+    for (const s of slotsOf()) {
+      if (Math.abs(Math.abs(s.x) - (LOT.x0 + 1.8)) > 1.5) continue;
+      expect(s.z + 0.75 <= CIT_CLEAR[0] || s.z - 0.75 >= CIT_CLEAR[1], `bay ${s.index}`).toBe(true);
+    }
+    for (const d of ENTRANCES.map((e) => e.at[1])) expect(d < CIT_CLEAR[0] - 0.8 || d > CIT_CLEAR[1] + 0.8).toBe(true);
+    expect(read('../Parking3D.tsx')).toContain('<LoadingBay3D run={lot.cit} />');
   });
 
-  it('drives in indicating, stops, opens up, carries the cash box by box to the door, shuts up and drives off', () => {
+  it('drives in indicating, noses in, opens up, carries the cash round to the door box by box, shuts up and drives off', () => {
     const order: CitPhase[] = [];
     const carried = new Set<string>();
     let signalIn = false;
@@ -51,21 +55,22 @@ describe('the cash van’s run to the vault’s loading bay', () => {
     const lot = run(600, (l) => {
       const p = l.cit.pose();
       if (order[order.length - 1] !== p.phase) order.push(p.phase);
-      if (p.phase === 'arrive' && p.signal === 1) signalIn = true;
-      if (p.phase === 'depart' && p.signal === -1) signalOut = true;
+      if (p.phase === 'arrive' && p.signal !== 0) signalIn = true;
+      if (p.phase === 'depart' && p.signal !== 0) signalOut = true;
       // Doors open, the shutter up and the guard out only while it stands in its bay.
       if (p.doors > 0 || p.shutter > 0 || p.guard) {
         expect(p.x).toBe(LOADING_BAY.x);
         expect(p.z).toBe(LOADING_BAY.z);
       }
       if (p.guard) {
-        // On the walk between the back of the van and the loading door, nowhere else.
+        // On the walk from the back of the van round its side to the door, never through the van.
         const [gx, gz] = p.guard.at;
-        expect(gx).toBeGreaterThanOrEqual(Math.min(VAN_REAR[0], LOADING_DOOR[0]) - 1e-6);
-        expect(gx).toBeLessThanOrEqual(Math.max(VAN_REAR[0], LOADING_DOOR[0]) + 1e-6);
-        expect(gz).toBeLessThanOrEqual(LOADING_DOOR[1] + 1e-6);
+        expect(gx).toBeGreaterThanOrEqual(VAN_REAR[0] - 1e-6);
+        expect(gx).toBeLessThanOrEqual(LOADING_DOOR[0] + 1e-6);
+        const beside = gz >= LOADING_BAY.z + WIDTH.cit / 2 + 0.2;
+        const behind = gx <= LOADING_BAY.x - LENGTH.cit / 2 - 0.2;
+        expect(beside || behind).toBe(true);
         if (p.guard.carrying) carried.add(p.guard.carrying);
-        if (p.guard.walking && p.guard.carrying) expect(Math.abs(p.guard.heading - Math.atan2(LOADING_DOOR[0] - VAN_REAR[0], LOADING_DOOR[1] - VAN_REAR[1]))).toBeLessThan(1e-6);
       }
     });
     expect(order.join(' ')).toContain('away arrive open load close depart away');
@@ -74,18 +79,33 @@ describe('the cash van’s run to the vault’s loading bay', () => {
     expect(signalIn).toBe(true);
     expect(signalOut).toBe(true);
     expect(CIT_RUN.doors).toBeGreaterThan(0.5);
+    expect(pathLength(CARRY_PATH)).toBeGreaterThan(3);
   });
 
-  it('only passes the car park’s gate while the car park is still, so nothing turns in or out across it', () => {
+  it('drives in the car park only while it is still, holding its turn, and lifts the barrier as it goes through the gate', () => {
     let held = 0;
+    let lifted = false;
     run(900, (l) => {
       if (l.cit.needsLane()) {
         expect(l.mover).toBe(CIT_MOVER);
         expect(l.moverPose()).toBeNull();
+        if (l.barrier() > 0) lifted = true;
         held++;
       }
     });
     expect(held).toBeGreaterThan(0);
+    expect(lifted).toBe(true);
+  });
+
+  it('never touches a parked car on its way in or out', () => {
+    run(900, (l) => {
+      if (!l.cit.needsLane()) return;
+      const p = l.cit.pose();
+      for (const { v, slot } of l.parked()) {
+        const d = Math.hypot(p.x - slot.x, p.z - slot.z);
+        expect(d, v.id).toBeGreaterThan((LENGTH.cit + SIZE[v.kind].wid) / 2 - 0.1);
+      }
+    });
   });
 });
 
@@ -211,7 +231,9 @@ describe('the ground mist outdoors', () => {
 
   it('is thick in fog all day and in smog, and gone on a clear day', () => {
     for (const minute of [8 * 60, 12 * 60, 16 * 60]) expect(atmosphereAt(minute, WEATHER_MIX.fog).mist, String(minute)).toBeGreaterThanOrEqual(GROUND_FOG);
-    expect(atmosphereAt(12 * 60, WEATHER_MIX.smog).mist).toBeGreaterThan(0.6);
+    expect(atmosphereAt(12 * 60, WEATHER_MIX.smog).mist).toBeGreaterThan(0.4);
+    // A fine, light dust haze, never a thick wall.
+    expect(atmosphereAt(12 * 60, WEATHER_MIX.smog).mist).toBeLessThan(0.7);
     expect(atmosphereAt(12 * 60, WEATHER_MIX.clear).mist).toBe(0);
   });
 });
@@ -308,16 +330,16 @@ describe('dropping off at the first clear spot', () => {
 });
 
 describe('from the car park to the side doors', () => {
-  it('walks gate customers in from the car park’s footway, and back out to it at closing time', () => {
-    for (const e of ENTRANCES) {
-      const path = arrivalPath(e.id, 1);
+  it('walks the counters’ customers in from the car park’s footway, and back out to it at closing time', () => {
+    for (const id of WALK_IN_DESKS) {
+      const path = arrivalPath(id, 1);
       expect(path[0]![0]).toBe(CAR_PARK_FOOTWAY_X);
       // Along the footway to the walkway, then straight across it to the door.
-      expect(path[1]).toEqual([CAR_PARK_FOOTWAY_X, e.at[1]]);
-      expect(path[2]![1]).toBe(e.at[1]);
-      const out = evacuationRoute(e.id, [e.at[0] + 3, e.at[1] - 1], 0).path;
+      expect(path[1]).toEqual([CAR_PARK_FOOTWAY_X, CUSTOMER_DOOR[1]]);
+      expect(path[2]![1]).toBe(CUSTOMER_DOOR[1]);
+      const out = evacuationRoute(queueSlots(id, 3)[2]!, 2).path;
       expect(out[out.length - 1]![0]).toBe(CAR_PARK_FOOTWAY_X);
     }
-    expect(read('../Traffic.tsx')).toContain('walk in from their cars in');
+    expect(read('../Traffic.tsx')).toContain('from their car in the car park, across to the side door');
   });
 });

@@ -262,11 +262,16 @@ export function pedestrianAt(p: Pedestrian, t: number, rainFor: number | null, s
   if (rainFor < LOOK_UP) return { x: caught[0], z: caught[1], heading: along, pose: 'lookup', speed: 0, umbrella: 0 };
   const start = caught;
   const [sx, sz] = hail ? overhangSpot(p) : shelterSpot(p, storm === true);
-  const dist = Math.hypot(sx - start[0], sz - start[1]);
-  const run = Math.min(1, ((rainFor - LOOK_UP) * WALK.sprint) / Math.max(dist, 1e-6));
+  // Along the pavement to opposite their spot first, then straight across to it: never cutting through an ATM booth's glass
+  // (the spots are all clear of the booths, and the lanes run outside them).
+  const along1 = Math.abs(sx - start[0]);
+  const across = Math.abs(sz - start[1]);
+  const ran = (rainFor - LOOK_UP) * WALK.sprint;
   const atBus = storm === true && stormGoesToBus(p);
-  if (run >= 1) return { x: sx, z: sz, heading: atBus ? Math.PI : 0, pose: atBus ? 'phone' : 'shelter', speed: 0, umbrella: 0 };
-  return { x: start[0] + (sx - start[0]) * run, z: start[1] + (sz - start[1]) * run, heading: Math.atan2(sx - start[0], sz - start[1]), pose: 'run', speed: WALK.sprint, umbrella: 0 };
+  if (ran >= along1 + across) return { x: sx, z: sz, heading: atBus ? Math.PI : 0, pose: atBus ? 'phone' : 'shelter', speed: 0, umbrella: 0 };
+  if (ran < along1) return { x: start[0] + Math.sign(sx - start[0]) * ran, z: start[1], heading: sx > start[0] ? Math.PI / 2 : -Math.PI / 2, pose: 'run', speed: WALK.sprint, umbrella: 0 };
+  const k = (ran - along1) / Math.max(across, 1e-6);
+  return { x: sx, z: start[1] + (sz - start[1]) * k, heading: sz > start[1] ? 0 : Math.PI, pose: 'run', speed: WALK.sprint, umbrella: 0 };
 }
 
 /** Once it dries up: where the person was when it stopped, then folding the umbrella or stepping back out, then on as before. */

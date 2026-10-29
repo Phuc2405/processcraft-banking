@@ -270,28 +270,33 @@ function placeWalkers(walks: Walk[], pool: Array<Group | null>, prefix: string):
 }
 
 /**
- * Customers coming to the desks. Whenever a gate takes in new customers in a beat, a few of them walk in from their cars in
- * the car park, across to the side door in the wall and on to the back of the queue; an ATM's come strolling down the
- * pavement to the booth. (The queue itself is drawn by the desk from the queue length.) Each walks the whole way on one
+ * Customers coming to the desks. Whenever the teller's or the disputes desk's queue grows in a beat, a customer walks in
+ * from their car in the car park, across to the side door, in along the wall and the front aisle to the back of the queue;
+ * an ATM's come strolling down the pavement to the booth. (The queue itself is drawn by the desk from the queue length.)
+ * The gates are digital: their customers arrive as signals (SignalPulses), never on foot. Each walks the whole way on one
  * figure at their own unhurried pace; when every figure is out walking, the newest customer simply joins the queue unseen.
  */
 export const Arrivals = memo(function Arrivals() {
   const tick = useBankStore((s) => s.view.tick);
   const walks = useRef<Walk[]>([]);
   const pool = useRef<Array<Group | null>>([]);
+  const queued = useRef<Partial<Record<string, number>>>({});
 
   useEffect(() => {
     const state = bankStore.getState();
-    // Customers walk in at the shop gates and up the pavement to the ATM; a transfer is a message, so its gate sees no one walk in.
+    // Customers walk in from the car park to the counters and up the pavement to the ATMs; nobody walks to a digital gate.
     // After closing time customers only come for the sidewalk ATMs.
     const closed = isClosed(state.view.minute);
     for (const id of WALKER_STATIONS) {
-      if (closed && !ATM_STATIONS.includes(id)) continue;
       const sv = state.view.stations[id];
-      const count = Math.min(2, sv.arrivals);
+      // A counter's newcomers are what its queue grew by (its arrivals are counted at the gates the cases came in at).
+      const grew = Math.max(0, sv.queueLength - (queued.current[id] ?? sv.queueLength));
+      queued.current[id] = sv.queueLength;
+      if (closed && !ATM_STATIONS.includes(id)) continue;
+      const count = Math.min(2, ATM_STATIONS.includes(id) ? sv.arrivals : Math.max(sv.arrivals, grew));
       for (let k = 0; k < count; k++) {
         const slot = freeSlot(walks.current, MAX_WALKERS);
-        if (slot < 0) return;
+        if (slot < 0) break;
         const path = arrivalPath(id, sv.queueLength + k);
         const pace = ATM_STATIONS.includes(id) ? ARRIVAL_PACE.atm : ARRIVAL_PACE.gate;
         walks.current.push({ path, length: laneLength(path), start: motion.t + k * 0.9, pace, slot });

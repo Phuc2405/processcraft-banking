@@ -107,7 +107,7 @@ export const wetOf = (w: WeatherMix): number => Math.min(1, w.rain + 0.6 * w.hai
 /** A fog is thick until the bank opens at 9:00 and has lifted by FOG_LIFT: how much of it is left at `minute`, 0-1. */
 export const FOG_LIFT = 9.75 * 60;
 /** How much of a fog stays lying low over the ground once it has lifted off the city. */
-export const GROUND_FOG = 0.7;
+export const GROUND_FOG = 0.55;
 export const fogLeft = (minute: number): number => Math.max(0, Math.min(1, (FOG_LIFT - minute) / (FOG_LIFT - 9 * 60)));
 
 /** The late-afternoon sunset glow, 0-1: rising from 16:30, strongest at 17:45, gone by 19:15. */
@@ -189,7 +189,8 @@ const STORM_GREY = '#39414e';
 const RAIN_GREY = '#7d8794';
 const SNOW_SKY = '#dfe5ec';
 const FOG_SKY = '#d5dadf';
-const SMOG_SKY = '#c8b98a';
+/** Smog as a fine, light dust haze: a soft grey with a touch of amber, never a heavy yellow. */
+const SMOG_SKY = '#dccfb0';
 const GOLD = '#e67e22';
 
 /** The atmosphere at `minute` (minutes since midnight) under `weather` (a blend, or `true` for full rain). */
@@ -215,7 +216,7 @@ export function atmosphereAt(minute: number, weather: WeatherMix | boolean = CLE
     out = mixHex(out, RAIN_GREY, (night ? 0.2 : 0.45) * w.rain);
     out = mixHex(out, SNOW_SKY, (night ? 0.15 : 0.55) * w.snow);
     out = mixHex(out, FOG_SKY, (night ? 0.2 : 0.7) * w.fog);
-    out = mixHex(out, SMOG_SKY, (night ? 0.25 : 0.65) * w.smog);
+    out = mixHex(out, SMOG_SKY, (night ? 0.2 : 0.45) * w.smog);
     out = mixHex(out, RAIN_GREY, (night ? 0.2 : 0.5) * w.hail);
     return mixHex(out, STORM_GREY, (night ? 0.35 : 0.65) * w.storm);
   };
@@ -228,13 +229,13 @@ export function atmosphereAt(minute: number, weather: WeatherMix | boolean = CLE
   const sunIntensity =
     sunBase * (1 + 0.45 * w.harsh * daylight) * (1 - 0.6 * w.overcast) * (1 - 0.25 * w.rain) * (1 - 0.4 * w.storm) * (1 - 0.35 * w.fog) * (1 - 0.35 * w.smog) * (1 - 0.2 * w.hail);
   const sunColor = mixHex(
-    mixHex(mixHex(desaturate(mixHex(a.sunColor, b.sunColor, t), 0.6 * w.overcast), '#fffbe6', 0.5 * w.harsh * (part === 'afternoon' ? 0.3 : 1)), '#e8c77a', 0.6 * w.smog),
+    mixHex(mixHex(desaturate(mixHex(a.sunColor, b.sunColor, t), 0.6 * w.overcast), '#fffbe6', 0.5 * w.harsh * (part === 'afternoon' ? 0.3 : 1)), '#f0dcb4', 0.35 * w.smog),
     GOLD,
     w.golden * daylight,
   );
   // Harsh sun lowers the bounce for contrast; overcast raises it for soft, shadowless light.
   const hemiIntensity = lerp(a.hemi, b.hemi, t) * (1 - 0.3 * w.harsh * daylight) * (1 + 0.2 * w.overcast * daylight) * (1 - 0.3 * w.storm);
-  const haze = 8 * w.overcast + 10 * w.rain + 12 * w.storm + 6 * w.snow + 34 * w.fog + 28 * w.smog + 8 * w.hail;
+  const haze = 8 * w.overcast + 10 * w.rain + 12 * w.storm + 6 * w.snow + 26 * w.fog + 20 * w.smog + 8 * w.hail;
   // The golden hour drops the sun low in the west, so the light rakes long across the floor.
   const dir = a.sunDir.map((v, k) => lerp(lerp(v, b.sunDir[k]!, t), ([30, 8, 12] as const)[k]!, w.golden * daylight)) as unknown as readonly [number, number, number];
   return {
@@ -246,7 +247,7 @@ export function atmosphereAt(minute: number, weather: WeatherMix | boolean = CLE
     fog: { near: lerp(a.fogNear, b.fogNear, t) - haze * 0.4, far: lerp(a.fogFar, b.fogFar, t) - haze, color: sky(horizon, '#dbe9f7') },
     // Ground mist: the morning's, a little in rain or under cloud, and thick in fog and in smog. When a fog lifts off the
     // city (the distance haze above), a low mist stays lying over the streets, the car park and the lawns all day.
-    mist: Math.min(1, lerp(a.mist, b.mist, t) * fogLeft(minute) + 0.2 * w.rain + 0.15 * w.overcast + Math.max(w.fog, GROUND_FOG * picked.fog) + 0.85 * w.smog),
+    mist: Math.min(1, lerp(a.mist, b.mist, t) * fogLeft(minute) + 0.2 * w.rain + 0.15 * w.overcast + Math.max(0.8 * w.fog, GROUND_FOG * picked.fog) + 0.5 * w.smog),
     lamps: Math.min(1, lerp(a.lamps, b.lamps, t) + (0.35 * w.rain + 0.5 * w.storm + 0.4 * w.fog + 0.3 * w.golden + 0.5 * w.smog + 0.3 * w.hail) * daylight),
     windows: Math.min(1, lerp(a.windows, b.windows, t) + 0.5 * w.storm * daylight + 0.3 * w.golden * daylight),
     motes:

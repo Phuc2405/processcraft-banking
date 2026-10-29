@@ -1,3 +1,4 @@
+import { LOADING_DOOR } from './citRun';
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef, type DependencyList } from 'react';
@@ -153,8 +154,8 @@ export const Walls = memo(function Walls() {
   const body = useMerged(() => {
     const b = wallParts(FLOOR_SLAB.w, back);
     const parts = [...xform(b.body, [0, 0, -HZ + WALL_T / 2]), ...rightWall(right).body];
-    // The kerb on the left, in pieces between the doors.
-    const cuts = ENTRANCES.map((e) => e.at[1]).sort((a, c) => a - c);
+    // The kerb on the left, in pieces between the doors (and open at the vault's loading door, where the cash goes in).
+    const cuts = [...ENTRANCES.map((e) => e.at[1]), LOADING_DOOR[1]].sort((a, c) => a - c);
     const pieces: Array<[number, number]> = [];
     let from = -HZ;
     for (const c of cuts) {

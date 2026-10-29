@@ -3,10 +3,10 @@ import { CLEAR, WEATHER_MIX } from '../atmosphere';
 import { HOUSES, INDOORS, indoors } from '../Environment3D';
 import { CLOSING, CUSTOMER_DESKS, deskSpans, evacuationRoute, evacuees, isClosed } from '../evacuation';
 import { badgeRect, tipRect3d, tipSide3d, TIP_SIDES_3D } from '../focus3d';
-import { atmBooth, ENTRANCES, FLOOR_SLAB, KERB_Z, MAIN_GATE, ROAD_END, SERVER_ROOM, SIDE_DOOR_W, SIDE_DOORS_RIGHT, STREET, WALL_WINDOWS } from '../layout3d';
+import { atmBooth, CUSTOMER_DOOR, ENTRANCES, FLOOR_SLAB, KERB_Z, MAIN_GATE, ROAD_END, SERVER_ROOM, SIDE_DOOR_W, SIDE_DOORS_RIGHT, STREET, WALL_WINDOWS } from '../layout3d';
 import { advanceMotion, motion, motionScale, substeps } from '../motion';
 import { FOUNTAIN, LOOP, PARK, PARK_BENCHES, PICNIC, PLAYGROUND, strollerAt } from '../Park3D';
-import { AISLE, BACK_LANE, FOOTWAY, GUARD_POST, guardPatrol, handoverAt, HANDOVER_S, LOT, LOT_SIDE, ParkingLot, PATROL, ROWS, shiftOf, SIDE_DOORS_LEFT, SIZE, slotsOf, TREE_STRIP, walkPath } from '../parking';
+import { AISLE, BACK_LANE, CIT_MOVER, counterSpot, FOOTWAY, GUARD_POST, guardPatrol, handoverAt, HANDOVER_S, LOT, LOT_SIDE, ParkingLot, PATROL, ROWS, shiftOf, SIDE_DOORS_LEFT, SIZE, slotsOf, TREE_STRIP, walkPath } from '../parking';
 import { cloudCover, cloudDark, CLOUDS, cloudsFor, sunPlace } from '../Sky3D';
 import { homeLane, LANE_W, LANE_Z, LENGTH, MIN_GAP, OVERTAKE, riderAt, ROAD, SPAN, taxiAction, TrafficSim, VEHICLES, WIDTH, type VehicleState } from '../vehicles';
 import { OVERHANG, overhangSpot, PAVEMENT, PEDESTRIANS } from '../weather';
@@ -314,12 +314,12 @@ describe('the town around the branch: houses, park, car park, branch', () => {
     for (const s of slots) if (Math.abs(s.x) < FOOTWAY) for (const d of SIDE_DOORS_LEFT) expect(Math.abs(s.z - d), `${s.index}`).toBeGreaterThan(SIZE.car.wid / 2 + 0.5);
     expect(slots.filter((s) => s.kind === 'car').length).toBeGreaterThan(12);
     expect(slots.filter((s) => s.kind === 'moto').length).toBeGreaterThan(10);
-    // People walk from their bay in at the nearest side door.
+    // People walk from their bay in at the customers' side door, and on up to a counter (nobody vanishes in the doorway).
     for (const s of slots.slice(0, 5)) {
       const path = walkPath(s);
-      const [ex, ez] = path[path.length - 1]!;
-      expect(ex).toBeGreaterThan(-FLOOR_SLAB.w / 2);
-      expect(SIDE_DOORS_LEFT).toContain(ez);
+      expect(path.map(([, z]) => z)).toContain(CUSTOMER_DOOR[1]);
+      expect(path[path.length - 1]).toEqual(counterSpot(s));
+      expect(path[path.length - 1]![0]).toBeGreaterThan(-FLOOR_SLAB.w / 2 + 2);
     }
     expect(BACK_LANE.in).toBeLessThan(LOT.z0);
   });
@@ -372,7 +372,8 @@ describe('the town around the branch: houses, park, car park, branch', () => {
       expect(moving.length).toBeLessThanOrEqual(1);
       if (lot.barrier() > 0) {
         lifted++;
-        expect(lot.moverPose()).not.toBeNull();
+        // Lifted for whoever is driving through: a car or motorbike, or the cash van.
+        expect(lot.moverPose() !== null || lot.mover === CIT_MOVER).toBe(true);
       }
     }
     expect(lifted).toBeGreaterThan(0);
@@ -437,7 +438,7 @@ describe('closing time and the pause', () => {
       // Every route ends outside the building.
       expect(Math.abs(x) > HX || z > FLOOR_SLAB.d / 2, `${w.id} ${w.k}`).toBe(true);
     }
-    expect(evacuationRoute('GATE_POS', [-11.5, -6], 0).exit).toBe('left');
+    expect(evacuationRoute([-11.5, 13], 2).exit).toBe('left');
     expect(ENTRANCES.length).toBe(3);
   });
 

@@ -9,7 +9,7 @@ import { pickPlace } from './tourHooks';
 import { Sign } from './Dressing';
 import { DeskPin, DeskQueue, SelectionFrame, cursor } from './Desk3D';
 import { box, merge, type Part } from './kit';
-import { ATM_KIOSK, deskPose } from './layout3d';
+import { ATM_KIOSK, atmQueueMarks, deskPose } from './layout3d';
 import { blobMaterial, glow, solid } from './materials';
 import { STATUS_HEX } from './palette';
 
@@ -60,6 +60,18 @@ function kioskGlow(): Part[] {
   ];
 }
 
+/** The booth's waiting line, painted on its floor (atmQueueMarks), in the kiosk's own frame (`ox`, `oz`: its place). */
+function queueMarkParts(id: StationId, ox: number, oz: number): Part[] {
+  const { line, spots } = atmQueueMarks(id);
+  const y = 0.012;
+  const out: Part[] = [box([(line.x0 + line.x1) / 2 - ox, y, line.z - oz], [line.x1 - line.x0, 0.006, 0.06], '#facc15')];
+  // Dashes along it, so it reads as a "wait here" line.
+  for (let x = line.x0 + 0.1; x < line.x1 - 0.05; x += 0.3) out.push(box([x + 0.07 - ox, y + 0.002, line.z + 0.07 - oz], [0.14, 0.004, 0.03], '#facc15'));
+  // Footprints: two soles for each place in the line, facing the machine.
+  for (const [x, z] of spots) for (const dx of [-0.06, 0.06]) out.push(box([x + dx - ox, y, z - oz], [0.07, 0.006, 0.16], '#e2e8f0'));
+  return out;
+}
+
 /** The pinned colours of a status flash: amber when a card is kept, red when the dispenser jams. */
 const FLASH = { jam: '#ef4444', locked: '#f59e0b', off: '#1e3a8a' } as const;
 
@@ -76,14 +88,16 @@ export const AtmKiosk = memo(function AtmKiosk({ id }: { id: StationId }) {
   useFocusFade(root, id);
 
   const body = useMemo(() => merge(kioskSolid()), []);
+  const marks = useMemo(() => merge(queueMarkParts(id, pose.x, pose.z)), [id, pose.x, pose.z]);
   const lit = useMemo(() => merge(kioskGlow()), []);
   useEffect(
     () => () => {
       body.dispose();
       lit.dispose();
+      marks.dispose();
       cursor(false);
     },
-    [body, lit],
+    [body, lit, marks],
   );
 
   // A jam (or a card kept after three wrong PINs) makes the lamp on top flash for a few seconds.
@@ -154,6 +168,7 @@ export const AtmKiosk = memo(function AtmKiosk({ id }: { id: StationId }) {
         {selected && <SelectionFrame w={ATM_KIOSK.w + 0.7} d={ATM_KIOSK.d + 0.7} />}
         <DeskPin id={id} height={2.55} />
       </group>
+      <mesh geometry={marks} material={solid} receiveShadow name={`atm-queue-line-${id}`} />
       <DeskQueue id={id} />
     </group>
   );

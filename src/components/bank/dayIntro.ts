@@ -8,8 +8,9 @@ import { dayIntroMessages } from './dayIntro.messages';
  * number and what kind of day it is, what is going on, and what to watch for. Pure, so the tests can read it.
  */
 
-/** How long the banner stays up before it fades away by itself, in milliseconds. */
-export const DAY_INTRO_MS = 9000;
+/** How long the banner stays up before it fades away by itself, in milliseconds: long enough to read the day's headline,
+ * short enough not to sit over the office for long (it can be closed sooner). */
+export const DAY_INTRO_MS = 3500;
 /** How long the banner takes to fade out when it goes (timed out or closed), in ms: its `duration-500` opacity transition. */
 export const DAY_INTRO_FADE_MS = 500;
 

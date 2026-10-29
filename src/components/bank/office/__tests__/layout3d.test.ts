@@ -22,7 +22,10 @@ import {
   SCENE,
   STREET,
   STREET_LAMPS,
-  WALK_IN_GATES,
+  WALK_IN_DESKS,
+  CUSTOMER_DOOR,
+  FRONT_AISLE_Z,
+  LEFT_WALK_X,
   WALKER_STATIONS,
   CAMERA_DIRECTION,
   CAMERA_DISTANCE,
@@ -177,10 +180,10 @@ describe('people', () => {
     }
   });
 
-  it('sends walkers to the shop gates by a door and to the ATM down the pavement, and nobody to a transfer gate', () => {
-    expect(WALK_IN_GATES).toEqual(['GATE_VIRTUAL', 'GATE_POS', 'GATE_ECOM']);
-    expect([...WALKER_STATIONS].sort()).toEqual(['GATE_ATM', 'GATE_ECOM', 'GATE_POS', 'GATE_VIRTUAL', 'ATM_CASH'].sort());
-    expect(WALKER_STATIONS).not.toContain('GATE_A2A');
+  it('sends walkers to the teller and the disputes desk by a side door and to the ATM down the pavement, and nobody to a digital gate', () => {
+    expect(WALK_IN_DESKS).toEqual(['TELLER_CASH', 'DISPUTE_DESK']);
+    expect([...WALKER_STATIONS].sort()).toEqual(['GATE_ATM', 'ATM_CASH', 'TELLER_CASH', 'DISPUTE_DESK'].sort());
+    for (const id of ['GATE_A2A', 'GATE_POS', 'GATE_VIRTUAL', 'GATE_ECOM'] as const) expect(WALKER_STATIONS).not.toContain(id);
     for (const id of ATM_STATIONS) {
       const path = arrivalPath(id, 2);
       // The customer comes from the far left end of the street, along the pavement, never through the building.
@@ -192,23 +195,27 @@ describe('people', () => {
     }
   });
 
-  it('queues the digital gates (A2A, VietQR, SWIFT, eKYC) as phones and everything else as people', () => {
-    const phones = ['GATE_A2A', 'GATE_QR', 'GATE_SWIFT', 'GATE_EKYC'];
-    for (const id of phones) expect(queueStyle(id as (typeof STATION_IDS)[number])).toBe('phones');
-    for (const id of STATION_IDS) if (!phones.includes(id)) expect(queueStyle(id)).toBe('people');
+  it('queues every gate as phones (all digital), customers at the teller, disputes and ATMs, and case files at internal desks', () => {
+    const phones = ['GATE_A2A', 'GATE_QR', 'GATE_SWIFT', 'GATE_EKYC', 'GATE_POS', 'GATE_VIRTUAL', 'GATE_ECOM'];
+    const people = ['TELLER_CASH', 'DISPUTE_DESK', 'GATE_ATM', 'ATM_CASH'];
+    for (const id of STATION_IDS) expect(queueStyle(id), id).toBe(phones.includes(id) ? 'phones' : people.includes(id) ? 'people' : 'files');
+    // The night's desks are internal: only files wait there.
+    for (const id of ['EOD_BATCH', 'EOD_VISA', 'RECON', 'SUSPENSE'] as const) expect(queueStyle(id)).toBe('files');
   });
 
-  it('sends arrivals from the car park, in at a door in the left wall, to the back of the queue', () => {
-    expect(ENTRANCES.map((e) => e.id).sort()).toEqual(['GATE_ECOM', 'GATE_POS', 'GATE_VIRTUAL']);
-    for (const e of ENTRANCES) {
-      const path = arrivalPath(e.id, 2);
+  it('sends arrivals from the car park, in at the customers’ side door and along the front aisle, to the back of the queue', () => {
+    expect(ENTRANCES).toHaveLength(3);
+    expect(ENTRANCES.map((e) => e.at)).toContainEqual(CUSTOMER_DOOR);
+    for (const id of WALK_IN_DESKS) {
+      const path = arrivalPath(id, 2);
       // From beside a car on the car park's footway, across the walkway and in at the door: nobody appears at the door.
       expect(path[0]![0]).toBe(CAR_PARK_FOOTWAY_X);
-      expect(path[1]).toEqual([CAR_PARK_FOOTWAY_X, e.at[1]]);
-      expect(path).toContainEqual(e.at);
-      expect(e.at[0]).toBeLessThan(-FLOOR.w / 2);
+      expect(path[1]).toEqual([CAR_PARK_FOOTWAY_X, CUSTOMER_DOOR[1]]);
+      expect(path).toContainEqual(CUSTOMER_DOOR);
+      expect(path).toContainEqual([LEFT_WALK_X, FRONT_AISLE_Z]);
+      expect(CUSTOMER_DOOR[0]).toBeLessThan(-FLOOR.w / 2);
       const tail = path[path.length - 1] as [number, number];
-      expect(tail[0]).toBeGreaterThan(e.at[0]);
+      expect(tail[0]).toBeGreaterThan(CUSTOMER_DOOR[0]);
       expect(laneLength(path)).toBeGreaterThan(1);
     }
   });
@@ -522,10 +529,9 @@ describe('desks and gates', () => {
     expect(SEAT_BACK).toBeLessThan(COUNTER.d / 2 + 0.6);
   });
 
-  it('lines the queue of each shop gate with posts and ropes that straddle the line of customers and stop short of the next gate', () => {
+  it('lines the queue of a gate with posts and ropes that straddle the line of customers and stop short of the next gate', () => {
     const gates = GATE_COLUMN;
     gates.forEach((id, i) => {
-      if (!WALK_IN_GATES.includes(id)) return;
       const { posts, ropes } = stanchionLine(id);
       const pose = deskPose(id);
       expect(posts).toHaveLength(4);
@@ -596,8 +602,8 @@ describe('desks and gates', () => {
     expect(ATM_ALCOVE.z).toBeLessThan(kioskCentre('GATE_ATM')[1] - ATM_KIOSK.d / 2);
   });
 
-  it('roped queues cover the shop gates and both ATMs', () => {
-    expect([...ROPED_QUEUES].sort()).toEqual(['ATM_CASH', 'GATE_ATM', 'GATE_ECOM', 'GATE_POS', 'GATE_VIRTUAL']);
+  it('ropes both ATMs’ queues (the gates are digital: nobody queues at them in person)', () => {
+    expect([...ROPED_QUEUES].sort()).toEqual(['ATM_CASH', 'GATE_ATM']);
     for (const id of ATM_STATIONS) {
       // A rope across the booth's open front, with a gap at one end to walk in.
       const { posts, ropes } = stanchionLine(id);

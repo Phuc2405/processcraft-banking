@@ -6,8 +6,8 @@ import { atmPress } from '../Desk3D';
 import { mistClipped } from '../Environment3D';
 import { evacuees } from '../evacuation';
 import { CABIN_DOOR, FrontGuard, inCabin } from '../guardCabin';
-import { ATM_STATIONS, arrivalPath, atmBooth, atmExitPath, GUARD_CABIN, KERB_Z, lobbyWalkIn, queueMouth, ROPED_QUEUES, stanchionLine, STREET, WALK_IN_GATES, type V2 } from '../layout3d';
-import { exitRoute, PARK_GATE, PARK_MEMBERS, ParkCrowd, parkWeather, wantsPark } from '../parkLife';
+import { ATM_STATIONS, arrivalPath, atmBooth, atmExitPath, GUARD_CABIN, KERB_Z, lobbyWalkIn, ROPED_QUEUES, stanchionLine, STREET, WALK_IN_DESKS, type V2 } from '../layout3d';
+import { exitRoute, PARK_GATE, PARK_MEMBERS, ParkCrowd, wantsPark } from '../parkLife';
 import { FLOWERBEDS, FOUNTAIN, HEDGES, LOOP, PICNIC } from '../parkPlan';
 import { swingAmp, SWING } from '../Park3D';
 import { pathLength, pointAlongPath } from '../tour3d';
@@ -46,18 +46,7 @@ const barrierHits = (path: readonly V2[]): number => {
 
 describe('queue ropes, stanchions and booth glass are walls to walk round', () => {
   it('brings every customer to the back of the queue without stepping through a rope or a booth wall', () => {
-    for (const id of [...WALK_IN_GATES, ...ATM_STATIONS]) for (let q = 0; q <= 6; q++) expect(barrierHits(arrivalPath(id, q)), `${id} queue ${q}`).toBe(0);
-  });
-
-  it('weaves up a gate’s rope lane from its open end, a step to each side in turn', () => {
-    const id = WALK_IN_GATES[0]!;
-    const path = arrivalPath(id, 0);
-    const mouth = queueMouth(id).inside;
-    const i = path.findIndex((p) => p[0] === mouth[0] && p[1] === mouth[1]);
-    expect(i).toBeGreaterThan(0);
-    const weave = path.slice(i + 1, -1);
-    expect(weave.length).toBeGreaterThanOrEqual(2);
-    for (let k = 1; k < weave.length; k++) expect(Math.sign(weave[k]![0] - mouth[0])).toBe(-Math.sign(weave[k - 1]![0] - mouth[0]));
+    for (const id of [...WALK_IN_DESKS, ...ATM_STATIONS]) for (let q = 0; q <= 6; q++) expect(barrierHits(arrivalPath(id, q)), `${id} queue ${q}`).toBe(0);
   });
 
   it('walks ATM customers out of the booth by the gap and off down the street, and closing-time leavers out of the rope lanes', () => {
@@ -155,8 +144,8 @@ describe('the kerb lane, the bus and the cash van', () => {
 
 describe('the park’s people', () => {
   const noon = 12 * 60;
-  const fair = (m: (typeof PARK_MEMBERS)[number]): boolean => wantsPark(m, noon, true);
-  const wet = (m: (typeof PARK_MEMBERS)[number]): boolean => wantsPark(m, noon, parkWeather('rain'));
+  const fair = (m: (typeof PARK_MEMBERS)[number]): boolean => wantsPark(m, noon);
+  const evening = (m: (typeof PARK_MEMBERS)[number]): boolean => wantsPark(m, 22.5 * 60);
 
   it('keeps the flowerbeds off the paths, so nobody strolling the loop walks through one', () => {
     for (const { at: [fx, fz], size } of FLOWERBEDS) {
@@ -181,11 +170,25 @@ describe('the park’s people', () => {
     }
   });
 
-  it('walks everyone out gradually when the rain comes, and back in when it clears: nobody vanishes or appears', () => {
+  it('keeps everyone in the park when the rain comes (umbrellas up, the children off the swings), and nobody vanishes', () => {
     const crowd = new ParkCrowd(PARK_MEMBERS, fair);
     const here = (): number => crowd.people.filter((p) => crowd.poseOf(p).pose !== 'away').length;
     const start = here();
     expect(start).toBeGreaterThan(8);
+    for (let i = 0; i < 60 * 20; i++) crowd.step(0.05, fair, true);
+    // A whole minute of rain: the same people, all still there.
+    expect(here()).toBe(start);
+    expect(crowd.wet).toBe(true);
+    for (const p of crowd.people.filter((q) => q.m.role === 'swing')) expect(crowd.poseOf(p).pose).toBe('up');
+    for (let i = 0; i < 10 * 20; i++) crowd.step(0.05, fair, false);
+    expect(here()).toBe(start);
+    expect(read('../Park3D.tsx')).toContain("const wet = l !== 'away' && crowd.wet;");
+  });
+
+  it('walks people out gradually as the evening ends, and back in the next day: nobody vanishes or appears', () => {
+    const crowd = new ParkCrowd(PARK_MEMBERS, fair);
+    const here = (): number => crowd.people.filter((p) => crowd.poseOf(p).pose !== 'away').length;
+    const start = here();
     const last = new Map(crowd.people.map((p) => [p.m.id, crowd.poseOf(p).at]));
     const step = (want: typeof fair, rain: boolean, seconds: number): void => {
       for (let i = 0; i < seconds * 20; i++) {
@@ -199,15 +202,11 @@ describe('the park’s people', () => {
         }
       }
     };
-    step(wet, true, 0.5);
-    // Half a second in, everyone is still there: looking up, getting up.
+    step(evening, false, 0.5);
     expect(here()).toBe(start);
-    step(wet, true, 3);
-    expect(here()).toBeGreaterThan(0);
+    step(evening, false, 3);
     expect(crowd.people.some((p) => crowd.poseOf(p).pose === 'walk')).toBe(true);
-    step(wet, true, 60);
-    expect(here()).toBe(0);
-    step(fair, false, 1);
+    step(evening, false, 60);
     expect(here()).toBe(0);
     step(fair, false, 70);
     expect(here()).toBe(start);
@@ -219,7 +218,8 @@ describe('the park’s people', () => {
     let amp = 0;
     for (let i = 0; i < 200; i++) amp = swingAmp(amp, crowd.swingTaken(0), 0.05);
     expect(amp).toBeCloseTo(SWING.amp, 5);
-    for (let i = 0; i < 20 * 60; i++) crowd.step(0.05, wet, true);
+    // In the rain the child gets off and the swing settles.
+    for (let i = 0; i < 20 * 60; i++) crowd.step(0.05, fair, true);
     expect(crowd.swingTaken(0)).toBe(false);
     for (let i = 0; i < 200; i++) amp = swingAmp(amp, crowd.swingTaken(0), 0.05);
     expect(amp).toBeLessThan(0.001);
@@ -246,7 +246,9 @@ describe('ground mist and the branch', () => {
   it('thickens in fog and in smog', () => {
     const noon = 12 * 60;
     expect(atmosphereAt(noon, CLEAR).mist).toBeLessThan(0.1);
-    expect(atmosphereAt(noon, WEATHER_MIX.smog).mist).toBeGreaterThan(0.6);
+    expect(atmosphereAt(noon, WEATHER_MIX.smog).mist).toBeGreaterThan(0.4);
+    // A fine, light dust haze, never a thick wall.
+    expect(atmosphereAt(noon, WEATHER_MIX.smog).mist).toBeLessThan(0.7);
   });
 });
 

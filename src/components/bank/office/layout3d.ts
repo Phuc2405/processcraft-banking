@@ -58,7 +58,7 @@ export const STREET = {
   /** The front edge of the office slab, where the pavement begins. */
   z0: FLOOR_SLAB.d / 2,
   /** How deep the pavement is, from the building to the kerb. */
-  walk: 3.2,
+  walk: 4.0,
   /** The road beyond the kerb that is drawn: a two-lane avenue, one lane each way. */
   road: 8.6,
   kerbH: 0.14,
@@ -190,6 +190,16 @@ export function queueSlots(id: StationId, count: number): V2[] {
 }
 
 /**
+ * The waiting line painted on a sidewalk ATM booth's floor, behind the rope: a yellow "wait here" line across the booth
+ * between the machine and the line (nobody steps over it until the one at the machine has gone), and a pair of footprints
+ * where each person in the line stands.
+ */
+export function atmQueueMarks(id: StationId): { line: { x0: number; x1: number; z: number }; spots: V2[] } {
+  const b = atmBooth(id);
+  return { line: { x0: b.x0 + 0.12, x1: b.x1 - 0.12, z: (b.head + b.line) / 2 }, spots: queueSlots(id, QUEUE_VISIBLE).slice(1) };
+}
+
+/**
  * The glass booth round a sidewalk ATM: from the alcove wall behind the machine to a rope across its open front, as wide
  * as the machine's paved pad. `head` is where the customer at the machine stands; `line`, where the others wait.
  */
@@ -200,29 +210,50 @@ export function atmBooth(id: StationId): Rect & { head: number; line: number; fr
   return { x0: kx - 1.15, x1: kx + 1.15, z0: STREET.z0 + 0.05, z1: front, head: pose.z + 0.78, line: pose.z + 1.2, front };
 }
 
-/** A gate whose customers arrive as messages from a phone (A2A, VietQR, SWIFT, eKYC): no door, and a queue of phones. */
+/**
+ * A gate whose customers arrive as messages, never on foot: a card tapped at a shop's terminal, a virtual card or a
+ * checkout online, a transfer, a QR payment, a SWIFT message, an eKYC selfie. No one walks in for it; its queue is a stack
+ * of phones, and its arrivals come in as signal pulses from the cell tower (SignalPulses).
+ */
 export const isDigital = (id: StationId): boolean => STATIONS[id].digital === true || STATIONS[id].capability === 'A2A_GATEWAY';
 
 /**
- * The gates whose customers are people who walk in at a door in the left wall: the three shop checkouts. An instant transfer
- * arrives as a message on a phone, so its gate has no door and no walkers.
+ * The desks customers come to in person, inside the branch: the teller's cash counter and the disputes desk. They come
+ * from their cars in the car park, in at a side door in the left wall (or off the street, in at the main entrance).
  */
-export const WALK_IN_GATES: readonly StationId[] = STATION_IDS.filter((id) => STATIONS[id].kind === 'GATE' && !isDigital(id));
+export const WALK_IN_DESKS: readonly StationId[] = ['TELLER_CASH', 'DISPUTE_DESK'];
 
-/** Every desk that customers walk up to: the shop gates, and the sidewalk ATM where a customer comes down the street. */
-export const WALKER_STATIONS: readonly StationId[] = STATION_IDS.filter((id) => WALK_IN_GATES.includes(id) || STATIONS[id].kind === 'ATM');
+/** Every desk that customers walk up to: the teller and the disputes desk, and the sidewalk ATMs. */
+export const WALKER_STATIONS: readonly StationId[] = STATION_IDS.filter((id) => WALK_IN_DESKS.includes(id) || STATIONS[id].kind === 'ATM');
 
 /** A desk that no member of staff sits at: a machine on the pavement. */
 export const isMachine = (id: StationId): boolean => STATIONS[id].automated === true;
 
-/** Whether the queue at a desk is made of people or of phones (a transfer queues as a message). */
-export const queueStyle = (id: StationId): 'people' | 'phones' => (isDigital(id) ? 'phones' : 'people');
+/**
+ * What waits at a desk: people at the desks customers come to (and the ATMs); phones at a digital gate; and at every
+ * internal desk (the vault, the ledgers, the night's batch, settlement, reconciliation and suspense, the compliance and
+ * fraud desks) case files, since only the bank's own staff and systems ever work there: no customer is ever inside at them.
+ */
+export const queueStyle = (id: StationId): 'people' | 'phones' | 'files' =>
+  isDigital(id) ? 'phones' : WALK_IN_DESKS.includes(id) || STATIONS[id].kind === 'ATM' ? 'people' : 'files';
 
-/** Where a customer comes in from: a door in the left wall for a gate, or the far end of the pavement for an ATM. */
+/** The side doors in the left wall, onto the car park, on z: one beside each of the three card gates' rows. */
+const LEFT_DOORS_Z: readonly number[] = (['GATE_VIRTUAL', 'GATE_POS', 'GATE_ECOM'] as const).map((id) => STATION_POSES[id].z + STATION_POSES[id].d / 2 + 0.9);
+
+/** The side door in the left wall that customers use: the one nearest the front of the hall, where the counters are. */
+export const CUSTOMER_DOOR: V2 = [-FLOOR.w / 2 - FLOOR.margin + 0.3, Math.max(...LEFT_DOORS_Z)];
+
+/** Inside the left wall: the clear strip customers walk along between the side door and the front of the hall. */
+export const LEFT_WALK_X = -FLOOR_SLAB.w / 2 + 0.45;
+
+/** The clear aisle along the front of the hall, between the counters' queues and the front wall. */
+export const FRONT_AISLE_Z = FLOOR_SLAB.d / 2 - 1.35;
+
+/** Where a customer comes in from: the customers' side door in the left wall for a desk, the far end of the pavement for an ATM. */
 export function entrancePoint(id: StationId): V2 {
   const pose = STATION_POSES[id];
   if (STATIONS[id].kind === 'ATM') return [-STREET.halfWidth + 0.4, pose.z + pose.d / 2 + 1.0];
-  return [-FLOOR.w / 2 - FLOOR.margin + 0.3, pose.z + pose.d / 2 + 0.9];
+  return CUSTOMER_DOOR;
 }
 
 /**
@@ -268,10 +299,10 @@ export function carParkApproach(door: V2, k: number): V2[] {
 }
 
 /**
- * The way a customer walks to the back of the queue, never through a rope, a post or a booth's glass: a gate's customer
- * comes from their car in the car park, along its footway and across the walkway to the side door, in along the wall,
- * round to the open end of the rope lane, and weaves up the lane to the tail; an ATM's comes along the pavement in front of
- * the booths, in at the gap by the rope, and across to the end of the line.
+ * The way a customer walks to the back of the queue, never through a rope, a post, a desk or a booth's glass: a desk's
+ * customer comes from their car in the car park, along its footway and across the walkway to the side door, in along the
+ * inside of the left wall to the clear aisle at the front of the hall, along it, and up to the tail of the queue; an ATM's
+ * comes along the pavement in front of the booths, in at the gap by the rope, and across to the end of the line.
  */
 export function arrivalPath(id: StationId, queued: number): V2[] {
   const door = entrancePoint(id);
@@ -279,10 +310,7 @@ export function arrivalPath(id: StationId, queued: number): V2[] {
   const tail = slots[slots.length - 1] as V2;
   const mouth = queueMouth(id);
   if (STATIONS[id].kind === 'ATM') return [[door[0], mouth.outside[1]], mouth.outside, mouth.inside, tail];
-  // Weave up the lane from its open end to the tail, a step to each side in turn, the way a rope line is walked.
-  const weave: V2[] = [];
-  for (let z = mouth.inside[1] - QUEUE_GAP, k = 0; z > tail[1] + QUEUE_GAP / 2; z -= QUEUE_GAP, k++) weave.push([mouth.inside[0] + (k % 2 ? 0.2 : -0.2), z]);
-  return [...carParkApproach(door, queued), door, [door[0], mouth.inside[1]], mouth.inside, ...weave, tail];
+  return [...carParkApproach(door, queued), door, [LEFT_WALK_X, door[1]], [LEFT_WALK_X, FRONT_AISLE_Z], [tail[0], FRONT_AISLE_Z], tail];
 }
 
 /** The walking line along the pavement: between the ATM booths' fronts and the street lamps at the kerb. */
@@ -316,12 +344,12 @@ export function atmExitPath(id: StationId): V2[] {
   return [[kx, b.head], [mouth.inside[0], b.head], mouth.inside, mouth.outside, [STREET.halfWidth + 7, mouth.outside[1]]];
 }
 
-/** The doors drawn on the wall: one per shop gate. */
-export const ENTRANCES: ReadonlyArray<{ id: StationId; at: V2 }> = WALK_IN_GATES.map((id) => ({ id, at: entrancePoint(id) }));
+/** The side doors in the left wall, onto the car park (the customers come in at the front one, CUSTOMER_DOOR). */
+export const ENTRANCES: ReadonlyArray<{ at: V2 }> = LEFT_DOORS_Z.map((z) => ({ at: [CUSTOMER_DOOR[0], z] as V2 }));
 
 /**
  * The ways in and out of the branch: the grand main entrance in the front, on the clear aisle that runs from the back of
- * the hall to the street (no desk stands on it); the three side doors in the left wall (the shop gates' doors, onto the car
+ * the hall to the street (no desk stands on it); the three side doors in the left wall (onto the car
  * park); and three side doors in the right wall, onto the park, placed clear of its windows and the server room.
  */
 export const MAIN_GATE = { x: -3.25, width: 3.0 } as const;
@@ -693,8 +721,8 @@ export function stanchionLine(id: StationId): { posts: V2[]; ropes: Array<[V2, V
   return { posts, ropes };
 }
 
-/** The gates and ATMs that have a rope line to guide their queue: the shop gates and the two ATM bays. */
-export const ROPED_QUEUES: readonly StationId[] = STATION_IDS.filter((id) => WALK_IN_GATES.includes(id) || STATIONS[id].kind === 'ATM');
+/** The queues guided by a rope line: the two ATM bays. */
+export const ROPED_QUEUES: readonly StationId[] = STATION_IDS.filter((id) => STATIONS[id].kind === 'ATM');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The sidewalk ATMs
@@ -762,8 +790,8 @@ export const PLANTS: readonly PlantSpot[] = [
   { x: wallX, z: legacyZ(0.6), kind: 'palm', scale: 1.1 },
   { x: wallX, z: legacyZ(4.7), kind: 'ficus', scale: 1.15 },
   { x: wallX, z: legacyZ(10.0), kind: 'monstera', scale: 1.05 },
-  { x: -13.9, z: legacyZ(5.0), kind: 'ficus', scale: 1.1 },
-  { x: -13.9, z: legacyZ(10.2), kind: 'palm', scale: 1.0 },
+  { x: -13.35, z: legacyZ(5.0), kind: 'ficus', scale: 1.1 },
+  { x: -13.35, z: legacyZ(10.2), kind: 'palm', scale: 1.0 },
   { x: -9.6, z: legacyZ(5.5), kind: 'monstera', scale: 0.9 },
   { x: -1.6, z: legacyZ(2.15), kind: 'ficus', scale: 0.95 },
   { x: 9.3, z: legacyZ(2.0), kind: 'monstera', scale: 0.95 },

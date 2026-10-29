@@ -10,7 +10,7 @@ import { customerShirt, SIDE_DOORS_RIGHT } from './layout3d';
 import { glow, solid } from './materials';
 import { motion, substeps } from './motion';
 import { TREE_STRIP } from './parking';
-import { ParkCrowd, parkWeather, SWING_XS, talkers, wantsPark, type ParkPose, type ParkState, type Talker } from './parkLife';
+import { ParkCrowd, SWING_XS, talkers, wantsPark, type ParkPose, type ParkState, type Talker } from './parkLife';
 import { FLOWERBEDS, FOUNTAIN, HEDGES, LOOP, PARK, PARK_BENCHES, PARK_CX as cx, PARK_CZ as cz, PICNIC, PLAYGROUND } from './parkPlan';
 import { isRaining, outfitOf, outfitShirt, useWeather, weatherStore, type Outfit } from './weather';
 
@@ -286,7 +286,7 @@ function Swings({ crowd }: { crowd: ParkCrowd }) {
   );
 }
 
-/** A small umbrella, held overhead, for walking out of the park in the wet. */
+/** A small umbrella, held overhead in the wet. */
 const canopy = new ConeGeometry(0.5, 0.26, 10, 1, true);
 const stick = new CylinderGeometry(0.016, 0.016, 0.75, 5);
 const UMBRELLAS = ['#1d4ed8', '#e11d48', '#0f766e', '#7c3aed', '#ea580c'];
@@ -311,7 +311,6 @@ function ParkPerson({ crowd, i, outfit }: { crowd: ParkCrowd; i: number; outfit:
   const brolly = useRef<Group>(null);
   const raise = useMemo(() => ({ current: 0 }), []);
   const [look, setLook] = useState<Look>(() => lookOf(p, crowd.poseOf(p).pose));
-  const umbrella = p.m.k % 3 !== 2;
   useFrame(() => {
     const s = crowd.poseOf(p);
     const l = lookOf(p, s.pose);
@@ -325,9 +324,10 @@ function ParkPerson({ crowd, i, outfit }: { crowd: ParkCrowd; i: number; outfit:
     g.rotation.y = s.heading;
     // Looking up at the sky before setting off.
     g.rotation.x = l === 'stand' ? -0.12 : 0;
-    // Up goes the umbrella once they walk out in the wet.
-    const wet = l === 'walk' && p.going === 'out' && isRaining();
-    raise.current += ((wet && umbrella ? 1 : 0) - raise.current) * Math.min(1, motion.dt * 4 + (motion.dt > 0 ? 0.02 : 0));
+    // Up goes the umbrella, wherever they are, as soon as it rains (or hails, or snows): on the bench, at the table, under
+    // the swings, strolling.
+    const wet = l !== 'away' && crowd.wet;
+    raise.current += ((wet ? 1 : 0) - raise.current) * Math.min(1, motion.dt * 4 + (motion.dt > 0 ? 0.02 : 0));
     if (brolly.current) {
       brolly.current.visible = raise.current > 0.05;
       brolly.current.scale.setScalar(Math.max(0.05, raise.current));
@@ -397,14 +397,13 @@ export const Park3D = memo(function Park3D() {
   // Everyone wanted at the start is already in place; after that they come and go on foot.
   const crowd = useMemo(() => {
     const minute = bankStore.getState().view.minute;
-    const fair = parkWeather(weatherStore.getState().weather);
-    return new ParkCrowd(undefined, (m) => wantsPark(m, minute, fair));
+    return new ParkCrowd(undefined, (m) => wantsPark(m, minute));
   }, []);
   useFrame(() => {
     const minute = bankStore.getState().view.minute;
-    const fair = parkWeather(weatherStore.getState().weather);
-    const wet = !fair;
-    for (const h of substeps(motion.dt)) crowd.step(h, (m) => wantsPark(m, minute, fair), wet);
+    const w = weatherStore.getState().weather;
+    const wet = isRaining() || w === 'hail' || w === 'snow';
+    for (const h of substeps(motion.dt)) crowd.step(h, (m) => wantsPark(m, minute), wet);
   }, -1);
   return (
     <group name="office-park">

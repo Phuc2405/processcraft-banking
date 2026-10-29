@@ -48,6 +48,7 @@ import {
 import { tape } from './materials';
 import { LANE_STYLE, laneKind, SET } from './palette';
 import { Arrivals, AtmLeavers, Packets } from './Traffic';
+import { SignalPulses } from './SignalPulses';
 import { GuardCabin3D } from './GuardCabin3D';
 import { TOUR_DAYLIGHT, TOUR_GLIDE_MS, type CamFocus } from './tour3d';
 import { TourStage, useTourCamera } from './TourStage';
@@ -887,6 +888,7 @@ export function OfficeScene({ resetKey }: { resetKey: number }) {
       <Arrivals />
       <AtmLeavers />
       <Packets />
+      <SignalPulses />
       <TourStage />
       <FlowStage3D />
     </>

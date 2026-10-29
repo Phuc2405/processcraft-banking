@@ -556,9 +556,9 @@ function clipIndoors(material: MeshBasicMaterial): void {
   material.customProgramCacheKey = () => 'mist-clip-indoors';
 }
 
-/** The tint of the mist: white for fog, a dirty yellow-brown for smog. */
+/** The tint of the mist: white for fog; for smog a fine dust haze, light grey with a soft touch of amber. */
 const MIST_WHITE = new Color('#ffffff');
-const MIST_SMOG = new Color('#d8c99a');
+const MIST_SMOG = new Color('#e4dccb');
 
 /**
  * A tileable wash of soft white blobs over a thin even veil, for the ground mist: drawn once, wrapped at its edges so it
@@ -601,9 +601,9 @@ function useGroundMistTexture(): CanvasTexture {
  * (texture tiles a second). Stacked, they give the mist depth from any angle; each drifts its own way, so it rolls.
  */
 export const MIST_LAYERS: ReadonlyArray<{ lift: number; alpha: number; drift: readonly [number, number] }> = [
-  { lift: 0, alpha: 0.75, drift: [0.012, 0.004] },
-  { lift: 0.3, alpha: 0.55, drift: [-0.009, 0.006] },
-  { lift: 0.65, alpha: 0.35, drift: [0.006, -0.008] },
+  { lift: 0, alpha: 0.55, drift: [0.012, 0.004] },
+  { lift: 0.3, alpha: 0.38, drift: [-0.009, 0.006] },
+  { lift: 0.65, alpha: 0.22, drift: [0.006, -0.008] },
 ];
 /** How wide (world units) one tile of the mist texture lies. */
 const MIST_TILE = 7;
@@ -626,8 +626,8 @@ export const MIST_BANKS: ReadonlyArray<readonly [number, number, number, number,
 
 /**
  * Ground mist: layered banks rolling low over the streets, the pavements, the lane, the park's lawns and the car park, and
- * higher ones over the city, thick in fog (and still lying low once a fog has lifted off the city) and in smog, and in the
- * early morning. Tinted dirty yellow-brown in smog. Never inside the branch (MIST_CLIP): the floor, the desks and the people
+ * higher ones over the city, soft in fog (and still lying low once a fog has lifted off the city) and in smog, and in the
+ * early morning; never a blinding wall. Tinted a light dust grey in smog. Never inside the branch (MIST_CLIP): the floor, the desks and the people
  * in it stay sharp.
  */
 function Mist() {
@@ -670,7 +670,7 @@ function Mist() {
     for (const { layer, m, tile } of layers) {
       m.opacity = layer.alpha * a.mist;
       m.visible = a.mist > 0.01;
-      m.color.copy(MIST_WHITE).lerp(MIST_SMOG, Math.min(1, liveMix.smog * 1.2));
+      m.color.copy(MIST_WHITE).lerp(MIST_SMOG, Math.min(1, liveMix.smog));
       // The weather's own clock: the mist keeps rolling while the bank is paused, as weather does.
       tile.offset.set(layer.drift[0] * t, layer.drift[1] * t);
     }

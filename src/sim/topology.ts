@@ -142,7 +142,8 @@ export interface StationDef {
   processes: Array<'A' | 'B' | 'C' | 'D' | 'E' | 'F'>;
   /** A machine, not a team: it has no one to tire out and nobody to make a mistake. */
   automated?: boolean;
-  /** Customers arrive as messages from an app, not on foot: no door and no walk-in queue in the 3D office. */
+  /** Customers arrive as messages (from an app, a website's checkout or a shop's card terminal), not on foot: no walk-in
+   * queue in the 3D office; the messages come in as signals instead. */
   digital?: boolean;
 }
 
@@ -157,6 +158,7 @@ export const STATIONS: Record<StationId, StationDef> = {
     minutesPerItem: 0.05,
     staff: 1,
     processes: ['A'],
+    digital: true,
   },
   GATE_POS: {
     id: 'GATE_POS',
@@ -168,6 +170,7 @@ export const STATIONS: Record<StationId, StationDef> = {
     minutesPerItem: 0.05,
     staff: 1,
     processes: [],
+    digital: true,
   },
   GATE_ECOM: {
     id: 'GATE_ECOM',
@@ -179,6 +182,7 @@ export const STATIONS: Record<StationId, StationDef> = {
     minutesPerItem: 0.05,
     staff: 1,
     processes: ['B', 'C'],
+    digital: true,
   },
   SEC_VAULT: {
     id: 'SEC_VAULT',

@@ -1,3 +1,5 @@
+import { bankStore } from '../../../store/bankStore';
+import { isClosed } from './evacuation';
 import { useFrame } from '@react-three/fiber';
 import { memo, useMemo, useRef, useState } from 'react';
 import type { BufferGeometry, Group } from 'three';
@@ -10,7 +12,7 @@ import { motion, substeps } from './motion';
 import { GuardCabin3D } from './GuardCabin3D';
 import { LoadingBay3D } from './LoadingBay3D';
 import { PARKING_PLAN } from './guardCabin';
-import { AISLE, FOOTWAY, LOT, LOT_SIDE, ParkingLot, ROWS, SIDE_DOORS_LEFT, TREE_STRIP, WALKWAY, type LotKind } from './parking';
+import { AISLE, CIT_CLEAR, FOOTWAY, LOT, LOT_SIDE, ParkingLot, ROWS, SIDE_DOORS_LEFT, TREE_STRIP, WALKWAY, type LotKind } from './parking';
 import { bodyParts, Rider } from './Vehicles3D';
 import { outfitOf, outfitShirt, useWeather } from './weather';
 
@@ -58,7 +60,8 @@ function lotParts(): { solid: Part[]; glass: Part[]; lit: Part[] } {
     const depth = row.a1 - row.a0;
     for (let z = row.z0; z + row.bay / 2 <= row.z1; z += row.bay) {
       const onWalkway = row.a0 < FOOTWAY && SIDE_DOORS_LEFT.some((dz) => Math.abs(z - dz) < row.bay / 2 + WALKWAY / 2);
-      if (onWalkway) continue;
+      const onLoadingBay = row.a0 < FOOTWAY && z + row.bay / 2 > CIT_CLEAR[0] && z - row.bay / 2 < CIT_CLEAR[1];
+      if (onWalkway || onLoadingBay) continue;
       for (const e of [-1, 1]) parts.push(box([s * a, GROUND_Y + 0.004, z + (e * row.bay) / 2], [depth, 0.006, 0.06], LINE));
     }
     const back = row.facing > 0 ? row.a1 : row.a0;
@@ -147,6 +150,8 @@ export const Parking3D = memo(function Parking3D() {
   const parkedKey = useRef('');
   const outfit = useWeather((st) => outfitOf(st.weather));
   useFrame(() => {
+    // At closing time the drivers in the branch walk back to their cars and drive off; nobody parks again until it opens.
+    lot.setClosed(isClosed(bankStore.getState().view.minute));
     for (const h of substeps(motion.dt)) lot.step(h);
     const list = lot.parked();
     const key = list.map((p) => p.v.id).join(',');
@@ -181,7 +186,7 @@ export const Parking3D = memo(function Parking3D() {
       <Barrier lot={lot} />
       {/* The guard's cabin by the gate, and the guard: a raised hand to a driver only while a vehicle is at the gate (and the
           guard is standing at the post, not walking or sheltering in the cabin). */}
-      {/* The cash van's run along the lane behind the block to the vault's loading bay: it shares the lane, so the lot steps it. */}
+      {/* The cash van's run in through the gate to its loading bay against the left wall: it shares the drive, so the lot steps it. */}
       <LoadingBay3D run={lot.cit} />
       <GuardCabin3D plan={PARKING_PLAN} name="parking-guard-cabin" guardName="parking-guard" looks={GUARD_LOOK} raiseFor={() => lot.barrier() > 0} />
       {parked.map((p) => (

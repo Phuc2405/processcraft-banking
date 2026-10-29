@@ -1,3 +1,7 @@
+import { useMessages } from '../../../utils/i18nHelper';
+import { isWorking } from '../deskActivity';
+import { deskBadgeMessages } from '../deskBadge.messages';
+import { ATM_TURN_S } from './Traffic';
 import { Html } from '@react-three/drei';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
@@ -9,7 +13,7 @@ import { useTerms } from '../useTerms';
 import { CustomerFigure, SeatedAvatar } from './Avatars';
 import { deskGlow, deskSolid, isPodium, SURFACE } from './desks';
 import { box, merge } from './kit';
-import { COUNTER, LANE_LABELS, WING, accentOf, customerShirt, deskPose, hasWing, queueSlots, queueStyle, seatOffsets, surgeLevel, wingPose, type V2 } from './layout3d';
+import { COUNTER, LANE_LABELS, QUEUE_VISIBLE, WING, accentOf, customerShirt, deskPose, hasWing, queueSlots, queueStyle, seatOffsets, surgeLevel, wingPose, type V2 } from './layout3d';
 import { blobMaterial, glow, solid } from './materials';
 import { STATUS_HEX } from './palette';
 import { cursor } from './cursor';
@@ -307,7 +311,6 @@ function PhoneToken({ phase }: { phase: number }) {
   );
 }
 
-/** The customers waiting at the front of the counter. Each takes the look of whoever is next in line, so the line seems to move up. */
 /**
  * The customer at an ATM, facing its panel and keying in: the right hand goes out to the keypad and taps it in short bursts,
  * with a pause now and then to read the screen. On the motion clock, so it stops on pause.
@@ -325,6 +328,52 @@ function AtmUser({ index, shirt, phase }: { index: number; shirt: string; phase:
 /** The arm's reach while keying in at time `t`: out to the keypad (about 0.42) with a quick tap down and up on each press. */
 export const atmPress = (t: number): number => 0.42 + 0.05 * Math.max(0, Math.sin(t * 9));
 
+/**
+ * A case waiting at an internal desk: a wire tray on a short stand with a few case folders in it, a coloured tab on top.
+ * Only the bank's own staff and systems work these desks, so what queues there is paperwork, never a customer.
+ */
+function FileToken({ phase, tab }: { phase: number; tab: string }) {
+  const body = useMemo(
+    () =>
+      merge([
+        box([0, 0.2, 0], [0.05, 0.4, 0.05], '#64748b'),
+        box([0, 0.42, 0], [0.42, 0.03, 0.3], '#94a3b8'),
+        box([0, 0.46, 0], [0.36, 0.05, 0.26], '#f8fafc'),
+        box([0.01, 0.5, 0.01], [0.36, 0.03, 0.26], '#e7d7b1'),
+        box([-0.01, 0.53, -0.01], [0.36, 0.03, 0.26], '#f1e4c3'),
+      ]),
+    [],
+  );
+  const lit = useMemo(() => merge([box([0.12, 0.56, -0.1], [0.1, 0.02, 0.05], tab)]), [tab]);
+  const group = useRef<Group>(null);
+  useFrame(() => {
+    // A slight sway, as if just set down.
+    if (group.current) group.current.rotation.y = Math.sin(motion.t * 1.1 + phase) * 0.06;
+  });
+  useEffect(
+    () => () => {
+      body.dispose();
+      lit.dispose();
+    },
+    [body, lit],
+  );
+  return (
+    <group ref={group}>
+      <mesh geometry={body} material={solid} castShadow />
+      <mesh geometry={lit} material={glow} />
+    </group>
+  );
+}
+
+/** How fast people in a queue walk up a place when the one in front is served (units a second on the motion clock). */
+export const STEP_UP_PACE = 0.9;
+
+/**
+ * What waits at the front of the counter: customers at the desks customers come to (at an ATM, the one at the machine
+ * keying in), phones at a digital gate, case files at an internal desk. Each place takes the look of whoever is next in
+ * line, and when the one in front is served everyone walks up a place (on the motion clock): at an ATM, the next in the
+ * line behind the rope steps up to the machine.
+ */
 export function DeskQueue({ id }: { id: StationId }) {
   // After closing time nobody queues at a customer desk (they walked out at 17:00: see Evacuation).
   const closedHere = useBankStore((s) => CUSTOMER_DESKS.includes(id) && isClosed(s.view.minute));
@@ -332,17 +381,60 @@ export function DeskQueue({ id }: { id: StationId }) {
   const queueLength = closedHere ? 0 : simQueue;
   const processed = useBankStore((s) => s.view.stations[id].stats.processedToday);
   const pose = useMemo(() => deskPose(id), [id]);
-  const phones = queueStyle(id) === 'phones';
-  const slots = useMemo(() => queueSlots(id, queueLength).map(([x, z]) => [x - pose.x, z - pose.z] as const), [id, queueLength, pose.x, pose.z]);
+  const style = queueStyle(id);
+  const slots = useMemo(() => queueSlots(id, QUEUE_VISIBLE).map(([x, z]) => [x - pose.x, z - pose.z] as const), [id, pose.x, pose.z]);
+  const shown = Math.min(queueLength, slots.length);
   const salt = useMemo(() => Math.abs(Math.trunc(pose.x * 7 + pose.z * 13)), [pose.x, pose.z]);
+  const groups = useRef<Array<Group | null>>([]);
+  const placed = useRef<boolean[]>([]);
+  const last = useRef(processed);
+  const hold = useRef(0);
+  useEffect(() => {
+    const served = processed - last.current;
+    last.current = processed;
+    if (served <= 0 || style === 'files') return;
+    // Everyone left in line was `served` places further back: they walk up from there. At an ATM they wait for the one who
+    // has finished to turn round and step away from the machine first.
+    hold.current = motion.t + (STATIONS[id].kind === 'ATM' ? ATM_TURN_S + 0.7 : 0.2);
+    groups.current.forEach((g, i) => {
+      const from = slots[i + served];
+      if (g && from && placed.current[i]) g.position.set(from[0], 0, from[1]);
+    });
+  }, [processed, slots, style, id]);
+  useFrame(() => {
+    const step = motion.t < hold.current ? 0 : STEP_UP_PACE * motion.dt;
+    groups.current.forEach((g, i) => {
+      const to = slots[i];
+      if (!g || !to) return;
+      if (!placed.current[i]) {
+        g.position.set(to[0], 0, to[1]);
+        placed.current[i] = true;
+        return;
+      }
+      const dx = to[0] - g.position.x;
+      const dz = to[1] - g.position.z;
+      const d = Math.hypot(dx, dz);
+      if (d <= step) g.position.set(to[0], 0, to[1]);
+      else g.position.set(g.position.x + (dx / d) * step, 0, g.position.z + (dz / d) * step);
+    });
+  });
   return (
     <>
-      {slots.map(([x, z], i) => {
+      {Array.from({ length: shown }, (_, i) => {
         const who = processed + i + salt;
         return (
-          <group key={i} position={[x, 0, z]} rotation={[0, Math.PI, 0]}>
-            {phones ? (
+          <group
+            key={i}
+            ref={(g) => {
+              groups.current[i] = g;
+              if (!g) placed.current[i] = false;
+            }}
+            rotation={[0, Math.PI, 0]}
+          >
+            {style === 'phones' ? (
               <PhoneToken phase={i * 0.9 + salt} />
+            ) : style === 'files' ? (
+              <FileToken phase={i * 0.9 + salt} tab={accentOf(id)} />
             ) : i === 0 && STATIONS[id].kind === 'ATM' ? (
               <AtmUser index={who} shirt={customerShirt(who * 3 + 1)} phase={salt} />
             ) : (
@@ -362,6 +454,7 @@ export function DeskQueue({ id }: { id: StationId }) {
 export function DeskPin({ id, height }: { id: StationId; height?: number }) {
   const status = useBankStore((s) => s.view.stations[id].status);
   const queueLength = useBankStore((s) => s.view.stations[id].queueLength);
+  const working = useBankStore((s) => isWorking(s.view.stations[id]));
   const selected = useBankStore((s) => s.selection.kind === 'station' && s.selection.id === id);
   const always = useBankStore((s) => s.labelMode === 'always');
   const hovered = useBankStore((s) => s.hoverPlace === id);
@@ -373,7 +466,7 @@ export function DeskPin({ id, height }: { id: StationId; height?: number }) {
   return (
     <>
       {hovered && <DeskTooltip3D id={id} top={top} />}
-      {visible && <PinBadge id={id} top={top} status={status} queueLength={queueLength} selected={selected} name={terms.station(id)} />}
+      {visible && <PinBadge id={id} top={top} status={status} queueLength={queueLength} working={working} selected={selected} name={terms.station(id)} />}
     </>
   );
 }
@@ -428,6 +521,8 @@ function useTipPlacement(id: StationId, top: number): { side: TipSide3d; at: [nu
 function DeskTooltip3D({ id, top }: { id: StationId; top: number }) {
   const status = useBankStore((s) => s.view.stations[id].status);
   const queueLength = useBankStore((s) => s.view.stations[id].queueLength);
+  const working = useBankStore((s) => isWorking(s.view.stations[id]));
+  const bm = useMessages(deskBadgeMessages);
   const terms = useTerms();
   const rules = routingRules(id);
   const { side, at } = useTipPlacement(id, top);
@@ -460,14 +555,20 @@ function DeskTooltip3D({ id, top }: { id: StationId; top: number }) {
           </dl>
         )}
         <span className="mt-1.5 inline-block rounded bg-slate-800 px-1.5 py-px text-[11px] font-semibold text-slate-200">
-          {queueLength} {t('waiting')} · {statusLabel(status)}
+          {queueLength} {t('waiting')}
+          {working ? ` · ${bm('working')}` : ''} · {statusLabel(status)}
         </span>
       </div>
     </Html>
   );
 }
 
-function PinBadge({ id, top, status, queueLength, selected, name }: { id: StationId; top: number; status: keyof typeof STATUS_HEX; queueLength: number; selected: boolean; name: string }) {
+/**
+ * The badge itself: the status dot, the desk's name, how many are waiting ("3 waiting", amber when anyone is), and beside it
+ * a green "Working" while a case is being worked on at the counter, so a busy desk with an empty queue never reads as idle.
+ */
+function PinBadge({ id, top, status, queueLength, working, selected, name }: { id: StationId; top: number; status: keyof typeof STATUS_HEX; queueLength: number; working: boolean; selected: boolean; name: string }) {
+  const bm = useMessages(deskBadgeMessages);
   return (
     <Html position={[0, top, 0.1]} center zIndexRange={[20, 0]}>
       <button
@@ -480,9 +581,15 @@ function PinBadge({ id, top, status, queueLength, selected, name }: { id: Statio
       >
         <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: STATUS_HEX[status] }} />
         <span className="max-w-[118px] truncate">{name}</span>
-        <span className="min-w-[16px] shrink-0 rounded-full px-1 text-center tabular-nums" style={queueLength > 0 ? { background: '#fde68a', color: '#78350f' } : { background: '#e2e8f0', color: '#64748b' }}>
-          {queueLength}
+        <span className="min-w-[16px] shrink-0 rounded-full px-1 text-center tabular-nums" style={queueLength > 0 ? { background: '#fde68a', color: '#78350f' } : { background: '#e2e8f0', color: '#64748b' }} data-testid={`pin-waiting-${id}`}>
+          {queueLength} {t('waiting')}
         </span>
+        {working && (
+          <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-100 px-1 text-emerald-800" data-testid={`pin-working-${id}`}>
+            <span className="h-1 w-1 animate-pulse rounded-full bg-emerald-500" />
+            {bm('working')}
+          </span>
+        )}
       </button>
     </Html>
   );

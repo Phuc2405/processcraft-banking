@@ -12,6 +12,8 @@ import { ALIGHT, BUS_DOORS, BUS_X, busRiders, kerbZ, LENGTH, riderAt, TrafficSim
 import { Html } from '@react-three/drei';
 import { motion, substeps } from './motion';
 import { sidewalk } from './sidewalk';
+import { isClosed } from './evacuation';
+import { bankStore } from '../../../store/bankStore';
 
 /**
  * The traffic on the avenue (vehicles.ts says where everything is): motorbikes, many carrying two, cars, green taxis and
@@ -188,7 +190,7 @@ function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Ma
     if (blinkR.current) blinkR.current.visible = s.signal === 1 && on;
     // The kerbside door swings open while the taxi stands, and shuts before it pulls away.
     if (door.current) door.current.rotation.y = 1.1 * s.door;
-    const r = riderAt(v, s);
+    const r = riderAt(v, s, isClosed(bankStore.getState().view.minute));
     if (person.current) {
       person.current.visible = r !== null;
       if (r) {
@@ -290,7 +292,7 @@ function BusPeople({ v, index, live }: { v: Vehicle; index: number; live: { stat
   useFrame(() => {
     const s = live.states.get(v.id);
     if (!s) return;
-    const riders = new Map<string, BusRider>(busRiders(v, s).map((r) => [r.id, r]));
+    const riders = new Map<string, BusRider>(busRiders(v, s, isClosed(bankStore.getState().view.minute)).map((r) => [r.id, r]));
     let changed = false;
     const next = BUS_PEOPLE.map((id, i) => {
       const g = groups.current[i];

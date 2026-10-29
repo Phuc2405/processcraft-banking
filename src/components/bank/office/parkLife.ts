@@ -131,12 +131,11 @@ export function SWING_XS(): number[] {
   return [-0.4, 0.4].map((dx) => PLAYGROUND.x - 1.1 + dx);
 }
 
-/** Whether it is weather to stay out in. Nobody stays in the park in rain, a storm, hail or snow. */
-export const parkWeather = (weather: string): boolean => !['rain', 'storm', 'hail', 'snow'].includes(weather);
-
-/** Who wants to be in the park at `minute` in fair weather: more on the benches and paths after the bank closes at 17:00. */
-export function wantsPark(m: ParkMember, minute: number, fair: boolean): boolean {
-  if (!fair) return false;
+/**
+ * Who wants to be in the park at `minute`: more on the benches and paths after the bank closes at 17:00. The weather never
+ * changes who is there (a shower sends nobody home and brings nobody out): it only changes what they do (ParkCrowd.step).
+ */
+export function wantsPark(m: ParkMember, minute: number): boolean {
   const h = minute / 60;
   const evening = h >= 17;
   switch (m.role) {
@@ -171,9 +170,14 @@ export interface ParkState {
   loop: number;
 }
 
-/** The park's people, stepped on the motion clock. */
+/**
+ * The park's people, stepped on the motion clock. In the wet nobody leaves: everyone puts up an umbrella where they are
+ * (Park3D), the strollers keep to the loop, and the children get off the swings and wait under the swing frame.
+ */
 export class ParkCrowd {
   t = 0;
+  /** It is raining (or hailing, or snowing) now. */
+  wet = false;
   readonly people: ParkState[];
 
   constructor(members: readonly ParkMember[] = PARK_MEMBERS, present: (m: ParkMember) => boolean = () => false) {
@@ -188,6 +192,7 @@ export class ParkCrowd {
   /** Moves everyone on by `dt` seconds; `wanted` says who should be in the park now, `wet` whether it is raining. */
   step(dt: number, wanted: (m: ParkMember) => boolean, wet: boolean): void {
     this.t += dt;
+    this.wet = wet;
     let leaving = 0;
     let coming = 0;
     for (const p of this.people) {
@@ -249,7 +254,9 @@ export class ParkCrowd {
         const ahead = pointAlongPath(LOOP_RING, mod(p.loop + 0.05, LOOP_LEN));
         return { pose: p.going === 'out' ? 'up' : 'home', at, heading: Math.atan2(ahead[0] - at[0], ahead[1] - at[1]) };
       }
-      return { pose: p.going === 'out' ? 'up' : 'home', at: p.m.at, heading: p.m.facing };
+      // A child off the swing in the wet stands under its frame, waiting for the rain to stop.
+      const waiting = p.m.role === 'swing' && this.wet;
+      return { pose: p.going === 'out' || waiting ? 'up' : 'home', at: p.m.at, heading: p.m.facing };
     }
     const at = pointAlongPath(p.route, p.d);
     // Facing the way they walk: along the route going out, back along it coming in.
@@ -259,10 +266,10 @@ export class ParkCrowd {
     return { pose: 'walk', at, heading };
   }
 
-  /** Whether each swing has a child on it now (a swing only ever moves with someone on it). */
+  /** Whether each swing has a child on it now (a swing only ever moves with someone on it; nobody swings in the wet). */
   swingTaken(k: number): boolean {
     const p = this.people.find((x) => x.m.role === 'swing' && x.m.k === k);
-    return !!p && p.d === 0 && p.going === null;
+    return !!p && p.d === 0 && p.going === null && !this.wet;
   }
 }
 
