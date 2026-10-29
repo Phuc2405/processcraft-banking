@@ -168,6 +168,13 @@ export function seatOffsets(count: number): V2[] {
 
 /** The most customers drawn in a queue; the rest are a number on the sign. */
 export const QUEUE_VISIBLE = 5;
+
+/** A desk's own offset to the looks of the people in its line, so two lines never wear the same faces in the same order:
+ * the person in place `i` of a line is `processedToday + i + queueSalt(id)` (the same person as the line moves up). */
+export const queueSalt = (id: StationId): number => {
+  const p = deskPose(id);
+  return Math.abs(Math.trunc(p.x * 7 + p.z * 13));
+};
 export const QUEUE_GAP = 0.34;
 
 /**

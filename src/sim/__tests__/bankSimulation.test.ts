@@ -27,10 +27,10 @@ describe('the calendar used by these tests', () => {
 });
 
 describe('time', () => {
-  it('starts at the 08:00 briefing on day 1 and ends at midnight after one beat per step', () => {
+  it('starts at the 07:00 start on day 1 and ends at midnight after one beat per step', () => {
     const sim = new BankSimulation({ seed: SEED });
     expect(sim.day).toBe(1);
-    expect(sim.minute).toBe(8 * 60);
+    expect(sim.minute).toBe(7 * 60);
     let steps = 0;
     while (!sim.dayOver) {
       sim.step();
@@ -318,13 +318,13 @@ describe('temporary cover', () => {
 });
 
 describe('the next day', () => {
-  it('starts at 08:00 on the following day with fresh numbers and rested staff', () => {
+  it('starts at 07:00 on the following day with fresh numbers and rested staff', () => {
     const sim = new BankSimulation({ seed: SEED, day: PROMO_DAY });
     const tired = sim.runToEndOfDay().close.maxFatigue;
     sim.nextDay();
     const v = sim.snapshot();
     expect(v.day).toBe(PROMO_DAY + 1);
-    expect(v.minute).toBe(8 * 60);
+    expect(v.minute).toBe(7 * 60);
     expect(v.dayOver).toBe(false);
     expect(v.kpis.arrivals).toBe(0);
     expect(Math.max(...STATION_IDS.flatMap((id) => v.stations[id].workers.map((w) => w.fatigue)))).toBeLessThan(tired * 0.6);

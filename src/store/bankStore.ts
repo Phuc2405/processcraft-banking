@@ -325,11 +325,11 @@ export interface BankState {
   skipToEndOfDay(): void;
   startNextDay(): void;
   resetBank(): void;
-  /** Replays the day the bank is on from the 08:00 briefing: same customers, same carry-over, today's report (if any) dropped. */
+  /** Replays the day the bank is on from 07:00, as the staff arrive: same customers, same carry-over, today's report (if any) dropped. */
   resetDay(): void;
   /**
    * The time scrubber: puts the bank clock (and with it the queues, the KPIs and the ledger) at `minute` of today, forwards or
-   * backwards. Forwards plays the day on to that time; backwards replays today from the 08:00 briefing up to it, with the same
+   * backwards. Forwards plays the day on to that time; backwards replays today from 07:00 up to it, with the same
    * customers. Reaching 24:00 closes the day as usual.
    */
   scrubTo(minute: number): void;
@@ -917,7 +917,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           comparison: null,
           comparisonStatus: 'idle',
           staffShift: {},
-          notice: { kind: 'info', message: `Day ${day} is back at the 08:00 briefing. The same customers will arrive.` },
+          notice: { kind: 'info', message: `Day ${day} is back at 07:00, as the staff arrive. The same customers will arrive.` },
         });
         refresh();
         persist();

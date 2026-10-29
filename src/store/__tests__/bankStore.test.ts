@@ -12,10 +12,10 @@ const FIXED = () => new Date('2026-10-11T00:00:00Z');
 const make = (storage: KeyValueStorage | null = memoryStorage()) => createBankStore({ storage, now: FIXED, seed: 7 });
 
 describe('the bank on screen', () => {
-  it('opens on day 1 at the 08:00 briefing, paused, with nothing selected', () => {
+  it('opens on day 1 at the 07:00 start, paused, with nothing selected', () => {
     const s = make().getState();
     expect(s.view.day).toBe(1);
-    expect(s.view.minute).toBe(8 * 60);
+    expect(s.view.minute).toBe(7 * 60);
     expect(s.playing).toBe(false);
     expect(s.selection).toEqual({ kind: 'none' });
     expect(s.hubOpen).toBe(false);
@@ -104,7 +104,7 @@ describe('the bank on screen', () => {
     store.getState().startNextDay();
     const s = store.getState();
     expect(s.view.day).toBe(2);
-    expect(s.view.minute).toBe(8 * 60);
+    expect(s.view.minute).toBe(7 * 60);
     expect(s.view.rules.frictionlessBelow).toBe(55);
     expect(s.reportOpen).toBe(false);
     expect(s.view.event.id).toBe('PROMO');
@@ -235,14 +235,14 @@ describe('saving', () => {
     expect(b.getState().view.day).toBe(1);
   });
 
-  it('a reload in the middle of a day starts that day again from 08:00', () => {
+  it('a reload in the middle of a day starts that day again from 07:00', () => {
     const a = make(storage);
     a.getState().skipToEndOfDay();
     a.getState().startNextDay();
     a.getState().skipTo(13 * 60);
     const b = make(storage);
     expect(b.getState().view.day).toBe(2);
-    expect(b.getState().view.minute).toBe(8 * 60);
+    expect(b.getState().view.minute).toBe(7 * 60);
   });
 
   it('forgets everything on reset', () => {
@@ -749,7 +749,7 @@ describe('resetting the day', () => {
     for (let i = 0; i < beats; i++) store.getState().step();
   };
 
-  it('puts the same day back at the 08:00 briefing, paused, with nothing selected', () => {
+  it('puts the same day back at the 07:00 start, paused, with nothing selected', () => {
     const store = make();
     play(store, 40);
     store.getState().select({ kind: 'station', id: 'GATE_POS' });
@@ -758,12 +758,12 @@ describe('resetting the day', () => {
     store.getState().resetDay();
     const s = store.getState();
     expect(s.view.day).toBe(1);
-    expect(s.view.minute).toBe(8 * 60);
+    expect(s.view.minute).toBe(7 * 60);
     expect(s.view.tick).toBe(0);
     expect(s.playing).toBe(false);
     expect(s.selection).toEqual({ kind: 'none' });
     expect(s.view.ledger.lines).toBe(0);
-    expect(s.notice?.message).toMatch(/Day 1 is back at the 08:00 briefing/);
+    expect(s.notice?.message).toMatch(/Day 1 is back at 07:00/);
   });
 
   it('replays exactly the same day: the same customers, the same numbers', () => {
@@ -804,7 +804,7 @@ describe('resetting the day', () => {
     expect(store.getState().draftRules).toEqual(rules);
   });
 
-  it('is saved, so a reload after a reset opens on the same 08:00 briefing', () => {
+  it('is saved, so a reload after a reset opens on the same 07:00 start', () => {
     const storage = memoryStorage();
     const a = make(storage);
     a.getState().skipToEndOfDay();
@@ -814,7 +814,7 @@ describe('resetting the day', () => {
     a.getState().resetDay();
     const b = make(storage);
     expect(b.getState().view.day).toBe(2);
-    expect(b.getState().view.minute).toBe(8 * 60);
+    expect(b.getState().view.minute).toBe(7 * 60);
     expect(b.getState().view.history.map((h) => h.day)).toEqual([1]);
   });
 
@@ -907,7 +907,7 @@ describe('the time scrubber', () => {
     expect(v.ledger).toEqual(expected.ledger);
   });
 
-  it('goes back too: the same day is replayed from 08:00 with the same customers, up to the time asked for', () => {
+  it('goes back too: the same day is replayed from 07:00 with the same customers, up to the time asked for', () => {
     const store = make();
     store.getState().scrubTo(15 * 60);
     store.getState().scrubTo(10 * 60);
@@ -945,7 +945,7 @@ describe('the time scrubber', () => {
   it('keeps the time inside the day, does nothing for the time already shown, and ends a tour', () => {
     const store = make();
     store.getState().scrubTo(2);
-    expect(store.getState().view.minute).toBe(8 * 60);
+    expect(store.getState().view.minute).toBe(7 * 60);
     store.getState().scrubTo(11 * 60);
     const tick = store.getState().view.tick;
     store.getState().scrubTo(11 * 60);

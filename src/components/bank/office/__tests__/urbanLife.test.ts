@@ -146,7 +146,7 @@ describe('the kerb lane, the bus and the cash van', () => {
 describe('the park’s people', () => {
   const noon = 12 * 60;
   const fair = (m: (typeof PARK_MEMBERS)[number]): boolean => wantsPark(m, noon);
-  const evening = (m: (typeof PARK_MEMBERS)[number]): boolean => wantsPark(m, 22.5 * 60);
+  const evening = (m: (typeof PARK_MEMBERS)[number]): boolean => wantsPark(m, 23.75 * 60);
 
   it('keeps the flowerbeds off the paths, so nobody strolling the loop walks through one', () => {
     for (const { at: [fx, fz], size } of FLOWERBEDS) {
@@ -183,7 +183,7 @@ describe('the park’s people', () => {
     for (const p of crowd.people.filter((q) => q.m.role === 'swing')) expect(crowd.poseOf(p).pose).toBe('up');
     for (let i = 0; i < 10 * 20; i++) crowd.step(0.05, fair, false);
     expect(here()).toBe(start);
-    expect(read('../Park3D.tsx')).toContain("const wet = l !== 'away' && crowd.wet;");
+    expect(read('../Park3D.tsx')).toContain("const wet = l !== 'away' && crowd.wet && !underCover(s.at[0], s.at[1], [PICNIC_ROOF]);");
   });
 
   it('walks people out gradually as the evening ends, and back in the next day: nobody vanishes or appears', () => {

@@ -70,8 +70,29 @@ export const WEATHER_MIX: Readonly<Record<Weather, WeatherMix>> = {
   snow: moods({ overcast: 0.7, snow: 1 }),
 };
 
-/** In random mode, how often the weather moves on (seconds of real time), and the next weather: never the same twice running. */
-export const RANDOM_EVERY_S = 150;
+/**
+ * In random mode, how long each weather lasts, in the bank's minutes ([shortest, longest]): a fair spell an hour to an hour
+ * and a half, a shower a quarter of an hour to twenty minutes, a storm ten to fifteen (everyone runs for shelter at once
+ * while it lasts). On the bank's clock, so the weather holds while the bank is paused.
+ */
+export const WEATHER_SPAN: Readonly<Record<Weather, readonly [number, number]>> = {
+  clear: [60, 90],
+  cloudy: [60, 90],
+  hot: [60, 90],
+  autumn: [60, 90],
+  spring: [60, 90],
+  pollen: [60, 90],
+  fog: [60, 90],
+  smog: [60, 90],
+  snow: [60, 90],
+  rain: [15, 20],
+  storm: [10, 15],
+  hail: [10, 15],
+};
+/** How many of the bank's minutes weather `w` lasts, `r` (0-1) of the way through its span. */
+export const weatherSpan = (w: Weather, r: number): number => WEATHER_SPAN[w][0] + Math.max(0, Math.min(1, r)) * (WEATHER_SPAN[w][1] - WEATHER_SPAN[w][0]);
+
+/** The next weather in random mode: never the same twice running. */
 export const nextRandomWeather = (now: Weather, r: number): Weather => {
   const others = RANDOM_WEATHERS.filter((w) => w !== now);
   return others[Math.min(others.length - 1, Math.floor(Math.max(0, r) * others.length))]!;
@@ -167,6 +188,7 @@ interface Key {
 
 /** The presets, by minute of the day. The camera stands 60 units from the point it looks at, so the haze starts past the office. */
 export const DAY_KEYS: readonly Key[] = [
+  { at: 7 * 60, skyTop: '#5f7fa8', skyHorizon: '#e8b98f', sun: 0.95, sunColor: '#ffc89a', sunDir: [-34, 7, 10], hemi: 0.7, hemiSky: '#d9d3e0', hemiGround: '#a8957d', fogNear: 48, fogFar: 78, mist: 0.95, lamps: 0.85, windows: 0.6 },
   { at: 8 * 60, skyTop: '#8fb4d6', skyHorizon: '#e9dccb', sun: 1.55, sunColor: '#ffe3c2', sunDir: [-30, 14, 10], hemi: 0.95, hemiSky: '#f3efe6', hemiGround: '#cdbb9f', fogNear: 52, fogFar: 82, mist: 0.85, lamps: 0.35, windows: 0.25 },
   { at: 10 * 60, skyTop: '#7fb0de', skyHorizon: '#e6eef6', sun: 2.1, sunColor: '#fff0d6', sunDir: [-22, 24, 14], hemi: 1.1, hemiSky: '#fff8ec', hemiGround: '#ecd9bb', fogNear: 62, fogFar: 104, mist: 0, lamps: 0, windows: 0 },
   { at: 12 * 60, skyTop: '#6aa7e3', skyHorizon: '#eef4fa', sun: 2.5, sunColor: '#fffaf0', sunDir: [-8, 34, 12], hemi: 1.2, hemiSky: '#ffffff', hemiGround: '#efe0c4', fogNear: 66, fogFar: 112, mist: 0, lamps: 0, windows: 0 },

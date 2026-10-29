@@ -327,7 +327,11 @@ export class TrafficSim {
       // (A drop-off held up in traffic, signalling across to a spot right beside it, is let finish the move.)
       const crossing = dropping && c.wants === 0 && c.speed < HALTED;
       if (pending !== null && c.lane !== 0 && pending < KERB_MISS && !crossing) {
-        c.doneLap = lap;
+        if (dropping && c.speed < HALTED) {
+          // Held up in traffic and the kerb lane filled before it could move across: it keeps its passenger's drop-off and
+          // looks again for a clear spot beside it, rather than giving up and driving them on down the street.
+          c.spot = null;
+        } else c.doneLap = lap;
         pending = null;
       }
 

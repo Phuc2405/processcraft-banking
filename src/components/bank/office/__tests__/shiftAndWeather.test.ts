@@ -70,7 +70,7 @@ describe('served at a counter or an ATM: finish, turn, walk away', () => {
     const desk = read('../Desk3D.tsx');
     expect(desk).toContain('function ServedCustomer(');
     // While finishing up they stand at the spot where they were served, then turn smoothly to the way out.
-    expect(desk).toContain('if (t < s.wait) {');
+    expect(desk).toContain('if (t < walkUp + s.wait) {');
     expect(desk).toContain('who: before + j + salt');
     // Talking to the teller at the front of a counter's line.
     expect(desk).toContain('<CounterUser index={who}');
@@ -168,22 +168,23 @@ describe('waiting and talking people stand still; walkers curve smoothly round t
 });
 
 describe('staff walk in before their shift', () => {
-  it('sets the day staff off between 08:00 and 08:30 and the night staff between 22:00 and 22:30', () => {
+  it('sets the day staff off between 07:00 and 07:20 and the night staff between 22:00 and 22:20', () => {
     for (let k = 0; k < 6; k++) {
       const day = arrivalMinute(false, `w${k}`, k);
       const night = arrivalMinute(true, `n${k}`, k);
       expect(day).toBeGreaterThanOrEqual(STAFF_ARRIVAL.day[0]);
       expect(day).toBeLessThan(STAFF_ARRIVAL.day[1]);
       expect(night).toBeGreaterThanOrEqual(22 * 60);
-      expect(night).toBeLessThan(22.5 * 60);
+      expect(night).toBeLessThan(22 * 60 + 20);
+      expect(day).toBeLessThan(7 * 60 + 20);
     }
   });
 
   it('keeps a seat empty until its person is due, and seats the night staff ready before 23:00', () => {
     const ids = ['a', 'b', 'c'];
-    const at8 = arrivalState(false, ids, 8 * 60);
-    expect(at8.away.length).toBeGreaterThan(0);
-    expect(arrivalState(false, ids, 8.6 * 60).away).toEqual([]);
+    const at7 = arrivalState(false, ids, 7 * 60);
+    expect(at7.away.length).toBeGreaterThan(0);
+    expect(arrivalState(false, ids, 7.4 * 60).away).toEqual([]);
     expect(arrivalState(true, ids, 21.9 * 60)).toEqual({ away: [], early: [] });
     expect(arrivalState(true, ids, 22.6 * 60).early).toEqual(ids);
     expect(arrivalState(true, ids, 23 * 60).early).toEqual([]);

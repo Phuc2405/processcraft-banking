@@ -9,7 +9,7 @@ import { ATM_STATIONS, atmBooth, GUARD_CABIN, KERB_Z, STREET } from './layout3d'
  * through a shower.
  */
 
-/** What the learner picked: one weather, or random (the default), which moves on to another every RANDOM_EVERY_S. */
+/** What the learner picked: one weather, or random (the default), which moves on to another when its spell is over (WEATHER_SPAN). */
 export type WeatherChoice = 'random' | Weather;
 
 interface WeatherState {
@@ -95,6 +95,19 @@ export const BUS_STOP: Roof = { x0: 10.3, x1: 13.7, z0: KERB_Z - 1.45, z1: KERB_
 
 /** Whether (x, z) is under a roof, inside its edge by `margin`. */
 export const underRoof = (r: Roof, x: number, z: number, margin = 0.15): boolean => x >= r.x0 + margin && x <= r.x1 - margin && z >= r.z0 + margin && z <= r.z1 - margin;
+
+/** The guard's cabin by the main entrance, and the eaves of its roof all round. */
+export const CABIN_ROOF: Roof = { x0: GUARD_CABIN.x - GUARD_CABIN.w / 2 - 0.3, x1: GUARD_CABIN.x + GUARD_CABIN.w / 2 + 0.3, z0: GUARD_CABIN.z - GUARD_CABIN.d / 2 - 0.3, z1: GUARD_CABIN.z + GUARD_CABIN.d / 2 + 0.3, h: GUARD_CABIN.h };
+
+/** Every roof out on the street someone can stand under out of the rain: the entrance's overhang, the bus stop, the guard's cabin. */
+export const STREET_COVERS: readonly Roof[] = [OVERHANG, BUS_STOP, CABIN_ROOF];
+
+/** Whether (x, z) is under cover from the rain (`more`: other roofs, such as the park's picnic umbrella). An umbrella is put
+ * down under one, and goes back up on stepping out into the rain again. */
+export const underCover = (x: number, z: number, more: readonly Roof[] = []): boolean => [...STREET_COVERS, ...more].some((r) => underRoof(r, x, z, 0));
+
+/** How fast an umbrella goes up or comes down (fraction a second): half a second either way. */
+export const UMBRELLA_RATE = 2;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Pedestrians

@@ -40,7 +40,7 @@ import {
   type ChaosView,
 } from '../engine/chaos';
 import type { CardType, DerivedFacts, GLEntry } from '../types/processLearning';
-import { BEATS_PER_DAY, DAY_END, DAY_START, EOD_START, beatIndexAt, beatMinutes, formatClock, phaseAt, type Phase } from './clock';
+import { BEATS_PER_DAY, DAY_END, DAY_START, EOD_START, beatIndexAt, beatMinutesAt, formatClock, phaseAt, type Phase } from './clock';
 import { A2A_FEE_CENTS, BNPL_FEE_RATE, bnplDefaultRate, COVER_COST_CENTS, emptyKpis, INTERCHANGE_RATE, pnl } from './kpis';
 import { closeBook, openingBook } from './bankBook';
 import { describeWork, IDLE_TEXT } from './narration';
@@ -381,7 +381,7 @@ export class BankSimulation {
   step(options: { admit?: boolean } = {}): void {
     if (this.dayOver) return;
     const phase = phaseAt(this.minute);
-    const bm = beatMinutes(phase);
+    const bm = beatMinutesAt(this.minute);
     const start = this.minute;
 
     this.tick++;
@@ -2263,7 +2263,7 @@ export class BankSimulation {
     if (correct) bump(st, RP_COUNTERS.correct);
     bump(st, RP_COUNTERS.latency, Math.max(0, Math.round(latencySec)));
     p.stopIndex++;
-    this.advance(p, this.minute, 0, beatMinutes(phaseAt(Math.min(this.minute, DAY_END - 1))));
+    this.advance(p, this.minute, 0, beatMinutesAt(Math.min(this.minute, DAY_END - 1)));
     return { ok: true, packetId, decision, expected: c.expected, correct, statusCode: statusCodeFor(role, decision, p) };
   }
 

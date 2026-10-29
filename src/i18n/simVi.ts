@@ -68,7 +68,7 @@ const NOTICE_EXACT: Readonly<Record<string, string>> = {
 
 const NOTICE_RULES: ReadonlyArray<readonly [RegExp, (m: RegExpExecArray) => string]> = [
   [/^Welcome back\. The bank is on day (\d+)\.$/, (m) => `Chào mừng trở lại. Ngân hàng đang ở ngày ${m[1]}.`],
-  [/^Day (\d+) is back at the 08:00 briefing\. The same customers will arrive\.$/, (m) => `Ngày ${m[1]} đã quay về buổi giao ban 08:00. Những khách hàng cũ sẽ lại đến.`],
+  [/^Day (\d+) is back at 07:00, as the staff arrive\. The same customers will arrive\.$/, (m) => `Ngày ${m[1]} đã quay về 07:00, lúc nhân viên đến làm. Những khách hàng cũ sẽ lại đến.`],
   [/^(.+) cannot take any more temporary cover today\.$/, (m) => `${m[1]} không thể nhận thêm người hỗ trợ tạm thời hôm nay.`],
 ];
 

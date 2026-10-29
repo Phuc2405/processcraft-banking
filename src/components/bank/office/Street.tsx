@@ -77,7 +77,7 @@ function usePavers(repeatX: number, repeatY: number): CanvasTexture {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** A soft warm disc of light for the ground under a lamp, drawn once. */
-function useGlowTexture(): CanvasTexture {
+export function useGlowTexture(): CanvasTexture {
   const tex = useMemo(() => {
     const c = document.createElement('canvas');
     c.width = c.height = 128;

@@ -46,6 +46,8 @@ import {
   OVERHANG,
   PEDESTRIANS,
   pedestrianAt,
+  UMBRELLA_RATE,
+  underCover,
   useWeather,
   weatherStore,
   type AfterRain,
@@ -1073,6 +1075,8 @@ function Passer({ p, clock }: { p: Pedestrian; clock: PavementClock }) {
   const hand = useRef<Group>(null);
   const brolly = useRef<Group>(null);
   const raise = useMemo(() => ({ current: 0 }), []);
+  // How far the umbrella is up now (eased, so it never pops).
+  const open = useRef(0);
   const outfit = useWeather((s) => outfitOf(s.weather));
   const drink = useWeather((s) => carriesDrink(s.weather));
   const [pose, setPose] = useState<PedestrianPose>(() => pedestrianAt(p, 0, null).pose);
@@ -1087,16 +1091,23 @@ function Passer({ p, clock }: { p: Pedestrian; clock: PavementClock }) {
       root.current.rotation.x = s.pose === 'lookup' ? -0.12 : 0;
       root.current.rotation.z = s.pose === 'shake' ? Math.sin(clock.t * 34) * 0.09 : 0;
     }
+    // An umbrella carrier keeps it up in the wet out in the open, running for shelter too, and puts it down under a roof
+    // (the entrance's overhang, the bus stop, the guard's cabin), putting it up again on stepping back out into the rain.
+    const out = clock.rainFor !== null && p.umbrella && s.pose !== 'lookup' ? 1 : 0;
+    const want = underCover(x, z) ? 0 : Math.max(s.umbrella, out);
+    open.current = fadeToward(open.current, want, motion.dt, 1 / UMBRELLA_RATE);
+    const u0 = open.current;
     // The arm comes up first, then the umbrella pops open over the head: from a furled stick to its full canopy.
-    raise.current = Math.min(1, s.umbrella * 2);
+    raise.current = Math.min(1, u0 * 2);
     const h = hand.current;
     if (h) {
+      h.visible = u0 > 0.01;
       const u = raise.current;
       h.position.set(HAND.down[0], HAND.down[1] + (HAND.up[1] - HAND.down[1]) * u, HAND.down[2] + (HAND.up[2] - HAND.down[2]) * u);
-      const wob = umbrellaWobble(p.index, clock.t, windOf(liveMix) * s.umbrella);
+      const wob = umbrellaWobble(p.index, clock.t, windOf(liveMix) * u0);
       h.rotation.set(wob.x, 0, wob.z);
     }
-    if (brolly.current) brolly.current.scale.set(0.2 + 0.8 * s.umbrella, 0.5 + 0.5 * s.umbrella, 0.2 + 0.8 * s.umbrella);
+    if (brolly.current) brolly.current.scale.set(0.2 + 0.8 * u0, 0.5 + 0.5 * u0, 0.2 + 0.8 * u0);
     if (s.pose !== pose) setPose(s.pose);
   });
   const moving = pose === 'walk' || pose === 'umbrella' || pose === 'run' || pose === 'fold';
@@ -1125,8 +1136,8 @@ function Passer({ p, clock }: { p: Pedestrian; clock: PavementClock }) {
           </mesh>
         </group>
       )}
-      {(pose === 'umbrella' || pose === 'fold') && (
-        <group ref={hand} position={[HAND.down[0], HAND.down[1], HAND.down[2]]}>
+      {p.umbrella && (
+        <group ref={hand} position={[HAND.down[0], HAND.down[1], HAND.down[2]]} visible={false}>
           <mesh geometry={umbrellaStick} position={[0, 0.45, 0]} material={solid} />
           <group ref={brolly} position={[0, 0.92, 0]}>
             <mesh geometry={umbrellaCanopy}>

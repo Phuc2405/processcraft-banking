@@ -95,8 +95,10 @@ export const pulseDistance = (len: number, k: number, t: number): number => (len
 /** The simulation's own words for a member of staff who has gone home (bankSimulation.ts workerView). */
 export const isOffShift = (activity: string): boolean => /^(Off shift|Desk closed)/.test(activity);
 
-/** How fast staff walk out, in world units a second. */
+/** How fast staff walk out, in world units a second; and how briskly they come in before a shift, to be at their desks
+ * well before it starts. */
 export const LEAVE_SPEED = 1.4;
+export const ARRIVE_SPEED = 3.5;
 
 /** The pavement's inner walking lane (clear of the ATM booths and the guard's cabin), where staff come and go. */
 const STAFF_LANE_Z = KERB_Z - 0.85;
@@ -123,10 +125,11 @@ export function leaveRoute(pose: Pose, seat: V2, k = 0): V2[] {
 }
 
 /**
- * Staff coming in before their shift: the day's staff in the first half hour of the day (08:00 to 08:30), seated well before
- * the doors open at 09:00; the night's an hour to half an hour before the night's work starts at 23:00 (22:00 to 22:30).
+ * Staff coming in before their shift: the day's staff set off between 07:00 and 07:20 for their 08:00 shift, the night's
+ * between 22:00 and 22:20 for the night's work at 23:00. The hour before each shift ticks in short beats (sim/clock.ts
+ * PRE_SHIFT) and they walk in briskly (ARRIVE_SPEED), so everyone is seated well before it starts.
  */
-export const STAFF_ARRIVAL = { day: [DAY_START, DAY_START + 30], night: [EOD_START - 60, EOD_START - 30] } as const;
+export const STAFF_ARRIVAL = { day: [DAY_START, DAY_START + 20], night: [EOD_START - 60, EOD_START - 40] } as const;
 
 /** The minute the `k`th member of staff at a desk sets off for work: spread through their shift's arrival window, steady per person. */
 export function arrivalMinute(night: boolean, seed: string, k: number): number {
@@ -156,10 +159,10 @@ export function arrivalState(night: boolean, ids: readonly string[], minute: num
 /** The way in to `seat`: the way out walked backwards, from down the street, in at the main entrance, to the chair. */
 export const arriveRoute = (pose: Pose, seat: V2, k = 0): V2[] => leaveRoute(pose, seat, k).reverse();
 
-/** Where someone on `route` is after walking for `t` seconds, which way they face, and whether they are out. */
-export function leaveAt(route: readonly V2[], t: number): { at: V2; heading: number; done: boolean } {
+/** Where someone on `route` is after walking for `t` seconds at `speed`, which way they face, and whether they are there. */
+export function leaveAt(route: readonly V2[], t: number, speed: number = LEAVE_SPEED): { at: V2; heading: number; done: boolean } {
   const len = pathLength(route);
-  const d = Math.min(len, Math.max(0, t) * LEAVE_SPEED);
+  const d = Math.min(len, Math.max(0, t) * speed);
   const at = pointAlongPath(route, d);
   const ahead = pointAlongPath(route, Math.min(len, d + 0.05));
   const heading = ahead[0] === at[0] && ahead[1] === at[1] ? 0 : Math.atan2(ahead[0] - at[0], ahead[1] - at[1]);

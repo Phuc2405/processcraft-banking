@@ -170,7 +170,7 @@ describe('people on the pavement keep apart', () => {
   it('steers every walker on the pavement: passers-by, ATM customers coming and going, and people off the buses and taxis', () => {
     expect(read('../Environment3D.tsx')).toContain('sidewalk.place(`passer-${p.index}`');
     const traffic = read('../Traffic.tsx');
-    expect(traffic).toContain("placeWalkers(walks.current, pool.current, 'arrival')");
+    expect(traffic).toContain("placeWalkers(walks.current, pool.current, 'arrival',");
     // Whoever has been served walks off from the desk itself, curving round the others on the pavement too.
     expect(read('../Desk3D.tsx')).toContain('const [x, z] = sidewalk.place(who, p.x, p.z, motion.dt);');
     const cars = read('../Vehicles3D.tsx');
@@ -183,7 +183,7 @@ describe('the ATM queues, from the street to the machine and away', () => {
   it('walks customers to the ATMs at an unhurried pace on the motion clock, each on one figure the whole way', () => {
     const traffic = read('../Traffic.tsx');
     expect(traffic).toContain('export const ARRIVAL_PACE = { atm: 0.85, gate: 1.0 } as const;');
-    expect(read('../Desk3D.tsx')).toContain('export const SERVED = { counter: 1.1, atm: ATM_TURN_S, turn: 0.45, pace: 0.95 } as const;');
+    expect(read('../Desk3D.tsx')).toContain('export const SERVED = { counter: 1.1, atm: ATM_TURN_S, turn: 0.45, pace: 0.95, business: { atm: 3.5, counter: 4 } } as const;');
     // Paced walks on the scaled motion clock, not squeezed into a beat: and nobody's figure is taken over mid-walk.
     expect(traffic).toContain('const p = laneAt(w.path, (t - w.start) * w.pace);');
     expect(traffic).not.toContain('walks.current.splice(0, walks.current.length - MAX_WALKERS)');

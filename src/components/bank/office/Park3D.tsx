@@ -1,6 +1,6 @@
 import { useFrame } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { Color, ConeGeometry, CylinderGeometry, InstancedMesh, MeshStandardMaterial, Object3D, type Group, type Mesh } from 'three';
+import { AdditiveBlending, Color, ConeGeometry, CylinderGeometry, DoubleSide, InstancedMesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, type Group, type Mesh } from 'three';
 import { bankStore } from '../../../store/bankStore';
 import { CustomerFigure, SittingFigure, type Wear } from './Avatars';
 import { Bubble } from './Bubble3D';
@@ -11,8 +11,10 @@ import { glow, solid } from './materials';
 import { motion, substeps } from './motion';
 import { TREE_STRIP } from './parking';
 import { ParkCrowd, SWING_XS, talkers, wantsPark, type ParkPose, type ParkSky, type ParkState, type Talker } from './parkLife';
-import { FLOWERBEDS, FOUNTAIN, HEDGES, LOOP, PARK, PARK_BENCHES, PARK_CX as cx, PARK_CZ as cz, PICNIC, PLAYGROUND } from './parkPlan';
-import { isRaining, outfitOf, outfitShirt, useWeather, weatherStore, type Outfit } from './weather';
+import { FLOWERBEDS, FOUNTAIN, HEDGES, LOOP, PARK, PARK_BENCHES, PARK_CX as cx, PARK_CZ as cz, PARK_LAMP_HEIGHT, PARK_LAMPS, PICNIC, PLAYGROUND } from './parkPlan';
+import { isRaining, liveMix, outfitOf, outfitShirt, underCover, useWeather, weatherStore, type Outfit, type Roof } from './weather';
+import { atmosphereAt } from './atmosphere';
+import { useGlowTexture } from './Street';
 
 export { FOUNTAIN, LOOP, PARK, PARK_BENCHES, PICNIC, PLAYGROUND, strollerAt } from './parkPlan';
 
@@ -119,19 +121,9 @@ function parkParts(): { solid: Part[]; lit: Part[] } {
     box([lx, 0.32, PLAYGROUND.z - 1.05], [0.5, 0.06, 0.4], '#1e3a8a', [0.9, 0, 0]),
     box([lx, 0.3, PLAYGROUND.z + 0.15], [0.55, 0.05, 1.3], '#f59e0b', [-0.42, 0, 0]),
   );
-  // Street lamps along the loop.
+  // The lamp posts (their lit heads, light cones and pools: ParkLamps).
   const lit: Part[] = [];
-  for (const [x, z] of [
-    [LOOP.x0 - 0.65, LOOP.z0 + 3],
-    [LOOP.x0 - 0.65, cz + 4],
-    [LOOP.x0 - 0.65, LOOP.z1 - 2],
-    [LOOP.x1 + 0.65, LOOP.z0 + 6],
-    [LOOP.x1 + 0.65, cz - 3],
-    [LOOP.x1 + 0.65, LOOP.z1 - 4],
-  ] as const) {
-    p.push(cyl([x, 1.2, z], 0.04, 0.06, 2.4, '#334155', 8), ball([x, 2.45, z], 0.16, '#1f2937'));
-    lit.push(ball([x, 2.38, z], 0.12, '#fff4cf'));
-  }
+  for (const [x, z] of PARK_LAMPS) p.push(cyl([x, 1.2, z], 0.04, 0.06, PARK_LAMP_HEIGHT, '#334155', 8), ball([x, PARK_LAMP_HEIGHT + 0.05, z], 0.16, '#1f2937'));
   return { solid: p, lit };
 }
 
@@ -286,6 +278,58 @@ function Swings({ crowd }: { crowd: ParkCrowd }) {
   );
 }
 
+/** How brightly the park's lamps are lit, 0-1, from the atmosphere's lamp level: off by day, coming on at dusk, full at
+ * night, and still on in the half-light of dawn (and partly under a dark storm sky). */
+export const parkLampGlow = (lamps: number): number => Math.max(0, Math.min(1, (lamps - 0.25) / 0.45));
+
+/**
+ * The park's lamps after dark: each head glows warm, a soft cone of light falls from it, and a pool of light lies on the
+ * lawn or path beneath it, so the evening crowd on the benches sits in lamplight. They come on by themselves at dusk, burn
+ * through the night and the dawn, and go out in daylight.
+ */
+const ParkLamps = memo(function ParkLamps() {
+  const map = useGlowTexture();
+  const head = useMemo(() => new MeshBasicMaterial({ color: '#fff4cf', toneMapped: false }), []);
+  const beam = useMemo(() => new MeshBasicMaterial({ color: '#ffd98a', transparent: true, opacity: 0, depthWrite: false, blending: AdditiveBlending, side: DoubleSide, toneMapped: false }), []);
+  const pool = useMemo(() => new MeshBasicMaterial({ map, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }), [map]);
+  const cone = useMemo(() => new ConeGeometry(1.25, PARK_LAMP_HEIGHT - 0.1, 20, 1, true), []);
+  useEffect(
+    () => () => {
+      head.dispose();
+      beam.dispose();
+      pool.dispose();
+      cone.dispose();
+    },
+    [head, beam, pool, cone],
+  );
+  useFrame(() => {
+    const on = parkLampGlow(atmosphereAt(bankStore.getState().view.minute, liveMix).lamps);
+    head.color.setRGB(0.55 + 0.45 * on, 0.52 + 0.43 * on, 0.45 + 0.36 * on);
+    beam.opacity = 0.16 * on;
+    beam.visible = on > 0.01;
+    pool.opacity = 0.75 * on;
+    pool.visible = on > 0.01;
+  });
+  return (
+    <group name="park-lamps">
+      {PARK_LAMPS.map(([x, z], i) => (
+        <group key={i} position={[x, 0, z]}>
+          <mesh position={[0, PARK_LAMP_HEIGHT - 0.02, 0]} material={head}>
+            <sphereGeometry args={[0.12, 12, 8]} />
+          </mesh>
+          <mesh geometry={cone} position={[0, (PARK_LAMP_HEIGHT - 0.1) / 2, 0]} material={beam} renderOrder={5} />
+          <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} material={pool} renderOrder={3}>
+            <circleGeometry args={[1.5, 28]} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+});
+
+/** The picnic table's sun umbrella, as a roof to sit under out of the rain. */
+export const PICNIC_ROOF: Roof = { x0: PICNIC.x - 1.05, x1: PICNIC.x + 1.05, z0: PICNIC.z - 1.05, z1: PICNIC.z + 1.05, h: 2.05 };
+
 /** A small umbrella, held overhead in the wet. */
 const canopy = new ConeGeometry(0.5, 0.26, 10, 1, true);
 const stick = new CylinderGeometry(0.016, 0.016, 0.75, 5);
@@ -328,9 +372,10 @@ function ParkPerson({ crowd, i, outfit }: { crowd: ParkCrowd; i: number; outfit:
     g.rotation.y = s.heading;
     // Looking up at the sky before setting off.
     g.rotation.x = l === 'stand' ? -0.12 : 0;
-    // Up goes the umbrella, wherever they are, as soon as it rains (or hails, or snows): on the bench, at the table, under
-    // the swings, strolling.
-    const wet = l !== 'away' && crowd.wet;
+    // Up goes the umbrella as soon as it rains (or hails, or snows), wherever they are out in the open: on a bench, under
+    // the swings, strolling, walking out. Under cover (the picnic table's sun umbrella, the bus stop or a canopy on the way
+    // out) it comes down, and goes back up on stepping out into the rain again.
+    const wet = l !== 'away' && crowd.wet && !underCover(s.at[0], s.at[1], [PICNIC_ROOF]);
     raise.current += ((wet ? 1 : 0) - raise.current) * Math.min(1, motion.dt * 4 + (motion.dt > 0 ? 0.02 : 0));
     if (brolly.current) {
       brolly.current.visible = raise.current > 0.05;
@@ -417,6 +462,7 @@ export const Park3D = memo(function Park3D() {
       <Grass />
       <FountainWater />
       <Swings crowd={crowd} />
+      <ParkLamps />
       {/* The sun umbrella over the picnic table. */}
       <mesh position={[PICNIC.x, 2.05, PICNIC.z]}>
         <coneGeometry args={[1.25, 0.45, 8, 1, true]} />

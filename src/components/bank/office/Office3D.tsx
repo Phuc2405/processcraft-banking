@@ -6,7 +6,7 @@ import { activeFlowOf, useBankStore } from '../../../store/bankStore';
 import { OfficeScene } from './OfficeScene';
 import { TourLayer3D } from './TourLayer3D';
 import { CAMERA_DIRECTION, CAMERA_DISTANCE } from './layout3d';
-import { atmosphereAt, nextRandomWeather, RANDOM_EVERY_S, WEATHERS, type DayPart } from './atmosphere';
+import { atmosphereAt, nextRandomWeather, weatherSpan, WEATHERS, type DayPart } from './atmosphere';
 import { useWeather, weatherStore, type WeatherChoice } from './weather';
 import { skyFlash } from './Environment3D';
 import { MapLegend } from '../MapLegend';
@@ -63,19 +63,27 @@ export const WEATHER_HINT: Record<WeatherChoice, string> = {
   snow: 'Falling snow settling on the ground: coats, scarves and beanies (pick by hand only)',
 };
 
-/** In random mode, moves the weather on: once on arrival, then every RANDOM_EVERY_S. A manual pick stops it. */
+/**
+ * In random mode, moves the weather on: once on arrival, then whenever the weather's spell is over (WEATHER_SPAN, in the
+ * bank's minutes: a fair spell an hour or more, a shower a quarter of an hour, a storm ten minutes or so). A new day, or the
+ * clock wound back, starts a new spell. A manual pick stops it.
+ */
 function RandomWeather() {
   const random = useWeather((s) => s.choice === 'random');
+  const minute = useBankStore((s) => s.view.minute);
+  const spell = useRef<{ from: number; until: number } | null>(null);
   useEffect(() => {
-    if (!random) return;
-    const next = (): void => {
-      const s = weatherStore.getState();
-      s.setWeather(nextRandomWeather(s.weather, Math.random()));
-    };
-    next();
-    const timer = window.setInterval(next, RANDOM_EVERY_S * 1000);
-    return () => window.clearInterval(timer);
-  }, [random]);
+    if (!random) {
+      spell.current = null;
+      return;
+    }
+    const now = spell.current;
+    if (now && minute >= now.from && minute < now.until) return;
+    const s = weatherStore.getState();
+    const next = nextRandomWeather(s.weather, Math.random());
+    s.setWeather(next);
+    spell.current = { from: minute, until: minute + weatherSpan(next, Math.random()) };
+  }, [random, minute]);
   return null;
 }
 

@@ -194,7 +194,7 @@ export function ClockBar() {
   const speedIndex = useBankStore((s) => s.speedIndex);
   const historyCount = useBankStore((s) => s.view.history.length);
   const resetDay = useBankStore((s) => s.resetDay);
-  // Nothing to reset until the clock has moved off the 08:00 briefing.
+  // Nothing to reset until the clock has moved off 07:00, the start of the day.
   const started = useBankStore((s) => s.view.tick > 0 || s.view.minute > DAY_START);
   const toggle = useBankStore((s) => s.toggle);
   const step = useBankStore((s) => s.step);
@@ -341,7 +341,7 @@ export function ClockBar() {
             onClick={resetDay}
             disabled={!started}
             data-testid="bank-reset-day"
-            title={tr({ en: `Replay day ${day} from the 08:00 briefing. The same customers arrive, so after changing a rule it shows what that rule does to this very day.`, vi: `Phát lại ngày ${day} từ buổi họp 08:00. Cùng các khách hàng sẽ đến, nên sau khi đổi quy tắc bạn thấy quy tắc đó tác động thế nào tới chính ngày này.` })}
+            title={tr({ en: `Replay day ${day} from 07:00, as the staff arrive. The same customers arrive, so after changing a rule it shows what that rule does to this very day.`, vi: `Phát lại ngày ${day} từ 07:00, lúc nhân viên đến làm. Cùng các khách hàng sẽ đến, nên sau khi đổi quy tắc bạn thấy quy tắc đó tác động thế nào tới chính ngày này.` })}
             className="rounded-md px-2 py-1.5 text-[11px] font-medium text-slate-300 ring-1 ring-slate-700 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-35"
           >
             {tr({ en: `Reset day ${day}`, vi: `Chạy lại ngày ${day}` })}

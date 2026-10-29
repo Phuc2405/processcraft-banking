@@ -12,13 +12,14 @@ import { bankStore, useBankStore } from '../../store/bankStore';
 export function useBankClock(): void {
   const playing = useBankStore((s) => s.playing);
   const phase = useBankStore((s) => s.view.phase);
+  const minute = useBankStore((s) => s.view.minute);
   const tick = useBankStore((s) => s.view.tick);
   const speedIndex = useBankStore((s) => s.speedIndex);
 
   useEffect(() => {
     if (!playing) return;
     const factor = SPEEDS[speedIndex]?.factor ?? 1;
-    const timer = window.setTimeout(() => bankStore.getState().tickBeat(), beatMs(phase, factor));
+    const timer = window.setTimeout(() => bankStore.getState().tickBeat(), beatMs(phase, factor, minute));
     return () => window.clearTimeout(timer);
-  }, [playing, phase, tick, speedIndex]);
+  }, [playing, phase, minute, tick, speedIndex]);
 }

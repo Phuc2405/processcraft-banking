@@ -35,6 +35,24 @@ export const PARK_BENCHES: ReadonlyArray<{ at: V2; facing: number }> = [0, 1, 2,
   return { at: [FOUNTAIN.x + Math.cos(a) * r, FOUNTAIN.z + Math.sin(a) * r] as V2, facing: Math.atan2(-Math.cos(a), -Math.sin(a)) };
 });
 
+/**
+ * The park's lamp posts: along both sides of the loop path, and four round the fountain plaza just behind the benches, so
+ * whoever sits out on a bench in the evening sits in a pool of lamplight. `height` is where the lamp head hangs.
+ */
+export const PARK_LAMP_HEIGHT = 2.4;
+export const PARK_LAMPS: readonly V2[] = [
+  [LOOP.x0 - 0.65, LOOP.z0 + 3],
+  [LOOP.x0 - 0.65, PARK_CZ + 4],
+  [LOOP.x0 - 0.65, LOOP.z1 - 2],
+  [LOOP.x1 + 0.65, LOOP.z0 + 6],
+  [LOOP.x1 + 0.65, PARK_CZ - 3],
+  [LOOP.x1 + 0.65, LOOP.z1 - 4],
+  ...[0, 1, 2, 3].map((k): V2 => {
+    const a = Math.PI / 4 + (k * Math.PI) / 2;
+    return [FOUNTAIN.x + Math.cos(a) * (FOUNTAIN.r + 1.4), FOUNTAIN.z + Math.sin(a) * (FOUNTAIN.r + 1.4)];
+  }),
+];
+
 /** The two runs of hedge along the front of the park, by the pavement, with the gap for the path in from the street. */
 export const HEDGES: ReadonlyArray<{ x0: number; x1: number; z0: number; z1: number }> = [
   { x0: PARK.x0 + 0.4, x1: PARK.x0 + 2.4, z0: PARK.z1 - 0.24, z1: PARK.z1 },

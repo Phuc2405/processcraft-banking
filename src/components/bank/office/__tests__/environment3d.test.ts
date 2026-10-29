@@ -5,7 +5,7 @@ import { routingRules } from '../../routingRules';
 import { flowPlaces, flowScope } from '../../../../sim/guidedFlows';
 import { FLOW_IDS } from '../../../../types/viewport';
 import { badgeFocus, badgeOpacity, dashLane, deskFocus, DIM, FLOW_BADGE_DIM, isOffShift, LANE_DIM, leaveAt, leaveRoute, litLanes, neighbours, PULSE, pulseDistance } from '../focus3d';
-import { atmosphereAt, CLEAR, DAY_KEYS, FOG_LIFT, fogLeft, GROUND_FOG, gustOf, MOODS, sunsetAt, nextRandomWeather, RANDOM_EVERY_S, RANDOM_WEATHERS, sameMix, stepMix, WEATHER_BLEND_S, WEATHER_MIX, WEATHERS, wetOf, windOf } from '../atmosphere';
+import { atmosphereAt, CLEAR, DAY_KEYS, FOG_LIFT, fogLeft, GROUND_FOG, gustOf, MOODS, sunsetAt, nextRandomWeather, RANDOM_WEATHERS, WEATHER_SPAN, weatherSpan, sameMix, stepMix, WEATHER_BLEND_S, WEATHER_MIX, WEATHERS, wetOf, windOf } from '../atmosphere';
 import { CITY_BLOCKS, downpourOf, driftAt, DRIFTS, swayAt, TREE_BELTS, TREES, umbrellaWobble, type Tree } from '../Environment3D';
 import { LANE_STYLE, laneKind } from '../palette';
 import { pathLength } from '../tour3d';
@@ -147,7 +147,11 @@ describe('people on the pavement', () => {
     }
     const reached = new Set(Array.from({ length: 80 }, (_, k) => nextRandomWeather('clear', k / 80)));
     expect(reached.size).toBe(RANDOM_WEATHERS.length - 1);
-    expect(RANDOM_EVERY_S).toBeGreaterThanOrEqual(60);
+    // Spells in the bank's minutes: fair weather an hour to an hour and a half, a shower 15-20 minutes.
+    expect(WEATHER_SPAN.clear).toEqual([60, 90]);
+    expect(WEATHER_SPAN.rain).toEqual([15, 20]);
+    expect(weatherSpan('rain', 0.5)).toBe(17.5);
+    expect(weatherSpan('storm', 1)).toBeLessThanOrEqual(15);
   });
 
   it('after the rain, umbrellas come down and are shaken off before people walk on; the sheltering step back out', () => {

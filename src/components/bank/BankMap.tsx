@@ -323,7 +323,7 @@ const StationCard = memo(function StationCard({
               {working > 0 && (
                 <>
                   <span className="text-slate-600"> · </span>
-                  <span className="font-semibold text-emerald-300" title={bm('workingHint')} data-testid={`working-${id}`}>
+                  <span className="rounded-full bg-emerald-500/20 px-1 py-px font-semibold text-emerald-300" title={bm('workingHint')} data-testid={`working-${id}`}>
                     <span className="mr-0.5 inline-block h-1 w-1 animate-pulse rounded-full bg-emerald-300 align-middle" />
                     {bm('working', { n: working })}
                   </span>

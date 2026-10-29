@@ -141,13 +141,14 @@ export function wantsPark(m: ParkMember, minute: number): boolean {
   const evening = h >= 17;
   switch (m.role) {
     case 'bench':
-      return h >= 7 && h < 22 && m.k < (evening ? 8 : 4);
+      // Out on the benches into the night, under the park's lamps.
+      return h >= 7 && h < 23.5 && m.k < (evening ? 8 : 4);
     case 'picnic':
       return h >= 10 && h < 19.5;
     case 'swing':
       return h >= 8 && h < 18.5;
     case 'stroll':
-      return h >= 6 && h < 22 && m.k < (evening ? 5 : 3);
+      return h >= 6 && h < 23 && m.k < (evening ? 5 : 3);
   }
 }
 

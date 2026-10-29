@@ -13,13 +13,13 @@ import { useTerms } from '../useTerms';
 import { CustomerFigure, SeatedAvatar } from './Avatars';
 import { deskGlow, deskSolid, isPodium, SURFACE } from './desks';
 import { box, merge } from './kit';
-import { COUNTER, LANE_LABELS, QUEUE_VISIBLE, WING, accentOf, customerShirt, deskPose, hasWing, laneAt, laneLength, queueSlots, queueStyle, seatOffsets, surgeLevel, wingPose, type V2 } from './layout3d';
+import { COUNTER, LANE_LABELS, QUEUE_VISIBLE, WING, accentOf, customerShirt, deskPose, hasWing, laneAt, laneLength, queueSalt, queueSlots, queueStyle, seatOffsets, surgeLevel, wingPose, type V2 } from './layout3d';
 import { blobMaterial, glow, solid } from './materials';
 import { STATUS_HEX } from './palette';
 import { cursor } from './cursor';
 import { isAutomatedNode } from '../../../sim/nodeKind';
 import { ServerRack3D } from './ServerRack3D';
-import { arriveRoute, arrivalState, badgeRect, isOffShift, leaveAt, leaveRoute, tipSide3d, type TipSide3d } from './focus3d';
+import { ARRIVE_SPEED, arriveRoute, arrivalState, badgeRect, LEAVE_SPEED, isOffShift, leaveAt, leaveRoute, tipSide3d, type TipSide3d } from './focus3d';
 import { isNightStation } from '../../../sim/roster';
 import { useFocusFade } from './useFocusFade';
 import { t } from '../../../i18n/t';
@@ -28,6 +28,8 @@ import { statusLabel } from '../ui';
 import { motion } from './motion';
 import { CUSTOMER_DESKS, isClosed, servedExit } from './evacuation';
 import { sidewalk } from './sidewalk';
+import { queueHandoff } from './queueHandoff';
+import { pointAlongPath } from './tour3d';
 
 export { cursor } from './cursor';
 
@@ -202,7 +204,7 @@ function Leaving({ leaver, pose, accent, onGone }: { leaver: Leaver; pose: Retur
   const gone = useRef(false);
   useFrame(() => {
     leaver.t += motion.dt;
-    const s = leaveAt(route, leaver.t);
+    const s = leaveAt(route, leaver.t, leaver.arriving ? ARRIVE_SPEED : LEAVE_SPEED);
     if (root.current) {
       // The desk's group is the origin, so the walker is placed relative to it.
       root.current.position.set(s.at[0] - pose.x, 0, s.at[1] - pose.z);
@@ -215,7 +217,7 @@ function Leaving({ leaver, pose, accent, onGone }: { leaver: Leaver; pose: Retur
   });
   return (
     <group ref={root} name={`leaving-${leaver.id}`}>
-      <CustomerFigure index={leaver.index + 70} shirt={accent} phase={leaver.index} walking scale={0.8} />
+      <CustomerFigure index={leaver.index + 70} shirt={accent} phase={leaver.index} walking tempo={leaver.arriving ? 1.6 : 1} scale={0.8} />
     </group>
   );
 }
@@ -376,9 +378,10 @@ export const counterGesture = (t: number): number => (Math.sin(t * 0.8) > 0 ? 0.
 
 /**
  * When someone has been served: how long they stay at the counter (finishing up) or the machine (taking their card and
- * cash) before walking off, the last `turn` of it turning round to face the way out; and how fast they walk away.
+ * cash) before walking off, the last `turn` of it turning round to face the way out; and how fast they walk away. `business`
+ * is how long someone who walks up to an empty counter or machine stands at it doing their business (keying in, talking).
  */
-export const SERVED = { counter: 1.1, atm: ATM_TURN_S, turn: 0.45, pace: 0.95 } as const;
+export const SERVED = { counter: 1.1, atm: ATM_TURN_S, turn: 0.45, pace: 0.95, business: { atm: 3.5, counter: 4 } } as const;
 
 interface Served {
   key: number;
@@ -388,52 +391,69 @@ interface Served {
   length: number;
   start: number;
   wait: number;
+  /** How far along `path` the counter or machine is: 0 when they are already at it, else they walk up to it first and do
+   * their business there (keying in, talking) through `wait`, then turn and go. */
+  stopAt: number;
 }
 
 const wrapAngle = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
 
 /**
- * Someone just served at a desk: on the spot where they were served, facing the counter or machine for a moment, then
- * turning round and walking away along their way out (servedExit), until they are out of the branch or off down the street.
- * Positions are the desk's own (the group sits at the desk), worked out from the way out in the world. On the motion clock.
+ * Someone served at a desk, start to finish: walking up to the counter or machine (when they only got there after their
+ * turn had come), standing at it facing it, keying in or talking, then turning round and walking away along their way out
+ * (servedExit) until they are out of the branch or off down the street. Positions are the desk's own (the group sits at the
+ * desk), worked out from the way out in the world. On the motion clock.
  */
 function ServedCustomer({ id, s, onGone }: { id: StationId; s: Served; onGone: (key: number) => void }) {
   const pose = useMemo(() => deskPose(id), [id]);
   const g = useRef<Group>(null);
   const stride = useMemo(() => ({ current: 0 }), []);
+  const hand = useMemo(() => ({ current: 0 }), []);
   const who = `served-${id}-${s.key}`;
+  const atm = STATIONS[id].kind === 'ATM';
   useEffect(() => () => sidewalk.leave(who), [who]);
   useFrame(() => {
     const el = g.current;
     if (!el) return;
     const t = motion.t - s.start;
-    if (t < s.wait) {
-      // Still at the counter, then turning round to the way out (never a snap).
-      const [x, z] = s.path[0]!;
+    const walkUp = s.stopAt / SERVED.pace;
+    const place = (d: number): void => {
+      const p = laneAt(s.path, d);
+      // On the pavement they curve round the others there (sidewalk.ts).
+      const [x, z] = sidewalk.place(who, p.x, p.z, motion.dt);
       el.position.set(x - pose.x, 0, z - pose.z);
-      const out = laneAt(s.path, 0.05).heading + Math.PI / 2;
-      const u = Math.max(0, Math.min(1, (t - (s.wait - SERVED.turn)) / SERVED.turn));
-      el.rotation.y = Math.PI + wrapAngle(out - Math.PI) * u * u * (3 - 2 * u);
-      stride.current = 0;
+      el.rotation.y = p.heading + Math.PI / 2;
+      stride.current = 1;
+      hand.current = 0;
+    };
+    if (t < walkUp) {
+      place(t * SERVED.pace);
       return;
     }
-    const d = (t - s.wait) * SERVED.pace;
+    if (t < walkUp + s.wait) {
+      // At the counter or machine, facing it: keying in or talking (when they came up to do their business here), then
+      // turning round to the way out (never a snap).
+      const at = pointAlongPath(s.path, s.stopAt);
+      el.position.set(at[0] - pose.x, 0, at[1] - pose.z);
+      const u = Math.max(0, Math.min(1, (t - walkUp - (s.wait - SERVED.turn)) / SERVED.turn));
+      const out = laneAt(s.path, s.stopAt + 0.05).heading + Math.PI / 2;
+      el.rotation.y = Math.PI + wrapAngle(out - Math.PI) * u * u * (3 - 2 * u);
+      stride.current = 0;
+      hand.current = s.stopAt > 0 && u === 0 ? (atm ? atmPress(motion.t) : counterGesture(motion.t)) : 0;
+      return;
+    }
+    const d = s.stopAt + (t - walkUp - s.wait) * SERVED.pace;
     if (d >= s.length) {
       el.visible = false;
       onGone(s.key);
       return;
     }
-    const p = laneAt(s.path, d);
-    // On the pavement they curve round the others there (sidewalk.ts).
-    const [x, z] = sidewalk.place(who, p.x, p.z, motion.dt);
-    el.position.set(x - pose.x, 0, z - pose.z);
-    el.rotation.y = p.heading + Math.PI / 2;
-    stride.current = 1;
+    place(d);
   });
   const [x, z] = s.path[0]!;
   return (
     <group ref={g} position={[x - pose.x, 0, z - pose.z]} rotation={[0, Math.PI, 0]}>
-      <CustomerFigure index={s.who} shirt={customerShirt(s.who * 3 + 1)} phase={s.key * 0.7} walking stride={stride} />
+      <CustomerFigure index={s.who} shirt={customerShirt(s.who * 3 + 1)} phase={s.key * 0.7} walking stride={stride} raise={hand} />
     </group>
   );
 }
@@ -495,14 +515,15 @@ export function DeskQueue({ id }: { id: StationId }) {
   const style = queueStyle(id);
   const slots = useMemo(() => queueSlots(id, QUEUE_VISIBLE).map(([x, z]) => [x - pose.x, z - pose.z] as const), [id, pose.x, pose.z]);
   const shown = Math.min(queueLength, slots.length);
-  const salt = useMemo(() => Math.abs(Math.trunc(pose.x * 7 + pose.z * 13)), [pose.x, pose.z]);
+  const salt = useMemo(() => queueSalt(id), [id]);
   const groups = useRef<Array<Group | null>>([]);
   const placed = useRef<boolean[]>([]);
   const last = useRef(processed);
   const hold = useRef(0);
   const [leaving, setLeaving] = useState<readonly Served[]>([]);
   const nextKey = useRef(0);
-  const wasShown = useRef(0);
+  // How many of the line are standing in it (not still on their way to it: queueHandoff), as last drawn.
+  const inLine = useRef(0);
   const atm = STATIONS[id].kind === 'ATM';
   useEffect(() => {
     const served = processed - last.current;
@@ -513,9 +534,9 @@ export function DeskQueue({ id }: { id: StationId }) {
     if (style === 'people' && !closedHere) {
       const wait = atm ? SERVED.atm : SERVED.counter;
       const out: Served[] = [];
-      for (let j = 0; j < Math.min(2, served, wasShown.current); j++) {
+      for (let j = 0; j < Math.min(2, served, inLine.current); j++) {
         const path = servedExit(id, j);
-        out.push({ key: nextKey.current++, who: before + j + salt, path, length: laneLength(path), start: motion.t + j * 0.6, wait });
+        out.push({ key: nextKey.current++, who: before + j + salt, path, length: laneLength(path), start: motion.t + j * 0.6, wait, stopAt: 0 });
       }
       if (out.length) setLeaving((list) => [...list, ...out].slice(-4));
     }
@@ -527,18 +548,25 @@ export function DeskQueue({ id }: { id: StationId }) {
       if (g && from && placed.current[i]) g.position.set(from[0], 0, from[1]);
     });
   }, [processed, slots, style, id]);
-  // How many stood in line as the last count of served came in (read above before it is brought up to date here).
-  useEffect(() => {
-    wasShown.current = shown;
-  }, [shown]);
   const gone = useMemo(() => (key: number) => setLeaving((list) => list.filter((s) => s.key !== key)), []);
   useFrame(() => {
     const step = motion.t < hold.current ? 0 : STEP_UP_PACE * motion.dt;
+    // The last places of the line are kept empty for those still walking up to it; each is taken over where they stop.
+    const standing = style === 'people' ? Math.max(0, shown - queueHandoff.pending(id)) : shown;
+    inLine.current = standing;
     groups.current.forEach((g, i) => {
       const to = slots[i];
       if (!g || !to) return;
+      if (i >= standing) {
+        g.visible = false;
+        placed.current[i] = false;
+        return;
+      }
       if (!placed.current[i]) {
-        g.position.set(to[0], 0, to[1]);
+        const got = style === 'people' ? queueHandoff.take(id, motion.t) : undefined;
+        if (got) g.position.set(got.at[0] - pose.x, 0, got.at[1] - pose.z);
+        else g.position.set(to[0], 0, to[1]);
+        g.visible = true;
         placed.current[i] = true;
         return;
       }
@@ -548,6 +576,17 @@ export function DeskQueue({ id }: { id: StationId }) {
       if (d <= step) g.position.set(to[0], 0, to[1]);
       else g.position.set(g.position.x + (dx / d) * step, 0, g.position.z + (dz / d) * step);
     });
+    // Someone who got to the line after their turn had already come (the desk served them while they were on their way):
+    // they walk up to the counter or machine, do their business, and go. Nobody vanishes on arrival.
+    if (style !== 'people') return;
+    const late: Served[] = [];
+    for (let got = queueHandoff.take(id, motion.t); got; got = queueHandoff.take(id, motion.t)) {
+      const exit = servedExit(id);
+      const path: V2[] = [got.at, ...exit];
+      const stopAt = Math.hypot(exit[0]![0] - got.at[0], exit[0]![1] - got.at[1]);
+      late.push({ key: nextKey.current++, who: got.who, path, length: laneLength(path), start: motion.t, wait: atm ? SERVED.business.atm : SERVED.business.counter, stopAt });
+    }
+    if (late.length) setLeaving((list) => [...list, ...late].slice(-6));
   });
   return (
     <>
@@ -561,6 +600,7 @@ export function DeskQueue({ id }: { id: StationId }) {
               if (!g) placed.current[i] = false;
             }}
             rotation={[0, Math.PI, 0]}
+            visible={false}
           >
             {style === 'phones' ? (
               <PhoneToken phase={i * 0.9 + salt} />

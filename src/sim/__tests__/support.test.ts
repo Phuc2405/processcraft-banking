@@ -55,7 +55,9 @@ describe('the clock', () => {
   });
 
   it('counts the beats in a day', () => {
-    expect(BEATS_PER_DAY).toBe(1 + 96 + 6 + 30);
+    // 07:00-08:00 in 5-minute beats while the staff walk in, the briefing hour, the working day, the evening, 22:00-23:00 in
+    // 5-minute beats while the night's staff walk in, and the night cycle.
+    expect(BEATS_PER_DAY).toBe(12 + 1 + 96 + 5 + 12 + 30);
     expect(WORKING_BEATS).toBe(96);
   });
 
