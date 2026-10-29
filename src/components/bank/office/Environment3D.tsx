@@ -34,10 +34,8 @@ import { glow, pane, solid } from './materials';
 import { CustomerFigure, type Wear } from './Avatars';
 import { Bubble } from './Bubble3D';
 import { LOT, LOT_SIDE, TREE_STRIP } from './parking';
-import { Parking3D } from './Parking3D';
-import { FOUNTAIN, LOOP, PARK, Park3D } from './Park3D';
+import { FOUNTAIN, LOOP, PARK } from './Park3D';
 import { Sky3D } from './Sky3D';
-import { Vehicles3D } from './Vehicles3D';
 import {
   BUS_STOP,
   carriesDrink,
@@ -1139,7 +1137,7 @@ function Passer({ p, clock }: { p: Pedestrian; clock: PavementClock }) {
 }
 
 /** The passers-by, drawn where the world engine's pavement clock (WorldEngine.pavement) puts them. */
-function Pedestrians() {
+export function Pedestrians() {
   const clock = useWorld().pavement;
   return (
     <group name="office-pedestrians">
@@ -1150,20 +1148,32 @@ function Pedestrians() {
   );
 }
 
-/** Everything around the branch. */
+/**
+ * The scenery around the branch: the ground, the houses and the city, the trees, the shelters and the lights in the
+ * windows. What moves in it is drawn by the world's renderers (BankingWorldFacade in OfficeScene): the weather here
+ * (WeatherRenderer), the people (CrowdRenderer, which draws the Pedestrians below), the traffic (TrafficRenderer).
+ */
 export const Environment3D = memo(function Environment3D() {
   // The time of day and the weather reach everything here through useFrame, so nothing re-renders on the clock.
   return (
     <>
-      <Haze />
       <Ground />
-      <Parking3D />
-      <Park3D />
       <Houses />
-      <Sky3D />
       <City />
       <Trees />
       <Shelters />
+      <DeskLights />
+    </>
+  );
+});
+
+/** The weather and the sky over the whole scene: the haze and the sky, the ground mist, sunlit motes, rain, drifting leaves,
+ * petals and snow, gusts, settled snow and lightning, all drawn from the sky's blend (liveMix) and the time of day. */
+export const WeatherRenderer = memo(function WeatherRenderer() {
+  return (
+    <group name="weather-renderer">
+      <Haze />
+      <Sky3D />
       <Mist />
       <Motes />
       <Rain />
@@ -1173,9 +1183,6 @@ export const Environment3D = memo(function Environment3D() {
       <WindStreaks />
       <SnowCover />
       <Lightning />
-      <DeskLights />
-      <Pedestrians />
-      <Vehicles3D />
-    </>
+    </group>
   );
 });

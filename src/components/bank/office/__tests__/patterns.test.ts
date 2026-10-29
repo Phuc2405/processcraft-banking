@@ -117,3 +117,19 @@ describe('staff on their shift’s schedule (Strategy) and made by the factory',
     expect(STATION_IDS.length).toBeGreaterThan(0);
   });
 });
+
+describe('the world behind one front (Facade)', () => {
+  it('ticks the world once and draws it through four renderers that only read it', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const scene = readFileSync(join(__dirname, '../OfficeScene.tsx'), 'utf8');
+    const facade = scene.slice(scene.indexOf('function BankingWorldFacade'), scene.indexOf('export function OfficeScene'));
+    for (const r of ['<WorldProvider>', '<WeatherRenderer />', '<TrafficRenderer />', '<CrowdRenderer />', '<DeskRenderer />']) expect(facade).toContain(r);
+    expect(scene).toContain('<BankingWorldFacade>');
+    // Nothing that draws the world steps it: only the engine's ticker does.
+    for (const f of ['../Vehicles3D.tsx', '../Parking3D.tsx', '../Park3D.tsx', '../GuardCabin3D.tsx', '../Environment3D.tsx']) {
+      const src = readFileSync(join(__dirname, f), 'utf8');
+      expect(src, f).not.toMatch(/\.step\(/);
+    }
+  });
+});

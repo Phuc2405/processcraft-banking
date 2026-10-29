@@ -1,7 +1,7 @@
 import { ContactShadows, OrbitControls } from '@react-three/drei';
 import { ZOOM_STEP, zoomStore } from '../../../store/zoomStore';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { t } from '../../../i18n/t';
 import { useLocale } from '../../../i18n/locale';
 import { AdditiveBlending, CanvasTexture, Color, ExtrudeGeometry, MeshBasicMaterial, MOUSE, Path, RepeatWrapping, ShapeGeometry, SpriteMaterial, SRGBColorSpace, TOUCH, Vector3, type AmbientLight, type DirectionalLight, type Group, type HemisphereLight } from 'three';
@@ -15,7 +15,10 @@ import { AtmKiosk } from './AtmKiosk';
 import { GateStanchions, Kiosks, Plants, ServerRoom, VaultRoom, Walls } from './Dressing';
 import { Street } from './Street';
 import { atmosphereAt, CLEAR, sameMix } from './atmosphere';
-import { Environment3D } from './Environment3D';
+import { Environment3D, Pedestrians, WeatherRenderer } from './Environment3D';
+import { Park3D } from './Park3D';
+import { Parking3D } from './Parking3D';
+import { Vehicles3D } from './Vehicles3D';
 import { liveMix, weatherStore } from './weather';
 import { badgeFocus, badgeOpacity, dashLane, litLanes, PULSE, pulseDistance, type BadgeFocus } from './focus3d';
 import { pathLength, pointAlongPath } from './tour3d';
@@ -865,19 +868,72 @@ function Lights() {
   );
 }
 
+/** The traffic: the fleet on the avenue and the car park (its cars, barrier, guard and the cash van), as the world moves them. */
+const TrafficRenderer = memo(function TrafficRenderer() {
+  return (
+    <group name="traffic-renderer">
+      <Parking3D />
+      <Vehicles3D />
+    </group>
+  );
+});
+
+/** The people outside the desks' lines: the park, the passers-by, the guard at the main entrance, customers walking in and
+ * (at closing time) walking out. */
+const CrowdRenderer = memo(function CrowdRenderer() {
+  return (
+    <group name="crowd-renderer">
+      <Evacuation />
+      <Park3D />
+      <Pedestrians />
+      <GuardCabin3D />
+      <Arrivals />
+    </group>
+  );
+});
+
+/** The desks and the machines, with their staff, lines and badges; the queue ropes; and the payments and signals flowing
+ * between them. */
+const DeskRenderer = memo(function DeskRenderer() {
+  return (
+    <group name="desk-renderer">
+      <GateStanchions />
+      {STATION_IDS.map((id) => (isMachine(id) ? <AtmKiosk key={id} id={id} /> : <Desk3D key={id} id={id} />))}
+      <Kiosks />
+      <Packets />
+      <SignalPulses />
+    </group>
+  );
+});
+
+/**
+ * The world of the 3D office behind one front (Facade): the scene hands it its fixed parts (`children`: the building, the
+ * street, the camera and lights) and it does the rest. It makes the world engine and ticks it once a frame before anything
+ * draws (WorldProvider), and draws the world through four renderers that only read it: the weather, the traffic, the crowd
+ * and the desks.
+ */
+function BankingWorldFacade({ children }: { children: ReactNode }) {
+  return (
+    <WorldProvider>
+      {children}
+      <WeatherRenderer />
+      <TrafficRenderer />
+      <CrowdRenderer />
+      <DeskRenderer />
+    </WorldProvider>
+  );
+}
+
 export function OfficeScene({ resetKey }: { resetKey: number }) {
   const tourCamera = useTourCamera();
   // A chapter tour owns the camera; otherwise it goes to the node the Academy split view is teaching.
   const academyCamera = useAcademyCamera();
   return (
-    // The world engine (motion clock, traffic, car park, park, guards, pavement, sky) is ticked once a frame before anything
-    // draws; everything inside only reads it.
-    <WorldProvider>
+    <BankingWorldFacade>
       <Lights />
       <CameraRig resetKey={resetKey} focus={tourCamera ?? academyCamera} />
       <Probe />
       <Floor />
-      <Evacuation />
       <FrameDriver />
       <Environment3D />
       <ContactShadows position={[0, -0.66, 0]} scale={[FLOOR_SLAB.w + 6, FLOOR_SLAB.d + 6]} far={0.9} blur={2.8} opacity={0.4} resolution={512} frames={1} color="#6b4f35" />
@@ -894,16 +950,9 @@ export function OfficeScene({ resetKey }: { resetKey: number }) {
       <ServerRoom />
       <Plants />
       <Street />
-      <GuardCabin3D />
-      <GateStanchions />
-      {STATION_IDS.map((id) => (isMachine(id) ? <AtmKiosk key={id} id={id} /> : <Desk3D key={id} id={id} />))}
-      <Kiosks />
-      <Arrivals />
-      <Packets />
-      <SignalPulses />
       <TourStage />
       <FlowStage3D />
-    </WorldProvider>
+    </BankingWorldFacade>
   );
 }
 
