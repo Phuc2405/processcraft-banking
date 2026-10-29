@@ -242,7 +242,8 @@ export function atmosphereAt(minute: number, weather: WeatherMix | boolean = CLE
     sun: { intensity: sunIntensity, color: sunColor, dir },
     hemi: { intensity: hemiIntensity, sky: desaturate(mixHex(a.hemiSky, b.hemiSky, t), 0.5 * w.overcast), ground: mixHex(a.hemiGround, b.hemiGround, t) },
     fog: { near: lerp(a.fogNear, b.fogNear, t) - haze * 0.4, far: lerp(a.fogFar, b.fogFar, t) - haze, color: sky(horizon, '#dbe9f7') },
-    mist: Math.min(1, lerp(a.mist, b.mist, t) * fogLeft(minute) + 0.2 * w.rain + 0.15 * w.overcast + w.fog),
+    // Ground mist: the morning's, a little in rain or under cloud, and thick in fog and in smog.
+    mist: Math.min(1, lerp(a.mist, b.mist, t) * fogLeft(minute) + 0.2 * w.rain + 0.15 * w.overcast + w.fog + 0.85 * w.smog),
     lamps: Math.min(1, lerp(a.lamps, b.lamps, t) + (0.35 * w.rain + 0.5 * w.storm + 0.4 * w.fog + 0.3 * w.golden + 0.5 * w.smog + 0.3 * w.hail) * daylight),
     windows: Math.min(1, lerp(a.windows, b.windows, t) + 0.5 * w.storm * daylight + 0.3 * w.golden * daylight),
     motes:

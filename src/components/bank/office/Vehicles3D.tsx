@@ -8,7 +8,8 @@ import { customerShirt } from './layout3d';
 import { glow, solid } from './materials';
 import { outfitOf, outfitShirt, useWeather, type Outfit } from './weather';
 import { MeshBasicMaterial } from 'three';
-import { ALIGHT, LENGTH, riderAt, TrafficSim, WIDTH, VEHICLES, type Vehicle, type VehicleState } from './vehicles';
+import { ALIGHT, BUS_DOORS, BUS_X, busRiders, CIT_BAY_X, kerbZ, LENGTH, riderAt, TrafficSim, WIDTH, VEHICLES, type BusRider, type Vehicle, type VehicleState } from './vehicles';
+import { Html } from '@react-three/drei';
 import { motion, substeps } from './motion';
 
 /**
@@ -42,19 +43,59 @@ export function bodyParts(v: Pick<Vehicle, 'kind' | 'color'>): { body: Part[]; l
         ],
         lights: [box([0.47, 0.66, 0], [0.04, 0.08, 0.12], '#fff7d6'), box([-0.47, 0.44, 0], [0.03, 0.05, 0.1], '#ef4444')],
       };
-    case 'cit':
-      // An armoured cash van: a tall steel box with a small cab window, a yellow security band and an amber beacon.
+    case 'cit': {
+      // An armoured cash-in-transit truck: a heavy, tall steel body on big wheels, a small armoured cab window, a bull bar,
+      // black-and-yellow hazard chevrons along both flanks and across the back doors, gun-port slits and an amber beacon.
+      const chevrons: Part[] = [];
+      for (let i = 0; i < 9; i++) for (const zs of [1, -1]) chevrons.push(box([-1.2 + i * 0.24, 0.5, zs * 0.605], [0.12, 0.26, 0.012], i % 2 ? '#111827' : '#facc15', [0.7 * zs, 0, 0]));
+      for (let i = 0; i < 5; i++) chevrons.push(box([-1.455, 0.5, -0.48 + i * 0.24], [0.012, 0.26, 0.12], i % 2 ? '#111827' : '#facc15', [0.7, 0, 0]));
       return {
         body: [
-          ...wheels(2.4, 1.05, 0.2),
-          box([0, 0.78, 0], [2.4, 1.12, 1.05], c),
-          box([0.95, 1.05, 0], [0.48, 0.38, 1.0], GLASS),
-          box([-0.25, 0.72, 0], [1.6, 0.14, 1.07], '#facc15'),
-          box([-0.25, 1.0, 0], [1.4, 0.06, 1.07], shade(c, 0.35)),
-          box([0, 1.36, 0], [2.3, 0.05, 1.0], shade(c, 0.2)),
+          ...wheels(2.8, 1.18, 0.24),
+          box([0, 0.95, 0], [2.9, 1.4, 1.2], c),
+          box([1.08, 1.32, 0], [0.62, 0.42, 1.14], GLASS),
+          box([0.78, 0.95, 0], [0.04, 1.36, 1.22], shade(c, 0.3)),
+          box([-0.3, 0.38, 0], [2.3, 0.3, 1.21], shade(c, 0.4)),
+          box([-0.3, 1.18, 0], [1.9, 0.07, 1.22], shade(c, 0.35)),
+          ...[-0.9, -0.3, 0.3].flatMap((x) => [1, -1].map((zs) => box([x, 1.3, zs * 0.605], [0.22, 0.04, 0.01], '#0f172a'))),
+          box([1.5, 0.42, 0], [0.12, 0.22, 1.1], '#475569'),
+          box([0, 1.67, 0], [2.8, 0.06, 1.12], shade(c, 0.2)),
+          ...chevrons,
         ],
-        lights: [box([1.21, 0.55, 0.36], [0.03, 0.1, 0.18], '#fff7d6'), box([1.21, 0.55, -0.36], [0.03, 0.1, 0.18], '#fff7d6'), box([0.2, 1.45, 0], [0.22, 0.12, 0.22], '#f59e0b')],
+        lights: [
+          box([1.46, 0.62, 0.42], [0.03, 0.12, 0.2], '#fff7d6'),
+          box([1.46, 0.62, -0.42], [0.03, 0.12, 0.2], '#fff7d6'),
+          box([0.2, 1.78, 0], [0.24, 0.14, 0.24], '#f59e0b'),
+          box([-1.46, 0.62, 0.42], [0.03, 0.1, 0.16], '#ef4444'),
+          box([-1.46, 0.62, -0.42], [0.03, 0.1, 0.16], '#ef4444'),
+        ],
       };
+    }
+    case 'bus': {
+      // A city bus: a long, tall body with a band of windows, a lit destination board, and two doors on the kerb side (its +z
+      // side: it runs on the near side, facing -x, so its doors' world offsets are mirrored here).
+      const windows: Part[] = [];
+      for (let i = 0; i < 6; i++) for (const zs of [1, -1]) windows.push(box([-1.75 + i * 0.6, 1.25, zs * 0.605], [0.5, 0.48, 0.012], GLASS));
+      return {
+        body: [
+          ...wheels(4.3, 1.18, 0.24),
+          box([0, 1.0, 0], [4.4, 1.5, 1.2], c),
+          box([0, 0.42, 0], [4.42, 0.24, 1.22], shade(c, 0.35)),
+          box([0, 1.78, 0], [4.3, 0.08, 1.12], tint(c, 0.4)),
+          box([2.205, 1.2, 0], [0.012, 0.8, 1.08], GLASS),
+          ...windows,
+          ...[BUS_DOORS.front, BUS_DOORS.rear].map((dx) => box([-dx, 0.95, 0.607], [0.62, 1.15, 0.014], '#1e293b')),
+          ...[BUS_DOORS.front, BUS_DOORS.rear].map((dx) => box([-dx, 0.95, 0.616], [0.02, 1.1, 0.012], '#94a3b8')),
+        ],
+        lights: [
+          box([2.21, 0.58, 0.42], [0.02, 0.1, 0.2], '#fff7d6'),
+          box([2.21, 0.58, -0.42], [0.02, 0.1, 0.2], '#fff7d6'),
+          box([-2.21, 0.58, 0.42], [0.02, 0.1, 0.2], '#ef4444'),
+          box([-2.21, 0.58, -0.42], [0.02, 0.1, 0.2], '#ef4444'),
+          box([2.21, 1.62, 0], [0.02, 0.16, 0.8], '#fbbf24'),
+        ],
+      };
+    }
     default: {
       // A saloon car (a taxi has a roof sign and a white band along the side).
       const taxi = v.kind === 'taxi';
@@ -169,7 +210,7 @@ function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Ma
         ] as const).map(([ref, side]) => (
           <group key={side} ref={ref} visible={false}>
             {[-1, 1].map((end) => (
-              <mesh key={end} position={[end * (len / 2 + 0.01), v.kind === 'motorbike' ? 0.62 : 0.46, side * (wid / 2 - 0.06)]} material={BLINKER}>
+              <mesh key={end} position={[end * (len / 2 + 0.01), v.kind === 'sedan' || v.kind === 'taxi' ? 0.46 : 0.62, side * (wid / 2 - 0.06)]} material={BLINKER}>
                 <boxGeometry args={[0.04, 0.07, 0.12]} />
               </mesh>
             ))}
@@ -184,6 +225,7 @@ function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Ma
             </mesh>
           </group>
         )}
+        {v.kind === 'cit' && <CitMarker />}
         {v.kind === 'motorbike' && (
           <>
             <Rider x={0.05} index={index} rain={rain} wide={rain && aboard} />
@@ -217,8 +259,95 @@ function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Ma
           </mesh>
         )}
       </group>
+      {v.kind === 'bus' && <BusPeople v={v} index={index} live={live} />}
     </>
   );
+}
+
+/**
+ * The yellow ▼ over the cash van, bobbing gently: the objective marker that says "follow the cash" wherever it is on the
+ * avenue. An overlay, so it reads at any zoom.
+ */
+function CitMarker() {
+  const g = useRef<Group>(null);
+  useFrame(({ clock }) => {
+    if (g.current) g.current.position.y = 2.55 + Math.sin(clock.elapsedTime * 3) * 0.08;
+  });
+  return (
+    <group ref={g} position={[0, 2.55, 0]} name="cit-marker">
+      <Html center zIndexRange={[11, 0]} style={{ pointerEvents: 'none' }}>
+        <div data-testid="cit-marker" className="flex flex-col items-center leading-none" style={{ filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.45))' }}>
+          <span className="rounded bg-yellow-400 px-1 text-[9px] font-black tracking-wide text-slate-900">CIT</span>
+          <span className="text-[22px] text-yellow-400">▼</span>
+        </div>
+      </Html>
+    </group>
+  );
+}
+
+const BUS_PEOPLE = ['off-0', 'off-1', 'on-0', 'on-1'] as const;
+
+/** The people getting off and on the bus (busRiders), each placed every frame. */
+function BusPeople({ v, index, live }: { v: Vehicle; index: number; live: { states: Map<string, VehicleState> } }) {
+  const groups = useRef<Array<Group | null>>([]);
+  const outfit = useWeather((s) => outfitOf(s.weather));
+  const [walking, setWalking] = useState<readonly boolean[]>(() => BUS_PEOPLE.map(() => true));
+  useFrame(() => {
+    const s = live.states.get(v.id);
+    if (!s) return;
+    const riders = new Map<string, BusRider>(busRiders(v, s).map((r) => [r.id, r]));
+    let changed = false;
+    const next = BUS_PEOPLE.map((id, i) => {
+      const g = groups.current[i];
+      const r = riders.get(id);
+      if (g) {
+        g.visible = !!r;
+        if (r) {
+          g.position.set(r.x, 0, r.z);
+          g.rotation.y = r.heading;
+        }
+      }
+      const w = r ? r.walking : walking[i]!;
+      if (w !== walking[i]) changed = true;
+      return w;
+    });
+    if (changed) setWalking(next);
+  });
+  return (
+    <group name={`vehicle-${v.id}-people`}>
+      {BUS_PEOPLE.map((id, i) => (
+        <group
+          key={id}
+          ref={(g) => {
+            groups.current[i] = g;
+          }}
+          visible={false}
+        >
+          <CustomerFigure index={index * 13 + i * 5 + 71} shirt={outfitShirt(outfit, index + i, customerShirt(index * 5 + i * 3))} phase={i * 1.7} walking stride={walking[i] ? 1 : 0} scale={0.7} wear={WEAR[outfit]} />
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** The bays painted in the kerb lane: the cash van's yellow hatched loading bay by the ATMs, and the bus stop's white box. */
+function KerbBays() {
+  const bays = useMerged(() => {
+    const y = -0.128;
+    const out: Part[] = [];
+    const bay = (x: number, kind: 'cit' | 'bus', color: string, hatch: boolean): void => {
+      const len = LENGTH[kind] + 1.0;
+      const w = WIDTH[kind] + 0.3;
+      const z = kerbZ(kind);
+      for (const dz of [-w / 2, w / 2]) out.push(box([x, y, z + dz], [len, 0.006, 0.08], color));
+      for (const dx of [-len / 2, len / 2]) out.push(box([x + dx, y, z], [0.08, 0.006, w], color));
+      if (hatch) for (let k = -len / 2 + 0.35; k < len / 2 - 0.2; k += 0.45) out.push(box([x + k, y, z], [0.07, 0.006, w * 1.05], color, [0, 0.7, 0]));
+    };
+    bay(CIT_BAY_X, 'cit', '#facc15', true);
+    bay(BUS_X, 'bus', '#f8fafc', false);
+    return out;
+  }, []);
+  return <mesh geometry={bays} material={solid} name="kerb-bays" />;
 }
 
 /**
@@ -235,6 +364,7 @@ export const Vehicles3D = memo(function Vehicles3D() {
   }, -1);
   return (
     <group name="office-traffic">
+      <KerbBays />
       {VEHICLES.map((v, i) => (
         <Car key={v.id} v={v} index={i} live={live} />
       ))}

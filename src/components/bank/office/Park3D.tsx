@@ -1,71 +1,33 @@
 import { useFrame } from '@react-three/fiber';
-import { memo, useMemo, useRef } from 'react';
-import type { Group, Mesh } from 'three';
-import { useBankStore } from '../../../store/bankStore';
-import { CustomerFigure, SittingFigure } from './Avatars';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { Color, ConeGeometry, CylinderGeometry, InstancedMesh, MeshStandardMaterial, Object3D, type Group, type Mesh } from 'three';
+import { bankStore } from '../../../store/bankStore';
+import { CustomerFigure, SittingFigure, type Wear } from './Avatars';
 import { Bubble } from './Bubble3D';
 import { Sign, useMerged } from './Dressing';
 import { ball, box, cyl, type Part } from './kit';
-import { customerShirt, FLOOR_SLAB, SIDE_DOORS_RIGHT, type V2 } from './layout3d';
+import { customerShirt, SIDE_DOORS_RIGHT } from './layout3d';
 import { glow, solid } from './materials';
-import { motion } from './motion';
-import { LOT, TREE_STRIP } from './parking';
-import { pathLength, pointAlongPath } from './tour3d';
-import { outfitOf, outfitShirt, useWeather } from './weather';
+import { motion, substeps } from './motion';
+import { TREE_STRIP } from './parking';
+import { ParkCrowd, parkWeather, SWING_XS, wantsPark, type ParkPose, type ParkState } from './parkLife';
+import { FLOWERBEDS, FOUNTAIN, HEDGES, LOOP, PARK, PARK_BENCHES, PARK_CX as cx, PARK_CZ as cz, PICNIC, PLAYGROUND } from './parkPlan';
+import { isRaining, outfitOf, outfitShirt, useWeather, weatherStore, type Outfit } from './weather';
+
+export { FOUNTAIN, LOOP, PARK, PARK_BENCHES, PICNIC, PLAYGROUND, strollerAt } from './parkPlan';
 
 /**
- * The public park on the right of the branch, between it and the houses: a lawn with a cobbled loop path, paths in from
- * the branch's three side doors, a fountain in a round plaza ringed with flowerbeds and benches, street lamps, a picnic
- * table under a sun umbrella, and a playground with swings and a slide. People stroll the loop and sit and chat on the
- * benches (more of them after the bank closes at 17:00); in rain, hail or snow they go home.
+ * The public park on the right of the branch, between it and the houses: a striped, tufted lawn with a cobbled loop path,
+ * paths in from the branch's three side doors, a fountain with leaping jets in a round plaza ringed with flowerbeds and
+ * benches, street lamps, a picnic table under a sun umbrella, and a playground with swings and a slide.
+ *
+ * Its people (parkLife.ts) sit and chat on the benches, eat, drink and talk at the picnic table, swing on the swings (a swing
+ * only ever moves with a child on it, and settles still after they hop off) and stroll the loop; more of them after the bank
+ * closes at 17:00. When rain, hail or snow comes they look up, get up one after another and walk out through the gate to
+ * the street, umbrellas up; when it clears they walk back in. Nobody appears or disappears inside the park.
  */
 
-const HX = FLOOR_SLAB.w / 2;
 const GROUND_Y = -0.03;
-
-/** The park, as world x (it is on the right) and z. */
-export const PARK = {
-  x0: HX + 0.4,
-  x1: LOT.x1,
-  z0: LOT.z0,
-  z1: LOT.z1,
-} as const;
-const cx = (PARK.x0 + PARK.x1) / 2;
-const cz = (PARK.z0 + PARK.z1) / 2;
-
-/** The loop path, inset from the park's edge. */
-export const LOOP = { x0: PARK.x0 + 0.9, x1: PARK.x1 - 0.9, z0: PARK.z0 + 1.2, z1: PARK.z1 - 1.0, w: 1.0 } as const;
-/** The fountain plaza in the middle. */
-export const FOUNTAIN = { x: cx, z: cz, r: 2.3 } as const;
-/** The playground, at the back of the park; the picnic corner, at the front. */
-export const PLAYGROUND = { x: cx, z: PARK.z0 + 5 } as const;
-export const PICNIC = { x: cx + 1.2, z: PARK.z1 - 4.2 } as const;
-
-/** The benches round the fountain, facing it (where, and which way the sitter faces). */
-export const PARK_BENCHES: ReadonlyArray<{ at: V2; facing: number }> = [0, 1, 2, 3].map((k) => {
-  const a = Math.PI / 4 + (k * Math.PI) / 2;
-  const r = FOUNTAIN.r + 0.55;
-  return { at: [FOUNTAIN.x + Math.cos(a) * r, FOUNTAIN.z + Math.sin(a) * r] as V2, facing: Math.atan2(-Math.cos(a), -Math.sin(a)) };
-});
-
-/** The loop as a closed path, for the strollers. */
-const LOOP_PATH: V2[] = [
-  [LOOP.x0, LOOP.z0],
-  [LOOP.x1, LOOP.z0],
-  [LOOP.x1, LOOP.z1],
-  [LOOP.x0, LOOP.z1],
-  [LOOP.x0, LOOP.z0],
-];
-const LOOP_LEN = pathLength(LOOP_PATH);
-
-/** Where stroller `i` of `n` is on the loop at time `t`: evenly spread, walking at their own easy pace. */
-export function strollerAt(i: number, n: number, t: number): { at: V2; heading: number } {
-  const pace = 0.75 + (i % 3) * 0.12;
-  const d = (((i / n) * LOOP_LEN + t * pace) % LOOP_LEN + LOOP_LEN) % LOOP_LEN;
-  const at = pointAlongPath(LOOP_PATH, d);
-  const ahead = pointAlongPath(LOOP_PATH, Math.min(LOOP_LEN, d + 0.05));
-  return { at, heading: Math.atan2(ahead[0] - at[0], ahead[1] - at[1]) };
-}
 
 const rnd = (i: number, k: number): number => {
   const x = Math.sin(i * 57.13 + k * 19.91) * 15731.743;
@@ -74,6 +36,7 @@ const rnd = (i: number, k: number): number => {
 
 const COBBLE = '#c9bfae';
 const FLOWERS = ['#f43f5e', '#f59e0b', '#a855f7', '#fde047', '#fb7185', '#ffffff'];
+const GATE_X = LOOP.x0 + 1.9;
 
 /** The park's fixed parts. */
 function parkParts(): { solid: Part[]; lit: Part[] } {
@@ -83,10 +46,11 @@ function parkParts(): { solid: Part[]; lit: Part[] } {
     box([cx, -0.34, cz], [w, 0.6, d], '#8a7d6b'),
     box([cx, GROUND_Y - 0.004, cz], [w, 0.01, d], '#86bd62'),
     box([(TREE_STRIP.x0 + TREE_STRIP.x1) / 2, -0.34, cz], [TREE_STRIP.x1 - TREE_STRIP.x0, 0.62, d], '#6b8f4e'),
-    // A low hedge along the front, by the pavement, with a gap for the path.
-    box([PARK.x0 + 1.4, 0.22, PARK.z1 - 0.12], [2.0, 0.5, 0.24], '#3f7d3a'),
-    box([PARK.x1 - 2.4, 0.22, PARK.z1 - 0.12], [4.0, 0.5, 0.24], '#3f7d3a'),
   ];
+  // Mowing stripes: broad bands of a lighter green across the lawn.
+  for (let z = PARK.z0 + 0.9, k = 0; z < PARK.z1 - 0.6; z += 1.8, k++) if (k % 2 === 0) p.push(box([cx, GROUND_Y - 0.002, z], [w - 0.2, 0.004, 0.9], '#97ca6f'));
+  // A low hedge along the front, by the pavement, with a gap for the path.
+  for (const h of HEDGES) p.push(box([(h.x0 + h.x1) / 2, 0.22, (h.z0 + h.z1) / 2], [h.x1 - h.x0, 0.5, h.z1 - h.z0], '#3f7d3a'));
   // The loop path, and the paths in from the side doors and across to the fountain.
   const y = GROUND_Y + 0.002;
   p.push(
@@ -97,33 +61,27 @@ function parkParts(): { solid: Part[]; lit: Part[] } {
     box([cx, y, cz], [LOOP.x1 - LOOP.x0, 0.01, 0.9], COBBLE),
     box([cx, y, cz], [0.9, 0.01, LOOP.z1 - LOOP.z0], COBBLE),
   );
+  const HX = PARK.x0 - 0.4;
   for (const z of SIDE_DOORS_RIGHT) p.push(box([(HX + LOOP.x0) / 2, y + 0.001, z], [LOOP.x0 - HX, 0.01, 1.1], COBBLE));
   // The way in from the street.
-  p.push(box([LOOP.x0 + 1.9, y, (LOOP.z1 + PARK.z1) / 2], [0.9, 0.01, PARK.z1 - LOOP.z1], COBBLE));
+  p.push(box([GATE_X, y, (LOOP.z1 + PARK.z1) / 2], [0.9, 0.01, PARK.z1 - LOOP.z1], COBBLE));
   // The fountain: a round plaza, a stone basin, water, a central column with two bowls.
   p.push(
     cyl([FOUNTAIN.x, y + 0.001, FOUNTAIN.z], FOUNTAIN.r, FOUNTAIN.r, 0.012, '#d6cfc0', 32),
     cyl([FOUNTAIN.x, 0.18, FOUNTAIN.z], 1.25, 1.32, 0.36, '#cbd5e1', 28),
-    cyl([FOUNTAIN.x, 0.3, FOUNTAIN.z], 1.12, 1.12, 0.04, '#38bdf8', 28),
     cyl([FOUNTAIN.x, 0.75, FOUNTAIN.z], 0.12, 0.16, 1.0, '#e2e8f0', 12),
     cyl([FOUNTAIN.x, 1.05, FOUNTAIN.z], 0.55, 0.3, 0.12, '#e2e8f0', 20),
     cyl([FOUNTAIN.x, 1.42, FOUNTAIN.z], 0.3, 0.18, 0.08, '#e2e8f0', 16),
   );
   // Flowerbeds between the benches round the plaza.
-  for (let k = 0; k < 4; k++) {
-    const a = (k * Math.PI) / 2;
-    const bx = FOUNTAIN.x + Math.cos(a) * (FOUNTAIN.r + 0.7);
-    const bz = FOUNTAIN.z + Math.sin(a) * (FOUNTAIN.r + 0.7);
-    // Not on the cross paths: the beds sit off them to one side.
-    const ox = Math.abs(Math.cos(a)) > 0.5 ? 0 : 0.95;
-    const oz = Math.abs(Math.cos(a)) > 0.5 ? 0.95 : 0;
-    for (const e of [-1, 1]) {
-      const fx = bx + e * ox;
-      const fz = bz + e * oz;
-      p.push(box([fx, 0.08, fz], [0.8, 0.16, 0.8], '#7c4a2d'), box([fx, 0.17, fz], [0.72, 0.02, 0.72], '#4d7c0f'));
-      for (let n = 0; n < 7; n++) p.push(ball([fx + (rnd(k * 9 + n, e + 2) - 0.5) * 0.6, 0.24, fz + (rnd(k * 9 + n, e + 5) - 0.5) * 0.6], 0.07, FLOWERS[(k + n) % FLOWERS.length]!));
+  FLOWERBEDS.forEach(({ at: [fx, fz], size }, b) => {
+    p.push(box([fx, 0.08, fz], [size, 0.16, size], '#7c4a2d'), box([fx, 0.17, fz], [size - 0.08, 0.02, size - 0.08], '#4d7c0f'));
+    for (let n = 0; n < 9; n++) {
+      const fxn = fx + (rnd(b * 9 + n, 2) - 0.5) * (size - 0.2);
+      const fzn = fz + (rnd(b * 9 + n, 5) - 0.5) * (size - 0.2);
+      p.push(box([fxn, 0.21, fzn], [0.02, 0.08, 0.02], '#3f6212'), ball([fxn, 0.26, fzn], 0.065, FLOWERS[(b + n) % FLOWERS.length]!));
     }
-  }
+  });
   // Benches round the fountain.
   for (const b of PARK_BENCHES) {
     const [x, z] = b.at;
@@ -135,13 +93,19 @@ function parkParts(): { solid: Part[]; lit: Part[] } {
     p.push(box([x + back.x, 0.66, z + back.z], [1.4, 0.24, 0.05], '#a16207', [0, b.facing, 0]));
     for (const e of [-0.6, 0.6]) p.push(box([x + ux * e, 0.17, z + uz * e], [0.06, 0.34, 0.4], '#334155', [0, along, 0]));
   }
-  // The picnic corner: a table and two benches under a sun umbrella.
+  // The picnic corner: a table and two benches under a sun umbrella, set for a meal.
   p.push(
     box([PICNIC.x, 0.62, PICNIC.z], [1.6, 0.06, 0.8], '#a16207'),
     box([PICNIC.x, 0.3, PICNIC.z], [0.1, 0.6, 0.6], '#78350f'),
     box([PICNIC.x, 0.36, PICNIC.z - 0.7], [1.6, 0.05, 0.3], '#a16207'),
     box([PICNIC.x, 0.36, PICNIC.z + 0.7], [1.6, 0.05, 0.3], '#a16207'),
     cyl([PICNIC.x, 1.1, PICNIC.z], 0.025, 0.025, 2.0, '#e2e8f0', 6),
+    // A checked cloth, plates, a basket and a bottle.
+    box([PICNIC.x, 0.655, PICNIC.z], [1.3, 0.008, 0.62], '#fecaca'),
+    ...[-0.45, 0.45].flatMap((dx) => [-0.2, 0.2].map((dz) => cyl([PICNIC.x + dx, 0.665, PICNIC.z + dz], 0.11, 0.11, 0.012, '#f8fafc', 12))),
+    ...[-0.45, 0.45].flatMap((dx) => [-0.2, 0.2].map((dz) => ball([PICNIC.x + dx, 0.69, PICNIC.z + dz], 0.045, '#f59e0b'))),
+    box([PICNIC.x - 0.05, 0.72, PICNIC.z], [0.26, 0.12, 0.18], '#b45309'),
+    cyl([PICNIC.x + 0.15, 0.75, PICNIC.z], 0.035, 0.035, 0.18, '#16a34a', 8),
   );
   // The playground: a sand pad, a swing frame (the seats swing, below) and a slide.
   p.push(box([PLAYGROUND.x, GROUND_Y + 0.004, PLAYGROUND.z], [4.4, 0.01, 3.4], '#e7d7a8'));
@@ -171,9 +135,61 @@ function parkParts(): { solid: Part[]; lit: Part[] } {
   return { solid: p, lit };
 }
 
-/** The water jets of the fountain: thin columns that rise and fall, and a crown of spray from the top bowl. */
+/** Whether a tuft of grass at (x, z) would sit on a path, the plaza, a bed, the playground's sand or under the picnic table. */
+export function offLawn(x: number, z: number): boolean {
+  const near = (a: number, b: number, r: number): boolean => Math.abs(a - b) < r;
+  if (near(z, LOOP.z0, 0.6) || near(z, LOOP.z1, 0.6) || near(x, LOOP.x0, 0.6) || near(x, LOOP.x1, 0.6)) return true;
+  if (near(x, cx, 0.55) || near(z, cz, 0.55)) return true;
+  if (Math.hypot(x - FOUNTAIN.x, z - FOUNTAIN.z) < FOUNTAIN.r + 1.2) return true;
+  if (near(x, PLAYGROUND.x, 2.3) && near(z, PLAYGROUND.z, 1.8)) return true;
+  if (near(x, PICNIC.x, 1.0) && near(z, PICNIC.z, 1.0)) return true;
+  if (near(x, GATE_X, 0.55) && z > LOOP.z1) return true;
+  for (const zz of SIDE_DOORS_RIGHT) if (near(z, zz, 0.65) && x < LOOP.x0) return true;
+  return x < PARK.x0 + 0.15 || x > PARK.x1 - 0.15 || z < PARK.z0 + 0.15 || z > PARK.z1 - 0.3;
+}
+
+const TUFTS = 900;
+const tuftGeometry = new ConeGeometry(0.06, 0.2, 4, 1);
+tuftGeometry.translate(0, 0.1, 0);
+
+/** Tufts of grass over the lawn (one instanced mesh), in a few greens, swaying a little in the wind of the weather. */
+function Grass() {
+  const mesh = useRef<InstancedMesh>(null);
+  const material = useMemo(() => new MeshStandardMaterial({ roughness: 0.9 }), []);
+  useEffect(() => () => material.dispose(), [material]);
+  const spots = useMemo(() => {
+    const out: Array<[number, number, number]> = [];
+    for (let i = 0; out.length < TUFTS && i < TUFTS * 4; i++) {
+      const x = PARK.x0 + rnd(i, 31) * (PARK.x1 - PARK.x0);
+      const z = PARK.z0 + rnd(i, 37) * (PARK.z1 - PARK.z0);
+      if (!offLawn(x, z)) out.push([x, z, rnd(i, 41)]);
+    }
+    return out;
+  }, []);
+  useEffect(() => {
+    const m = mesh.current;
+    if (!m) return;
+    const o = new Object3D();
+    const c = new Color();
+    const greens = ['#4d7c0f', '#65a30d', '#3f6212', '#84cc16'];
+    spots.forEach(([x, z, r], i) => {
+      o.position.set(x, GROUND_Y, z);
+      o.rotation.set((r - 0.5) * 0.3, r * Math.PI * 2, 0);
+      o.scale.setScalar(0.7 + r * 0.7);
+      o.updateMatrix();
+      m.setMatrixAt(i, o.matrix);
+      m.setColorAt(i, c.set(greens[i % greens.length]!));
+    });
+    m.instanceMatrix.needsUpdate = true;
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
+  }, [spots]);
+  return <instancedMesh ref={mesh} args={[tuftGeometry, material, spots.length]} name="park-grass" receiveShadow />;
+}
+
+/** The water of the fountain: the pool's surface rippling, thin jets that rise and fall, and a crown of spray from the top bowl. */
 function FountainWater() {
   const jets = useRef<Array<Mesh | null>>([]);
+  const pool = useRef<Mesh>(null);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     jets.current.forEach((m, i) => {
@@ -182,10 +198,15 @@ function FountainWater() {
       m.scale.set(1, h / 0.4, 1);
       m.position.y = (i === 0 ? 1.46 : 0.32) + h / 2;
     });
+    if (pool.current) pool.current.position.y = 0.3 + Math.sin(t * 2.2) * 0.006;
   });
-  const spots: V2[] = [[0, 0], ...Array.from({ length: 6 }, (_, k) => [Math.cos((k * Math.PI) / 3) * 0.8, Math.sin((k * Math.PI) / 3) * 0.8] as V2)];
+  const spots = useMemo(() => [[0, 0] as const, ...Array.from({ length: 6 }, (_, k) => [Math.cos((k * Math.PI) / 3) * 0.8, Math.sin((k * Math.PI) / 3) * 0.8] as const)], []);
   return (
     <group position={[FOUNTAIN.x, 0, FOUNTAIN.z]} name="park-fountain-water">
+      <mesh ref={pool} position={[0, 0.3, 0]}>
+        <cylinderGeometry args={[1.12, 1.12, 0.04, 28]} />
+        <meshStandardMaterial color="#38bdf8" roughness={0.08} metalness={0.2} transparent opacity={0.88} />
+      </mesh>
       {spots.map(([x, z], i) => (
         <mesh
           key={i}
@@ -202,23 +223,43 @@ function FountainWater() {
   );
 }
 
-/** The two swing seats, swinging on the motion clock (still while the bank is paused). */
-function Swings() {
+/** How far a swing swings, and how quickly it picks up with a child pumping on it and settles once they are off. */
+export const SWING = { amp: 0.55, rate: 2.1, pickUp: 0.35, settle: 0.45 } as const;
+
+/** The swing's amplitude after `dt` more seconds: building towards SWING.amp while taken, dying away to still while empty. */
+export const swingAmp = (amp: number, taken: boolean, dt: number): number =>
+  taken ? Math.min(SWING.amp, amp + SWING.amp * SWING.pickUp * dt) : amp * Math.exp(-SWING.settle * dt * 3);
+
+/**
+ * The two swing seats. A seat swings only with a child on it: the child pumps it up to full height; once they hop off it dies
+ * away to still. On the motion clock, so everything stops on pause.
+ */
+function Swings({ crowd }: { crowd: ParkCrowd }) {
   const seats = useRef<Array<Group | null>>([]);
+  const kids = useRef<Array<Group | null>>([]);
+  const amp = useRef([0, 0]);
+  const phase = useRef([0, 1.4]);
   useFrame(() => {
-    seats.current.forEach((g, i) => {
-      if (g) g.rotation.x = Math.sin(motion.t * 2.1 + i * 1.4) * 0.55;
-    });
+    for (let i = 0; i < 2; i++) {
+      const taken = crowd.swingTaken(i);
+      amp.current[i] = swingAmp(amp.current[i]!, taken, motion.dt);
+      phase.current[i]! += motion.dt * SWING.rate;
+      const g = seats.current[i];
+      if (g) g.rotation.x = Math.sin(phase.current[i]!) * amp.current[i]!;
+      const kid = kids.current[i];
+      if (kid) kid.visible = taken;
+    }
   });
   return (
     <>
-      {[-0.4, 0.4].map((dx, i) => (
+      {SWING_XS().map((x, i) => (
         <group
           key={i}
           ref={(g) => {
             seats.current[i] = g;
           }}
-          position={[PLAYGROUND.x - 1.1 + dx, 1.68, PLAYGROUND.z]}
+          position={[x, 1.68, PLAYGROUND.z]}
+          name={`park-swing-${i}`}
         >
           {[-0.14, 0.14].map((e) => (
             <mesh key={e} position={[e, -0.6, 0]} material={solid}>
@@ -229,36 +270,115 @@ function Swings() {
             <boxGeometry args={[0.34, 0.04, 0.16]} />
             <meshStandardMaterial color="#1f2937" />
           </mesh>
+          {/* The child on the seat, holding the chains: they swing with it. */}
+          <group
+            ref={(g) => {
+              kids.current[i] = g;
+            }}
+            position={[0, -1.2 - 0.48 * 0.48, -0.08]}
+            visible={false}
+          >
+            <SittingFigure index={i * 23 + 201} shirt={['#f472b6', '#38bdf8'][i]!} phase={i} scale={0.48} />
+          </group>
         </group>
       ))}
     </>
   );
 }
 
-/** People strolling round the loop, on the motion clock. */
-function Strollers({ count }: { count: number }) {
-  const walkers = useRef<Array<Group | null>>([]);
-  const outfit = useWeather((s) => outfitOf(s.weather));
+/** A small umbrella, held overhead, for walking out of the park in the wet. */
+const canopy = new ConeGeometry(0.5, 0.26, 10, 1, true);
+const stick = new CylinderGeometry(0.016, 0.016, 0.75, 5);
+const UMBRELLAS = ['#1d4ed8', '#e11d48', '#0f766e', '#7c3aed', '#ea580c'];
+
+const WEAR: Readonly<Record<Outfit, Wear>> = { everyday: 'none', summer: 'summer', winter: 'winter', rain: 'rain', mask: 'mask', jacket: 'none' };
+
+/** What a person is drawn as: sitting (bench, picnic), standing (just got up), walking, or on a swing (drawn by Swings). */
+type Look = 'sit' | 'stand' | 'walk' | 'swing' | 'away';
+const lookOf = (p: ParkState, pose: ParkPose): Look => {
+  if (pose === 'away') return 'away';
+  if (pose === 'walk') return 'walk';
+  if (p.m.role === 'swing') return pose === 'up' ? 'stand' : 'swing';
+  if (p.m.role === 'stroll') return pose === 'up' ? 'stand' : 'walk';
+  return pose === 'up' ? 'stand' : 'sit';
+};
+
+/** One person in the park, placed every frame from the crowd. */
+function ParkPerson({ crowd, i, outfit }: { crowd: ParkCrowd; i: number; outfit: Outfit }) {
+  const p = crowd.people[i]!;
+  const root = useRef<Group>(null);
+  const cup = useRef<Group>(null);
+  const brolly = useRef<Group>(null);
+  const raise = useMemo(() => ({ current: 0 }), []);
+  const [look, setLook] = useState<Look>(() => lookOf(p, crowd.poseOf(p).pose));
+  const umbrella = p.m.k % 3 !== 2;
   useFrame(() => {
-    walkers.current.forEach((g, i) => {
-      if (!g) return;
-      const p = strollerAt(i, count, motion.t);
-      g.position.set(p.at[0], GROUND_Y, p.at[1]);
-      g.rotation.y = p.heading;
-    });
+    const s = crowd.poseOf(p);
+    const l = lookOf(p, s.pose);
+    if (l !== look) setLook(l);
+    const g = root.current;
+    if (!g) return;
+    g.visible = l !== 'away' && l !== 'swing';
+    // A sitter who has just got up steps forward off the seat.
+    const fwd = l === 'stand' && (p.m.role === 'bench' || p.m.role === 'picnic') ? 0.35 : 0;
+    g.position.set(s.at[0] + Math.sin(s.heading) * fwd, l === 'sit' ? 0 : GROUND_Y, s.at[1] + Math.cos(s.heading) * fwd);
+    g.rotation.y = s.heading;
+    // Looking up at the sky before setting off.
+    g.rotation.x = l === 'stand' ? -0.12 : 0;
+    // Up goes the umbrella once they walk out in the wet.
+    const wet = l === 'walk' && p.going === 'out' && isRaining();
+    raise.current += ((wet && umbrella ? 1 : 0) - raise.current) * Math.min(1, motion.dt * 4 + (motion.dt > 0 ? 0.02 : 0));
+    if (brolly.current) {
+      brolly.current.visible = raise.current > 0.05;
+      brolly.current.scale.setScalar(Math.max(0.05, raise.current));
+    }
+    // At the picnic table: a cup or a bite raised to the mouth now and then, then back down to the table.
+    if (cup.current) {
+      const u = Math.max(0, Math.sin(motion.t * 0.9 + p.m.k * 1.9));
+      cup.current.position.set(0.1, 0.5 + 0.22 * u * u, 0.22 - 0.1 * u * u);
+    }
+  });
+  const shirt = outfitShirt(outfit, p.m.k + 3, customerShirt(p.m.k * 4 + (p.m.role === 'picnic' ? 29 : p.m.role === 'stroll' ? 11 : 13)));
+  const index = 141 + i * 7;
+  return (
+    <group ref={root} name={`park-${p.m.id}`}>
+      {look === 'sit' ? (
+        <>
+          <SittingFigure index={index} shirt={shirt} phase={p.m.k * 1.3} />
+          {p.m.role === 'picnic' && (
+            <group ref={cup}>
+              <mesh>
+                <cylinderGeometry args={[0.035, 0.028, 0.09, 8]} />
+                <meshStandardMaterial color={p.m.k % 2 ? '#f8fafc' : '#fbbf24'} roughness={0.5} />
+              </mesh>
+            </group>
+          )}
+        </>
+      ) : (
+        <CustomerFigure index={index} shirt={shirt} phase={p.m.k * 2.3} walking stride={look === 'walk' ? 1 : 0} scale={p.m.role === 'swing' ? 0.5 : 0.7} wear={WEAR[outfit]} raise={raise} />
+      )}
+      <group ref={brolly} position={[0.13, 0.95, 0.1]} visible={false}>
+        <mesh geometry={stick} position={[0, -0.1, 0]} material={solid} />
+        <mesh geometry={canopy} position={[0, 0.3, 0]}>
+          <meshStandardMaterial color={UMBRELLAS[p.m.k % UMBRELLAS.length]} roughness={0.5} side={2} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+/** Talk at the benches and the picnic table: a bubble over each group that is sitting together. */
+function Chatter({ crowd }: { crowd: ParkCrowd }) {
+  const [shown, setShown] = useState<readonly boolean[]>([false, false, false, false, false]);
+  useFrame(() => {
+    const at = (prefix: string): boolean => crowd.people.some((p) => p.m.id.startsWith(prefix) && p.d === 0 && p.going === null);
+    const next = [...PARK_BENCHES.map((_, k) => at(`bench-${k}-`)), at('picnic-')];
+    if (next.some((v, i) => v !== shown[i])) setShown(next);
   });
   return (
     <>
-      {Array.from({ length: count }, (_, i) => (
-        <group
-          key={i}
-          ref={(g) => {
-            walkers.current[i] = g;
-          }}
-        >
-          <CustomerFigure index={i * 17 + 131} shirt={outfitShirt(outfit, i + 7, customerShirt(i * 3 + 11))} phase={i * 2.3} walking scale={0.7} />
-        </group>
-      ))}
+      {PARK_BENCHES.map((b, k) => shown[k] && <Bubble key={k} kind={k % 2 ? 'thought' : 'speech'} position={[b.at[0], 1.25, b.at[1]]} phase={k} size={0.34} />)}
+      {shown[4] && <Bubble kind="speech" position={[PICNIC.x - 0.4, 1.35, PICNIC.z]} phase={5} size={0.34} />}
     </>
   );
 }
@@ -271,36 +391,35 @@ export const Park3D = memo(function Park3D() {
   const ground = useMerged(() => parts.solid, [parts]);
   const lit = useMerged(() => parts.lit, [parts]);
   const outfit = useWeather((s) => outfitOf(s.weather));
-  // Nobody stays out in the rain, the hail or the snow.
-  const outdoors = useWeather((s) => !['rain', 'storm', 'hail', 'snow'].includes(s.weather));
-  // After the bank closes, its customers spill into the park: more people on the benches and on the paths.
-  const evening = useBankStore((s) => afterHours(s.view.minute));
-  const sitters = PARK_BENCHES.slice(0, evening ? 4 : 2);
+  // Everyone wanted at the start is already in place; after that they come and go on foot.
+  const crowd = useMemo(() => {
+    const minute = bankStore.getState().view.minute;
+    const fair = parkWeather(weatherStore.getState().weather);
+    return new ParkCrowd(undefined, (m) => wantsPark(m, minute, fair));
+  }, []);
+  useFrame(() => {
+    const minute = bankStore.getState().view.minute;
+    const fair = parkWeather(weatherStore.getState().weather);
+    const wet = !fair;
+    for (const h of substeps(motion.dt)) crowd.step(h, (m) => wantsPark(m, minute, fair), wet);
+  }, -1);
   return (
     <group name="office-park">
       <mesh geometry={ground} material={solid} receiveShadow />
       <mesh geometry={lit} material={glow} />
+      <Grass />
       <FountainWater />
-      <Swings />
+      <Swings crowd={crowd} />
       {/* The sun umbrella over the picnic table. */}
       <mesh position={[PICNIC.x, 2.05, PICNIC.z]}>
         <coneGeometry args={[1.25, 0.45, 8, 1, true]} />
         <meshStandardMaterial color="#f97316" roughness={0.6} side={2} />
       </mesh>
-      <Sign text="CITY PARK" fg="#ffffff" bg="#15803d" position={[LOOP.x0 + 1.9, 1.35, PARK.z1 - 0.3]} width={1.5} />
-      {outdoors &&
-        sitters.flatMap((b, k) =>
-          [-0.32, 0.32].map((dz, j) => {
-            const along = b.facing + Math.PI / 2;
-            return (
-              <group key={`${k}-${j}`} position={[b.at[0] + Math.sin(along) * dz, 0, b.at[1] + Math.cos(along) * dz]} rotation={[0, b.facing, 0]}>
-                <SittingFigure index={k * 11 + j * 5 + 141} shirt={outfitShirt(outfit, k * 2 + j, customerShirt(k * 4 + j + 13))} phase={k * 1.3 + j} />
-              </group>
-            );
-          }),
-        )}
-      {outdoors && sitters.map((b, k) => <Bubble key={k} kind={k % 2 ? 'thought' : 'speech'} position={[b.at[0], 1.25, b.at[1]]} phase={k} size={0.34} />)}
-      {outdoors && <Strollers count={evening ? 5 : 3} />}
+      <Sign text="CITY PARK" fg="#ffffff" bg="#15803d" position={[GATE_X, 1.35, PARK.z1 - 0.3]} width={1.5} />
+      {crowd.people.map((_, i) => (
+        <ParkPerson key={crowd.people[i]!.m.id} crowd={crowd} i={i} outfit={outfit} />
+      ))}
+      <Chatter crowd={crowd} />
     </group>
   );
 });

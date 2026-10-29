@@ -47,7 +47,8 @@ import {
 } from './layout3d';
 import { tape } from './materials';
 import { LANE_STYLE, laneKind, SET } from './palette';
-import { Arrivals, Packets } from './Traffic';
+import { Arrivals, AtmLeavers, Packets } from './Traffic';
+import { GuardCabin3D } from './GuardCabin3D';
 import { TOUR_DAYLIGHT, TOUR_GLIDE_MS, type CamFocus } from './tour3d';
 import { TourStage, useTourCamera } from './TourStage';
 import { advanceMotion } from './motion';
@@ -879,10 +880,12 @@ export function OfficeScene({ resetKey }: { resetKey: number }) {
       <ServerRoom />
       <Plants />
       <Street />
+      <GuardCabin3D />
       <GateStanchions />
       {STATION_IDS.map((id) => (isMachine(id) ? <AtmKiosk key={id} id={id} /> : <Desk3D key={id} id={id} />))}
       <Kiosks />
       <Arrivals />
+      <AtmLeavers />
       <Packets />
       <TourStage />
       <FlowStage3D />

@@ -308,6 +308,23 @@ function PhoneToken({ phase }: { phase: number }) {
 }
 
 /** The customers waiting at the front of the counter. Each takes the look of whoever is next in line, so the line seems to move up. */
+/**
+ * The customer at an ATM, facing its panel and keying in: the right hand goes out to the keypad and taps it in short bursts,
+ * with a pause now and then to read the screen. On the motion clock, so it stops on pause.
+ */
+function AtmUser({ index, shirt, phase }: { index: number; shirt: string; phase: number }) {
+  const reach = useMemo(() => ({ current: 0.42 }), []);
+  useFrame(() => {
+    const t = motion.t + phase;
+    const reading = Math.sin(t * 0.7) > 0.55;
+    reach.current = reading ? 0.3 : atmPress(t);
+  });
+  return <CustomerFigure index={index} shirt={shirt} phase={phase} walking stride={0} raise={reach} />;
+}
+
+/** The arm's reach while keying in at time `t`: out to the keypad (about 0.42) with a quick tap down and up on each press. */
+export const atmPress = (t: number): number => 0.42 + 0.05 * Math.max(0, Math.sin(t * 9));
+
 export function DeskQueue({ id }: { id: StationId }) {
   // After closing time nobody queues at a customer desk (they walked out at 17:00: see Evacuation).
   const closedHere = useBankStore((s) => CUSTOMER_DESKS.includes(id) && isClosed(s.view.minute));
@@ -324,7 +341,13 @@ export function DeskQueue({ id }: { id: StationId }) {
         const who = processed + i + salt;
         return (
           <group key={i} position={[x, 0, z]} rotation={[0, Math.PI, 0]}>
-            {phones ? <PhoneToken phase={i * 0.9 + salt} /> : <CustomerFigure index={who} shirt={customerShirt(who * 3 + 1)} phase={i * 0.9 + salt} />}
+            {phones ? (
+              <PhoneToken phase={i * 0.9 + salt} />
+            ) : i === 0 && STATIONS[id].kind === 'ATM' ? (
+              <AtmUser index={who} shirt={customerShirt(who * 3 + 1)} phase={salt} />
+            ) : (
+              <CustomerFigure index={who} shirt={customerShirt(who * 3 + 1)} phase={i * 0.9 + salt} />
+            )}
           </group>
         );
       })}

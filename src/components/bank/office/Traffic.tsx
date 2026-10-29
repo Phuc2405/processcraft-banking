@@ -8,7 +8,7 @@ import type { Move, PacketKind } from '../../../sim/types';
 import { bankStore, useBankStore } from '../../../store/bankStore';
 import { CustomerFigure, phaseOf } from './Avatars';
 import { box, cyl, merge, shade, tint, type Part } from './kit';
-import { arrivalPath, customerShirt, hopHeight, hopTiming, laneAt, laneLength, packetLane, WALKER_STATIONS, type V2 } from './layout3d';
+import { arrivalPath, atmExitPath, customerShirt, hopHeight, hopTiming, laneAt, laneLength, packetLane, WALKER_STATIONS, type V2 } from './layout3d';
 import { glow } from './materials';
 import { PACKET_HEX } from './palette';
 import { motion, motionNow } from './motion';
@@ -297,6 +297,72 @@ export const Arrivals = memo(function Arrivals() {
           visible={false}
         >
           <CustomerFigure index={i * 7 + 2} shirt={customerShirt(i)} phase={phaseOf(`walker-${i}`)} walking />
+        </group>
+      ))}
+    </group>
+  );
+});
+
+/** How many people can be walking away from the ATMs at once, and how fast they go. */
+const MAX_LEAVERS = 6;
+export const LEAVE_PACE = 1.1;
+
+/**
+ * Customers walking away from the sidewalk ATMs. Each time a machine finishes with someone (its count of the day goes up), that
+ * person steps back from the panel, walks along the inside of the booth to the gap by the rope, out onto the pavement and off
+ * down the street: nobody vanishes at the machine. They walk on the motion clock, so they stop where they are on pause.
+ */
+export const AtmLeavers = memo(function AtmLeavers() {
+  const tick = useBankStore((s) => s.view.tick);
+  const walks = useRef<Array<{ path: V2[]; length: number; start: number }>>([]);
+  const seen = useRef<Partial<Record<string, number>>>({});
+  const pool = useRef<Array<Group | null>>([]);
+
+  useEffect(() => {
+    const state = bankStore.getState();
+    for (const [n, id] of ATM_STATIONS.entries()) {
+      const done = state.view.stations[id].stats.processedToday;
+      const before = seen.current[id];
+      seen.current[id] = done;
+      // The first look, and a new day's reset, set nobody walking.
+      if (before === undefined || done <= before) continue;
+      for (let k = 0; k < Math.min(2, done - before); k++) {
+        const path = atmExitPath(id);
+        walks.current.push({ path, length: laneLength(path), start: motion.t + k * 1.4 + n * 0.3 });
+      }
+    }
+    if (walks.current.length > MAX_LEAVERS) walks.current.splice(0, walks.current.length - MAX_LEAVERS);
+  }, [tick]);
+
+  useFrame(() => {
+    const live = walks.current;
+    for (let i = live.length - 1; i >= 0; i--) if ((motion.t - live[i]!.start) * LEAVE_PACE > live[i]!.length) live.splice(i, 1);
+    for (let i = 0; i < MAX_LEAVERS; i++) {
+      const g = pool.current[i];
+      if (!g) continue;
+      const w = live[i];
+      if (!w || motion.t < w.start) {
+        g.visible = false;
+        continue;
+      }
+      const p = laneAt(w.path, (motion.t - w.start) * LEAVE_PACE);
+      g.visible = true;
+      g.position.set(p.x, 0, p.z);
+      g.rotation.y = p.heading + Math.PI / 2;
+    }
+  });
+
+  return (
+    <group name="office-atm-leavers">
+      {Array.from({ length: MAX_LEAVERS }, (_, i) => (
+        <group
+          key={i}
+          ref={(g) => {
+            pool.current[i] = g;
+          }}
+          visible={false}
+        >
+          <CustomerFigure index={i * 11 + 5} shirt={customerShirt(i * 5 + 2)} phase={phaseOf(`atm-leaver-${i}`)} walking />
         </group>
       ))}
     </group>

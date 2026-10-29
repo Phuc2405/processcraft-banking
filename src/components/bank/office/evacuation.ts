@@ -1,5 +1,5 @@
 import type { StationId } from '../../../sim/topology';
-import { ENTRANCES, FLOOR_SLAB, MAIN_GATE, queueSlots, SIDE_DOORS_RIGHT, STATION_POSES, WALK_IN_GATES, type V2 } from './layout3d';
+import { ENTRANCES, FLOOR_SLAB, MAIN_GATE, queueMouth, queueSlots, SIDE_DOORS_RIGHT, STATION_POSES, WALK_IN_GATES, type V2 } from './layout3d';
 
 /**
  * Closing time in the 3D office. At 17:00 the branch closes its doors to customers: everyone still queuing at a customer
@@ -33,8 +33,10 @@ const leftDoor = (z: number): number => ENTRANCES.map((e) => e.at[1]).reduce((be
  */
 export function evacuationRoute(id: StationId, at: V2, k: number): { exit: ExitKind; path: V2[] } {
   if (WALK_IN_GATES.includes(id)) {
+    // Back down the rope lane and out of its open end first: nobody steps over a rope.
     const d = leftDoor(at[1]);
-    return { exit: 'left', path: [at, [at[0], d], [-HX - 1.2, d]] };
+    const mouth = queueMouth(id).inside;
+    return { exit: 'left', path: [at, [at[0], mouth[1]], [-HX + 0.4, mouth[1]], [-HX + 0.4, d], [-HX - 1.2, d]] };
   }
   if (k % 2 === 0) return { exit: 'main', path: [at, [at[0], FRONT_AISLE], [MAIN_GATE.x, FRONT_AISLE], [MAIN_GATE.x, HZ + 1.0]] };
   const d = SIDE_DOORS_RIGHT.reduce((best, z) => (Math.abs(z - FRONT_AISLE) < Math.abs(best - FRONT_AISLE) ? z : best));

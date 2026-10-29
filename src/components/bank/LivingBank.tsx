@@ -11,6 +11,7 @@ import { BankMap } from './BankMap';
 import { BankSidebar } from './BankSidebar';
 import { ClockBar } from './ClockBar';
 import { CourseCatalog } from './CourseCatalog';
+import { DayIntroBanner } from './DayIntroBanner';
 import { DayReportModal } from './DayReportModal';
 import { HudToasts } from './HudToasts';
 import { Inspector } from './Inspector';
@@ -168,6 +169,7 @@ export function LivingBank() {
               <PresetDock />
               <WalkChip />
               <ResumeWalkthrough />
+              <DayIntroBanner />
               <NoticeColumn />
               <Inspector />
             </div>

@@ -19,6 +19,7 @@ import {
   RepeatWrapping,
   SRGBColorSpace,
   Vector3,
+  Vector4,
   type AmbientLight,
   type Group,
 } from 'three';
@@ -30,7 +31,7 @@ import { avenueMarkings, customerShirt, FLOOR_SLAB, KERB_Z, ROAD_END, SIDE_DOORS
 import { glow, pane, solid } from './materials';
 import { CustomerFigure, type Wear } from './Avatars';
 import { Bubble } from './Bubble3D';
-import { LOT, TREE_STRIP } from './parking';
+import { LOT, LOT_SIDE, TREE_STRIP } from './parking';
 import { Parking3D } from './Parking3D';
 import { FOUNTAIN, LOOP, PARK, Park3D } from './Park3D';
 import { Sky3D } from './Sky3D';
@@ -532,27 +533,67 @@ function useMistTexture(): CanvasTexture {
   return tex;
 }
 
-/** Morning mist: low banks over the street and the city (never inside the branch), fading out as the morning goes on. */
+/**
+ * The mist is cut away over the branch: anything of it that would lie inside the building's footprint (the floor slab, out to
+ * just past its walls) is never drawn, so the floor, the desks, the staff, the lanes and the counters stay perfectly sharp
+ * however thick the fog or smog outside. A world-space test in the fragment shader, so it holds from any camera angle.
+ */
+export const MIST_CLIP = { x0: -HX - 0.15, x1: HX + 0.15, z0: -HZ - 0.15, z1: STREET.z0 + 0.05 } as const;
+export const mistClipped = (x: number, z: number): boolean => x > MIST_CLIP.x0 && x < MIST_CLIP.x1 && z > MIST_CLIP.z0 && z < MIST_CLIP.z1;
+
+function clipIndoors(material: MeshBasicMaterial): void {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.clipBox = { value: new Vector4(MIST_CLIP.x0, MIST_CLIP.x1, MIST_CLIP.z0, MIST_CLIP.z1) };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vMistWorld;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvMistWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vMistWorld;\nuniform vec4 clipBox;')
+      .replace('void main() {', 'void main() {\n  if (vMistWorld.x > clipBox.x && vMistWorld.x < clipBox.y && vMistWorld.z > clipBox.z && vMistWorld.z < clipBox.w) discard;');
+  };
+  material.customProgramCacheKey = () => 'mist-clip-indoors';
+}
+
+/** The tint of the mist: white for fog, a dirty yellow-brown for smog. */
+const MIST_WHITE = new Color('#ffffff');
+const MIST_SMOG = new Color('#d8c99a');
+
+/**
+ * Ground mist: low banks hugging the street, the pavements, the park and the car park, and higher ones over the city, thick
+ * in fog and smog and in the early morning. Never inside the branch (MIST_CLIP).
+ */
 function Mist() {
   const map = useMistTexture();
-  const material = useMemo(() => new MeshBasicMaterial({ map, transparent: true, depthWrite: false, opacity: 0, toneMapped: false }), [map]);
+  const material = useMemo(() => {
+    const m = new MeshBasicMaterial({ map, transparent: true, depthWrite: false, opacity: 0, toneMapped: false });
+    clipIndoors(m);
+    return m;
+  }, [map]);
   useEffect(() => () => material.dispose(), [material]);
   useFrame(() => {
     const a = atmosphereAt(bankStore.getState().view.minute, liveMix);
     material.opacity = 0.55 * a.mist;
+    material.color.copy(MIST_WHITE).lerp(MIST_SMOG, Math.min(1, liveMix.smog * 1.2));
   });
-  const banks: Array<[number, number, number, number]> = [
-    [0, 0.5, KERB_Z + 1.2, 1],
-    [-HX - 8, 0.8, 0, 1.2],
-    [HX + 8, 0.7, -2, 1.1],
-    [0, 1.1, -HZ - 8, 1.6],
-    [0, 0.9, ROAD_END + 5, 1.4],
+  // [x, y, z, width along x, depth along z]
+  const banks: Array<[number, number, number, number, number]> = [
+    // Low over the pavement and the avenue in front of the branch.
+    [0, 0.32, KERB_Z - 0.4, 44, 6],
+    [0, 0.45, KERB_Z + 4.5, 60, 9],
+    // Over the park and over the car park, either side of the branch.
+    [(PARK.x0 + PARK.x1) / 2, 0.38, (PARK.z0 + PARK.z1) / 2, PARK.x1 - PARK.x0 + 2, PARK.z1 - PARK.z0],
+    [LOT_SIDE * ((LOT.x0 + LOT.x1) / 2), 0.38, (LOT.z0 + LOT.z1) / 2, LOT.x1 - LOT.x0 + 2, LOT.z1 - LOT.z0],
+    // Higher banks over the city all round.
+    [-HX - 8, 0.8, 0, 40, 11],
+    [HX + 8, 0.7, -2, 37, 10],
+    [0, 1.1, -HZ - 8, 54, 14],
+    [0, 0.9, ROAD_END + 5, 48, 12.6],
   ];
   return (
     <group name="office-mist">
-      {banks.map(([x, y, z, s], i) => (
+      {banks.map(([x, y, z, w, d], i) => (
         <mesh key={i} position={[x, y, z]} rotation={[-Math.PI / 2, 0, 0]} material={material} renderOrder={4}>
-          <planeGeometry args={[34 * s, 9 * s]} />
+          <planeGeometry args={[w, d]} />
         </mesh>
       ))}
     </group>

@@ -1,9 +1,9 @@
-import { ATM_ALCOVE, KERB_Z, ROAD_END, STREET, type V2 } from './layout3d';
+import { ATM_ALCOVE, KERB_Z, lobbyWalkIn, ROAD_END, STREET, type V2 } from './layout3d';
 import { BUS_STOP } from './weather';
 
 /**
- * The traffic on the avenue in front of the branch: motorbikes (many carrying two), cars, green ride-hailing taxis and the
- * armoured cash-in-transit van that services the ATMs. A small driving simulation (TrafficSim), stepped on the motion clock.
+ * The traffic on the avenue in front of the branch: motorbikes (many carrying two), cars, green ride-hailing taxis, the
+ * city bus and the armoured cash-in-transit van that services the ATMs. A small driving simulation (TrafficSim), stepped on the motion clock.
  *
  * The avenue has four lanes, two each way, and traffic keeps to the right: in each direction a motorbike lane along the
  * kerb and a car lane inside it, so cars and motorbikes never share a lane. Seen from the pavement the near side runs
@@ -16,9 +16,12 @@ import { BUS_STOP } from './weather';
  *     across, overtakes and eases back once its own lane is clear again; not clear, it waits behind. Every vehicle behind
  *     does the same, so traffic flows round a stop without a jam and queues neatly when it cannot.
  *
- * Only the near side stops at the kerb (in the motorbike lane, which is the kerb lane): a taxi drops off or picks up at the
- * bus stop (opening its kerbside door), a motorbike lets its pillion passenger off, and the cash van pulls in by the ATMs
- * while its guard carries a cash box to the machines and back. Then they pull away and drive on, out past the end of the
+ * Only the near side stops at the kerb, and only from the kerb lane (the motorbike lane): a vehicle bound for the kerb
+ * indicates and moves across into it before its stop, and one that could not get across in time drives on and comes round
+ * again rather than stop out in the car lane and send its passenger across the traffic. A taxi drops off or picks up at the
+ * taxi stand (opening its kerbside door), the bus pulls into the bus stop and lets people off and on at its doors, a
+ * motorbike lets its pillion passenger off, and the cash van pulls into its loading bay by the ATMs while its guard carries
+ * a cash box to the machines and back. Then they pull away and drive on, out past the end of the
  * street (well out in the haze) before coming round again: nothing vanishes in view.
  */
 
@@ -52,8 +55,8 @@ export const ACCEL = 2.8;
  * front, how long the indicator blinks before moving across, and how long the move across takes. */
 export const OVERTAKE = { look: 12, behind: 7, beyond: 5, signal: 0.7, shift: 1.1 } as const;
 
-export type VehicleKind = 'motorbike' | 'sedan' | 'taxi' | 'cit';
-export type StopKind = 'taxi' | 'pillion' | 'cit';
+export type VehicleKind = 'motorbike' | 'sedan' | 'taxi' | 'cit' | 'bus';
+export type StopKind = 'taxi' | 'pillion' | 'cit' | 'bus';
 
 export interface Stop {
   kind: StopKind;
@@ -77,22 +80,26 @@ export interface Vehicle {
 }
 
 /** Bumper-to-bumper length, and width, of each kind. */
-export const LENGTH: Record<VehicleKind, number> = { motorbike: 1.2, sedan: 2.1, taxi: 2.1, cit: 2.5 };
-export const WIDTH: Record<VehicleKind, number> = { motorbike: 0.4, sedan: 0.97, taxi: 0.97, cit: 1.07 };
+export const LENGTH: Record<VehicleKind, number> = { motorbike: 1.2, sedan: 2.1, taxi: 2.1, cit: 2.9, bus: 4.4 };
+export const WIDTH: Record<VehicleKind, number> = { motorbike: 0.4, sedan: 0.97, taxi: 0.97, cit: 1.2, bus: 1.2 };
 
 /** A vehicle's own lane: motorbikes in the kerb lane, everything else in the car lane. */
 export const homeLane = (v: Pick<Vehicle, 'kind'>): LaneIndex => (v.kind === 'motorbike' ? 0 : 1);
 
-const BUS_X = (BUS_STOP.x0 + BUS_STOP.x1) / 2;
-const ALCOVE_X = (ATM_ALCOVE.x0 + ATM_ALCOVE.x1) / 2;
+/** Where the bus stops (alongside its shelter), where the taxis stand (just down the street from it, clear of the bus), and
+ * the cash van's loading bay (by the ATMs). */
+export const BUS_X = (BUS_STOP.x0 + BUS_STOP.x1) / 2;
+export const TAXI_X = BUS_STOP.x0 - 3.3;
+export const CIT_BAY_X = (ATM_ALCOVE.x0 + ATM_ALCOVE.x1) / 2;
 
 /** The fleet, spread out along both sides of the avenue. A natural pace: a little brisker than a stroll of a city street. */
 export const VEHICLES: readonly Vehicle[] = [
-  { id: 'taxi-1', kind: 'taxi', side: 'near', speed: 6.5, start: 0, color: '#16a34a', pillion: false, stop: { kind: 'taxi', x: BUS_X, wait: 5 } },
+  { id: 'taxi-1', kind: 'taxi', side: 'near', speed: 6.5, start: 0, color: '#16a34a', pillion: false, stop: { kind: 'taxi', x: TAXI_X, wait: 5 } },
   { id: 'moto-1', kind: 'motorbike', side: 'near', speed: 7, start: 12, color: '#dc2626', pillion: true, stop: { kind: 'pillion', x: -5.5, wait: 2.6 } },
   { id: 'sedan-1', kind: 'sedan', side: 'near', speed: 7.4, start: 30, color: '#e5e7eb', pillion: false },
   { id: 'moto-2', kind: 'motorbike', side: 'near', speed: 7.8, start: 42, color: '#1d4ed8', pillion: false },
-  { id: 'cit-1', kind: 'cit', side: 'near', speed: 5.8, start: 62, color: '#334155', pillion: false, stop: { kind: 'cit', x: ALCOVE_X, wait: 14 } },
+  { id: 'bus-1', kind: 'bus', side: 'near', speed: 5.6, start: 47, color: '#0284c7', pillion: false, stop: { kind: 'bus', x: BUS_X, wait: 9 } },
+  { id: 'cit-1', kind: 'cit', side: 'near', speed: 5.8, start: 62, color: '#334155', pillion: false, stop: { kind: 'cit', x: CIT_BAY_X, wait: 14 } },
   { id: 'moto-3', kind: 'motorbike', side: 'near', speed: 6.8, start: 80, color: '#0f766e', pillion: true, stop: { kind: 'pillion', x: 3.2, wait: 2.6 } },
   { id: 'sedan-4', kind: 'sedan', side: 'near', speed: 7.2, start: 96, color: '#6b7280', pillion: false },
   { id: 'moto-6', kind: 'motorbike', side: 'near', speed: 7.4, start: 108, color: '#ea580c', pillion: false },
@@ -108,8 +115,9 @@ export const VEHICLES: readonly Vehicle[] = [
 export const kerbZ = (kind: VehicleKind): number => ROAD.z0 + WIDTH[kind] / 2 + 0.25;
 /** Over how many units before its stop a vehicle eases in to the kerb, and back out after. */
 const PULL_RUN = 6;
-/** How far before its stop a car-lane vehicle moves across into the kerb lane. */
+/** How far before its stop a car-lane vehicle moves across into the kerb lane, and how close it may get before it gives up. */
 const MERGE_BEFORE = 28;
+const KERB_MISS = 4;
 
 export interface VehicleState {
   x: number;
@@ -221,11 +229,17 @@ export class TrafficSim {
           continue;
         }
       }
-      const pending = c.v.stop && c.doneLap < lap ? stopS(c.v) - mod(c.s, SPAN) : null;
+      let pending = c.v.stop && c.doneLap < lap ? stopS(c.v) - mod(c.s, SPAN) : null;
       this.steer(c, pending);
       // Move across towards its lane.
       const step = h / OVERTAKE.shift;
       c.lat = Math.abs(c.lane - c.lat) <= step ? c.lane : c.lat + Math.sign(c.lane - c.lat) * step;
+      // A vehicle stops at the kerb only from the kerb lane. Still out in the car lane as its stop comes up (the kerb lane
+      // was never clear), it gives the stop a miss this time round and drives on: nobody is let out across the traffic.
+      if (pending !== null && c.lane !== 0 && pending < KERB_MISS) {
+        c.doneLap = lap;
+        pending = null;
+      }
 
       const { gap } = this.gapAhead(c);
       // The fastest it may go and still stop in time: behind the vehicle in front, and at its own stop.
@@ -235,6 +249,11 @@ export class TrafficSim {
       c.speed = limit < c.speed ? Math.max(limit, c.speed - BRAKE * 2 * h) : Math.min(limit, c.speed + ACCEL * h);
       let move = c.speed * h;
       if (pending !== null && pending >= -0.01 && move >= pending - 0.02 && c.speed < 1.2) {
+        // At its stop, but still finishing the move across into the kerb lane: it waits until it is fully in.
+        if (c.lat !== 0) {
+          c.speed = 0;
+          continue;
+        }
         // Arrived at the kerb.
         c.s += Math.max(0, Math.min(pending, gap - MIN_GAP));
         c.speed = 0;
@@ -390,8 +409,6 @@ function along(path: readonly V2[], t: number, pace: number): { at: V2; heading:
   return null;
 }
 
-/** The lobby door the people who get out walk to: the middle of the front of the branch. */
-const doorFor = (x: number): V2 => [x * 0.55, STREET.z0 + 0.35];
 
 /**
  * The person getting on or off vehicle `v` (in state `s`) at its stop, or null when there is no one: a taxi's passenger
@@ -400,7 +417,7 @@ const doorFor = (x: number): V2 => [x * 0.55, STREET.z0 + 0.35];
  * the box to the ATMs and back.
  */
 export function riderAt(v: Vehicle, s: VehicleState): (RiderState & { action: RiderAction }) | null {
-  if (!v.stop) return null;
+  if (!v.stop || v.stop.kind === 'bus') return null;
   const side = kerbZ(v.kind) - WIDTH[v.kind] / 2 - 0.15;
   const kerb = KERB_Z - 0.35;
   const x = v.stop.x;
@@ -440,6 +457,61 @@ export function riderAt(v: Vehicle, s: VehicleState): (RiderState & { action: Ri
   }
   // Out of the door (or off the back seat), up onto the pavement and to the lobby; they keep walking after it pulls away.
   if (s.sinceStop === null || s.sinceStop < ALIGHT.door) return null;
-  const w = along([[x, side], [x, kerb], doorFor(x)], s.sinceStop - ALIGHT.door, ALIGHT.pace);
+  const w = along([[x, side], [x, kerb], ...lobbyWalkIn(x)], s.sinceStop - ALIGHT.door, ALIGHT.pace);
   return w ? { x: w.at[0], z: w.at[1], heading: w.heading, walking: true, carrying: false, action } : null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The bus
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The bus's two doors on its kerb side, as x offsets from its middle (it drives towards -x, so its front is at -x). */
+export const BUS_DOORS = { front: -(LENGTH.bus / 2 - 0.55), rear: 0.5 } as const;
+/** How many get off and on each time, and when (seconds into the stop) each one moves; and how far off the bus is when the
+ * people waiting for it set off for the shelter. */
+export const BUS_FLOW = { off: 2, on: 2, offGap: 0.9, onFrom: 2.6, onGap: 1.1, see: 50 } as const;
+
+export type BusRider = RiderState & { action: 'alight' | 'board'; id: string };
+
+/**
+ * The people getting off and on the bus at its stop. Off: out of the front door once it has stopped, straight across onto
+ * the kerb, then one walks to the branch's main entrance and in to the teller's queue, the other off down the street. On:
+ * hurrying up the pavement to the shelter as the bus comes, waiting there, then (once the others are off) to the rear door
+ * and up the step. Every step is between the bus's doors and the pavement: nobody walks in the road.
+ */
+export function busRiders(v: Vehicle, s: VehicleState): BusRider[] {
+  if (v.kind !== 'bus' || !v.stop) return [];
+  const out: BusRider[] = [];
+  const x = v.stop.x;
+  const side = kerbZ(v.kind) - WIDTH[v.kind] / 2 - 0.12;
+  const kerb = KERB_Z - 0.35;
+  const front = x + BUS_DOORS.front;
+  const rear = x + BUS_DOORS.rear;
+  if (s.sinceStop !== null)
+    for (let k = 0; k < BUS_FLOW.off; k++) {
+      const t = s.sinceStop - ALIGHT.door - k * BUS_FLOW.offGap;
+      if (t < 0) continue;
+      const onward: V2[] = k === 0 ? lobbyWalkIn(front) : [[front, KERB_Z - 0.75], [STREET.halfWidth + 7, KERB_Z - 0.75]];
+      const w = along([[front, side], [front, kerb], ...onward], t, ALIGHT.pace);
+      if (w) out.push({ id: `off-${k}`, x: w.at[0], z: w.at[1], heading: w.heading, walking: true, carrying: false, action: 'alight' });
+    }
+  for (let k = 0; k < BUS_FLOW.on; k++) {
+    const spot: V2 = [BUS_STOP.x0 + 1.0 + k * 1.2, BUS_STOP.z0 + 0.55];
+    if (s.toStop !== null) {
+      const u = Math.max(0, Math.min(1, (BUS_FLOW.see - s.toStop) / (BUS_FLOW.see - ALIGHT.seeFrom)));
+      if (u <= 0) continue;
+      const fromX = STREET.halfWidth + 7;
+      out.push({ id: `on-${k}`, x: fromX + (spot[0] - fromX) * u, z: spot[1], heading: -Math.PI / 2, walking: u < 1, carrying: false, action: 'board' });
+      continue;
+    }
+    if (s.stoppedFor === null) continue;
+    const t = s.stoppedFor - BUS_FLOW.onFrom - k * BUS_FLOW.onGap;
+    if (t < 0) {
+      out.push({ id: `on-${k}`, x: spot[0], z: spot[1], heading: 0, walking: false, carrying: false, action: 'board' });
+      continue;
+    }
+    const w = along([spot, [rear, kerb], [rear, side]], t, ALIGHT.pace * 1.2);
+    if (w) out.push({ id: `on-${k}`, x: w.at[0], z: w.at[1], heading: w.heading, walking: true, carrying: false, action: 'board' });
+  }
+  return out;
 }

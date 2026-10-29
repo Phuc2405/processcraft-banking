@@ -1,7 +1,7 @@
 import { useStore } from 'zustand';
 import { createStore } from 'zustand/vanilla';
 import { CLEAR, rainOf, WEATHER_MIX, type Weather, type WeatherMix } from './atmosphere';
-import { ATM_STATIONS, atmBooth, KERB_Z, STREET } from './layout3d';
+import { ATM_STATIONS, atmBooth, GUARD_CABIN, KERB_Z, STREET } from './layout3d';
 
 /**
  * The weather over the 3D office, the shelters on the pavement, and how the people there behave. The weather is a learner's
@@ -176,7 +176,8 @@ const slot = (r: Roof, k: number, n: number, z: number): [number, number] => {
 
 /** The stretches of the overhang taken by the ATM booths, where nobody shelters (they would stand in a queue). */
 const BOOTHS = ATM_STATIONS.map((id) => atmBooth(id));
-const inBooth = (x: number): boolean => BOOTHS.some((b) => x > b.x0 - 0.3 && x < b.x1 + 0.3);
+// (and the guard's cabin by the main entrance)
+const inBooth = (x: number): boolean => BOOTHS.some((b) => x > b.x0 - 0.3 && x < b.x1 + 0.3) || Math.abs(x - GUARD_CABIN.x) < GUARD_CABIN.w / 2 + 0.45;
 
 /** A person's spot under the entrance overhang, spread along it, clear of the ATM booths. */
 export const overhangSpot = (p: Pedestrian): [number, number] => {

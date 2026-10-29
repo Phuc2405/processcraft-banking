@@ -225,12 +225,73 @@ export function entrancePoint(id: StationId): V2 {
   return [-FLOOR.w / 2 - FLOOR.margin + 0.3, pose.z + pose.d / 2 + 0.9];
 }
 
-/** The way a customer walks from the door to the back of the queue: along the wall's side, then up to the tail. */
+/**
+ * Where a queue is entered. A gate's rope lane is open only at its back end, so a customer comes round behind the ropes (in
+ * the aisle between the rope ends and the chairs of the next desk back) and walks in from there. An ATM booth is glass on both
+ * sides with a rope across its front, so the way in is the gap at the rope's right-hand end; `outside` is the spot on the
+ * pavement just in front of it.
+ */
+export function queueMouth(id: StationId): { inside: V2; outside: V2 } {
+  if (STATIONS[id].kind === 'ATM') {
+    const b = atmBooth(id);
+    const gx = b.x1 - 0.33;
+    return { inside: [gx, b.line], outside: [gx, b.front + 0.45] };
+  }
+  const pose = STATION_POSES[id];
+  const at: V2 = [pose.x - 0.5, pose.z + pose.d / 2 + ROPE_END + 0.25];
+  return { inside: at, outside: at };
+}
+
+/** How far in front of a gate's counter its ropes run to (from, to). */
+export const ROPE_START = 0.45;
+export const ROPE_END = 1.25;
+
+/**
+ * The way a customer walks from the door to the back of the queue, never through a rope, a post or a booth's glass: a gate's
+ * customer comes in along the wall, round to the open end of the rope lane, and weaves up the lane to the tail; an ATM's
+ * comes along the pavement in front of the booths, in at the gap by the rope, and across to the end of the line.
+ */
 export function arrivalPath(id: StationId, queued: number): V2[] {
   const door = entrancePoint(id);
   const slots = queueSlots(id, Math.max(1, Math.min(QUEUE_VISIBLE, queued + 1)));
   const tail = slots[slots.length - 1] as V2;
-  return [door, [tail[0], door[1]], tail];
+  const mouth = queueMouth(id);
+  if (STATIONS[id].kind === 'ATM') return [[door[0], mouth.outside[1]], mouth.outside, mouth.inside, tail];
+  // Weave up the lane from its open end to the tail, a step to each side in turn, the way a rope line is walked.
+  const weave: V2[] = [];
+  for (let z = mouth.inside[1] - QUEUE_GAP, k = 0; z > tail[1] + QUEUE_GAP / 2; z -= QUEUE_GAP, k++) weave.push([mouth.inside[0] + (k % 2 ? 0.2 : -0.2), z]);
+  return [door, [door[0], mouth.inside[1]], mouth.inside, ...weave, tail];
+}
+
+/** The walking line along the pavement: between the ATM booths' fronts and the street lamps at the kerb. */
+export const WALKWAY_Z = KERB_Z - 0.75;
+
+/**
+ * The way in for someone who arrives at the kerb at `x` (off a bus, out of a taxi, off the back of a motorbike): along the
+ * pavement to the main entrance, in through it, along the clear aisle at the front of the hall and up to the back of the
+ * teller's queue. Never through a booth, a desk or a wall.
+ */
+export function lobbyWalkIn(x: number): V2[] {
+  const aisle = FLOOR_SLAB.d / 2 - 1.35;
+  const tail = queueSlots('TELLER_CASH', 3)[2] as V2;
+  return [
+    [x, WALKWAY_Z],
+    [MAIN_GATE.x, WALKWAY_Z],
+    [MAIN_GATE.x, aisle],
+    [tail[0], aisle],
+    tail,
+  ];
+}
+
+/**
+ * The way a customer leaves an ATM after their turn: a step back from the machine, along the inside of the booth to the gap
+ * by the rope, out onto the pavement and off along it to the right, past the end of the street.
+ */
+export function atmExitPath(id: StationId): V2[] {
+  const b = atmBooth(id);
+  const mouth = queueMouth(id);
+  const kx = (b.x0 + b.x1) / 2;
+  return [[kx, b.head], [mouth.inside[0], b.head], mouth.inside, mouth.outside, [STREET.halfWidth + 7, mouth.outside[1]]];
 }
 
 /** The doors drawn on the wall: one per shop gate. */
@@ -242,6 +303,12 @@ export const ENTRANCES: ReadonlyArray<{ id: StationId; at: V2 }> = WALK_IN_GATES
  * park); and three side doors in the right wall, onto the park, placed clear of its windows and the server room.
  */
 export const MAIN_GATE = { x: -3.25, width: 3.0 } as const;
+
+/**
+ * The security guard's cabin on the pavement beside the main entrance, to its left as you face the branch: a glass box with
+ * a roof, its door on the side towards the entrance. (x, z) is its middle.
+ */
+export const GUARD_CABIN = { x: MAIN_GATE.x - MAIN_GATE.width / 2 - 1.3, z: FLOOR_SLAB.d / 2 + 0.72, w: 1.3, d: 1.15, h: 2.25 } as const;
 export const SIDE_DOOR_W = 1.5;
 export const SIDE_DOORS_RIGHT: readonly number[] = [-11.75, 7.6, 11.4];
 
@@ -592,7 +659,7 @@ export function stanchionLine(id: StationId): { posts: V2[]; ropes: Array<[V2, V
   }
   const cx = pose.x - 0.5;
   const front = pose.z + pose.d / 2;
-  const zs = [front + 0.45, front + 1.25];
+  const zs = [front + ROPE_START, front + ROPE_END];
   const posts: V2[] = [];
   const ropes: Array<[V2, V2]> = [];
   for (const side of [-1, 1]) {
