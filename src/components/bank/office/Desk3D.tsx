@@ -13,13 +13,13 @@ import { useTerms } from '../useTerms';
 import { CustomerFigure, SeatedAvatar } from './Avatars';
 import { deskGlow, deskSolid, isPodium, SURFACE } from './desks';
 import { box, merge } from './kit';
-import { COUNTER, LANE_LABELS, QUEUE_VISIBLE, WING, accentOf, customerShirt, deskPose, hasWing, laneAt, laneLength, queueSalt, queueSlots, queueStyle, seatOffsets, surgeLevel, wingPose, type V2 } from './layout3d';
+import { COUNTER, LANE_LABELS, QUEUE_VISIBLE, WING, accentOf, customerShirt, deskPose, hasWing, laneLength, queueSalt, queueSlots, queueStyle, seatOffsets, surgeLevel, wingPose, type V2 } from './layout3d';
 import { blobMaterial, glow, solid } from './materials';
 import { STATUS_HEX } from './palette';
 import { cursor } from './cursor';
 import { isAutomatedNode } from '../../../sim/nodeKind';
 import { ServerRack3D } from './ServerRack3D';
-import { ARRIVE_SPEED, arriveRoute, arrivalState, badgeRect, LEAVE_SPEED, isOffShift, leaveAt, leaveRoute, tipSide3d, type TipSide3d } from './focus3d';
+import { ARRIVE_SPEED, arrivalState, badgeRect, LEAVE_SPEED, isOffShift, leaveAt, tipSide3d, type TipSide3d } from './focus3d';
 import { isNightStation } from '../../../sim/roster';
 import { useFocusFade } from './useFocusFade';
 import { t } from '../../../i18n/t';
@@ -29,7 +29,8 @@ import { motion } from './motion';
 import { CUSTOMER_DESKS, isClosed, servedExit } from './evacuation';
 import { sidewalk } from './sidewalk';
 import { queueHandoff } from './queueHandoff';
-import { pointAlongPath } from './tour3d';
+import { journeyPose, type Journey } from './engine/customerLifecycle';
+import { MAIN_GATE_STAFF_ROUTE } from './engine/routes';
 
 export { cursor } from './cursor';
 
@@ -245,7 +246,7 @@ function DeskStaff({ id, accent }: { id: StationId; accent: string }) {
     const was = onShift.current;
     const next = new Map(workers.map((w) => [w.id, automated || !isOffShift(w.activity)]));
     if (was) {
-      const going = workers.flatMap((w, i) => (was.get(w.id) === true && next.get(w.id) === false && seatsNow[i] ? [{ id: w.id, route: leaveRoute(pose, seatsNow[i]!, i), t: 0, index: i }] : []));
+      const going = workers.flatMap((w, i) => (was.get(w.id) === true && next.get(w.id) === false && seatsNow[i] ? [{ id: w.id, route: MAIN_GATE_STAFF_ROUTE.leave(pose, seatsNow[i]!, i), t: 0, index: i }] : []));
       if (going.length) setLeavers((l) => [...l.filter((x) => !going.some((g) => g.id === x.id)), ...going]);
       // Back on shift (the next morning): no longer walking out.
       const back = workers.filter((w) => was.get(w.id) === false && next.get(w.id) === true).map((w) => w.id);
@@ -258,7 +259,7 @@ function DeskStaff({ id, accent }: { id: StationId; accent: string }) {
     const was = wasAway.current;
     wasAway.current = away;
     if (!was || automated) return;
-    const coming = workers.flatMap((w, i) => (was.has(w.id) && !away.has(w.id) && seatsNow[i] ? [{ id: w.id, route: arriveRoute(pose, seatsNow[i]!, i), t: 0, index: i, arriving: true }] : []));
+    const coming = workers.flatMap((w, i) => (was.has(w.id) && !away.has(w.id) && seatsNow[i] ? [{ id: w.id, route: MAIN_GATE_STAFF_ROUTE.arrive(pose, seatsNow[i]!, i), t: 0, index: i, arriving: true }] : []));
     if (coming.length) setLeavers((l) => [...l.filter((x) => !coming.some((c) => c.id === x.id)), ...coming]);
     // Read when the arrivals change; the desk's people and seats as they stand then.
   }, [away]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -396,13 +397,11 @@ interface Served {
   stopAt: number;
 }
 
-const wrapAngle = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
-
 /**
- * Someone served at a desk, start to finish: walking up to the counter or machine (when they only got there after their
- * turn had come), standing at it facing it, keying in or talking, then turning round and walking away along their way out
- * (servedExit) until they are out of the branch or off down the street. Positions are the desk's own (the group sits at the
- * desk), worked out from the way out in the world. On the motion clock.
+ * Someone served at a desk, start to finish, drawn from their journey's state (engine/customerLifecycle.ts): walking up to
+ * the counter or machine (when they only got there after their turn had come), standing at it facing it, keying in or
+ * talking, turning round, and walking away along their way out (servedExit) until they are out of the branch or off down the
+ * street. Positions are the desk's own (the group sits at the desk). On the motion clock.
  */
 function ServedCustomer({ id, s, onGone }: { id: StationId; s: Served; onGone: (key: number) => void }) {
   const pose = useMemo(() => deskPose(id), [id]);
@@ -411,44 +410,23 @@ function ServedCustomer({ id, s, onGone }: { id: StationId; s: Served; onGone: (
   const hand = useMemo(() => ({ current: 0 }), []);
   const who = `served-${id}-${s.key}`;
   const atm = STATIONS[id].kind === 'ATM';
+  const journey = useMemo<Journey>(() => ({ path: s.path, length: s.length, stopAt: s.stopAt, wait: s.wait, turn: SERVED.turn, pace: SERVED.pace }), [s]);
   useEffect(() => () => sidewalk.leave(who), [who]);
   useFrame(() => {
     const el = g.current;
     if (!el) return;
-    const t = motion.t - s.start;
-    const walkUp = s.stopAt / SERVED.pace;
-    const place = (d: number): void => {
-      const p = laneAt(s.path, d);
-      // On the pavement they curve round the others there (sidewalk.ts).
-      const [x, z] = sidewalk.place(who, p.x, p.z, motion.dt);
-      el.position.set(x - pose.x, 0, z - pose.z);
-      el.rotation.y = p.heading + Math.PI / 2;
-      stride.current = 1;
-      hand.current = 0;
-    };
-    if (t < walkUp) {
-      place(t * SERVED.pace);
-      return;
-    }
-    if (t < walkUp + s.wait) {
-      // At the counter or machine, facing it: keying in or talking (when they came up to do their business here), then
-      // turning round to the way out (never a snap).
-      const at = pointAlongPath(s.path, s.stopAt);
-      el.position.set(at[0] - pose.x, 0, at[1] - pose.z);
-      const u = Math.max(0, Math.min(1, (t - walkUp - (s.wait - SERVED.turn)) / SERVED.turn));
-      const out = laneAt(s.path, s.stopAt + 0.05).heading + Math.PI / 2;
-      el.rotation.y = Math.PI + wrapAngle(out - Math.PI) * u * u * (3 - 2 * u);
-      stride.current = 0;
-      hand.current = s.stopAt > 0 && u === 0 ? (atm ? atmPress(motion.t) : counterGesture(motion.t)) : 0;
-      return;
-    }
-    const d = s.stopAt + (t - walkUp - s.wait) * SERVED.pace;
-    if (d >= s.length) {
+    const now = journeyPose(journey, motion.t - s.start);
+    if (now.state === 'gone') {
       el.visible = false;
       onGone(s.key);
       return;
     }
-    place(d);
+    // Walking, they curve round the others on the pavement (sidewalk.ts); standing, they stay put.
+    const [x, z] = now.walking ? sidewalk.place(who, now.at[0], now.at[1], motion.dt) : now.at;
+    el.position.set(x - pose.x, 0, z - pose.z);
+    el.rotation.y = now.yaw;
+    stride.current = now.walking ? 1 : 0;
+    hand.current = now.busy ? (atm ? atmPress(motion.t) : counterGesture(motion.t)) : 0;
   });
   const [x, z] = s.path[0]!;
   return (

@@ -1,5 +1,6 @@
-import { STATIONS, type StationId } from '../../../sim/topology';
-import { atmExitPath, carParkApproach, CUSTOMER_DOOR, FLOOR_SLAB, FRONT_AISLE_Z, LEFT_WALK_X, MAIN_GATE, queueSlots, SIDE_DOORS_RIGHT, STATION_POSES, WALK_IN_DESKS, type V2 } from './layout3d';
+import type { StationId } from '../../../sim/topology';
+import { routesFor } from './engine/routes';
+import { carParkApproach, CUSTOMER_DOOR, FLOOR_SLAB, FRONT_AISLE_Z, LEFT_WALK_X, MAIN_GATE, queueSlots, SIDE_DOORS_RIGHT, STATION_POSES, WALK_IN_DESKS, type V2 } from './layout3d';
 
 /**
  * Closing time in the 3D office. At 17:00 the branch closes its doors to customers: everyone still queuing at a customer
@@ -46,9 +47,7 @@ export function evacuationRoute(at: V2, k: number): { exit: ExitKind; path: V2[]
  * to their car. Nobody vanishes where they were served.
  */
 export function servedExit(id: StationId, k = 0): V2[] {
-  const at = queueSlots(id, k + 1)[k]!;
-  if (STATIONS[id].kind === 'ATM') return [at, ...atmExitPath(id)];
-  return evacuationRoute(at, 2).path;
+  return routesFor(id).depart(k);
 }
 
 /** Everyone queuing at a customer desk when the doors close, with their way out. */

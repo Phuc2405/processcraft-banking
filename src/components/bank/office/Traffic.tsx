@@ -8,7 +8,7 @@ import type { Move, PacketKind } from '../../../sim/types';
 import { bankStore, useBankStore } from '../../../store/bankStore';
 import { CustomerFigure, phaseOf } from './Avatars';
 import { box, cyl, merge, shade, tint, type Part } from './kit';
-import { arrivalPath, customerShirt, QUEUE_VISIBLE, queueSalt, hopHeight, hopTiming, laneAt, laneLength, packetLane, WALKER_STATIONS, type V2 } from './layout3d';
+import { customerShirt, QUEUE_VISIBLE, queueSalt, hopHeight, hopTiming, laneAt, laneLength, packetLane, WALKER_STATIONS, type V2 } from './layout3d';
 import { glow } from './materials';
 import { PACKET_HEX } from './palette';
 import { motion, motionNow } from './motion';
@@ -16,6 +16,7 @@ import { sidewalk } from './sidewalk';
 import { isClosed } from './evacuation';
 import { ATM_STATIONS } from './layout3d';
 import { queueHandoff } from './queueHandoff';
+import { routesFor } from './engine/routes';
 import type { StationId } from '../../../sim/topology';
 
 const MAX_WALKERS = 14;
@@ -317,7 +318,7 @@ export const Arrivals = memo(function Arrivals() {
         if (place < 0 || place >= QUEUE_VISIBLE) continue;
         const slot = freeSlot(walks.current, MAX_WALKERS);
         if (slot < 0) break;
-        const path = arrivalPath(id, place);
+        const path = routesFor(id).approach(place);
         const pace = ATM_STATIONS.includes(id) ? ARRIVAL_PACE.atm : ARRIVAL_PACE.gate;
         // The look of whoever stands in that place of the line (Desk3D: DeskQueue).
         const who = sv.stats.processedToday + place + queueSalt(id);

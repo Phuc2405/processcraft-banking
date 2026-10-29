@@ -172,7 +172,7 @@ describe('people on the pavement keep apart', () => {
     const traffic = read('../Traffic.tsx');
     expect(traffic).toContain("placeWalkers(walks.current, pool.current, 'arrival',");
     // Whoever has been served walks off from the desk itself, curving round the others on the pavement too.
-    expect(read('../Desk3D.tsx')).toContain('const [x, z] = sidewalk.place(who, p.x, p.z, motion.dt);');
+    expect(read('../Desk3D.tsx')).toContain('const [x, z] = now.walking ? sidewalk.place(who, now.at[0], now.at[1], motion.dt) : now.at;');
     const cars = read('../Vehicles3D.tsx');
     expect(cars).toContain('sidewalk.place(`rider-${v.id}`');
     expect(cars).toContain('sidewalk.place(`bus-${id}`');

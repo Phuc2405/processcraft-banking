@@ -122,6 +122,7 @@ describe('the park after dark', () => {
 
 describe('a drop-off held up in traffic keeps its passenger’s stop', () => {
   it('looks again for a spot rather than giving up when the kerb lane fills', () => {
-    expect(read('../vehicles.ts')).toMatch(/if \(dropping && c\.speed < HALTED\) \{[\s\S]*?c\.spot = null;/);
+    expect(read('../vehicles.ts')).toMatch(/if \(dropping && this\.dropOff\.keepsIntent\(c\)\) \{[\s\S]*?c\.spot = null;/);
+    expect(read('../vehicles.ts')).toMatch(/keepsIntent\(c: Driving\): boolean \{\s*return c\.speed < HALTED;/);
   });
 });

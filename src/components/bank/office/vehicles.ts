@@ -157,7 +157,8 @@ export interface VehicleState {
   signal: -1 | 0 | 1;
 }
 
-interface Driving {
+/** A vehicle as the simulation drives it (its own record: the strategies and states below read and update it). */
+export interface Driving {
   v: Vehicle;
   /** Distance driven along its side (keeps growing; the lap is s / SPAN). */
   s: number;
@@ -187,12 +188,98 @@ const mod = (a: number, n: number): number => ((a % n) + n) % n;
 /** Whether two vehicles at these places across the road would touch side to side. */
 const sideBySide = (a: Driving, b: Driving): boolean => Math.abs(a.lat - b.lat) * LANE_W < (WIDTH[a.v.kind] + WIDTH[b.v.kind]) / 2 + 0.12;
 
+/**
+ * How a vehicle letting a passenger off picks its spot along the kerb (Strategy): swap one in to change how drop-offs pull
+ * over without touching the rest of the driving.
+ */
+export interface DropOffStrategy {
+  /** Where along its side `c` stops to let its passenger off now, or null while there is no spot yet. */
+  findSpot(sim: TrafficSim, c: Driving): number | null;
+  /** Whether a drop-off that could not get across to its spot in time keeps the stop and looks again (rather than giving
+   * the stop a miss this time round). */
+  keepsIntent(c: Driving): boolean;
+}
+
+/** The kerbside drop-off: the first clear spot along the frontage, or right beside it when held up in traffic. */
+export class KerbsideDropOff implements DropOffStrategy {
+  /**
+   * A drop-off looking for its spot, every step along the frontage, and taking the first it can. In the kerb lane: the
+   * nearest place it can brake to in comfort, if nothing in its lane is in the way; or, held up behind a vehicle standing
+   * at the kerb, right where it is (the passenger gets out there rather than waiting, or being driven on down the street).
+   * Out in the car lane: as soon as the kerb lane beside and ahead of it is clear, the place just far enough on to signal,
+   * move across and brake, so it pulls straight over; and when traffic ahead brings it to a crawl or a halt, the kerb lane
+   * right beside it, if that is clear: it signals and moves across where it stands, and the passenger gets out there instead
+   * of sitting in the queue. Never in the bus stop's box. Null while there is none yet.
+   */
+  findSpot(sim: TrafficSim, c: Driving): number | null {
+    const along = mod(c.s, SPAN);
+    const brake = (c.speed * c.speed) / (2 * BRAKE) + 0.3;
+    const ok = (at: number): boolean => {
+      const x = startX(c.v) + dirOf(c.v) * at;
+      return x <= DROP_ZONE.x1 && x >= DROP_ZONE.x0 && busBoxClear(x, LENGTH[c.v.kind]);
+    };
+    if (c.lane === 0 && c.lat === 0) {
+      const { gap, lead } = sim.gapAhead(c);
+      if (gap - MIN_GAP - 0.2 >= brake && ok(along + brake)) return along + brake;
+      const held = lead !== null && lead.stoppedAt !== null && c.speed < 1.5;
+      const here = along + Math.max(0, gap - MIN_GAP - 0.05);
+      return held && ok(here) ? here : null;
+    }
+    if (c.lane !== c.lat || (c.wants !== null && c.wants !== 0)) return null;
+    // Held up by the traffic in front: straight across into the kerb lane beside it, if that is clear.
+    const { gap, lead } = sim.gapAhead(c);
+    if (lead !== null && c.speed < HALTED && gap < OVERTAKE.look) {
+      const near = Math.max(brake, 1);
+      if (ok(along + near) && sim.laneClear(c, 0, DROP_BEHIND, near + 1)) return along + near;
+    }
+    // From the car lane: the indicator, the move across, and the braking all fit before the spot.
+    const need = Math.max(brake, c.speed * (OVERTAKE.signal + OVERTAKE.shift) + KERB_MISS + 0.5);
+    if (!ok(along + need)) return null;
+    return sim.laneClear(c, 0, DROP_BEHIND, need + 1) ? along + need : null;
+  }
+
+  /** Held up in traffic, it keeps its passenger's drop-off and looks again for a clear spot beside it. */
+  keepsIntent(c: Driving): boolean {
+    return c.speed < HALTED;
+  }
+}
+
+/**
+ * What a vehicle does in a step, by the state it is in (State): standing at the kerb (letting someone off or on, until its
+ * wait is over), or driving. Each state either handles the step on its own or hands over to the next.
+ */
+interface DrivingState {
+  readonly name: 'at-kerb' | 'driving';
+  /** True when the step is done with; false hands it on to the driving state (the vehicle has just pulled away). */
+  step(sim: TrafficSim, c: Driving, lap: number): boolean;
+}
+
+/** Standing at the kerb: still, until its wait is over; then its stop for this lap is made and it drives on. */
+const AtKerb: DrivingState = {
+  name: 'at-kerb',
+  step(sim, c, lap) {
+    if (sim.t - c.stoppedAt! >= c.v.stop!.wait) {
+      c.doneLap = lap;
+      c.stoppedAt = null;
+      return false;
+    }
+    c.speed = 0;
+    return true;
+  },
+};
+
+/** The state a vehicle is in. */
+export const drivingStateOf = (c: Pick<Driving, 'stoppedAt'>): 'at-kerb' | 'driving' => (c.stoppedAt !== null ? 'at-kerb' : 'driving');
+
 /** The driving simulation: step it with the motion clock, read each vehicle's state. */
 export class TrafficSim {
   t = 0;
   private cars: Driving[];
 
-  constructor(fleet: readonly Vehicle[] = VEHICLES) {
+  constructor(
+    fleet: readonly Vehicle[] = VEHICLES,
+    private readonly dropOff: DropOffStrategy = new KerbsideDropOff(),
+  ) {
     this.cars = fleet.map((v) => ({ v, s: v.start, speed: v.speed, lane: homeLane(v), lat: homeLane(v), wants: null, signalSince: 0, doneLap: -1, spot: null, spotLap: -1, stoppedAt: null, lastStopAt: null, lastStopLap: -1 }));
   }
 
@@ -209,40 +296,9 @@ export class TrafficSim {
     return c.spotLap === lap ? c.spot : null;
   }
 
-  /**
-   * A drop-off looking for its spot, every step along the frontage, and taking the first it can. In the kerb lane: the
-   * nearest place it can brake to in comfort, if nothing in its lane is in the way; or, held up behind a vehicle standing
-   * at the kerb, right where it is (the passenger gets out there rather than waiting, or being driven on down the street).
-   * Out in the car lane: as soon as the kerb lane beside and ahead of it is clear, the place just far enough on to signal,
-   * move across and brake, so it pulls straight over; and when traffic ahead brings it to a crawl or a halt, the kerb lane
-   * right beside it, if that is clear: it signals and moves across where it stands, and the passenger gets out there instead
-   * of sitting in the queue. Never in the bus stop's box. Null while there is none yet.
-   */
+  /** Where a drop-off stops this time round: its DropOffStrategy's to say. */
   private findSpot(c: Driving): number | null {
-    const along = mod(c.s, SPAN);
-    const brake = (c.speed * c.speed) / (2 * BRAKE) + 0.3;
-    const ok = (at: number): boolean => {
-      const x = startX(c.v) + dirOf(c.v) * at;
-      return x <= DROP_ZONE.x1 && x >= DROP_ZONE.x0 && busBoxClear(x, LENGTH[c.v.kind]);
-    };
-    if (c.lane === 0 && c.lat === 0) {
-      const { gap, lead } = this.gapAhead(c);
-      if (gap - MIN_GAP - 0.2 >= brake && ok(along + brake)) return along + brake;
-      const held = lead !== null && lead.stoppedAt !== null && c.speed < 1.5;
-      const here = along + Math.max(0, gap - MIN_GAP - 0.05);
-      return held && ok(here) ? here : null;
-    }
-    if (c.lane !== c.lat || (c.wants !== null && c.wants !== 0)) return null;
-    // Held up by the traffic in front: straight across into the kerb lane beside it, if that is clear.
-    const { gap, lead } = this.gapAhead(c);
-    if (lead !== null && c.speed < HALTED && gap < OVERTAKE.look) {
-      const near = Math.max(brake, 1);
-      if (ok(along + near) && this.laneClear(c, 0, DROP_BEHIND, near + 1)) return along + near;
-    }
-    // From the car lane: the indicator, the move across, and the braking all fit before the spot.
-    const need = Math.max(brake, c.speed * (OVERTAKE.signal + OVERTAKE.shift) + KERB_MISS + 0.5);
-    if (!ok(along + need)) return null;
-    return this.laneClear(c, 0, DROP_BEHIND, need + 1) ? along + need : null;
+    return this.dropOff.findSpot(this, c);
   }
 
   /** Bumper-to-bumper gap from `a` to the nearest vehicle in front of it that it would touch (round the ring), and that vehicle. */
@@ -286,16 +342,8 @@ export class TrafficSim {
     const order = [...this.cars].sort((a, b) => this.gapAhead(b).gap - this.gapAhead(a).gap);
     for (const c of order) {
       const lap = Math.floor(c.s / SPAN);
-      // Standing at the kerb.
-      if (c.stoppedAt !== null) {
-        if (this.t - c.stoppedAt >= c.v.stop!.wait) {
-          c.doneLap = lap;
-          c.stoppedAt = null;
-        } else {
-          c.speed = 0;
-          continue;
-        }
-      }
+      // Standing at the kerb: its state handles the step (or hands it on, as it pulls away).
+      if (drivingStateOf(c) === AtKerb.name && AtKerb.step(this, c, lap)) continue;
       const along = mod(c.s, SPAN);
       let kerbBound = false;
       let dropping = false;
@@ -327,7 +375,7 @@ export class TrafficSim {
       // (A drop-off held up in traffic, signalling across to a spot right beside it, is let finish the move.)
       const crossing = dropping && c.wants === 0 && c.speed < HALTED;
       if (pending !== null && c.lane !== 0 && pending < KERB_MISS && !crossing) {
-        if (dropping && c.speed < HALTED) {
+        if (dropping && this.dropOff.keepsIntent(c)) {
           // Held up in traffic and the kerb lane filled before it could move across: it keeps its passenger's drop-off and
           // looks again for a clear spot beside it, rather than giving up and driving them on down the street.
           c.spot = null;
