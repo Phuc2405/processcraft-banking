@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useBankStore } from '../../store/bankStore';
 import { useMessages } from '../../utils/i18nHelper';
-import { DAY_INTRO_MS, dayIntroCopy, introDue } from './dayIntro';
+import { DAY_INTRO_FADE_MS, DAY_INTRO_MS, dayIntroCopy, introDue } from './dayIntro';
 import { dayIntroMessages } from './dayIntro.messages';
 import { useTerms } from './useTerms';
 
@@ -9,7 +9,8 @@ import { useTerms } from './useTerms';
  * The start-of-day banner: "Day 03 – An ordinary day", what is going on today, and what to watch. It is drawn once, over the
  * map frame that both views share, so the 2D blueprint and the 3D office show the very same banner at the same moment, and
  * switching views while it is up keeps it up. It opens as each day starts (after the end-of-day report is closed), fades
- * after a few seconds, and can be closed at once.
+ * after a few seconds, and can be closed at once. It is see-through (a light tint over a blur of the office behind it), and
+ * however it goes, timed out or closed, it fades away over half a second rather than vanishing.
  */
 export function DayIntroBanner() {
   const terms = useTerms();
@@ -32,7 +33,7 @@ export function DayIntroBanner() {
   useEffect(() => {
     if (!open) return;
     const fade = setTimeout(() => setLeaving(true), DAY_INTRO_MS);
-    const close = setTimeout(() => setOpen(false), DAY_INTRO_MS + 600);
+    const close = setTimeout(() => setOpen(false), DAY_INTRO_MS + DAY_INTRO_FADE_MS + 50);
     return () => {
       clearTimeout(fade);
       clearTimeout(close);
@@ -43,7 +44,7 @@ export function DayIntroBanner() {
   const copy = dayIntroCopy(day, event);
   const dismiss = (): void => {
     setLeaving(true);
-    setTimeout(() => setOpen(false), 300);
+    setTimeout(() => setOpen(false), DAY_INTRO_FADE_MS);
   };
   return (
     <div className={`pointer-events-none absolute inset-x-0 ${viewMode === '3d' ? 'top-28' : 'top-20'} z-40 flex justify-center px-4`}>
@@ -52,9 +53,9 @@ export function DayIntroBanner() {
         aria-live="polite"
         data-testid="day-intro"
         data-view={viewMode}
-        className={`pointer-events-auto relative w-full max-w-[520px] overflow-hidden rounded-2xl border shadow-[0_18px_50px_rgba(0,0,0,0.5)] backdrop-blur-md transition-all duration-500 ease-out ${
-          leaving ? '-translate-y-2 opacity-0' : 'translate-y-0 opacity-100'
-        } ${copy.special ? 'border-fuchsia-400/40 bg-slate-950/90' : 'border-sky-400/30 bg-slate-950/90'}`}
+        className={`relative w-full max-w-[520px] overflow-hidden rounded-2xl border shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-sm transition-opacity duration-500 ease-out ${
+          leaving ? 'pointer-events-none opacity-0' : 'pointer-events-auto opacity-100'
+        } ${copy.special ? 'border-fuchsia-400/40 bg-slate-950/55' : 'border-sky-400/30 bg-slate-950/55'}`}
         style={{ animation: leaving ? undefined : 'day-intro-in 600ms cubic-bezier(0.2, 0.8, 0.2, 1)' }}
       >
         <style>{'@keyframes day-intro-in { from { opacity: 0; transform: translateY(-12px) scale(0.98); } to { opacity: 1; transform: none; } }'}</style>

@@ -8,13 +8,15 @@ import { customerShirt } from './layout3d';
 import { glow, solid } from './materials';
 import { outfitOf, outfitShirt, useWeather, type Outfit } from './weather';
 import { MeshBasicMaterial } from 'three';
-import { ALIGHT, BUS_DOORS, BUS_X, busRiders, CIT_BAY_X, kerbZ, LENGTH, riderAt, TrafficSim, WIDTH, VEHICLES, type BusRider, type Vehicle, type VehicleState } from './vehicles';
+import { ALIGHT, BUS_DOORS, BUS_X, busRiders, kerbZ, LENGTH, riderAt, TrafficSim, WIDTH, VEHICLES, type BusRider, type Vehicle, type VehicleState } from './vehicles';
 import { Html } from '@react-three/drei';
 import { motion, substeps } from './motion';
+import { sidewalk } from './sidewalk';
 
 /**
  * The traffic on the avenue (vehicles.ts says where everything is): motorbikes, many carrying two, cars, green taxis and
- * the armoured cash van, with the people getting on and off at the kerb. Riders put on their raincoats when it rains.
+ * the city bus, with the people getting on and off at the kerb. (The armoured cash van's body is drawn here too, but it
+ * drives the lane behind the block to the vault's loading bay: LoadingBay3D.) Riders put on their raincoats when it rains.
  */
 
 const WHEEL = '#1f2937';
@@ -166,7 +168,7 @@ function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Ma
   const rain = outfit === 'rain';
   // The pillion passenger is on the back seat until they climb off at the kerb.
   const [aboard, setAboard] = useState(v.pillion);
-  const [rider, setRider] = useState<{ walking: boolean; carrying: boolean } | null>(null);
+  const [rider, setRider] = useState<{ walking: boolean } | null>(null);
   useFrame(() => {
     const s = live.states.get(v.id);
     if (!s) return;
@@ -190,14 +192,15 @@ function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Ma
     if (person.current) {
       person.current.visible = r !== null;
       if (r) {
-        person.current.position.set(r.x, 0, r.z);
+        // On the pavement they step aside for others rather than walk into them (sidewalk.ts).
+        const [x, z] = sidewalk.place(`rider-${v.id}`, r.x, r.z, motion.dt);
+        person.current.position.set(x, 0, z);
         person.current.rotation.y = r.heading;
-      }
+      } else sidewalk.leave(`rider-${v.id}`);
     }
-    const look = r ? { walking: r.walking, carrying: r.carrying } : null;
-    if ((look === null) !== (rider === null) || (look && rider && (look.walking !== rider.walking || look.carrying !== rider.carrying))) setRider(look);
+    const look = r ? { walking: r.walking } : null;
+    if ((look === null) !== (rider === null) || (look && rider && look.walking !== rider.walking)) setRider(look);
   });
-  const guard = v.kind === 'cit';
   return (
     <>
       <group ref={root} name={`vehicle-${v.id}`}>
@@ -225,7 +228,6 @@ function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Ma
             </mesh>
           </group>
         )}
-        {v.kind === 'cit' && <CitMarker />}
         {v.kind === 'motorbike' && (
           <>
             <Rider x={0.05} index={index} rain={rain} wide={rain && aboard} />
@@ -244,19 +246,12 @@ function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Ma
         {rider && (
           <CustomerFigure
             index={index * 5 + 61}
-            shirt={guard ? '#1e293b' : outfitShirt(outfit, index + 2, customerShirt(index * 7 + 3))}
+            shirt={outfitShirt(outfit, index + 2, customerShirt(index * 7 + 3))}
             phase={index}
             walking={rider.walking}
             scale={0.7}
-            wear={guard ? 'none' : WEAR[outfit]}
+            wear={WEAR[outfit]}
           />
-        )}
-        {rider?.carrying && (
-          // The guard's cash box.
-          <mesh position={[0.2, 0.42, 0.04]}>
-            <boxGeometry args={[0.1, 0.16, 0.26]} />
-            <meshStandardMaterial color="#9ca3af" metalness={0.7} roughness={0.3} />
-          </mesh>
         )}
       </group>
       {v.kind === 'bus' && <BusPeople v={v} index={index} live={live} />}
@@ -265,10 +260,10 @@ function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Ma
 }
 
 /**
- * The yellow ▼ over the cash van, bobbing gently: the objective marker that says "follow the cash" wherever it is on the
- * avenue. An overlay, so it reads at any zoom.
+ * The yellow ▼ over the cash van, bobbing gently: the objective marker that says "follow the cash" wherever it is on its
+ * way to the vault. An overlay, so it reads at any zoom.
  */
-function CitMarker() {
+export function CitMarker() {
   const g = useRef<Group>(null);
   useFrame(({ clock }) => {
     if (g.current) g.current.position.y = 2.55 + Math.sin(clock.elapsedTime * 3) * 0.08;
@@ -303,9 +298,10 @@ function BusPeople({ v, index, live }: { v: Vehicle; index: number; live: { stat
       if (g) {
         g.visible = !!r;
         if (r) {
-          g.position.set(r.x, 0, r.z);
+          const [x, z] = sidewalk.place(`bus-${id}`, r.x, r.z, motion.dt);
+          g.position.set(x, 0, z);
           g.rotation.y = r.heading;
-        }
+        } else sidewalk.leave(`bus-${id}`);
       }
       const w = r ? r.walking : walking[i]!;
       if (w !== walking[i]) changed = true;
@@ -330,12 +326,12 @@ function BusPeople({ v, index, live }: { v: Vehicle; index: number; live: { stat
   );
 }
 
-/** The bays painted in the kerb lane: the cash van's yellow hatched loading bay by the ATMs, and the bus stop's white box. */
+/** The bay painted in the kerb lane: the bus stop's white box. (The cash van's loading bay is behind the vault: LoadingBay3D.) */
 function KerbBays() {
   const bays = useMerged(() => {
     const y = -0.128;
     const out: Part[] = [];
-    const bay = (x: number, kind: 'cit' | 'bus', color: string, hatch: boolean): void => {
+    const bay = (x: number, kind: 'bus', color: string, hatch: boolean): void => {
       const len = LENGTH[kind] + 1.0;
       const w = WIDTH[kind] + 0.3;
       const z = kerbZ(kind);
@@ -343,7 +339,6 @@ function KerbBays() {
       for (const dx of [-len / 2, len / 2]) out.push(box([x + dx, y, z], [0.08, 0.006, w], color));
       if (hatch) for (let k = -len / 2 + 0.35; k < len / 2 - 0.2; k += 0.45) out.push(box([x + k, y, z], [0.07, 0.006, w * 1.05], color, [0, 0.7, 0]));
     };
-    bay(CIT_BAY_X, 'cit', '#facc15', true);
     bay(BUS_X, 'bus', '#f8fafc', false);
     return out;
   }, []);

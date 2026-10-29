@@ -1,5 +1,5 @@
 import { GUARD_CABIN, KERB_Z, MAIN_GATE, STREET, type V2 } from './layout3d';
-import { HANDOVER_S, shiftOf } from './parking';
+import { AISLE, BACK_LANE, GUARD_DOOR, GUARD_POST, guardPatrol, HANDOVER_S, LOT, LOT_SIDE, shiftOf } from './parking';
 
 /**
  * The security guard at the branch's main entrance, and their cabin beside it. By day in fair weather the guard on duty
@@ -8,15 +8,56 @@ import { HANDOVER_S, shiftOf } from './parking';
  * watch from behind the glass under its lamp. Three guards share the day in eight-hour shifts (06:00, 14:00, 22:00); at a
  * change the next one walks up the pavement to take over and the one going off duty walks away down it. Everything here is
  * pure, stepped on the motion clock (and so frozen on pause).
+ *
+ * The car park's gate has a guard and a cabin of its own (PARKING_POST), run the same way: a post beside the drive, a
+ * short patrol, the cabin in the wet and at night, and the change of shift by way of the lane behind the block.
  */
+
+/** A cabin: its middle, its size along x and z, and its height. Its door is in the side facing +x or -x (`door`). */
+export interface Cabin {
+  x: number;
+  z: number;
+  w: number;
+  d: number;
+  h: number;
+  door: 1 | -1;
+}
+
+/** Everything a guard post needs: the cabin, where the guard stands and patrols, the way in and out of the cabin by its door,
+ * and where guards come on and go off duty. */
+export interface GuardPostPlan {
+  cabin: Cabin;
+  post: V2;
+  /** Where the patrol has the guard at time `t`. */
+  beat: (t: number) => V2;
+  /** Which way a guard standing still faces (radians about y). */
+  face: number;
+  /** In from the post by the door, and out again. */
+  into: readonly V2[];
+  out: readonly V2[];
+  /** Where an incoming guard comes from, and the way to the post; where the outgoing one leaves by, and goes. */
+  shiftIn: V2;
+  arrive: readonly V2[];
+  leaveBy: V2;
+  shiftOut: V2;
+}
+
+/** The ways into a cabin from a post (to the doorstep, in through the door, to the middle) and out of it again. */
+function cabinRoutes(c: Cabin, post: V2): { inside: V2; door: V2; into: V2[]; out: V2[] } {
+  const door: V2 = [c.x + (c.door * c.w) / 2, c.z];
+  const step: V2 = [door[0] + c.door * 0.45, c.z];
+  const inside: V2 = [c.x - c.door * 0.1, c.z];
+  return { inside, door, into: [post, step, door, inside], out: [door, step, post] };
+}
 
 /** The post by the entrance, the end of the beat along the front, and the spot inside the cabin. */
 export const FRONT_POST: V2 = [MAIN_GATE.x - MAIN_GATE.width / 2 - 0.25, STREET.z0 + 1.55];
 export const BEAT_END: V2 = [MAIN_GATE.x + MAIN_GATE.width / 2 + 0.6, STREET.z0 + 1.55];
-export const CABIN_IN: V2 = [GUARD_CABIN.x - 0.1, GUARD_CABIN.z];
-/** The cabin's door: in the middle of its side towards the entrance, and the step just outside it. */
-export const CABIN_DOOR: V2 = [GUARD_CABIN.x + GUARD_CABIN.w / 2, GUARD_CABIN.z];
-const DOORSTEP: V2 = [GUARD_CABIN.x + GUARD_CABIN.w / 2 + 0.45, GUARD_CABIN.z];
+const FRONT_CABIN: Cabin = { ...GUARD_CABIN, door: 1 };
+const FRONT_ROUTES = cabinRoutes(FRONT_CABIN, FRONT_POST);
+export const CABIN_IN: V2 = FRONT_ROUTES.inside;
+/** The cabin's door: in the middle of its side towards the entrance. */
+export const CABIN_DOOR: V2 = FRONT_ROUTES.door;
 
 /** Where guards come on and go off duty: along the pavement, from and to past the ends of the street. */
 const PAVEMENT_Z = KERB_Z - 0.75;
@@ -41,11 +82,39 @@ export function beatAt(t: number): V2 {
   return [FRONT_POST[0] + (BEAT_END[0] - FRONT_POST[0]) * k, FRONT_POST[1] + (BEAT_END[1] - FRONT_POST[1]) * k];
 }
 
-/** The ways into the cabin (from the post, to the doorstep, in through the door) and out of it again; and onto the
- * pavement's walking line from the post, clear of the cabin and the ATM booths. */
-const INTO_CABIN: V2[] = [FRONT_POST, DOORSTEP, CABIN_DOOR, CABIN_IN];
-const OUT_OF_CABIN: V2[] = [CABIN_DOOR, DOORSTEP, FRONT_POST];
-const TO_PAVEMENT: V2 = [FRONT_POST[0], PAVEMENT_Z];
+/** The main entrance's post: the beat along the front, and shifts changing along the pavement's walking line. */
+export const FRONT_PLAN: GuardPostPlan = {
+  cabin: FRONT_CABIN,
+  post: FRONT_POST,
+  beat: beatAt,
+  face: 0,
+  into: FRONT_ROUTES.into,
+  out: FRONT_ROUTES.out,
+  shiftIn: SHIFT_IN,
+  arrive: [],
+  leaveBy: [FRONT_POST[0], PAVEMENT_Z],
+  shiftOut: SHIFT_OUT,
+};
+
+/**
+ * The car park's guard cabin: beside the guard's post at the gate, on the outer side of the drive, in the corner the bays
+ * leave free (before the first bay of the outer row), its door on the side towards the post. The roof keeps the guard dry in
+ * the rain and hail; guards change over by way of the lane behind the block.
+ */
+export const PARKING_CABIN: Cabin = { x: LOT_SIDE * (AISLE + 2.75), z: LOT.gateZ + 0.55, w: 1.1, d: 1.0, h: 2.1, door: (-LOT_SIDE) as 1 | -1 };
+const PARKING_ROUTES = cabinRoutes(PARKING_CABIN, GUARD_POST);
+export const PARKING_PLAN: GuardPostPlan = {
+  cabin: PARKING_CABIN,
+  post: GUARD_POST,
+  beat: (t) => guardPatrol(t).at,
+  face: Math.PI,
+  into: PARKING_ROUTES.into,
+  out: PARKING_ROUTES.out,
+  shiftIn: [LOT_SIDE * (LOT.x1 + 7), BACK_LANE.out - 0.85],
+  arrive: [GUARD_DOOR],
+  leaveBy: GUARD_DOOR,
+  shiftOut: [LOT_SIDE * (LOT.x1 + 7), BACK_LANE.out - 0.85],
+};
 
 export interface GuardFigure {
   at: V2;
@@ -94,7 +163,7 @@ class Walker {
   }
 }
 
-/** The guard (and, during a handover, the two guards) at the front of the branch. */
+/** The guard (and, during a handover, the two guards) at a post: the front of the branch unless another plan is given. */
 export class FrontGuard {
   t = 0;
   shift: 0 | 1 | 2;
@@ -105,10 +174,18 @@ export class FrontGuard {
   private leaving: Walker | null = null;
   private since = 0;
 
-  constructor(minute: number, wet: boolean) {
+  constructor(
+    minute: number,
+    wet: boolean,
+    readonly plan: GuardPostPlan = FRONT_PLAN,
+  ) {
     this.shift = shiftOf(minute);
     this.inside = inCabin(minute, wet);
-    this.duty = new Walker(this.inside ? CABIN_IN : FRONT_POST);
+    this.duty = new Walker(this.inside ? this.cabinIn : plan.post);
+  }
+
+  private get cabinIn(): V2 {
+    return this.plan.into[this.plan.into.length - 1]!;
   }
 
   step(dt: number, minute: number, wet: boolean): void {
@@ -118,30 +195,31 @@ export class FrontGuard {
       // The new guard comes up the pavement; the one on duty heads off the other way once they meet.
       this.shift = shift;
       this.leaving = this.duty;
-      this.leaving.via = [...(this.isInCabin(this.leaving.at) ? OUT_OF_CABIN : []), TO_PAVEMENT];
-      this.duty = new Walker(SHIFT_IN);
-      this.duty.via = this.inside ? [...INTO_CABIN] : [FRONT_POST];
+      this.leaving.via = [...(this.isInCabin(this.leaving.at) ? this.plan.out : []), this.plan.leaveBy];
+      this.duty = new Walker(this.plan.shiftIn);
+      this.duty.via = [...this.plan.arrive, ...(this.inside ? this.plan.into : [this.plan.post])];
       this.since = 0;
     }
     if (this.leaving) {
       this.since += dt;
-      if (this.since > HANDOVER_S * 0.3 && this.leaving.walk(SHIFT_OUT, dt, GUARD_PACE.walk)) this.leaving = null;
+      if (this.since > HANDOVER_S * 0.3 && this.leaving.walk(this.plan.shiftOut, dt, GUARD_PACE.walk)) this.leaving = null;
     }
     const want = inCabin(minute, wet);
     if (want !== this.inside) {
       // In by the post and the door, or out by the door to the post.
       this.inside = want;
       const there = this.isInCabin(this.duty.at);
-      this.duty.via = want ? (there ? [] : [...INTO_CABIN]) : there ? [...OUT_OF_CABIN] : [];
+      this.duty.via = want ? (there ? [] : [...this.plan.into]) : there ? [...this.plan.out] : [];
     }
-    const goal = this.inside ? CABIN_IN : beatAt(this.t);
+    const goal = this.inside ? this.cabinIn : this.plan.beat(this.t);
     const there = this.duty.walk(goal, dt, GUARD_PACE.walk);
-    // Standing still at the post or in the cabin, they face the street.
-    if (there && !this.duty.walking) this.duty.heading = 0;
+    // Standing still at the post or in the cabin, they face the way they keep watch.
+    if (there && !this.duty.walking) this.duty.heading = this.plan.face;
   }
 
   private isInCabin(p: V2): boolean {
-    return Math.abs(p[0] - GUARD_CABIN.x) < GUARD_CABIN.w / 2 && Math.abs(p[1] - GUARD_CABIN.z) < GUARD_CABIN.d / 2;
+    const c = this.plan.cabin;
+    return Math.abs(p[0] - c.x) < c.w / 2 && Math.abs(p[1] - c.z) < c.d / 2;
   }
 
   /** The guard on duty, and the one going off duty during a handover. */

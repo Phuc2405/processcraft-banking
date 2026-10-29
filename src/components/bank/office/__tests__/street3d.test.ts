@@ -8,11 +8,11 @@ import { advanceMotion, motion, motionScale, substeps } from '../motion';
 import { FOUNTAIN, LOOP, PARK, PARK_BENCHES, PICNIC, PLAYGROUND, strollerAt } from '../Park3D';
 import { AISLE, BACK_LANE, FOOTWAY, GUARD_POST, guardPatrol, handoverAt, HANDOVER_S, LOT, LOT_SIDE, ParkingLot, PATROL, ROWS, shiftOf, SIDE_DOORS_LEFT, SIZE, slotsOf, TREE_STRIP, walkPath } from '../parking';
 import { cloudCover, cloudDark, CLOUDS, cloudsFor, sunPlace } from '../Sky3D';
-import { ALIGHT, homeLane, LANE_W, LANE_Z, LENGTH, MIN_GAP, OVERTAKE, riderAt, ROAD, SPAN, taxiAction, TrafficSim, VEHICLES, WIDTH, type VehicleState } from '../vehicles';
+import { homeLane, LANE_W, LANE_Z, LENGTH, MIN_GAP, OVERTAKE, riderAt, ROAD, SPAN, taxiAction, TrafficSim, VEHICLES, WIDTH, type VehicleState } from '../vehicles';
 import { OVERHANG, overhangSpot, PAVEMENT, PEDESTRIANS } from '../weather';
 import { ATM_STATIONS } from '../layout3d';
 
-const src = import.meta.glob(['../Environment3D.tsx', '../Office3D.tsx', '../Vehicles3D.tsx', '../Parking3D.tsx', '../Desk3D.tsx', '../Avatars.tsx', '../Traffic.tsx', '../OfficeScene.tsx'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+const src = import.meta.glob(['../Environment3D.tsx', '../Office3D.tsx', '../Vehicles3D.tsx', '../Parking3D.tsx', '../GuardCabin3D.tsx', '../Desk3D.tsx', '../Avatars.tsx', '../Traffic.tsx', '../OfficeScene.tsx'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 
 /** Runs the street for `seconds` at 60 frames a second, calling `each` after every frame. */
 function drive(seconds: number, each: (sim: TrafficSim) => void): TrafficSim {
@@ -75,9 +75,11 @@ describe('the four-lane avenue and its traffic', () => {
     expect(LANE_W).toBeGreaterThan((WIDTH.sedan + WIDTH.motorbike) / 2 + 0.2);
   });
 
-  it('runs motorbikes (some carrying two), cars, green taxis and the armoured cash van, keeping to the right', () => {
+  it('runs motorbikes (some carrying two), cars, green taxis and the city bus, keeping to the right', () => {
     const kinds = new Set(VEHICLES.map((v) => v.kind));
-    for (const k of ['motorbike', 'sedan', 'taxi', 'cit'] as const) expect(kinds.has(k), k).toBe(true);
+    for (const k of ['motorbike', 'sedan', 'taxi', 'bus'] as const) expect(kinds.has(k), k).toBe(true);
+    // The cash van drives the lane behind the block to the vault instead (citRun).
+    expect(kinds.has('cit')).toBe(false);
     expect(VEHICLES.some((v) => v.kind === 'motorbike' && v.pillion)).toBe(true);
     for (const v of VEHICLES) if (v.stop) expect(v.side).toBe('near');
     const sim = new TrafficSim();
@@ -122,7 +124,7 @@ describe('the four-lane avenue and its traffic', () => {
     expect(signalled).toBeGreaterThan(changes * OVERTAKE.signal * 30);
   });
 
-  it('pulls taxis and the cash van into the kerb lane before their stop, and brakes the traffic behind them', () => {
+  it('pulls taxis and the bus into the kerb lane before their stop, and brakes the traffic behind them', () => {
     let atKerb = 0;
     let queued = false;
     drive(600, (sim) => {
@@ -131,17 +133,17 @@ describe('the four-lane avenue and its traffic', () => {
         const s = states.get(v.id)!;
         if (v.stop && s.stoppedFor !== null && s.lat === 0) atKerb++;
       }
-      const van = states.get('cit-1')!;
+      const van = states.get('bus-1')!;
       if (van.stoppedFor === null || van.stoppedFor < 6) return;
       for (const v of VEHICLES) {
-        if (v.side !== 'near' || v.id === 'cit-1') continue;
+        if (v.side !== 'near' || v.id === 'bus-1') continue;
         const s = states.get(v.id)!;
         const behind = s.x - van.x;
         if (behind > 0 && behind < 8 && s.speed < 0.3 && Math.abs(s.lat - van.lat) < 0.5) queued = true;
       }
     });
     expect(atKerb).toBeGreaterThan(100);
-    // Sometimes the other lane is busy and a vehicle has to wait behind the van instead of going round it.
+    // Sometimes the other lane is busy and a vehicle has to wait behind the bus instead of going round it.
     expect(typeof queued).toBe('boolean');
   });
 
@@ -200,22 +202,6 @@ describe('the four-lane avenue and its traffic', () => {
     expect(seen.has('alight:walk')).toBe(true);
     expect(seen.has('board:wait')).toBe(true);
     expect(seen.has('board:walk')).toBe(true);
-  });
-
-  it('sends the cash van’s guard with a cash box to the ATMs and back while the van waits', () => {
-    const van = VEHICLES.find((v) => v.kind === 'cit')!;
-    const seen = new Set<string>();
-    drive(600, (sim) => {
-      const s = sim.state(van.id);
-      const r = riderAt(van, s);
-      if (r) {
-        expect(s.stoppedFor).not.toBeNull();
-        seen.add(r.walking ? (r.carrying ? 'carrying' : 'walking') : 'at-atm');
-      }
-    });
-    expect(seen.has('carrying')).toBe(true);
-    expect(seen.has('at-atm')).toBe(true);
-    expect(ALIGHT.door).toBeGreaterThan(0);
   });
 
   it('shows the indicators, and puts riders in raincoats only when it rains', () => {
@@ -421,8 +407,9 @@ describe('the town around the branch: houses, park, car park, branch', () => {
     expect(standing / 960).toBeGreaterThan(0.5);
     expect(PATROL).toBeGreaterThan(1);
     const scene = src['../Parking3D.tsx']!;
-    // A raised hand only while a vehicle is at the gate.
-    expect(scene).toContain('lot.barrier() > 0 && !p.walking ? 0.55 : 0');
+    // A raised hand only while a vehicle is at the gate, and the guard is standing at the post (not walking or in the cabin).
+    expect(scene).toContain('raiseFor={() => lot.barrier() > 0}');
+    expect(src['../GuardCabin3D.tsx']).toContain("const wave = raiseFor?.() === true && !f.duty.walking && !guard.sheltered();");
     expect(scene).not.toContain('Math.sin(clock.current * 6)');
   });
 });

@@ -265,3 +265,27 @@ export class ParkCrowd {
     return !!p && p.d === 0 && p.going === null;
   }
 }
+
+/** A speech bubble over someone in a conversation: where, and their turn in it (they speak by turns). */
+export interface Talker {
+  id: string;
+  at: V2;
+  turn: number;
+}
+
+/**
+ * Who is talking now: everyone sitting in their place on a bench or at the picnic table whose bench (or table) has someone
+ * else sitting at it too, as it takes two to talk. Each of them gets a bubble of their own, so a conversation shows over
+ * both (or all) of the people in it, never over one side only.
+ */
+export function talkers(crowd: ParkCrowd): Talker[] {
+  const seated = crowd.people.filter((p) => (p.m.role === 'bench' || p.m.role === 'picnic') && p.d === 0 && p.going === null);
+  const group = (id: string): string => (id.startsWith('picnic-') ? 'picnic' : id.slice(0, id.lastIndexOf('-')));
+  const out: Talker[] = [];
+  for (const p of seated) {
+    const mates = seated.filter((q) => group(q.m.id) === group(p.m.id));
+    if (mates.length < 2) continue;
+    out.push({ id: p.m.id, at: p.m.at, turn: mates.indexOf(p) });
+  }
+  return out;
+}

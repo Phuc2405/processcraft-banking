@@ -1,35 +1,36 @@
 import { useFrame } from '@react-three/fiber';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import type { BufferGeometry, Group } from 'three';
-import { useBankStore } from '../../../store/bankStore';
 import { CustomerFigure } from './Avatars';
 import { Sign, useMerged } from './Dressing';
 import { box, cyl, merge, type Part } from './kit';
 import { customerShirt } from './layout3d';
 import { glow, pane, solid } from './materials';
 import { motion, substeps } from './motion';
-import { AISLE, FOOTWAY, guardPatrol, handoverAt, HANDOVER_S, LOT, LOT_SIDE, ParkingLot, ROWS, shiftOf, SIDE_DOORS_LEFT, TREE_STRIP, WALKWAY, type LotKind } from './parking';
+import { GuardCabin3D } from './GuardCabin3D';
+import { LoadingBay3D } from './LoadingBay3D';
+import { PARKING_PLAN } from './guardCabin';
+import { AISLE, FOOTWAY, LOT, LOT_SIDE, ParkingLot, ROWS, SIDE_DOORS_LEFT, TREE_STRIP, WALKWAY, type LotKind } from './parking';
 import { bodyParts, Rider } from './Vehicles3D';
 import { outfitOf, outfitShirt, useWeather } from './weather';
 
 /**
  * The car park on the left of the branch, drawn from ParkingLot (parking.ts): asphalt with white bay lines, walkways
- * striped across to the branch's side doors, a sheltered run of motorbike slots, a booth and a barrier at the gate, the
- * guard on duty (patrolling, and changing over every eight hours), the vehicles parked in their bays, the one vehicle
- * moving, and the drivers walking in.
+ * striped across to the branch's side doors, a sheltered run of motorbike slots, a barrier at the gate and the guard's
+ * cabin beside it with the guard on duty (patrolling, into the cabin in the wet and at night, and changing over every eight
+ * hours), the vehicles parked in their bays, the one vehicle moving, and the drivers walking in.
  */
 
 const ASPHALT = '#5b616b';
 const LINE = '#f8fafc';
 const KERB = '#d6d3cd';
 const GROUND_Y = -0.03;
-/** Where the booth and the barrier post stand, as |x|: between the lot's inner edge and the drive. */
-export const BOOTH_A = LOT.x0 + 0.3;
+/** Where the barrier post stands, as |x|: between the lot's inner edge and the drive. */
 export const POST_A = LOT.x0 + 0.65;
 
 const s = LOT_SIDE;
 
-/** The lot's fixed parts: surface, lines, walkways, kerbs, booth, lamps, the motorbike shelter. */
+/** The lot's fixed parts: surface, lines, walkways, kerbs, lamps, the motorbike shelter. (The guard's cabin is GuardCabin3D.) */
 function lotParts(): { solid: Part[]; glass: Part[]; lit: Part[] } {
   const w = LOT.x1 - LOT.x0;
   const d = LOT.z1 - LOT.z0;
@@ -69,11 +70,7 @@ function lotParts(): { solid: Part[]; glass: Part[]; lit: Part[] } {
   parts.push(box([s * (FOOTWAY + 0.45), GROUND_Y + 0.004, midZ], [0.05, 0.006, d - 1], '#94a3b8'));
   // Arrows down the drive.
   for (let z = LOT.gateZ + 2; z < LOT.z1 - 1; z += 3.5) parts.push(box([s * AISLE, GROUND_Y + 0.004, z], [0.08, 0.006, 0.9], '#facc15'));
-  // The booth by the gate: a little cabin with a window and a roof.
-  const bx = s * BOOTH_A;
-  const bz = LOT.gateZ - 0.4;
-  parts.push(box([bx, 0.55, bz], [0.5, 1.1, 0.7], '#e2e8f0'), box([bx, 1.15, bz], [0.62, 0.1, 0.86], '#1e3a8a'), box([bx, 0.05, bz], [0.56, 0.1, 0.76], '#94a3b8'));
-  const glass: Part[] = [box([bx - s * 0.26, 0.72, bz], [0.02, 0.4, 0.5], '#bae6fd'), box([bx, 0.72, bz + 0.36], [0.34, 0.4, 0.02], '#bae6fd')];
+  const glass: Part[] = [];
   // Lamp posts down the outer edge.
   const lit: Part[] = [];
   for (const z of [LOT.z0 + 3, midZ, LOT.z1 - 2.5]) {
@@ -112,63 +109,6 @@ function Parked({ kind, color, x, z, yaw }: { kind: LotKind; color: string; x: n
 
 /** The three guards, one to each eight-hour shift. */
 const GUARD_LOOK = [91, 95, 99];
-
-/**
- * The guard on duty: standing at the post facing the lane, now and then pacing along the front of the lot and back; a
- * raised hand only while a vehicle is at the gate. At a change of shift (06:00, 14:00, 22:00) the next guard walks in
- * from the lane and the one going off duty walks away.
- */
-function Guards({ lot }: { lot: ParkingLot }) {
-  const shift = useBankStore((st) => shiftOf(st.view.minute));
-  const [handover, setHandover] = useState<{ from: number; to: number } | null>(null);
-  const since = useRef(0);
-  const last = useRef(shift);
-  useEffect(() => {
-    if (shift !== last.current) {
-      setHandover({ from: last.current, to: shift });
-      since.current = 0;
-      last.current = shift;
-    }
-  }, [shift]);
-  const onDuty = useRef<Group>(null);
-  const incoming = useRef<Group>(null);
-  const outgoing = useRef<Group>(null);
-  const raise = useMemo(() => ({ current: 0 }), []);
-  const [walking, setWalking] = useState(false);
-  useFrame(() => {
-    if (handover) {
-      since.current += motion.dt;
-      const h = handoverAt(since.current);
-      incoming.current?.position.set(h.incoming[0], GROUND_Y, h.incoming[1]);
-      outgoing.current?.position.set(h.outgoing[0], GROUND_Y, h.outgoing[1]);
-      if (incoming.current) incoming.current.rotation.y = 0;
-      if (outgoing.current) outgoing.current.rotation.y = Math.PI;
-      if (h.done) setHandover(null);
-      return;
-    }
-    const p = guardPatrol(motion.t);
-    onDuty.current?.position.set(p.at[0], GROUND_Y, p.at[1]);
-    if (onDuty.current) onDuty.current.rotation.y = p.heading;
-    if (p.walking !== walking) setWalking(p.walking);
-    // A raised hand to the driver only while a vehicle is at the gate; otherwise arms by the side.
-    raise.current += ((lot.barrier() > 0 && !p.walking ? 0.55 : 0) - raise.current) * Math.min(1, motion.dt * 4 + 0.02);
-  });
-  const figure = (look: number, moving: boolean, r?: { current: number }) => (
-    <CustomerFigure index={look} shirt="#1e3a5f" walking stride={moving ? 1 : 0} scale={0.72} wear="guard" raise={r} />
-  );
-  if (handover)
-    return (
-      <group name="parking-guard-handover" userData={{ handoverS: HANDOVER_S }}>
-        <group ref={incoming}>{figure(GUARD_LOOK[handover.to]!, true)}</group>
-        <group ref={outgoing}>{figure(GUARD_LOOK[handover.from]!, true)}</group>
-      </group>
-    );
-  return (
-    <group ref={onDuty} name="parking-guard">
-      {figure(GUARD_LOOK[shift]!, walking, raise)}
-    </group>
-  );
-}
 
 /** The barrier arm across the drive, red and white, lifting while the moving vehicle is at the gate. */
 function Barrier({ lot }: { lot: ParkingLot }) {
@@ -239,7 +179,11 @@ export const Parking3D = memo(function Parking3D() {
       <mesh geometry={lit} material={glow} />
       <Sign text="P  CARS · MOTORBIKES" fg="#ffffff" bg="#1d4ed8" position={[s * (LOT.x0 + 4.4), 1.45, LOT.z1 - 0.3]} width={2.6} />
       <Barrier lot={lot} />
-      <Guards lot={lot} />
+      {/* The guard's cabin by the gate, and the guard: a raised hand to a driver only while a vehicle is at the gate (and the
+          guard is standing at the post, not walking or sheltering in the cabin). */}
+      {/* The cash van's run along the lane behind the block to the vault's loading bay: it shares the lane, so the lot steps it. */}
+      <LoadingBay3D run={lot.cit} />
+      <GuardCabin3D plan={PARKING_PLAN} name="parking-guard-cabin" guardName="parking-guard" looks={GUARD_LOOK} raiseFor={() => lot.barrier() > 0} />
       {parked.map((p) => (
         <Parked key={p.id} kind={p.kind} color={p.color} x={p.x} z={p.z} yaw={p.yaw} />
       ))}

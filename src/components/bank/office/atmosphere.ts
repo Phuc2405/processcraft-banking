@@ -106,6 +106,8 @@ export const wetOf = (w: WeatherMix): number => Math.min(1, w.rain + 0.6 * w.hai
 
 /** A fog is thick until the bank opens at 9:00 and has lifted by FOG_LIFT: how much of it is left at `minute`, 0-1. */
 export const FOG_LIFT = 9.75 * 60;
+/** How much of a fog stays lying low over the ground once it has lifted off the city. */
+export const GROUND_FOG = 0.7;
 export const fogLeft = (minute: number): number => Math.max(0, Math.min(1, (FOG_LIFT - minute) / (FOG_LIFT - 9 * 60)));
 
 /** The late-afternoon sunset glow, 0-1: rising from 16:30, strongest at 17:45, gone by 19:15. */
@@ -242,8 +244,9 @@ export function atmosphereAt(minute: number, weather: WeatherMix | boolean = CLE
     sun: { intensity: sunIntensity, color: sunColor, dir },
     hemi: { intensity: hemiIntensity, sky: desaturate(mixHex(a.hemiSky, b.hemiSky, t), 0.5 * w.overcast), ground: mixHex(a.hemiGround, b.hemiGround, t) },
     fog: { near: lerp(a.fogNear, b.fogNear, t) - haze * 0.4, far: lerp(a.fogFar, b.fogFar, t) - haze, color: sky(horizon, '#dbe9f7') },
-    // Ground mist: the morning's, a little in rain or under cloud, and thick in fog and in smog.
-    mist: Math.min(1, lerp(a.mist, b.mist, t) * fogLeft(minute) + 0.2 * w.rain + 0.15 * w.overcast + w.fog + 0.85 * w.smog),
+    // Ground mist: the morning's, a little in rain or under cloud, and thick in fog and in smog. When a fog lifts off the
+    // city (the distance haze above), a low mist stays lying over the streets, the car park and the lawns all day.
+    mist: Math.min(1, lerp(a.mist, b.mist, t) * fogLeft(minute) + 0.2 * w.rain + 0.15 * w.overcast + Math.max(w.fog, GROUND_FOG * picked.fog) + 0.85 * w.smog),
     lamps: Math.min(1, lerp(a.lamps, b.lamps, t) + (0.35 * w.rain + 0.5 * w.storm + 0.4 * w.fog + 0.3 * w.golden + 0.5 * w.smog + 0.3 * w.hail) * daylight),
     windows: Math.min(1, lerp(a.windows, b.windows, t) + 0.5 * w.storm * daylight + 0.3 * w.golden * daylight),
     motes:

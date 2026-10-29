@@ -15,6 +15,7 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
+  PlaneGeometry,
   PointsMaterial,
   RepeatWrapping,
   SRGBColorSpace,
@@ -55,6 +56,7 @@ import {
   type Roof,
 } from './weather';
 import { motion } from './motion';
+import { sidewalk } from './sidewalk';
 
 /**
  * The world around the branch in the 3D office: the city it stands in, the sky light and the haze, the morning mist, the
@@ -559,43 +561,125 @@ const MIST_WHITE = new Color('#ffffff');
 const MIST_SMOG = new Color('#d8c99a');
 
 /**
- * Ground mist: low banks hugging the street, the pavements, the park and the car park, and higher ones over the city, thick
- * in fog and smog and in the early morning. Never inside the branch (MIST_CLIP).
+ * A tileable wash of soft white blobs over a thin even veil, for the ground mist: drawn once, wrapped at its edges so it
+ * repeats across a bank without seams.
+ */
+function useGroundMistTexture(): CanvasTexture {
+  const tex = useMemo(() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 256;
+    const g = c.getContext('2d');
+    if (g) {
+      g.fillStyle = 'rgba(255,255,255,0.24)';
+      g.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 34; i++) {
+        const x = rnd(i, 11) * 256;
+        const y = rnd(i, 12) * 256;
+        const r = 36 + rnd(i, 13) * 64;
+        // Each blob drawn again across the edges it overlaps, so the tile wraps.
+        for (const ox of [-256, 0, 256])
+          for (const oy of [-256, 0, 256]) {
+            const grad = g.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, r);
+            grad.addColorStop(0, 'rgba(255,255,255,0.6)');
+            grad.addColorStop(1, 'rgba(255,255,255,0)');
+            g.fillStyle = grad;
+            g.fillRect(x + ox - r, y + oy - r, r * 2, r * 2);
+          }
+      }
+    }
+    const t = new CanvasTexture(c);
+    t.colorSpace = SRGBColorSpace;
+    t.wrapS = t.wrapT = RepeatWrapping;
+    return t;
+  }, []);
+  useEffect(() => () => tex.dispose(), [tex]);
+  return tex;
+}
+
+/**
+ * The layers of the ground mist, low to high: how far above a bank's floor each lies, how thick it is, and how it drifts
+ * (texture tiles a second). Stacked, they give the mist depth from any angle; each drifts its own way, so it rolls.
+ */
+export const MIST_LAYERS: ReadonlyArray<{ lift: number; alpha: number; drift: readonly [number, number] }> = [
+  { lift: 0, alpha: 0.75, drift: [0.012, 0.004] },
+  { lift: 0.3, alpha: 0.55, drift: [-0.009, 0.006] },
+  { lift: 0.65, alpha: 0.35, drift: [0.006, -0.008] },
+];
+/** How wide (world units) one tile of the mist texture lies. */
+const MIST_TILE = 7;
+
+/**
+ * The mist banks: [x, floor height, z, width along x, depth along z]. Low over the pavement and the avenue in front of the
+ * branch, over the lane behind it, over the park's lawns and the car park either side, and higher over the city all round.
+ */
+export const MIST_BANKS: ReadonlyArray<readonly [number, number, number, number, number]> = [
+  [0, 0.12, KERB_Z - 0.4, 44, 6],
+  [0, 0.08, KERB_Z + 4.5, 60, 9],
+  [0, 0.05, -HZ - 3.2, 60, 4],
+  [(PARK.x0 + PARK.x1) / 2, 0.18, (PARK.z0 + PARK.z1) / 2, PARK.x1 - PARK.x0 + 2, PARK.z1 - PARK.z0],
+  [LOT_SIDE * ((LOT.x0 + LOT.x1) / 2), 0.15, (LOT.z0 + LOT.z1) / 2, LOT.x1 - LOT.x0 + 2, LOT.z1 - LOT.z0],
+  [-HX - 8, 0.8, 0, 40, 11],
+  [HX + 8, 0.7, -2, 37, 10],
+  [0, 1.1, -HZ - 8, 54, 14],
+  [0, 0.9, ROAD_END + 5, 48, 12.6],
+];
+
+/**
+ * Ground mist: layered banks rolling low over the streets, the pavements, the lane, the park's lawns and the car park, and
+ * higher ones over the city, thick in fog (and still lying low once a fog has lifted off the city) and in smog, and in the
+ * early morning. Tinted dirty yellow-brown in smog. Never inside the branch (MIST_CLIP): the floor, the desks and the people
+ * in it stay sharp.
  */
 function Mist() {
-  const map = useMistTexture();
-  const material = useMemo(() => {
-    const m = new MeshBasicMaterial({ map, transparent: true, depthWrite: false, opacity: 0, toneMapped: false });
-    clipIndoors(m);
-    return m;
-  }, [map]);
-  useEffect(() => () => material.dispose(), [material]);
-  useFrame(() => {
+  const map = useGroundMistTexture();
+  const layers = useMemo(
+    () =>
+      MIST_LAYERS.map((layer) => {
+        const tile = map.clone();
+        tile.needsUpdate = true;
+        const m = new MeshBasicMaterial({ map: tile, transparent: true, depthWrite: false, opacity: 0, toneMapped: false });
+        clipIndoors(m);
+        return { layer, m, tile };
+      }),
+    [map],
+  );
+  useEffect(
+    () => () => {
+      for (const { m, tile } of layers) {
+        m.dispose();
+        tile.dispose();
+      }
+    },
+    [layers],
+  );
+  // Each bank's plane, its texture tiled to its size so the blobs keep their scale on every bank.
+  const planes = useMemo(
+    () =>
+      MIST_BANKS.map(([, , , w, d]) => {
+        const g = new PlaneGeometry(w, d);
+        const uv = g.attributes.uv!;
+        for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * w) / MIST_TILE, (uv.getY(i) * d) / MIST_TILE);
+        return g;
+      }),
+    [],
+  );
+  useEffect(() => () => planes.forEach((g) => g.dispose()), [planes]);
+  useFrame(({ clock }) => {
     const a = atmosphereAt(bankStore.getState().view.minute, liveMix);
-    material.opacity = 0.55 * a.mist;
-    material.color.copy(MIST_WHITE).lerp(MIST_SMOG, Math.min(1, liveMix.smog * 1.2));
+    const t = clock.elapsedTime;
+    for (const { layer, m, tile } of layers) {
+      m.opacity = layer.alpha * a.mist;
+      m.visible = a.mist > 0.01;
+      m.color.copy(MIST_WHITE).lerp(MIST_SMOG, Math.min(1, liveMix.smog * 1.2));
+      // The weather's own clock: the mist keeps rolling while the bank is paused, as weather does.
+      tile.offset.set(layer.drift[0] * t, layer.drift[1] * t);
+    }
   });
-  // [x, y, z, width along x, depth along z]
-  const banks: Array<[number, number, number, number, number]> = [
-    // Low over the pavement and the avenue in front of the branch.
-    [0, 0.32, KERB_Z - 0.4, 44, 6],
-    [0, 0.45, KERB_Z + 4.5, 60, 9],
-    // Over the park and over the car park, either side of the branch.
-    [(PARK.x0 + PARK.x1) / 2, 0.38, (PARK.z0 + PARK.z1) / 2, PARK.x1 - PARK.x0 + 2, PARK.z1 - PARK.z0],
-    [LOT_SIDE * ((LOT.x0 + LOT.x1) / 2), 0.38, (LOT.z0 + LOT.z1) / 2, LOT.x1 - LOT.x0 + 2, LOT.z1 - LOT.z0],
-    // Higher banks over the city all round.
-    [-HX - 8, 0.8, 0, 40, 11],
-    [HX + 8, 0.7, -2, 37, 10],
-    [0, 1.1, -HZ - 8, 54, 14],
-    [0, 0.9, ROAD_END + 5, 48, 12.6],
-  ];
   return (
     <group name="office-mist">
-      {banks.map(([x, y, z, w, d], i) => (
-        <mesh key={i} position={[x, y, z]} rotation={[-Math.PI / 2, 0, 0]} material={material} renderOrder={4}>
-          <planeGeometry args={[w, d]} />
-        </mesh>
-      ))}
+      {MIST_BANKS.map(([x, y, z], i) =>
+        layers.map(({ layer, m }, k) => <mesh key={`${i}-${k}`} position={[x, y + layer.lift, z]} rotation={[-Math.PI / 2, 0, 0]} geometry={planes[i]} material={m} renderOrder={4 + k} />),
+      )}
     </group>
   );
 }
@@ -962,6 +1046,9 @@ export const umbrellaWobble = (index: number, t: number, wind: number): { z: num
   x: wind * 0.07 * Math.sin(t * 2.3 + index * 1.3),
 });
 
+/** The two of a talking pair are half a bubble cycle apart: when one speaks the other listens, then the other way round. */
+export const chatPhase = (index: number): number => (index % 2) * (Math.PI / 1.3) + Math.floor(index / 2) * 0.7;
+
 /** One person on the pavement, placed each frame from pedestrianAt (weather.ts). Walking and standing are separate rigs. */
 function Passer({ p, clock }: { p: Pedestrian; clock: PavementClock }) {
   const root = useRef<Group>(null);
@@ -973,8 +1060,10 @@ function Passer({ p, clock }: { p: Pedestrian; clock: PavementClock }) {
   const [pose, setPose] = useState<PedestrianPose>(() => pedestrianAt(p, 0, null).pose);
   useFrame(() => {
     const s = pedestrianAt(p, clock.t, clock.rainFor, clock.storm, clock.after);
+    // Stepping aside for anyone else on the pavement (sidewalk.ts) rather than walking into them.
+    const [x, z] = sidewalk.place(`passer-${p.index}`, s.x, s.z, motion.dt);
     if (root.current) {
-      root.current.position.set(s.x, 0, s.z);
+      root.current.position.set(x, 0, z);
       root.current.rotation.y = s.heading;
       // Looking up at the first drops: a lean back. Shaking the water off a furled umbrella: a quick wiggle.
       root.current.rotation.x = s.pose === 'lookup' ? -0.12 : 0;
@@ -1038,9 +1127,9 @@ function Passer({ p, clock }: { p: Pedestrian; clock: PavementClock }) {
           </mesh>
         </group>
       )}
-      {pose === 'chat' && p.index % 2 === 0 && (
-        // A speech (or thought) bubble floating between the pair who stop to talk, over the one who faces the other.
-        <Bubble kind={p.index % 4 === 0 ? 'speech' : 'thought'} position={[0, 1.2, 0.35]} phase={p.index} size={0.36} />
+      {pose === 'chat' && (
+        // A speech bubble over each of the pair who stop to talk, the two out of step, so they take turns.
+        <Bubble kind="speech" position={[0, 1.2, 0]} phase={chatPhase(p.index)} size={0.32} />
       )}
     </group>
   );

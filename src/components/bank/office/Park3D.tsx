@@ -10,7 +10,7 @@ import { customerShirt, SIDE_DOORS_RIGHT } from './layout3d';
 import { glow, solid } from './materials';
 import { motion, substeps } from './motion';
 import { TREE_STRIP } from './parking';
-import { ParkCrowd, parkWeather, SWING_XS, wantsPark, type ParkPose, type ParkState } from './parkLife';
+import { ParkCrowd, parkWeather, SWING_XS, talkers, wantsPark, type ParkPose, type ParkState, type Talker } from './parkLife';
 import { FLOWERBEDS, FOUNTAIN, HEDGES, LOOP, PARK, PARK_BENCHES, PARK_CX as cx, PARK_CZ as cz, PICNIC, PLAYGROUND } from './parkPlan';
 import { isRaining, outfitOf, outfitShirt, useWeather, weatherStore, type Outfit } from './weather';
 
@@ -367,18 +367,21 @@ function ParkPerson({ crowd, i, outfit }: { crowd: ParkCrowd; i: number; outfit:
   );
 }
 
-/** Talk at the benches and the picnic table: a bubble over each group that is sitting together. */
+/**
+ * Talk at the benches and the picnic table: a speech bubble over each person in a conversation (talkers), so both of a pair
+ * (and everyone round the table) show one, never just one side. They take turns: each pops as the other quietens.
+ */
 function Chatter({ crowd }: { crowd: ParkCrowd }) {
-  const [shown, setShown] = useState<readonly boolean[]>([false, false, false, false, false]);
+  const [list, setList] = useState<readonly Talker[]>([]);
   useFrame(() => {
-    const at = (prefix: string): boolean => crowd.people.some((p) => p.m.id.startsWith(prefix) && p.d === 0 && p.going === null);
-    const next = [...PARK_BENCHES.map((_, k) => at(`bench-${k}-`)), at('picnic-')];
-    if (next.some((v, i) => v !== shown[i])) setShown(next);
+    const next = talkers(crowd);
+    if (next.length !== list.length || next.some((t, i) => t.id !== list[i]?.id || t.turn !== list[i]?.turn)) setList(next);
   });
   return (
     <>
-      {PARK_BENCHES.map((b, k) => shown[k] && <Bubble key={k} kind={k % 2 ? 'thought' : 'speech'} position={[b.at[0], 1.25, b.at[1]]} phase={k} size={0.34} />)}
-      {shown[4] && <Bubble kind="speech" position={[PICNIC.x - 0.4, 1.35, PICNIC.z]} phase={5} size={0.34} />}
+      {list.map((t) => (
+        <Bubble key={t.id} kind="speech" position={[t.at[0], 1.2, t.at[1]]} phase={(t.turn % 2) * (Math.PI / 1.3) + t.turn * 0.3} size={0.3} />
+      ))}
     </>
   );
 }

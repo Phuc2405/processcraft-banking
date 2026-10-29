@@ -247,9 +247,31 @@ export const ROPE_START = 0.45;
 export const ROPE_END = 1.25;
 
 /**
- * The way a customer walks from the door to the back of the queue, never through a rope, a post or a booth's glass: a gate's
- * customer comes in along the wall, round to the open end of the rope lane, and weaves up the lane to the tail; an ATM's
- * comes along the pavement in front of the booths, in at the gap by the rope, and across to the end of the line.
+ * Where people walk down the car park on the branch's left (as world x): the footway between its inner row of bays and the
+ * drive. The walkways striped across the inner row bring them from it to the side doors (parking.ts).
+ */
+export const CAR_PARK_FOOTWAY_X = -(FLOOR_SLAB.w / 2 + 3.5);
+
+/**
+ * The walk from a parked car to a side door in the left wall: from beside the car, along the car park's footway to the
+ * walkway in front of the door, and across it to the door. Nobody appears at a side door out of nowhere. `k` picks which
+ * side of the door the car is parked (alternately up and down the footway).
+ */
+export function carParkApproach(door: V2, k: number): V2[] {
+  const hz = FLOOR_SLAB.d / 2;
+  const z = Math.min(hz - 0.6, Math.max(-hz - 1.0, door[1] + (k % 2 ? -2.2 : 2.2)));
+  return [
+    [CAR_PARK_FOOTWAY_X, z],
+    [CAR_PARK_FOOTWAY_X, door[1]],
+    [-FLOOR_SLAB.w / 2 - 0.1, door[1]],
+  ];
+}
+
+/**
+ * The way a customer walks to the back of the queue, never through a rope, a post or a booth's glass: a gate's customer
+ * comes from their car in the car park, along its footway and across the walkway to the side door, in along the wall,
+ * round to the open end of the rope lane, and weaves up the lane to the tail; an ATM's comes along the pavement in front of
+ * the booths, in at the gap by the rope, and across to the end of the line.
  */
 export function arrivalPath(id: StationId, queued: number): V2[] {
   const door = entrancePoint(id);
@@ -260,7 +282,7 @@ export function arrivalPath(id: StationId, queued: number): V2[] {
   // Weave up the lane from its open end to the tail, a step to each side in turn, the way a rope line is walked.
   const weave: V2[] = [];
   for (let z = mouth.inside[1] - QUEUE_GAP, k = 0; z > tail[1] + QUEUE_GAP / 2; z -= QUEUE_GAP, k++) weave.push([mouth.inside[0] + (k % 2 ? 0.2 : -0.2), z]);
-  return [door, [door[0], mouth.inside[1]], mouth.inside, ...weave, tail];
+  return [...carParkApproach(door, queued), door, [door[0], mouth.inside[1]], mouth.inside, ...weave, tail];
 }
 
 /** The walking line along the pavement: between the ATM booths' fronts and the street lamps at the kerb. */

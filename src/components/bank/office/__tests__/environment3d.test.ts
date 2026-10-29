@@ -5,7 +5,7 @@ import { routingRules } from '../../routingRules';
 import { flowPlaces, flowScope } from '../../../../sim/guidedFlows';
 import { FLOW_IDS } from '../../../../types/viewport';
 import { badgeFocus, badgeOpacity, dashLane, deskFocus, DIM, FLOW_BADGE_DIM, isOffShift, LANE_DIM, leaveAt, leaveRoute, litLanes, neighbours, PULSE, pulseDistance } from '../focus3d';
-import { atmosphereAt, CLEAR, DAY_KEYS, FOG_LIFT, fogLeft, gustOf, MOODS, sunsetAt, nextRandomWeather, RANDOM_EVERY_S, RANDOM_WEATHERS, sameMix, stepMix, WEATHER_BLEND_S, WEATHER_MIX, WEATHERS, wetOf, windOf } from '../atmosphere';
+import { atmosphereAt, CLEAR, DAY_KEYS, FOG_LIFT, fogLeft, GROUND_FOG, gustOf, MOODS, sunsetAt, nextRandomWeather, RANDOM_EVERY_S, RANDOM_WEATHERS, sameMix, stepMix, WEATHER_BLEND_S, WEATHER_MIX, WEATHERS, wetOf, windOf } from '../atmosphere';
 import { CITY_BLOCKS, downpourOf, driftAt, DRIFTS, swayAt, TREE_BELTS, TREES, umbrellaWobble, type Tree } from '../Environment3D';
 import { LANE_STYLE, laneKind } from '../palette';
 import { pathLength } from '../tour3d';
@@ -246,14 +246,17 @@ describe('weather moods, the two-second blend and the wind', () => {
     expect(atmosphereAt(17.5 * 60, WEATHER_MIX.clear).sun.color).toBe('#d35400');
   });
 
-  it('lifts a fog as the bank opens: thick before 9:00, gone by 9:45', () => {
+  it('lifts a fog off the city as the bank opens (thick before 9:00, gone by 9:45), leaving a mist lying low on the ground', () => {
     expect(fogLeft(8.5 * 60)).toBe(1);
     expect(fogLeft(9 * 60)).toBe(1);
     expect(fogLeft(9.4 * 60)).toBeGreaterThan(0);
     expect(fogLeft(9.4 * 60)).toBeLessThan(1);
     expect(fogLeft(FOG_LIFT)).toBe(0);
     expect(atmosphereAt(8.5 * 60, WEATHER_MIX.fog).mist).toBe(1);
-    expect(atmosphereAt(12 * 60, WEATHER_MIX.fog).mist).toBeLessThan(0.3);
+    // The ground mist thins as the fog lifts, but lies over the streets, lawns and car park all day while it is foggy.
+    expect(atmosphereAt(12 * 60, WEATHER_MIX.fog).mist).toBeLessThan(1);
+    expect(atmosphereAt(12 * 60, WEATHER_MIX.fog).mist).toBeGreaterThanOrEqual(GROUND_FOG);
+    expect(atmosphereAt(12 * 60, WEATHER_MIX.clear).mist).toBe(0);
     expect(atmosphereAt(12 * 60, WEATHER_MIX.fog).fog.far).toBeGreaterThan(atmosphereAt(8.5 * 60, WEATHER_MIX.fog).fog.far + 20);
   });
 

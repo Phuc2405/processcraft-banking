@@ -146,6 +146,10 @@ describe('the kerb lane, the bus and the cash van', () => {
     expect(src).toContain('▼');
     expect(src).toContain('hazard chevrons');
     expect(src).toContain('<KerbBays />');
+    // The loading bay is behind the vault now, and the ▼ rides on the van there (serviceLife.test.ts runs it).
+    const bay = read('../LoadingBay3D.tsx');
+    expect(bay).toContain('<CitMarker />');
+    expect(bay).toContain('name="cit-bay"');
   });
 });
 

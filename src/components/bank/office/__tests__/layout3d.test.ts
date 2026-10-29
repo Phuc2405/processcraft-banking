@@ -4,6 +4,7 @@ import { OFFICE_DEPT_BOX as DEPT_BOX, OFFICE_PLACE_BOX as PLACE_BOX } from '../o
 import { BUILDING } from '../../layout';
 import {
   arrivalPath,
+  CAR_PARK_FOOTWAY_X,
   ATM_ALCOVE,
   ATM_KIOSK,
   ATM_STATIONS,
@@ -197,11 +198,14 @@ describe('people', () => {
     for (const id of STATION_IDS) if (!phones.includes(id)) expect(queueStyle(id)).toBe('people');
   });
 
-  it('sends arrivals from a door in the left wall to the back of the queue', () => {
+  it('sends arrivals from the car park, in at a door in the left wall, to the back of the queue', () => {
     expect(ENTRANCES.map((e) => e.id).sort()).toEqual(['GATE_ECOM', 'GATE_POS', 'GATE_VIRTUAL']);
     for (const e of ENTRANCES) {
       const path = arrivalPath(e.id, 2);
-      expect(path[0]).toEqual(e.at);
+      // From beside a car on the car park's footway, across the walkway and in at the door: nobody appears at the door.
+      expect(path[0]![0]).toBe(CAR_PARK_FOOTWAY_X);
+      expect(path[1]).toEqual([CAR_PARK_FOOTWAY_X, e.at[1]]);
+      expect(path).toContainEqual(e.at);
       expect(e.at[0]).toBeLessThan(-FLOOR.w / 2);
       const tail = path[path.length - 1] as [number, number];
       expect(tail[0]).toBeGreaterThan(e.at[0]);

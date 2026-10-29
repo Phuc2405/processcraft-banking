@@ -10,6 +10,8 @@ import { dayIntroMessages } from './dayIntro.messages';
 
 /** How long the banner stays up before it fades away by itself, in milliseconds. */
 export const DAY_INTRO_MS = 9000;
+/** How long the banner takes to fade out when it goes (timed out or closed), in ms: its `duration-500` opacity transition. */
+export const DAY_INTRO_FADE_MS = 500;
 
 /** The day's number as the banner shows it: two digits ("Day 03"). */
 export const dayLabel = (day: number): string => String(Math.max(1, Math.trunc(day))).padStart(2, '0');

@@ -1,4 +1,5 @@
-import { ENTRANCES, FLOOR_SLAB, smoothLane, type V2 } from './layout3d';
+import { CitRun } from './citRun';
+import { CAR_PARK_FOOTWAY_X, ENTRANCES, FLOOR_SLAB, smoothLane, type V2 } from './layout3d';
 import { pathLength, pointAlongPath } from './tour3d';
 
 /**
@@ -12,7 +13,9 @@ import { pathLength, pointAlongPath } from './tour3d';
  *     away, so no two vehicles are ever given the same bay;
  *   - only one vehicle moves in the lot at a time (the "mover"): arriving, or reversing out and driving away. Everyone
  *     else is parked, each in its own bay, and bays are wider and deeper than what parks in them;
- *   - a vehicle only turns in when a bay is free; when the lot is full nobody is sent.
+ *   - a vehicle only turns in when a bay is free; when the lot is full nobody is sent;
+ *   - the cash van on its way along the lane to the vault's loading bay (CitRun) is given the lot's turn like a mover, until
+ *     it is past the gate, so nobody turns in or out across it.
  */
 
 const HX = FLOOR_SLAB.w / 2;
@@ -52,8 +55,9 @@ export interface Row {
 
 /** The middle of the drive down the lot, as |x|: wide enough for a car to pass a car backing out. */
 export const AISLE = HX + 4.45;
-/** Where people walk down the lot, as |x|: between the inner row and the drive. */
-export const FOOTWAY = HX + 3.5;
+/** Where people walk down the lot, as |x|: between the inner row and the drive (the customers' walk in to the side doors
+ * follows it too: carParkApproach). */
+export const FOOTWAY = -CAR_PARK_FOOTWAY_X;
 
 const FIRST = LOT.gateZ + 2.3;
 const SPLIT = 4.5;
@@ -198,6 +202,9 @@ const rnd = (i: number, k: number): number => {
   return x - Math.floor(x);
 };
 
+/** The lot's turn, while the cash van has it. */
+export const CIT_MOVER = 'cit-van';
+
 const CAR_TONES = ['#e5e7eb', '#111827', '#991b1b', '#1e40af', '#6b7280', '#f8fafc', '#065f46', '#b45309'];
 const MOTO_TONES = ['#dc2626', '#1d4ed8', '#111827', '#f59e0b', '#0f766e', '#7c3aed', '#e5e7eb'];
 
@@ -207,6 +214,8 @@ export class ParkingLot {
   vehicles: LotVehicle[] = [];
   /** The one vehicle allowed to move in the lot, or null. */
   mover: string | null = null;
+  /** The cash van's run along the lane to the vault's loading bay, which passes the gate. */
+  readonly cit = new CitRun(BACK_LANE.in, BACK_LANE.far, LOT_SIDE * AISLE);
   t = 0;
   private serial = 0;
   private nextArrival: number;
@@ -266,6 +275,11 @@ export class ParkingLot {
         }
       }
     }
+    // The cash van sets off along the lane only while the lot is still, and holds the lot's turn until it is past the gate.
+    this.cit.step(h, this.mover === null);
+    if (this.cit.needsLane()) {
+      if (this.mover === null) this.mover = CIT_MOVER;
+    } else if (this.mover === CIT_MOVER) this.mover = null;
     if (this.mover !== null) return;
     // The lot is still: someone whose stay is up walks back to their vehicle and drives off (they have the lot until they
     // are gone), or else a newcomer is sent to a free bay. Leavers and newcomers take turns at the gate.
@@ -355,17 +369,17 @@ export const GUARD_POST: V2 = [LOT_SIDE * (AISLE + 1.75), LOT.gateZ + 0.6];
 export const GUARD_DOOR: V2 = [LOT_SIDE * (AISLE + 1.75), BACK_LANE.out - 0.6];
 
 /**
- * Where a guard on post is at time `t`: standing at the post facing the lane, now and then pacing along the front of the
- * lot towards its outer edge and back (a slow patrol, clear of the drive and of the bays).
+ * Where a guard on post is at time `t`: standing at the post facing the lane, now and then pacing beside the gate towards
+ * the lane and back (a slow patrol, clear of the drive, of the bays and of the guard's cabin next to the post).
  */
 export function guardPatrol(t: number): { at: V2; heading: number; walking: boolean } {
   const cycle = 24;
   const u = ((t % cycle) + cycle) % cycle;
-  // Stand for 14 s, walk 1.6 m towards the lot's edge for 5 s, and back for 5 s.
+  // Stand for 14 s, walk 1.6 m towards the lane for 5 s, and back for 5 s.
   if (u < 14) return { at: GUARD_POST, heading: Math.PI, walking: false };
   const out = u < 19;
   const k = out ? (u - 14) / 5 : 1 - (u - 19) / 5;
-  return { at: [GUARD_POST[0] + LOT_SIDE * PATROL * k, GUARD_POST[1]], heading: (out ? LOT_SIDE : -LOT_SIDE) * (Math.PI / 2), walking: true };
+  return { at: [GUARD_POST[0], GUARD_POST[1] - PATROL * k], heading: out ? Math.PI : 0, walking: true };
 }
 /** How far the patrol goes. */
 export const PATROL = 1.6;

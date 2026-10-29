@@ -8,10 +8,11 @@ import type { Move, PacketKind } from '../../../sim/types';
 import { bankStore, useBankStore } from '../../../store/bankStore';
 import { CustomerFigure, phaseOf } from './Avatars';
 import { box, cyl, merge, shade, tint, type Part } from './kit';
-import { arrivalPath, atmExitPath, customerShirt, hopHeight, hopTiming, laneAt, laneLength, packetLane, WALKER_STATIONS, type V2 } from './layout3d';
+import { arrivalPath, atmBooth, atmExitPath, customerShirt, hopHeight, hopTiming, laneAt, laneLength, packetLane, WALKER_STATIONS, type V2 } from './layout3d';
 import { glow } from './materials';
 import { PACKET_HEX } from './palette';
 import { motion, motionNow } from './motion';
+import { sidewalk } from './sidewalk';
 import { isClosed } from './evacuation';
 import { ATM_STATIONS } from './layout3d';
 
@@ -228,13 +229,51 @@ export const Packets = memo(function Packets() {
 interface Walk {
   path: V2[];
   length: number;
+  /** When they set off (motion-clock seconds), and how fast they walk. */
   start: number;
-  duration: number;
+  pace: number;
+  /** The figure that walks it, kept for the whole walk (so nobody swaps looks or jumps when someone else arrives). */
+  slot: number;
 }
 
 /**
- * Customers coming in at the gates. Whenever a gate takes in new customers in a beat, a few of them walk in from the
- * door in the wall to the back of the queue. (The queue itself is drawn by the desk from the queue length.)
+ * How fast customers walk to the desks, on the motion clock: an unhurried pace at 1x (it follows the speed multiplier like
+ * everything else). Down the pavement to the ATMs they stroll; into the branch, a little brisker.
+ */
+export const ARRIVAL_PACE = { atm: 0.85, gate: 1.0 } as const;
+
+/** The first figure of a pool not walking anyone, or -1 when all are busy. */
+const freeSlot = (walks: readonly Walk[], size: number): number => {
+  for (let i = 0; i < size; i++) if (!walks.some((w) => w.slot === i)) return i;
+  return -1;
+};
+
+/** Places pooled walkers on their walks at time `t`, steering those on the pavement round each other (sidewalk.ts). */
+function placeWalkers(walks: Walk[], pool: Array<Group | null>, prefix: string): void {
+  const t = motion.t;
+  for (let i = walks.length - 1; i >= 0; i--) if ((t - walks[i]!.start) * walks[i]!.pace > walks[i]!.length) walks.splice(i, 1);
+  pool.forEach((g, i) => {
+    if (!g) return;
+    const w = walks.find((x) => x.slot === i);
+    if (!w || t < w.start) {
+      g.visible = false;
+      sidewalk.leave(`${prefix}-${i}`);
+      return;
+    }
+    const p = laneAt(w.path, (t - w.start) * w.pace);
+    const [x, z] = sidewalk.place(`${prefix}-${i}`, p.x, p.z, motion.dt);
+    g.visible = true;
+    g.position.set(x, 0, z);
+    // Face the way they walk; towards the counter on the last leg.
+    g.rotation.y = p.heading + Math.PI / 2;
+  });
+}
+
+/**
+ * Customers coming to the desks. Whenever a gate takes in new customers in a beat, a few of them walk in from their cars in
+ * the car park, across to the side door in the wall and on to the back of the queue; an ATM's come strolling down the
+ * pavement to the booth. (The queue itself is drawn by the desk from the queue length.) Each walks the whole way on one
+ * figure at their own unhurried pace; when every figure is out walking, the newest customer simply joins the queue unseen.
  */
 export const Arrivals = memo(function Arrivals() {
   const tick = useBankStore((s) => s.view.tick);
@@ -243,8 +282,6 @@ export const Arrivals = memo(function Arrivals() {
 
   useEffect(() => {
     const state = bankStore.getState();
-    const beat = beatMs(state.view.phase, SPEEDS[state.speedIndex]?.factor ?? 1);
-    const t0 = now();
     // Customers walk in at the shop gates and up the pavement to the ATM; a transfer is a message, so its gate sees no one walk in.
     // After closing time customers only come for the sidewalk ATMs.
     const closed = isClosed(state.view.minute);
@@ -253,38 +290,16 @@ export const Arrivals = memo(function Arrivals() {
       const sv = state.view.stations[id];
       const count = Math.min(2, sv.arrivals);
       for (let k = 0; k < count; k++) {
-        const path = arrivalPath(id, sv.queueLength);
-        walks.current.push({
-          path,
-          length: laneLength(path),
-          start: t0 + k * 260 + Math.round(beat * 0.1),
-          duration: Math.round(Math.max(1100, Math.min(3200, beat * 1.4))),
-        });
+        const slot = freeSlot(walks.current, MAX_WALKERS);
+        if (slot < 0) return;
+        const path = arrivalPath(id, sv.queueLength + k);
+        const pace = ATM_STATIONS.includes(id) ? ARRIVAL_PACE.atm : ARRIVAL_PACE.gate;
+        walks.current.push({ path, length: laneLength(path), start: motion.t + k * 0.9, pace, slot });
       }
     }
-    if (walks.current.length > MAX_WALKERS) walks.current.splice(0, walks.current.length - MAX_WALKERS);
   }, [tick]);
 
-  useFrame(() => {
-    const t = now();
-    const live = walks.current;
-    for (let i = live.length - 1; i >= 0; i--) if (t > (live[i] as Walk).start + (live[i] as Walk).duration) live.splice(i, 1);
-    for (let i = 0; i < MAX_WALKERS; i++) {
-      const g = pool.current[i];
-      if (!g) continue;
-      const w = live[i];
-      if (!w || t < w.start) {
-        g.visible = false;
-        continue;
-      }
-      const u = (t - w.start) / w.duration;
-      const p = laneAt(w.path, w.length * u);
-      g.visible = true;
-      g.position.set(p.x, 0, p.z);
-      // Face the way they walk; towards the counter on the last leg.
-      g.rotation.y = p.heading + Math.PI / 2;
-    }
-  });
+  useFrame(() => placeWalkers(walks.current, pool.current, 'arrival'));
 
   return (
     <group name="office-arrivals">
@@ -305,16 +320,19 @@ export const Arrivals = memo(function Arrivals() {
 
 /** How many people can be walking away from the ATMs at once, and how fast they go. */
 const MAX_LEAVERS = 6;
-export const LEAVE_PACE = 1.1;
+export const LEAVE_PACE = 0.9;
+/** How long someone finishing at the machine takes to put their card and cash away and turn round before walking off. */
+export const ATM_TURN_S = 0.8;
 
 /**
  * Customers walking away from the sidewalk ATMs. Each time a machine finishes with someone (its count of the day goes up), that
- * person steps back from the panel, walks along the inside of the booth to the gap by the rope, out onto the pavement and off
- * down the street: nobody vanishes at the machine. They walk on the motion clock, so they stop where they are on pause.
+ * person takes their card and cash, turns round from the panel, walks along the inside of the booth to the gap by the rope,
+ * out onto the pavement and off down the street: nobody vanishes at the machine. They walk on the motion clock, so they stop
+ * where they are on pause.
  */
 export const AtmLeavers = memo(function AtmLeavers() {
   const tick = useBankStore((s) => s.view.tick);
-  const walks = useRef<Array<{ path: V2[]; length: number; start: number }>>([]);
+  const walks = useRef<Walk[]>([]);
   const seen = useRef<Partial<Record<string, number>>>({});
   const pool = useRef<Array<Group | null>>([]);
 
@@ -327,30 +345,18 @@ export const AtmLeavers = memo(function AtmLeavers() {
       // The first look, and a new day's reset, set nobody walking.
       if (before === undefined || done <= before) continue;
       for (let k = 0; k < Math.min(2, done - before); k++) {
-        const path = atmExitPath(id);
-        walks.current.push({ path, length: laneLength(path), start: motion.t + k * 1.4 + n * 0.3 });
+        const slot = freeSlot(walks.current, MAX_LEAVERS);
+        if (slot < 0) break;
+        // A moment at the machine first (turning round), then off: the walk starts with a short pause at the panel.
+        const b = atmBooth(id);
+        const kx = (b.x0 + b.x1) / 2;
+        const path: V2[] = [[kx, b.head - 0.01], ...atmExitPath(id)];
+        walks.current.push({ path, length: laneLength(path), start: motion.t + ATM_TURN_S + k * 1.6 + n * 0.3, pace: LEAVE_PACE, slot });
       }
     }
-    if (walks.current.length > MAX_LEAVERS) walks.current.splice(0, walks.current.length - MAX_LEAVERS);
   }, [tick]);
 
-  useFrame(() => {
-    const live = walks.current;
-    for (let i = live.length - 1; i >= 0; i--) if ((motion.t - live[i]!.start) * LEAVE_PACE > live[i]!.length) live.splice(i, 1);
-    for (let i = 0; i < MAX_LEAVERS; i++) {
-      const g = pool.current[i];
-      if (!g) continue;
-      const w = live[i];
-      if (!w || motion.t < w.start) {
-        g.visible = false;
-        continue;
-      }
-      const p = laneAt(w.path, (motion.t - w.start) * LEAVE_PACE);
-      g.visible = true;
-      g.position.set(p.x, 0, p.z);
-      g.rotation.y = p.heading + Math.PI / 2;
-    }
-  });
+  useFrame(() => placeWalkers(walks.current, pool.current, 'atm-leaver'));
 
   return (
     <group name="office-atm-leavers">
