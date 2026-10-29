@@ -1,12 +1,13 @@
 import { t } from '../../../i18n/t';
 import { Canvas } from '@react-three/fiber';
-import { Component, memo, useCallback, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
+import { Component, memo, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
 import { useAcademyStore } from '../../../store/academyStore';
 import { activeFlowOf, useBankStore } from '../../../store/bankStore';
 import { OfficeScene } from './OfficeScene';
 import { TourLayer3D } from './TourLayer3D';
 import { CAMERA_DIRECTION, CAMERA_DISTANCE } from '../../../engine/plan/layout3d';
-import { atmosphereAt, nextRandomWeather, weatherSpan, WEATHERS, type DayPart } from '../../../engine/world/atmosphere';
+import { atmosphereAt, WEATHERS, type DayPart } from '../../../engine/world/atmosphere';
+import { WeatherCycle } from '../../../engine/world/weatherCycle';
 import { weatherStore, type WeatherChoice } from '../../../engine/world/weather';
 import { useWeather } from './useWeather';
 import { skyFlash } from './Environment3D';
@@ -72,19 +73,13 @@ export const WEATHER_HINT: Record<WeatherChoice, string> = {
 function RandomWeather() {
   const random = useWeather((s) => s.choice === 'random');
   const minute = useBankStore((s) => s.view.minute);
-  const spell = useRef<{ from: number; until: number } | null>(null);
+  // When the spell is over and what comes next is the weather cycle's to say (engine/world/weatherCycle.ts).
+  const cycle = useMemo(() => new WeatherCycle(), []);
   useEffect(() => {
-    if (!random) {
-      spell.current = null;
-      return;
-    }
-    const now = spell.current;
-    if (now && minute >= now.from && minute < now.until) return;
     const s = weatherStore.getState();
-    const next = nextRandomWeather(s.weather, Math.random());
-    s.setWeather(next);
-    spell.current = { from: minute, until: minute + weatherSpan(next, Math.random()) };
-  }, [random, minute]);
+    const next = cycle.update(minute, s.weather, random);
+    if (next) s.setWeather(next);
+  }, [cycle, random, minute]);
   return null;
 }
 

@@ -8,6 +8,8 @@ import { queueHandoff, type QueueHandoff } from './queueHandoff';
 import { sidewalk, type SidewalkCrowd } from '../world/sidewalk';
 import type { TrafficSim, VehicleState } from '../world/vehicles';
 import { liveMix, newPavementClock, stepPavementClock, type PavementClock } from '../world/weather';
+import type { StationId } from '../../sim/topology';
+import { ClosingWalkout } from './closingWalkout';
 import { EntityFactory } from './EntityFactory';
 
 /**
@@ -33,6 +35,8 @@ export interface WorldInputs {
   minute: number;
   /** The weather picked now. */
   weather: Weather;
+  /** How many are queuing at each desk in the bank now (for closing time's walk-out). */
+  queueLength?: (id: StationId) => number;
 }
 
 /** What a tick changed that the page outside the engine has to hear about. */
@@ -53,6 +57,9 @@ export class WorldEngine {
   readonly pavement: PavementClock = newPavementClock();
   readonly sidewalk: SidewalkCrowd = sidewalk;
   readonly handoff: QueueHandoff = queueHandoff;
+  /** Closing time's walk-out of the counters' lines; `walkoutVersion` moves on whenever who is walking out changes. */
+  readonly walkout: ClosingWalkout;
+  walkoutVersion = 0;
   private readonly guards = new Map<GuardPostPlan, FrontGuard>();
   private minute: number;
   private weather: Weather;
@@ -67,6 +74,7 @@ export class WorldEngine {
     this.lot = factory.carPark();
     // Everyone wanted in the park at the start is already in place; after that they come and go on foot.
     this.park = factory.parkCrowd(start.minute);
+    this.walkout = new ClosingWalkout(isClosed(start.minute));
   }
 
   /** The guards at a post (made the first time it is asked for, as things stand then), stepped with the rest of the world. */
@@ -107,6 +115,10 @@ export class WorldEngine {
     for (const h of steps) this.lot.step(h);
 
     stepPavementClock(this.pavement, motion.dt, input.weather);
+
+    // Closing time: everyone in the counters' lines walks out (pausing never sets anyone walking; the clock reaching 17:00 does).
+    if (this.walkout.update(isClosed(minute), input.queueLength ?? (() => 0))) this.walkoutVersion++;
+    if (this.walkout.step(motion.dt)) this.walkoutVersion++;
 
     return { mixChanged: this.stepSky(input.realDt, input.weather) };
   }

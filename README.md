@@ -241,21 +241,22 @@ Days run **Day 1, Day 2, ...** and carry what they leave behind: the suspense ac
 
 | Time | Phase | What happens |
 | --- | --- | --- |
-| 08:00-09:00 | Briefing | Staff arrive; read the briefing, look around, or change a rule |
+| 07:00-08:00 | Staff arrive | The day's staff walk in to their desks (the clock ticks in 5-minute beats) |
+| 08:00-09:00 | Briefing | Read the briefing, look around, or change a rule |
 | 09:00-17:00 | Working hours | Live traffic |
-| 17:00-23:00 | After hours | The day shift goes home; the bank is quiet |
+| 17:00-23:00 | After hours | The day shift goes home; the bank is quiet; the night team walks in from 22:00 (5-minute beats) |
 | 23:00-24:00 | Night cycle | Batch clearing, Visa settlement, 3-way reconciliation, suspense |
 
-**The time bar is a scrubber.** Click anywhere on the 08:00-24:00 bar, or drag its thumb, to put the bank at that time: the
-clock, the queues, the KPIs and the ledger jump there at once. Forward runs the day on; backward replays today from 08:00 with the
+**The time bar is a scrubber.** Click anywhere on the 07:00-24:00 bar, or drag its thumb, to put the bank at that time: the
+clock, the queues, the KPIs and the ledger jump there at once. Forward runs the day on; backward replays today from 07:00 with the
 same customers up to the time chosen. With the bar focused, the arrow keys move a quarter of an hour, Page Up and Page Down an
 hour, Home and End to the ends of the day.
 
 Six speeds: **0.25x Slow-mo, 0.5x, 1x Relaxed (one tick every 1.5 s), 2x, 5x, 10x**. Skip buttons jump to open, close, night, or
 the end of the day, and **Jump to EOD (23:00)** drops you into the night cycle and keeps playing. The sim moves in "beats"
-(133 per day) rather than every second. Traffic is a pure function of the seed and the day number; nothing uses `Math.random`.
+(156 per day) rather than every second. Traffic is a pure function of the seed and the day number; nothing uses `Math.random`.
 
-**Reset day N** (clock bar) replays the current day from the 08:00 briefing: the same seed, the same carried-over suspense
+**Reset day N** (clock bar) replays the current day from 07:00: the same seed, the same carried-over suspense
 and records, the rules you have now, today's own report dropped and earlier reports kept. Because the same customers arrive,
 changing a rule dial and resetting is a fair way to ask what that rule does to this very day. **Start over** is different: it
 asks twice and takes the whole bank back to day 1.
@@ -393,6 +394,86 @@ Operating-system "reduce motion" is respected.
 * The tour never writes to the learner's store: it builds its own canvas store, steps that copy's runner, and publishes the
   dimming and the glowing path as `spotlight` on it.
 
+## Architecture: a headless engine behind two views
+
+The bank is simulated once, in plain TypeScript, and drawn twice: as the 2D map and as the 3D office. The simulation never
+imports React, three.js, a React binding or anything under `components/`; the views never work out business rules, they read
+the engine and draw. `engine.test.ts` holds the line: it walks the imports of every module under `src/engine` and `src/sim`
+and fails on any of them.
+
+```
+            ┌────────────────────────── headless (src/engine, src/sim) ──────────────────────────┐
+ bankStore ─▶ BankSimulation (sim/)          the bank: desks, queues, staff, the ledger, the clock
+   (zustand)│ SimulationEngine               nextBeatMs()  ·  desks: DeskStatusFeed  ·  createWorld()
+            │   └─ WorldEngine               motion clock, traffic, car park + cash van, park, guards,
+            │                                pavement, sky blend, closing-time walk-out: tick() once a frame
+            └─────────────────────────────────────────────────────────────────────────────────────┘
+                     ▲ inputs (clock, speed, weather)            │ state (read only)
+                     │                                           ▼
+            ┌──────────────────────────── views (src/components) ─────────────────────────────────┐
+            │ useBankClock        waits nextBeatMs, then tickBeat()                               │
+            │ useDeskStatus(id)   one desk's "X waiting · Y working" (2D card and 3D badge alike)│
+            │ WorldProvider       makes the scene's WorldEngine; WorldTicker ticks it (priority -10)│
+            │ BankMap (2D)        BankingWorldFacade (3D): Weather / Traffic / Crowd / Desk renderers│
+            └─────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+| Layer | Where | What it holds |
+| --- | --- | --- |
+| Bank simulation | `src/sim/` | `BankSimulation`, the clock and its beats, topology, roster, traffic of customers, KPIs, tours |
+| Banking engines | `src/engine/*.ts` | ProcessRunner, evaluator, expressions, ledger and postings, ISO 20022, AML, disputes, ATM |
+| Simulation engine | `src/engine/simulation/` | `SimulationEngine`, `WorldEngine`, `EntityFactory`, `DeskStatusFeed`, staff and shift schedules, way-finding, customer journeys, closing-time walk-out, the motion clock, the hand-off of walkers to desks' lines |
+| The 3D world | `src/engine/world/` | the avenue's traffic and drop-offs, the car park and cash van, the park's people, guard posts, pavement steering, weather and its spells, closing time, digital signals |
+| The floor plan | `src/engine/plan/` | the 2D layout, the office plan, the 3D layout (where everything stands, queue places, routes) and path geometry |
+| Views | `src/components/` | React and three.js only: they subscribe to the engine and draw |
+
+The seams between the two sides are small and explicit:
+
+* **Inputs go in, state comes out.** `WorldEngine.tick({ realDt, playing, speed, minute, weather, queueLength })` is the only
+  way the 3D world moves; it advances the motion clock (frozen on pause, scaled by the speed), then steps every system in a
+  fixed order with small substeps, so a fast speed never makes anything jump. The views read `trafficView`, `lot`, `park`,
+  `pavement`, `walkout` and the guards.
+* **Stores reach the engine through interfaces.** `SimulationEngine` and `DeskStatusFeed` take a `BankSource` (anything with
+  `getState()` and `subscribe()`), so the engine depends on the shape of the bank store, never on zustand's React hook.
+* **i18n is split the same way.** `i18n/localeCore.ts` and `i18n/messageCore.ts` hold the language store, `pick`, `tr`, message
+  bundles and placeholders with no React; `i18n/locale.ts` and `utils/i18nHelper.ts` re-export them and add the hooks.
+  `weather.ts` keeps the weather store free of React the same way (`useWeather.ts` is the hook).
+
+## Design patterns
+
+Where the code uses a named pattern ([refactoring.guru catalogue](https://refactoring.guru/design-patterns/catalog)), and why.
+
+### Creational
+
+| Pattern | Where | Why |
+| --- | --- | --- |
+| Factory | `engine/simulation/EntityFactory.ts` | Everything that moves in the 3D world is made in one place: the fleet, the car park, the park's people, the guards at a post, the passers-by and the staff at a desk (each on the right shift schedule). `WorldEngine` takes a factory, so a test or a variant scene can hand it another. |
+| Singleton (module instance) | `simulation` (`components/bank/useSimulation.ts`), `sidewalk` (`engine/world/sidewalk.ts`), `queueHandoff`, `liveMix`, the zustand stores | One shared instance where both views must see the same state: one desk-status stream, one crowd on the pavement, one hand-off of walkers to the desks' lines, one sky. |
+
+### Structural
+
+| Pattern | Where | Why |
+| --- | --- | --- |
+| Facade | `BankingWorldFacade` (`components/bank/office/OfficeScene.tsx`) | The scene hands it its fixed parts (building, street, camera, lights); it makes and ticks the world engine and draws the world through four renderers: `WeatherRenderer`, `TrafficRenderer`, `CrowdRenderer`, `DeskRenderer`. The scene never deals with the engine. |
+| Facade | `SimulationEngine` (`engine/simulation/SimulationEngine.ts`) | One front for the bank's beat timing, the desk-status stream and the making of 3D worlds. |
+| Facade (module) | `utils/i18nHelper.ts`, `i18n/locale.ts` | One import for a feature's language needs, over the React-free cores and the hooks. |
+
+### Behavioral
+
+| Pattern | Where | Why |
+| --- | --- | --- |
+| Observer | `DeskStatusFeed` (`engine/simulation/deskStatus.ts`), read by `useDeskStatus` / `useDeskStatusLine` | The 2D desk card and the 3D badge and tooltip subscribe to the same stream, so they always show the same figures and the same line, "X waiting · Y working · status" (`deskStatusLine`). Each desk hears only about its own changes. |
+| State | `engine/simulation/customerLifecycle.ts` | A served customer's journey: Walking → Interacting (keying in, talking) → Turning → Departing → Gone. Each state knows how long it lasts and how the customer looks in it; the view draws the current pose. |
+| State | `engine/world/vehicles.ts` (`AtKerb`, `drivingStateOf`) | A vehicle standing at the kerb handles its own step until its wait is over, then hands back to driving. |
+| State | `engine/simulation/closingWalkout.ts` | Closing time's walk-out of the counters' lines (evacuating), stepped by the world engine. |
+| State | `engine/simulation/staff.ts` (`StaffEntity.presence`) | Staff are away (not in yet), ready (in early, before the night's work) or as the roster has them. |
+| State | `engine/dispute.ts` | The chargeback cycle as a state machine (`transition`). |
+| Strategy | `ShiftScheduleStrategy` (`engine/simulation/staff.ts`) | The day's staff and the night's clerks are one `StaffEntity`; their schedule (when they set off, whether they sit ready ahead of the shift) is swapped in: `MORNING_SHIFT_SCHEDULE`, `NIGHT_SHIFT_SCHEDULE`, with the roster's hours. |
+| Strategy | `PathfindingStrategy`, `StaffRouteStrategy` (`engine/simulation/routes.ts`) | A desk's customers find their way by its kind (down the pavement into an ATM's booth; from the car park in at the side door to a counter); staff by the main gate. Movers ask `routesFor(id)` instead of knowing every route. |
+| Strategy | `DropOffStrategy` (`engine/world/vehicles.ts`, `KerbsideDropOff`) | How a drop-off picks its spot and whether it keeps its stop when held in traffic, injected into `TrafficSim`. |
+| Strategy | `CAPABILITY_HANDLERS` (`engine/capabilities.ts`) | One handler per banking capability behind each TASK node, picked by the node's capability. |
+| Interpreter | `engine/expression.ts`, `engine/processRunner.ts` | XOR gateway conditions are parsed and evaluated from their grammar; ProcessRunner is a discrete-event interpreter for a ProcessGraph. |
+
 ## Layout
 
 ```
@@ -403,12 +484,20 @@ src/
     academyLevels.ts            levels 5 to 10 and their payloads
     mentalModels.ts             the Concept Explorer analogies
     labTourCopy.ts walkthroughCopy.ts ledgerCopy.ts curriculumCopy.ts   every learner-facing sentence, as Localized tables
-  i18n/locale.ts                Localized<T>, pick(): one entry per language
+  i18n/localeCore.ts messageCore.ts   Localized<T>, pick(), message bundles (no React); locale.ts adds useLocale()
   engine/                       ProcessRunner, evaluator, expressions, money
     ledger.ts postings.ts       chart of accounts, trial balance; what each payment posts
     iso20022.ts                 pacs.008 build, validate, XML, rail choice
     aml.ts dispute.ts           fuzzy screening, structuring; the chargeback state machine and liability
     atm.ts                      the sidewalk ATM: PIN tries, note counting, jams
+    simulation/                 the headless simulation engine (see Architecture)
+      SimulationEngine.ts WorldEngine.ts   the bank's beats, the desk-status stream, the 3D world ticked once a frame
+      EntityFactory.ts deskStatus.ts deskActivity.ts   making the world's people and vehicles; "X waiting · Y working"
+      staff.ts routes.ts customerLifecycle.ts closingWalkout.ts   shifts and staff walks; way-finding; journeys; closing time
+      motion.ts queueHandoff.ts   the motion clock (frozen on pause); walkers handed over to the desks' lines
+    world/                      the 3D world's systems: vehicles, parking, citRun, parkLife, parkPlan, guardCabin, sidewalk,
+                                weather, weatherCycle, atmosphere, evacuation, signals
+    plan/                       the floor plan: layout.ts (2D), officePlan.ts, layout3d.ts (3D), path.ts (path geometry)
   sim/                          the Living Bank and the tours, with no React in it
     bankSimulation.ts           desks, staff, queues, night team, carry-over, KPIs, today's ledger
     processes.ts                plans each payment's route by running the real diagrams
@@ -438,7 +527,8 @@ src/
         tour3d.ts tourBridge.ts tourHooks.ts   the walkthrough's numbers (no React); desk positions on screen; click and badge rules
         Traffic.tsx             payments in flight (card, coins, folder) and customers walking in
         props.ts kit.ts         per-station props; the low-poly geometry kit (boxes, rounded shapes, ropes, merging)
-        layout3d.ts             where everything stands, lane smoothing, partitions, camera limits (no React)
+        WorldProvider.tsx       the scene's world engine and the one frame callback that ticks it (useWorld)
+        Environment3D.tsx       the scenery, and WeatherRenderer; Vehicles3D, Parking3D, Park3D, GuardCabin3D draw the world
         materials.ts palette.ts shared materials and colours
         webgl.ts                is WebGL available? (the 3D switch checks it before loading three)
     canvas/                     ProcessCanvas, flowTypes, nodes/, edges/ (PathTraveller moves tokens on the compositor), tokens/

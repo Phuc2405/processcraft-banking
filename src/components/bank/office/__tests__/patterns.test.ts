@@ -133,3 +133,68 @@ describe('the world behind one front (Facade)', () => {
     }
   });
 });
+
+describe('closing time’s walk-out, in the engine', () => {
+  it('walks the counters’ lines out exactly as the view used to, then clears', async () => {
+    const { ClosingWalkout } = await import('../../../../engine/simulation/closingWalkout');
+    const { evacuees, EXIT_PACE } = await import('../../../../engine/world/evacuation');
+    const { pathLength, pointAlongPath } = await import('../../../../engine/plan/path');
+    const queue = (): number => 3;
+    const walkout = new ClosingWalkout(false);
+    expect(walkout.update(false, queue)).toBe(false);
+    expect(walkout.update(true, queue)).toBe(true);
+    // The old Evacuation view's own reckoning, frame by frame.
+    const old = evacuees(queue);
+    let since = 0;
+    for (let f = 0; f < 3000 && walkout.who.length; f++) {
+      const dt = 1 / 60;
+      since += dt;
+      walkout.step(dt);
+      if (!walkout.who.length) break;
+      walkout.poses().forEach((p, i) => {
+        const w = old[i]!;
+        const len = pathLength(w.path);
+        const d = (since - w.k * 0.35) * EXIT_PACE;
+        expect(p.visible).toBe(d < len);
+        if (p.visible) expect(p.at).toEqual(pointAlongPath(w.path, Math.max(0, d)));
+      });
+    }
+    expect(walkout.who.length).toBe(0);
+    // Already closed when first looked at: nobody is walked out again.
+    const late = new ClosingWalkout(true);
+    expect(late.update(true, queue)).toBe(false);
+  });
+
+  it('is stepped by the world engine with the rest of the world', async () => {
+    const { WorldEngine } = await import('../../../../engine/simulation/WorldEngine');
+    const world = new WorldEngine({ minute: 16.9 * 60, weather: 'clear' });
+    const frame = { realDt: 1 / 60, playing: true, speed: 1, weather: 'clear' as const, queueLength: () => 2 };
+    world.tick({ ...frame, minute: 16.9 * 60 });
+    const v = world.walkoutVersion;
+    world.tick({ ...frame, minute: 17 * 60 });
+    expect(world.walkoutVersion).toBe(v + 1);
+    expect(world.walkout.who.length).toBeGreaterThan(0);
+  });
+});
+
+describe('random weather as spells', () => {
+  it('holds each weather for its spell, never repeats one, and stops when a weather is picked by hand', async () => {
+    const { WeatherCycle } = await import('../../../../engine/world/weatherCycle');
+    const { WEATHER_SPAN } = await import('../../../../engine/world/atmosphere');
+    let r = 0;
+    const cycle = new WeatherCycle(() => (r = (r + 0.37) % 1));
+    let now = cycle.update(9 * 60, 'clear', true)!;
+    expect(now).not.toBe('clear');
+    const { from, until } = cycle.current!;
+    expect(until - from).toBeGreaterThanOrEqual(WEATHER_SPAN[now][0]);
+    expect(until - from).toBeLessThanOrEqual(WEATHER_SPAN[now][1]);
+    expect(cycle.update(from + 1, now, true)).toBeNull();
+    const next = cycle.update(until, now, true)!;
+    expect(next).not.toBe(now);
+    now = next;
+    // The clock wound back (a new day): a new spell at once.
+    expect(cycle.update(8 * 60, now, true)).not.toBeNull();
+    expect(cycle.update(8 * 60 + 1, now, false)).toBeNull();
+    expect(cycle.current).toBeNull();
+  });
+});

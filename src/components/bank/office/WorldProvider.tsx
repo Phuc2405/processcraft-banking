@@ -30,6 +30,7 @@ function WorldTicker({ world }: { world: WorldEngine }) {
       speed: SPEEDS[s.speedIndex]?.factor ?? 1,
       minute: s.view.minute,
       weather: weatherStore.getState().weather,
+      queueLength: (id) => s.view.stations[id].queueLength,
     });
     // The page's copy of the sky's blend (the gradient behind the canvas), a few times a second while it moves.
     if (mixChanged) weatherStore.setState({ mix: { ...liveMix } });

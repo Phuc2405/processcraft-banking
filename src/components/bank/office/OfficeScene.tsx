@@ -56,9 +56,8 @@ import { SignalPulses } from './SignalPulses';
 import { GuardCabin3D } from './GuardCabin3D';
 import { TOUR_DAYLIGHT, TOUR_GLIDE_MS, type CamFocus } from './tour3d';
 import { TourStage, useTourCamera } from './TourStage';
-import { WorldProvider } from './WorldProvider';
-import { evacuees, EXIT_PACE, isClosed } from '../../../engine/world/evacuation';
-import { motion } from '../../../engine/simulation/motion';
+import { useWorld, WorldProvider } from './WorldProvider';
+
 import { CustomerFigure } from './Avatars';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -969,42 +968,24 @@ const AWAKE_MS = 1600;
  * the nearest way out, the main entrance or a side door, on the motion clock (evacuation.ts).
  */
 function Evacuation() {
-  const closed = useBankStore((s) => isClosed(s.view.minute));
-  const was = useRef(closed);
-  const [walkers, setWalkers] = useState<ReturnType<typeof evacuees>>([]);
-  const since = useRef(0);
+  // Who walks out and where each of them is: the world engine's (ClosingWalkout). This only draws them.
+  const world = useWorld();
+  const [walkers, setWalkers] = useState(() => [...world.walkout.who]);
+  const version = useRef(world.walkoutVersion);
   const pool = useRef<Array<Group | null>>([]);
-  useEffect(() => {
-    if (closed && !was.current) {
-      const st = bankStore.getState();
-      setWalkers(evacuees((id) => st.view.stations[id].queueLength));
-      since.current = 0;
-    }
-    if (!closed) setWalkers([]);
-    was.current = closed;
-  }, [closed]);
   useFrame(() => {
-    if (!walkers.length) return;
-    since.current += motion.dt;
-    let out = 0;
-    walkers.forEach((w, i) => {
+    if (world.walkoutVersion !== version.current) {
+      version.current = world.walkoutVersion;
+      setWalkers([...world.walkout.who]);
+    }
+    world.walkout.poses().forEach((w, i) => {
       const g = pool.current[i];
       if (!g) return;
-      const len = pathLength(w.path);
-      // They set off a moment apart, the head of each queue first.
-      const d = (since.current - w.k * 0.35) * EXIT_PACE;
-      if (d >= len) {
-        g.visible = false;
-        out++;
-        return;
-      }
-      const [x, z] = pointAlongPath(w.path, Math.max(0, d));
-      const [ax, az] = pointAlongPath(w.path, Math.min(len, Math.max(0, d) + 0.05));
-      g.visible = true;
-      g.position.set(x, 0, z);
-      g.rotation.y = Math.atan2(ax - x, az - z);
+      g.visible = w.visible;
+      if (!w.visible) return;
+      g.position.set(w.at[0], 0, w.at[1]);
+      g.rotation.y = w.heading;
     });
-    if (out === walkers.length) setWalkers([]);
   });
   return (
     <group name="office-evacuation">

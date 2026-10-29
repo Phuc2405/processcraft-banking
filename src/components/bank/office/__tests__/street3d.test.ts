@@ -442,14 +442,19 @@ describe('closing time and the pause', () => {
     expect(ENTRANCES.length).toBe(3);
   });
 
-  it('empties the customer desks’ queues after closing, keeps the ATMs open all night, and never evacuates on a pause', () => {
+  it('empties the customer desks’ queues after closing, keeps the ATMs open all night, and never evacuates on a pause', async () => {
     const desk = src['../Desk3D.tsx']!;
     expect(desk).toContain('CUSTOMER_DESKS.includes(id) && isClosed(s.view.minute)');
     const traffic = src['../Traffic.tsx']!;
     expect(traffic).toContain('if (closed && !ATM_STATIONS.includes(id)) continue;');
-    const scene = src['../OfficeScene.tsx']!;
-    // The walk-out is triggered by the clock crossing 17:00, never by the play/pause switch.
-    expect(scene).toContain('if (closed && !was.current)');
+    // The walk-out is triggered by the clock crossing 17:00, never by the play/pause switch (engine: ClosingWalkout).
+    const { ClosingWalkout } = await import('../../../../engine/simulation/closingWalkout');
+    const walkout = new ClosingWalkout(false);
+    for (let i = 0; i < 5; i++) expect(walkout.update(false, () => 3)).toBe(false);
+    walkout.step(0);
+    expect(walkout.who.length).toBe(0);
+    expect(walkout.update(true, () => 3)).toBe(true);
+    expect(walkout.who.length).toBeGreaterThan(0);
   });
 
   it('freezes everything that moves while the bank is paused, and runs it at the bank’s own speed while it plays', () => {
