@@ -10,7 +10,7 @@
  * account around the reconciliation desk. Those appear as "synthetic" steps, with the same text structure.
  */
 
-import { activeLocale } from '../i18n/locale';
+import { activeLocale } from '../i18n/localeCore';
 import { noteText } from '../i18n/notesVi';
 import { localLesson } from './learningVi';
 import type { BankingPayload, DerivedFacts, ExecutionStep, Id, ProcessEdge, ProcessGraph, ProcessNode } from '../types/processLearning';

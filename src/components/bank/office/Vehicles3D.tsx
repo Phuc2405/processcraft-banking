@@ -1,4 +1,5 @@
 import { useFrame } from '@react-three/fiber';
+import { useWorld } from './WorldProvider';
 import { memo, useMemo, useRef, useState } from 'react';
 import type { Group } from 'three';
 import { CustomerFigure, type Wear } from './Avatars';
@@ -6,11 +7,12 @@ import { useMerged } from './Dressing';
 import { ball, box, shade, tint, type Part } from './kit';
 import { customerShirt } from './layout3d';
 import { glow, solid } from './materials';
-import { outfitOf, outfitShirt, useWeather, type Outfit } from './weather';
+import { outfitOf, outfitShirt, type Outfit } from './weather';
+import { useWeather } from './useWeather';
 import { MeshBasicMaterial } from 'three';
-import { ALIGHT, BUS_DOORS, BUS_X, busRiders, kerbZ, LENGTH, riderAt, TrafficSim, WIDTH, VEHICLES, type BusRider, type Vehicle, type VehicleState } from './vehicles';
+import { ALIGHT, BUS_DOORS, BUS_X, busRiders, kerbZ, LENGTH, riderAt, WIDTH, VEHICLES, type BusRider, type Vehicle, type VehicleState } from './vehicles';
 import { Html } from '@react-three/drei';
-import { motion, substeps } from './motion';
+import { motion } from './motion';
 import { sidewalk } from './sidewalk';
 import { isClosed } from './evacuation';
 import { bankStore } from '../../../store/bankStore';
@@ -348,17 +350,11 @@ function KerbBays() {
 }
 
 /**
- * The whole fleet, driven by one TrafficSim (vehicles.ts): stepped once a frame, before the vehicles read where they are.
- * It runs only while the canvas draws, like the pedestrians.
+ * The whole fleet, drawn from the world engine's TrafficSim (WorldEngine.traffic), which it steps once a frame before the
+ * vehicles read where they are. It runs only while the canvas draws, like the pedestrians.
  */
 export const Vehicles3D = memo(function Vehicles3D() {
-  const sim = useMemo(() => new TrafficSim(), []);
-  const live = useMemo(() => ({ states: sim.states(), t: 0 }), [sim]);
-  useFrame(() => {
-    for (const h of substeps(motion.dt)) sim.step(h);
-    live.states = sim.states();
-    live.t = sim.t;
-  }, -1);
+  const live = useWorld().trafficView;
   return (
     <group name="office-traffic">
       <KerbBays />

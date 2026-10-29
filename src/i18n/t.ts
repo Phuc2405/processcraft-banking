@@ -5,7 +5,7 @@
  * Use it for fixed labels. Text with values in it uses `tr({ en: `…${x}`, vi: `…${x}` })` from locale.ts instead.
  */
 
-import { activeLocale } from './locale';
+import { activeLocale } from './localeCore';
 import { VI_DICTIONARY } from './viDictionary';
 
 export function t(en: string): string {

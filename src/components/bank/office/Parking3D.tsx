@@ -1,5 +1,4 @@
-import { bankStore } from '../../../store/bankStore';
-import { isClosed } from './evacuation';
+import { useWorld } from './WorldProvider';
 import { useFrame } from '@react-three/fiber';
 import { memo, useMemo, useRef, useState } from 'react';
 import type { BufferGeometry, Group } from 'three';
@@ -8,13 +7,13 @@ import { Sign, useMerged } from './Dressing';
 import { box, cyl, merge, type Part } from './kit';
 import { customerShirt } from './layout3d';
 import { glow, pane, solid } from './materials';
-import { motion, substeps } from './motion';
 import { GuardCabin3D } from './GuardCabin3D';
 import { LoadingBay3D } from './LoadingBay3D';
 import { PARKING_PLAN } from './guardCabin';
-import { AISLE, CIT_CLEAR, FOOTWAY, LOT, LOT_SIDE, ParkingLot, ROWS, SIDE_DOORS_LEFT, TREE_STRIP, WALKWAY, type LotKind } from './parking';
+import { AISLE, CIT_CLEAR, FOOTWAY, LOT, LOT_SIDE, ROWS, SIDE_DOORS_LEFT, TREE_STRIP, WALKWAY, type LotKind, type ParkingLot } from './parking';
 import { bodyParts, Rider } from './Vehicles3D';
-import { outfitOf, outfitShirt, useWeather } from './weather';
+import { outfitOf, outfitShirt } from './weather';
+import { useWeather } from './useWeather';
 
 /**
  * The car park on the left of the branch, drawn from ParkingLot (parking.ts): asphalt with white bay lines, walkways
@@ -138,7 +137,7 @@ function Barrier({ lot }: { lot: ParkingLot }) {
 
 /** The car park, stepped on the motion clock (frozen while the bank is paused). */
 export const Parking3D = memo(function Parking3D() {
-  const lot = useMemo(() => new ParkingLot(), []);
+  const lot = useWorld().lot;
   const parts = useMemo(lotParts, []);
   const ground = useMerged(() => parts.solid, [parts]);
   const glass = useMerged(() => parts.glass, [parts]);
@@ -150,9 +149,7 @@ export const Parking3D = memo(function Parking3D() {
   const parkedKey = useRef('');
   const outfit = useWeather((st) => outfitOf(st.weather));
   useFrame(() => {
-    // At closing time the drivers in the branch walk back to their cars and drive off; nobody parks again until it opens.
-    lot.setClosed(isClosed(bankStore.getState().view.minute));
-    for (const h of substeps(motion.dt)) lot.step(h);
+    // (Stepped by the world engine, closing time and all: WorldEngine.tick.)
     const list = lot.parked();
     const key = list.map((p) => p.v.id).join(',');
     if (key !== parkedKey.current) {

@@ -5,7 +5,7 @@
  */
 
 import type { ChapterId } from './academyCatalog';
-import { activeLocale, type Locale } from '../i18n/locale';
+import { activeLocale, type Locale } from '../i18n/localeCore';
 import { GLOSSARY_VI, QUIZ_VI } from '../i18n/academyVi';
 
 export interface GlossaryEntry {

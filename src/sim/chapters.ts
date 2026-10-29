@@ -13,7 +13,7 @@
  * the real plans (a chapter's "estimated steps" is the fewest and most desks-and-decisions its examples take, not a guess).
  */
 
-import { activeLocale } from '../i18n/locale';
+import { activeLocale } from '../i18n/localeCore';
 import { LESSON_LIST, type ProcessId } from './learning';
 import { spotPlan } from './spotlightPlan';
 

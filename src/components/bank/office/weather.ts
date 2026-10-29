@@ -1,4 +1,3 @@
-import { useStore } from 'zustand';
 import { createStore } from 'zustand/vanilla';
 import { CLEAR, rainOf, WEATHER_MIX, type Weather, type WeatherMix } from './atmosphere';
 import { ATM_STATIONS, atmBooth, GUARD_CABIN, KERB_Z, STREET } from './layout3d';
@@ -12,7 +11,7 @@ import { ATM_STATIONS, atmBooth, GUARD_CABIN, KERB_Z, STREET } from './layout3d'
 /** What the learner picked: one weather, or random (the default), which moves on to another when its spell is over (WEATHER_SPAN). */
 export type WeatherChoice = 'random' | Weather;
 
-interface WeatherState {
+export interface WeatherState {
   choice: WeatherChoice;
   /** The weather now: the pick, or random mode's current one. */
   weather: Weather;
@@ -30,10 +29,41 @@ export const weatherStore = createStore<WeatherState>()((set) => ({
   choose: (choice) => set(choice === 'random' ? { choice } : { choice, weather: choice }),
   setWeather: (weather) => set({ weather }),
 }));
-export const useWeather = <T>(pick: (s: WeatherState) => T): T => useStore(weatherStore, pick);
 
 /** The blend right now, eased every frame by WeatherDriver: what the scene's lights, rain and trees read. */
 export const liveMix: WeatherMix = { ...CLEAR };
+
+/** The weather people on the pavement react to, from a pick's blend: dry (null), rain, a storm, or hail. */
+export const downpourOf = (w: WeatherMix): Downpour | null => (w.hail > 0 ? 'hail' : w.storm > 0 ? true : w.rain > 0 ? false : null);
+
+/** The pavement's own clock: how long the people there have walked, and how long it has been wet (or since it dried). */
+export interface PavementClock {
+  t: number;
+  rainFor: number | null;
+  storm: Downpour;
+  after: AfterRain | null;
+}
+
+export const newPavementClock = (): PavementClock => ({ t: 0, rainFor: null, storm: false, after: null });
+
+/**
+ * Moves the pavement's clock on by `step` seconds of motion under the weather picked (`weather`): the people react to the
+ * pick, so they move as the first drops fall rather than when the sky's blend is done.
+ */
+export function stepPavementClock(clock: PavementClock, step: number, weather: Weather): void {
+  clock.t += step;
+  const wet = downpourOf(WEATHER_MIX[weather]);
+  if (wet === null) {
+    // It has just dried up: remember how long it lasted and what it was, so they fold their umbrellas and step back out.
+    if (clock.rainFor !== null) clock.after = { since: 0, lasted: clock.rainFor, was: clock.storm };
+    else if (clock.after) clock.after.since += step;
+    clock.rainFor = null;
+  } else {
+    clock.after = null;
+    clock.rainFor = clock.rainFor === null ? 0 : clock.rainFor + step;
+    clock.storm = wet;
+  }
+}
 
 /** Whether it is raining now (any rain in the blend), or about to (the pick brings rain). */
 export const isRaining = (): boolean => rainOf(liveMix) > 0.02 || WEATHER_MIX[weatherStore.getState().weather].rain > 0;

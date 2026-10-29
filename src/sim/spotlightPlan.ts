@@ -10,7 +10,7 @@
  *   - The last step of a run happens where the payment ends up: Approved, Declined, Settled, or the holding box.
  */
 
-import { activeLocale } from '../i18n/locale';
+import { activeLocale } from '../i18n/localeCore';
 import { LESSONS, type ProcessId } from './learning';
 import { DEFAULT_RULES, type BankRules } from './rules';
 import { STATIONS, WIRES, edgeId, isStation, type DepartmentId, type PlaceId, type StationId } from './topology';

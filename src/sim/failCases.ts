@@ -6,7 +6,7 @@
  * Keyed by process, then by the same box ids the lessons use (nodes of the process graph, and the synthetic boxes).
  */
 
-import { pick, type Localized } from '../i18n/locale';
+import { pick, type Localized } from '../i18n/localeCore';
 import type { ProcessId } from './learning';
 
 type FailBook = Record<ProcessId, Record<string, string[]>>;

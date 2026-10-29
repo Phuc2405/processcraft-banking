@@ -7,7 +7,7 @@
 
 import type { KpiRowDef } from '../sim/kpis';
 import { RULE_META, type BankRules } from '../sim/rules';
-import { activeLocale } from './locale';
+import { activeLocale } from './localeCore';
 
 const RULE_VI: Readonly<Record<keyof BankRules, { label: string; help: string }>> = {
   dcvvWindowSec: { label: 'Thời hạn hiệu lực dCVV', help: 'Dài hơn thì dễ chịu với người gõ chậm, nhưng cũng dễ hơn cho kẻ dùng lại mã bị đánh cắp.' },

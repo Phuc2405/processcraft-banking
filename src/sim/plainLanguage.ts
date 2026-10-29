@@ -10,7 +10,7 @@
  */
 
 import { CHART_OF_ACCOUNTS } from '../engine/ledger';
-import { activeLocale, pick, type Locale, type Localized } from '../i18n/locale';
+import { activeLocale, pick, type Locale, type Localized } from '../i18n/localeCore';
 import type { AccountId } from '../types/processLearning';
 import type { TermMode } from './terms';
 

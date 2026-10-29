@@ -1,4 +1,5 @@
 import { useFrame } from '@react-three/fiber';
+import { useWorld } from './WorldProvider';
 import { memo, useMemo, useRef, useState } from 'react';
 import type { Group, MeshBasicMaterial } from 'three';
 import { bankStore } from '../../../store/bankStore';
@@ -8,8 +9,8 @@ import { Sign, useMerged } from './Dressing';
 import { FRONT_PLAN, FrontGuard, type Cabin, type GuardPostPlan } from './guardCabin';
 import { box, type Part } from './kit';
 import { glow, pane, solid } from './materials';
-import { motion, substeps } from './motion';
-import { liveMix, weatherStore } from './weather';
+import { motion } from './motion';
+import { liveMix } from './weather';
 
 /**
  * The security guard's cabin by the main entrance (guardCabin.ts says where the guard is): a small glass booth on a plinth,
@@ -100,13 +101,11 @@ export const GuardCabin3D = memo(function GuardCabin3D({ plan = FRONT_PLAN, name
   const glass = useMerged(() => parts.glass, [parts]);
   const lamp = useMerged(() => parts.lamp, [parts]);
   const light = useRef<MeshBasicMaterial>(null);
-  const guard = useMemo(() => {
-    const st = bankStore.getState();
-    return new FrontGuard(st.view.minute, wetNow(), plan);
-  }, [plan]);
+  // The guards at this post are the world engine's: it steps them on the motion clock (WorldEngine.tick).
+  const world = useWorld();
+  const guard = useMemo(() => world.guard(plan), [world, plan]);
   useFrame(() => {
     const minute = bankStore.getState().view.minute;
-    for (const dt of substeps(motion.dt)) guard.step(dt, minute, wetNow());
     // The lamp inside: always on, brightest after dark and in the gloom of bad weather.
     if (light.current) light.current.opacity = 0.1 + 0.28 * atmosphereAt(minute, liveMix).lamps;
   }, -1);
@@ -127,4 +126,4 @@ export const GuardCabin3D = memo(function GuardCabin3D({ plan = FRONT_PLAN, name
 });
 
 /** Rain, a storm, hail or snow: weather a guard waits out in the cabin. */
-const wetNow = (): boolean => ['rain', 'storm', 'hail', 'snow'].includes(weatherStore.getState().weather);
+

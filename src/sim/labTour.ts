@@ -14,7 +14,7 @@ import { capabilityText, endText, factLabel, gatewayText, labUi, outcomeText, st
 import { CONDITION_VARIABLES, NODE_CATALOG } from '../data/seedChallenges';
 import { formatAud } from '../engine/money';
 import { labLabel } from '../i18n/labText';
-import { activeLocale, tr } from '../i18n/locale';
+import { activeLocale, tr } from '../i18n/localeCore';
 import { noteText } from '../i18n/notesVi';
 import { pacs008From, pacs008Xml, type Rail } from '../engine/iso20022';
 import { postTestResult } from '../engine/postings';

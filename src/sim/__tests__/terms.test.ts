@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { setActiveLocale } from '../../i18n/locale';
+import { setActiveLocale } from '../../i18n/localeCore';
 import { STATION_BRAND } from '../../i18n/stationBrand.messages';
 import { DEPARTMENTS, DEPARTMENT_IDS, EXTERNAL_IDS, STATION_IDS, STATIONS } from '../topology';
 import {

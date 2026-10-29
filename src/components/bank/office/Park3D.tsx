@@ -1,4 +1,5 @@
 import { useFrame } from '@react-three/fiber';
+import { useWorld } from './WorldProvider';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { AdditiveBlending, Color, ConeGeometry, CylinderGeometry, DoubleSide, InstancedMesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, type Group, type Mesh } from 'three';
 import { bankStore } from '../../../store/bankStore';
@@ -8,11 +9,12 @@ import { Sign, useMerged } from './Dressing';
 import { ball, box, cyl, type Part } from './kit';
 import { customerShirt, SIDE_DOORS_RIGHT } from './layout3d';
 import { glow, solid } from './materials';
-import { motion, substeps } from './motion';
+import { motion } from './motion';
 import { TREE_STRIP } from './parking';
-import { ParkCrowd, SWING_XS, talkers, wantsPark, type ParkPose, type ParkSky, type ParkState, type Talker } from './parkLife';
+import { ParkCrowd, SWING_XS, talkers, type ParkPose, type ParkState, type Talker } from './parkLife';
 import { FLOWERBEDS, FOUNTAIN, HEDGES, LOOP, PARK, PARK_BENCHES, PARK_CX as cx, PARK_CZ as cz, PARK_LAMP_HEIGHT, PARK_LAMPS, PICNIC, PLAYGROUND } from './parkPlan';
-import { isRaining, liveMix, outfitOf, outfitShirt, underCover, useWeather, weatherStore, type Outfit, type Roof } from './weather';
+import { liveMix, outfitOf, outfitShirt, underCover, type Outfit, type Roof } from './weather';
+import { useWeather } from './useWeather';
 import { atmosphereAt } from './atmosphere';
 import { useGlowTexture } from './Street';
 
@@ -443,18 +445,8 @@ export const Park3D = memo(function Park3D() {
   const ground = useMerged(() => parts.solid, [parts]);
   const lit = useMerged(() => parts.lit, [parts]);
   const outfit = useWeather((s) => outfitOf(s.weather));
-  // Everyone wanted at the start is already in place; after that they come and go on foot.
-  const crowd = useMemo(() => {
-    const minute = bankStore.getState().view.minute;
-    return new ParkCrowd(undefined, (m) => wantsPark(m, minute));
-  }, []);
-  useFrame(() => {
-    const minute = bankStore.getState().view.minute;
-    const w = weatherStore.getState().weather;
-    // A storm or hail clears the park at a run; rain or snow cuts visits short under umbrellas.
-    const sky: ParkSky = w === 'storm' || w === 'hail' ? 'storm' : isRaining() || w === 'snow' ? 'rain' : 'dry';
-    for (const h of substeps(motion.dt)) crowd.step(h, (m) => wantsPark(m, minute), sky, minute);
-  }, -1);
+  // The park's people are the world engine's (WorldEngine.park): it steps them, in the weather, before they are drawn.
+  const crowd = useWorld().park;
   return (
     <group name="office-park">
       <mesh geometry={ground} material={solid} receiveShadow />

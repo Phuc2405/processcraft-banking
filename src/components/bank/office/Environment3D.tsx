@@ -1,4 +1,5 @@
 import { useFrame, useThree } from '@react-three/fiber';
+import { useWorld } from './WorldProvider';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AdditiveBlending,
@@ -25,7 +26,7 @@ import {
   type Group,
 } from 'three';
 import { bankStore } from '../../../store/bankStore';
-import { atmosphereAt, fadeToward, gustOf, rainOf, sameMix, stepMix, WEATHER_MIX, windOf, type WeatherMix } from './atmosphere';
+import { atmosphereAt, fadeToward, gustOf, rainOf, windOf } from './atmosphere';
 import { useMerged } from './Dressing';
 import { box, cyl, mix, type Part } from './kit';
 import { avenueMarkings, customerShirt, FLOOR_SLAB, KERB_Z, ROAD_END, SIDE_DOORS_RIGHT, STATION_POSES, STREET } from './layout3d';
@@ -48,15 +49,13 @@ import {
   pedestrianAt,
   UMBRELLA_RATE,
   underCover,
-  useWeather,
-  weatherStore,
-  type AfterRain,
-  type Downpour,
   type Outfit,
+  type PavementClock,
   type Pedestrian,
   type PedestrianPose,
   type Roof,
 } from './weather';
+import { useWeather } from './useWeather';
 import { motion } from './motion';
 import { sidewalk } from './sidewalk';
 
@@ -85,24 +84,6 @@ const rnd = (i: number, k: number): number => {
 // The weather blend
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Eases the live weather blend (liveMix) towards the pick, over WEATHER_BLEND_S, and refreshes the store's copy a few times
- * a second for the page (the sky gradient behind the canvas).
- */
-function WeatherDriver() {
-  const since = useRef(0);
-  useFrame((_, dt) => {
-    const want = WEATHER_MIX[weatherStore.getState().weather];
-    if (sameMix(liveMix, want)) return;
-    Object.assign(liveMix, stepMix(liveMix, want, Math.min(dt, 0.1)));
-    since.current += dt;
-    if (since.current > 0.1 || sameMix(liveMix, want)) {
-      since.current = 0;
-      weatherStore.setState({ mix: { ...liveMix } });
-    }
-  });
-  return null;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Ground, road and pavements past the drawn street
@@ -1044,15 +1025,7 @@ const UMBRELLA_TONES = ['#1d4ed8', '#e11d48', '#0f766e', '#7c3aed', '#ea580c', '
 
 const WEAR: Readonly<Record<Outfit, Wear>> = { everyday: 'none', summer: 'summer', winter: 'winter', rain: 'rain', mask: 'mask', jacket: 'none' };
 
-/** The weather the people on the pavement react to, from a pick's blend: dry (null), rain, a storm, or hail. */
-export const downpourOf = (w: WeatherMix): Downpour | null => (w.hail > 0 ? 'hail' : w.storm > 0 ? true : w.rain > 0 ? false : null);
-
-interface PavementClock {
-  t: number;
-  rainFor: number | null;
-  storm: Downpour;
-  after: AfterRain | null;
-}
+export { downpourOf } from './weather';
 
 /** Where the hand holding an umbrella is (figure scale 0.7): low by the side, then raised overhead and a little forward. */
 const HAND = { down: [0.19, 0.36, 0], up: [0.19, 0.95, 0.13] } as const;
@@ -1165,26 +1138,9 @@ function Passer({ p, clock }: { p: Pedestrian; clock: PavementClock }) {
   );
 }
 
-/** The passers-by: their own clock runs only while the canvas draws, so a resting office never makes them jump. */
+/** The passers-by, drawn where the world engine's pavement clock (WorldEngine.pavement) puts them. */
 function Pedestrians() {
-  const clock = useMemo<PavementClock>(() => ({ t: 0, rainFor: null, storm: false, after: null }), []);
-  useFrame(() => {
-    // On the motion clock: frozen while the bank is paused, and at the bank's speed while it runs.
-    const step = motion.dt;
-    clock.t += step;
-    // The weather they react to is the one picked, so they move as the first drops fall rather than when the blend is done.
-    const wet = downpourOf(WEATHER_MIX[weatherStore.getState().weather]);
-    if (wet === null) {
-      // It has just dried up: remember how long it lasted and what it was, so they fold their umbrellas and step back out.
-      if (clock.rainFor !== null) clock.after = { since: 0, lasted: clock.rainFor, was: clock.storm };
-      else if (clock.after) clock.after.since += step;
-      clock.rainFor = null;
-    } else {
-      clock.after = null;
-      clock.rainFor = clock.rainFor === null ? 0 : clock.rainFor + step;
-      clock.storm = wet;
-    }
-  });
+  const clock = useWorld().pavement;
   return (
     <group name="office-pedestrians">
       {PEDESTRIANS.map((p) => (
@@ -1199,7 +1155,6 @@ export const Environment3D = memo(function Environment3D() {
   // The time of day and the weather reach everything here through useFrame, so nothing re-renders on the clock.
   return (
     <>
-      <WeatherDriver />
       <Haze />
       <Ground />
       <Parking3D />

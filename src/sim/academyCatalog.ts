@@ -12,7 +12,7 @@
 import type { FlowId } from '../types/viewport';
 import { flowPlaces, GUIDED_FLOWS, type FlowNodeId, type FlowStep } from './guidedFlows';
 import { lessonContentFor, type LessonContent } from './academyLessons';
-import { activeLocale, type Locale } from '../i18n/locale';
+import { activeLocale, type Locale } from '../i18n/localeCore';
 import { CHAPTER_TEXT_VI, LESSON_CONTENT_VI, LEVEL_TEXT_VI, TRACK_TEXT_VI } from '../i18n/academyVi';
 import type { PlaceId } from './topology';
 

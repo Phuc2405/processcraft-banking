@@ -8,7 +8,7 @@
  * A line no template matches is shown as written, so nothing is ever lost.
  */
 
-import { activeLocale } from './locale';
+import { activeLocale } from './localeCore';
 import { localizeScenarioText } from '../sim/scenarios';
 import { dayScenarios } from './dayScenarios';
 

@@ -4,7 +4,7 @@
  * a PacketTrace, so the inspector and the tests read the same thing.
  */
 
-import { activeLocale } from '../i18n/locale';
+import { activeLocale } from '../i18n/localeCore';
 import { formatAud } from '../engine/money';
 import { CHART_OF_ACCOUNTS } from '../engine/ledger';
 import type { AccountId } from '../types/processLearning';

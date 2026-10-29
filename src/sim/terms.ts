@@ -16,7 +16,7 @@
  * The words themselves sit in one `Localized` table so another language is a data change (see i18n/locale.ts).
  */
 
-import { activeLocale, pick, type Localized } from '../i18n/locale';
+import { activeLocale, pick, type Localized } from '../i18n/localeCore';
 import { STATION_BRAND, stationBrandMessages } from '../i18n/stationBrand.messages';
 import { message } from '../utils/i18nHelper';
 import { DEPARTMENTS, STATIONS, type DepartmentId, type ExternalId, type PlaceId, type StationId, isStation } from './topology';

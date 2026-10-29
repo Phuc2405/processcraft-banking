@@ -53,8 +53,7 @@ import { SignalPulses } from './SignalPulses';
 import { GuardCabin3D } from './GuardCabin3D';
 import { TOUR_DAYLIGHT, TOUR_GLIDE_MS, type CamFocus } from './tour3d';
 import { TourStage, useTourCamera } from './TourStage';
-import { advanceMotion } from './motion';
-import { SPEEDS } from '../../../sim/clock';
+import { WorldProvider } from './WorldProvider';
 import { evacuees, EXIT_PACE, isClosed } from './evacuation';
 import { motion } from './motion';
 import { CustomerFigure } from './Avatars';
@@ -871,12 +870,13 @@ export function OfficeScene({ resetKey }: { resetKey: number }) {
   // A chapter tour owns the camera; otherwise it goes to the node the Academy split view is teaching.
   const academyCamera = useAcademyCamera();
   return (
-    <>
+    // The world engine (motion clock, traffic, car park, park, guards, pavement, sky) is ticked once a frame before anything
+    // draws; everything inside only reads it.
+    <WorldProvider>
       <Lights />
       <CameraRig resetKey={resetKey} focus={tourCamera ?? academyCamera} />
       <Probe />
       <Floor />
-      <MotionDriver />
       <Evacuation />
       <FrameDriver />
       <Environment3D />
@@ -903,7 +903,7 @@ export function OfficeScene({ resetKey }: { resetKey: number }) {
       <SignalPulses />
       <TourStage />
       <FlowStage3D />
-    </>
+    </WorldProvider>
   );
 }
 
@@ -974,14 +974,6 @@ function Evacuation() {
   );
 }
 
-/** Moves the motion clock (motion.ts) on every frame, before anything reads it: frozen on pause, at the bank's speed in play. */
-function MotionDriver() {
-  useFrame((_, dt) => {
-    const s = bankStore.getState();
-    advanceMotion(dt, s.playing && s.spotlight === null, SPEEDS[s.speedIndex]?.factor ?? 1);
-  }, -10);
-  return null;
-}
 
 function FrameDriver() {
   const invalidate = useThree((s) => s.invalidate);

@@ -7,7 +7,7 @@
  * run exactly the same in both languages.
  */
 
-import { activeLocale, type Locale } from '../i18n/locale';
+import { activeLocale, type Locale } from '../i18n/localeCore';
 import { LESSONS, PROCESS_SHORT, type GraphKey, type Lesson, type LessonLayout, type ProcessId, type StepText } from './learning';
 
 interface LessonWords {

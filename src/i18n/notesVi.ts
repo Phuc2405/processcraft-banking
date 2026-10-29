@@ -7,7 +7,7 @@
  * unrecognised is kept as written.
  */
 
-import { activeLocale } from './locale';
+import { activeLocale } from './localeCore';
 
 type Rule = readonly [RegExp, (m: RegExpExecArray) => string];
 

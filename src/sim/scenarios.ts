@@ -10,7 +10,7 @@
  */
 
 import { formatAud } from '../engine/money';
-import { activeLocale, type Locale } from '../i18n/locale';
+import { activeLocale, type Locale } from '../i18n/localeCore';
 import type { MinorUnits } from '../types/processLearning';
 import type { CheckoutKind } from './types';
 

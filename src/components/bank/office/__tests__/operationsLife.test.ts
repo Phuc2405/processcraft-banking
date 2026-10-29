@@ -214,7 +214,8 @@ describe('desk badges: waiting and working, in 2D and 3D', () => {
     expect(desk).toContain("{working > 0 ? ` · ${bm('working', { n: working })}` : ''}");
     expect(desk).not.toContain("bm('working')}");
     const map = read('../../BankMap.tsx');
-    expect(map).toContain('const working = workingCount(sv);');
+    // Read from the one desk-status stream both views share (engine/deskStatus.ts: deskStatusOf uses workingCount).
+    expect(map).toContain('const { working, showStatus } = useDeskStatus(id);');
     expect(map).toContain('data-testid={`working-${id}`}');
     expect(map).toContain("{bm('working', { n: working })}");
     expect(map).not.toContain("bm('working')}");

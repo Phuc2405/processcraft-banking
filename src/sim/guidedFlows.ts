@@ -14,7 +14,7 @@
 import type { DataDepth, FlowId, ViewportSettings } from '../types/viewport';
 import { edgeId, isStation, STATIONS, WIRES, type DepartmentId, type PlaceId } from './topology';
 import type { PacketTrace } from './types';
-import { activeLocale } from '../i18n/locale';
+import { activeLocale } from '../i18n/localeCore';
 
 export type FlowNodeId =
   | 'pos_terminal'

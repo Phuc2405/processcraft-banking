@@ -35,7 +35,7 @@ import { DESK_HEAT, deskHeat, type DeskHeat } from '../../sim/deskHeat';
 import { useMessages } from '../../utils/i18nHelper';
 import { analystWorkspaceMessages } from './analystWorkspace.messages';
 import { deskBadgeMessages } from './deskBadge.messages';
-import { statusAfterWorking, workingCount } from './deskActivity';
+import { useDeskStatus } from './useSimulation';
 
 /** Border and queue-number colours of the roleplay desks' congestion heat. */
 const HEAT_BORDER: Readonly<Record<DeskHeat, string>> = { green: 'border-emerald-400/60', orange: 'border-amber-400/80', red: 'border-rose-500/90' };
@@ -258,8 +258,8 @@ const StationCard = memo(function StationCard({
   // One wording on every desk, accounts included, the same as the 3D badges: "X waiting · Y working" while cases are being
   // worked on (so a desk with nobody waiting but a case in hand never reads as just "0"), else "0 waiting · Idle".
   const unit = t('waiting');
-  const working = workingCount(sv);
-  const showStatus = statusAfterWorking(sv.status, working);
+  // The same status stream the 3D badges read (SimulationEngine.desks): one source of truth for both views.
+  const { working, showStatus } = useDeskStatus(id);
   const name = terms.station(id);
   const title = terms.stationTitle(id);
 

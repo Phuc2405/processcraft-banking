@@ -1,7 +1,7 @@
 import { flowPlaces, flowScope } from '../../../sim/guidedFlows';
 import type { PlaceId } from '../../../sim/topology';
 import type { FlowId } from '../../../types/viewport';
-import { DAY_START, EOD_START } from '../../../sim/clock';
+import { MORNING_SHIFT_SCHEDULE, NIGHT_SHIFT_SCHEDULE, STAFF_ARRIVAL, StaffEntity } from './engine/staff';
 import { COUNTER, FRONT_AISLE_Z, KERB_Z, LANES, MAIN_GATE, STREET, type Pose, type V2 } from './layout3d';
 import { pathLength, pointAlongPath } from './tour3d';
 
@@ -129,29 +129,25 @@ export function leaveRoute(pose: Pose, seat: V2, k = 0): V2[] {
  * between 22:00 and 22:20 for the night's work at 23:00. The hour before each shift ticks in short beats (sim/clock.ts
  * PRE_SHIFT) and they walk in briskly (ARRIVE_SPEED), so everyone is seated well before it starts.
  */
-export const STAFF_ARRIVAL = { day: [DAY_START, DAY_START + 20], night: [EOD_START - 60, EOD_START - 40] } as const;
+export { STAFF_ARRIVAL };
 
-/** The minute the `k`th member of staff at a desk sets off for work: spread through their shift's arrival window, steady per person. */
-export function arrivalMinute(night: boolean, seed: string, k: number): number {
-  const [from, by] = night ? STAFF_ARRIVAL.night : STAFF_ARRIVAL.day;
-  let h = k * 7;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 9973;
-  return from + ((h % 97) / 97) * (by - from - 4);
-}
+/** The minute the `k`th member of staff at a desk sets off for work: spread through their shift's arrival window, steady per
+ * person (their shift's ShiftScheduleStrategy). */
+export const arrivalMinute = (night: boolean, seed: string, k: number): number => (night ? NIGHT_SHIFT_SCHEDULE : MORNING_SHIFT_SCHEDULE).setOff(seed, k);
 
 /**
  * At `minute`, who of a desk's staff (`ids`, in seat order) is not in yet (`away`: their shift's arrival window has begun
  * and their time to set off has not come), and, at a night desk, who has come in and sits ready before the night's work
- * starts (`early`: the simulation still has them off shift until 23:00).
+ * starts (`early`: the simulation still has them off shift until 23:00). Each is a StaffEntity on their shift's schedule.
  */
 export function arrivalState(night: boolean, ids: readonly string[], minute: number): { away: string[]; early: string[] } {
-  const [from] = night ? STAFF_ARRIVAL.night : STAFF_ARRIVAL.day;
+  const schedule = night ? NIGHT_SHIFT_SCHEDULE : MORNING_SHIFT_SCHEDULE;
   const away: string[] = [];
   const early: string[] = [];
   ids.forEach((id, k) => {
-    const due = arrivalMinute(night, id, k);
-    if (minute >= from && minute < due) away.push(id);
-    else if (night && minute >= due && minute < EOD_START) early.push(id);
+    const presence = new StaffEntity(id, null, k, schedule).presence(minute);
+    if (presence === 'away') away.push(id);
+    else if (presence === 'ready') early.push(id);
   });
   return { away, early };
 }

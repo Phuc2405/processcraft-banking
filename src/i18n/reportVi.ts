@@ -7,7 +7,7 @@
  */
 
 import type { DeclineReason } from '../sim/types';
-import { activeLocale } from './locale';
+import { activeLocale } from './localeCore';
 
 const vi = (): boolean => activeLocale() === 'vi';
 

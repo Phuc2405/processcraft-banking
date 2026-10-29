@@ -7,7 +7,7 @@
  * by their English text; anything else is shown as written.
  */
 
-import { activeLocale } from './locale';
+import { activeLocale } from './localeCore';
 
 const vi = (): boolean => activeLocale() === 'vi';
 

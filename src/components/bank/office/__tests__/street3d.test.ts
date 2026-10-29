@@ -471,9 +471,10 @@ describe('closing time and the pause', () => {
     expect(src['../Avatars.tsx']).toContain('const t = motion.t * 9 * tempo + phase;');
     expect(src['../Avatars.tsx']).toContain('const t = motion.t + seed;');
     expect(src['../Traffic.tsx']).toContain('const now = (): number => motionNow();');
-    expect(src['../Vehicles3D.tsx']).toContain('for (const h of substeps(motion.dt)) sim.step(h);');
-    expect(src['../Parking3D.tsx']).toContain('for (const h of substeps(motion.dt)) lot.step(h);');
-    expect(src['../Environment3D.tsx']).toContain('const step = motion.dt;');
+    // The world's systems are stepped by its engine on the motion clock (engine.test.ts plays and pauses it); the views read.
+    expect(src['../Vehicles3D.tsx']).toContain('const live = useWorld().trafficView;');
+    expect(src['../Parking3D.tsx']).toContain('const lot = useWorld().lot;');
+    expect(src['../Environment3D.tsx']).toContain('const clock = useWorld().pavement;');
     expect(src['../Desk3D.tsx']).toContain('leaver.t += motion.dt;');
   });
 });

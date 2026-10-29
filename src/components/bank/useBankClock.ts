@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { beatMs, SPEEDS } from '../../sim/clock';
 import { bankStore, useBankStore } from '../../store/bankStore';
+import { simulation } from './useSimulation';
 
 /**
  * Drives the bank's clock. The store has no timers on purpose; while the bank is playing this hook asks it
@@ -17,9 +17,10 @@ export function useBankClock(): void {
   const speedIndex = useBankStore((s) => s.speedIndex);
 
   useEffect(() => {
-    if (!playing) return;
-    const factor = SPEEDS[speedIndex]?.factor ?? 1;
-    const timer = window.setTimeout(() => bankStore.getState().tickBeat(), beatMs(phase, factor, minute));
+    // How long this beat stays on screen is the simulation engine's to say; the page only keeps the time.
+    const wait = simulation.nextBeatMs();
+    if (wait === null) return;
+    const timer = window.setTimeout(() => bankStore.getState().tickBeat(), wait);
     return () => window.clearTimeout(timer);
   }, [playing, phase, minute, tick, speedIndex]);
 }

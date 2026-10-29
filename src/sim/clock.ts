@@ -12,7 +12,7 @@
  * shift (PRE_SHIFT) tick in 5-minute beats too, so the clock moves on steadily while the staff walk in to their desks.
  */
 
-import { activeLocale } from '../i18n/locale';
+import { activeLocale } from '../i18n/localeCore';
 
 export type Phase = 'PRE_OPEN' | 'WORKING' | 'AFTER_HOURS' | 'EOD';
 

@@ -10,7 +10,7 @@ import type { BankRules } from './rules';
 import type { CheckoutKind, Customer, ExtendedContext } from './types';
 import { scenarioById } from './scenarios';
 import { audToVnd, buildVietQr } from './amlEngine';
-import { activeLocale } from '../i18n/locale';
+import { activeLocale } from '../i18n/localeCore';
 
 export type PresetVariant = 'success' | 'danger' | 'primary' | 'warning';
 

@@ -5,7 +5,7 @@
  * Every word is in both languages; ids follow the lesson ids ("2.3"). Pure data and pure functions.
  */
 
-import { pick, type Localized } from '../i18n/locale';
+import { pick, type Localized } from '../i18n/localeCore';
 
 export interface KeyTerm {
   term: string;

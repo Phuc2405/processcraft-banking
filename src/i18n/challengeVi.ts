@@ -8,7 +8,7 @@
  */
 
 import type { ChallengeLevel, Id } from '../types/processLearning';
-import { activeLocale, type Locale } from './locale';
+import { activeLocale, type Locale } from './localeCore';
 
 interface LevelText {
   title: string;

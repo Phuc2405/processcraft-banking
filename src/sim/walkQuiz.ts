@@ -8,7 +8,7 @@
  * The wording lives in one `Localized` book, keyed by process and by the gateway's box id.
  */
 
-import { pick, type Localized } from '../i18n/locale';
+import { pick, type Localized } from '../i18n/localeCore';
 import { formatMoney } from './kpis';
 import { LESSONS, type LessonExample, type ProcessId } from './learning';
 import type { BankRules } from './rules';

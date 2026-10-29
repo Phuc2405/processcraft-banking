@@ -1,5 +1,5 @@
 import { useMessages } from '../../../utils/i18nHelper';
-import { statusAfterWorking, workingCount } from '../deskActivity';
+import { useDeskStatus } from '../useSimulation';
 import { deskBadgeMessages } from '../deskBadge.messages';
 import { ATM_TURN_S } from './Traffic';
 import { Html } from '@react-three/drei';
@@ -628,9 +628,8 @@ export function DeskQueue({ id }: { id: StationId }) {
  * mode it is hidden until the pointer is over its workstation, which keeps the diorama clean.
  */
 export function DeskPin({ id, height }: { id: StationId; height?: number }) {
-  const status = useBankStore((s) => s.view.stations[id].status);
-  const queueLength = useBankStore((s) => s.view.stations[id].queueLength);
-  const working = useBankStore((s) => workingCount(s.view.stations[id]));
+  // The same status stream the 2D desk cards read (SimulationEngine.desks).
+  const { status, waiting: queueLength, working } = useDeskStatus(id);
   const selected = useBankStore((s) => s.selection.kind === 'station' && s.selection.id === id);
   const always = useBankStore((s) => s.labelMode === 'always');
   const hovered = useBankStore((s) => s.hoverPlace === id);
@@ -695,9 +694,7 @@ function useTipPlacement(id: StationId, top: number): { side: TipSide3d; at: [nu
 }
 
 function DeskTooltip3D({ id, top }: { id: StationId; top: number }) {
-  const status = useBankStore((s) => s.view.stations[id].status);
-  const queueLength = useBankStore((s) => s.view.stations[id].queueLength);
-  const working = useBankStore((s) => workingCount(s.view.stations[id]));
+  const { status, waiting: queueLength, working, showStatus } = useDeskStatus(id);
   const bm = useMessages(deskBadgeMessages);
   const terms = useTerms();
   const rules = routingRules(id);
@@ -733,7 +730,7 @@ function DeskTooltip3D({ id, top }: { id: StationId; top: number }) {
         <span className="mt-1.5 inline-block rounded bg-slate-800 px-1.5 py-px text-[11px] font-semibold text-slate-200">
           {queueLength} {t('waiting')}
           {working > 0 ? ` · ${bm('working', { n: working })}` : ''}
-          {statusAfterWorking(status, working) ? ` · ${statusLabel(status)}` : ''}
+          {showStatus ? ` · ${statusLabel(status)}` : ''}
         </span>
       </div>
     </Html>

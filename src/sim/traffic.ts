@@ -18,7 +18,7 @@ import { WORK_END, WORK_START, beatMinutes } from './clock';
 import { scenariosFor } from './scenarios';
 import type { AtmSession, CheckoutKind, Customer, DayEvent, DayEventId, ExtendedContext, ExtendedKind, SettlementTruth } from './types';
 import { audToVnd, buildVietQr } from './amlEngine';
-import { activeLocale } from '../i18n/locale';
+import { activeLocale } from '../i18n/localeCore';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Days and their events

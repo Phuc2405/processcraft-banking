@@ -4,7 +4,7 @@
  */
 
 import type { AriaLabelConfig } from '@xyflow/react';
-import { activeLocale } from './locale';
+import { activeLocale } from './localeCore';
 
 const DIRECTION_VI: Readonly<Record<string, string>> = { up: 'lên', down: 'xuống', left: 'sang trái', right: 'sang phải' };
 

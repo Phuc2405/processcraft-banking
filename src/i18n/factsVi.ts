@@ -6,7 +6,7 @@
  * unless a plain word exists for them.
  */
 
-import { activeLocale } from './locale';
+import { activeLocale } from './localeCore';
 
 const LABEL_VI: Readonly<Record<string, string>> = {
   Amount: 'Số tiền',
