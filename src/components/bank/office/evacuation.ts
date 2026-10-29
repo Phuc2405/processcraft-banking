@@ -1,5 +1,5 @@
-import type { StationId } from '../../../sim/topology';
-import { carParkApproach, CUSTOMER_DOOR, FLOOR_SLAB, FRONT_AISLE_Z, LEFT_WALK_X, MAIN_GATE, queueSlots, SIDE_DOORS_RIGHT, STATION_POSES, WALK_IN_DESKS, type V2 } from './layout3d';
+import { STATIONS, type StationId } from '../../../sim/topology';
+import { atmExitPath, carParkApproach, CUSTOMER_DOOR, FLOOR_SLAB, FRONT_AISLE_Z, LEFT_WALK_X, MAIN_GATE, queueSlots, SIDE_DOORS_RIGHT, STATION_POSES, WALK_IN_DESKS, type V2 } from './layout3d';
 
 /**
  * Closing time in the 3D office. At 17:00 the branch closes its doors to customers: everyone still queuing at a customer
@@ -37,6 +37,18 @@ export function evacuationRoute(at: V2, k: number): { exit: ExitKind; path: V2[]
   if (k % 3 === 0) return { exit: 'main', path: [at, front, [MAIN_GATE.x, FRONT_AISLE_Z], [MAIN_GATE.x, HZ + 1.0]] };
   const d = SIDE_DOORS_RIGHT.reduce((best, z) => (Math.abs(z - FRONT_AISLE_Z) < Math.abs(best - FRONT_AISLE_Z) ? z : best));
   return { exit: 'right', path: [at, front, [HX - 1.2, FRONT_AISLE_Z], [HX - 1.2, d], [HX + 1.2, d]] };
+}
+
+/**
+ * The way the customer just served at desk `id` walks off, from their place in its line (`k`, 0 at the counter or the
+ * machine): at a sidewalk ATM along the inside of its booth, out by the gap at the rope's end and off down the street; at a
+ * counter back the way they came, along the front aisle and the inside of the left wall, out of the side door and across
+ * to their car. Nobody vanishes where they were served.
+ */
+export function servedExit(id: StationId, k = 0): V2[] {
+  const at = queueSlots(id, k + 1)[k]!;
+  if (STATIONS[id].kind === 'ATM') return [at, ...atmExitPath(id)];
+  return evacuationRoute(at, 2).path;
 }
 
 /** Everyone queuing at a customer desk when the doors close, with their way out. */

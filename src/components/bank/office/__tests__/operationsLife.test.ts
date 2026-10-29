@@ -11,7 +11,6 @@ import { atmosphereAt, WEATHER_MIX } from '../atmosphere';
 import { CUSTOMER_DESKS, evacuees } from '../evacuation';
 import { atmBooth, atmExitPath, atmQueueMarks, ATM_KIOSK, ATM_STATIONS, arrivalPath, FLOOR_SLAB, isDigital, kioskCentre, KERB_Z, queueSlots, queueStyle, STREET, WALKER_STATIONS } from '../layout3d';
 import { ParkingLot, walkPath } from '../parking';
-import { ParkCrowd, PARK_MEMBERS, wantsPark } from '../parkLife';
 import { CELL_TOWER, DIGITAL_GATES, SIGNAL_KIND, signalPoint, signalTarget } from '../signals';
 import { SIDEWALK, SidewalkCrowd } from '../sidewalk';
 import { pathLength, pointAlongPath } from '../tour3d';
@@ -84,7 +83,7 @@ describe('the ATM queue: a line to wait in, a turn at the machine, and out witho
 
   it('walks the next in line up to the machine once the one before has turned away, on the motion clock', () => {
     const desk = read('../Desk3D.tsx');
-    expect(desk).toContain("hold.current = motion.t + (STATIONS[id].kind === 'ATM' ? ATM_TURN_S + 0.7 : 0.2);");
+    expect(desk).toContain('hold.current = motion.t + (atm ? SERVED.atm : SERVED.counter) + 0.7;');
     expect(desk).toContain('const step = motion.t < hold.current ? 0 : STEP_UP_PACE * motion.dt;');
   });
 
@@ -207,14 +206,18 @@ describe('desk badges: waiting and working, in 2D and 3D', () => {
     expect(bundleProblems(deskBadgeMessages)).toEqual([]);
   });
 
-  it('shows "N waiting" and a "Working" pill side by side on the 3D badge, its tooltip, and the 2D desk card', () => {
+  it('shows "X waiting · Y working" on the 3D badge, its tooltip, and the 2D desk card, never "Working Working"', () => {
     const desk = read('../Desk3D.tsx');
     expect(desk).toContain("{queueLength} {t('waiting')}");
     expect(desk).toContain('data-testid={`pin-working-${id}`}');
-    expect(desk).toContain("{working ? ` · ${bm('working')}` : ''}");
+    expect(desk).toContain("{bm('working', { n: working })}");
+    expect(desk).toContain("{working > 0 ? ` · ${bm('working', { n: working })}` : ''}");
+    expect(desk).not.toContain("bm('working')}");
     const map = read('../../BankMap.tsx');
-    expect(map).toContain('const working = isWorking(sv);');
+    expect(map).toContain('const working = workingCount(sv);');
     expect(map).toContain('data-testid={`working-${id}`}');
+    expect(map).toContain("{bm('working', { n: working })}");
+    expect(map).not.toContain("bm('working')}");
   });
 });
 
@@ -253,18 +256,7 @@ describe('drop-offs pull straight over', () => {
   });
 });
 
-describe('the weather changes what people do, never how many there are', () => {
-  it('keeps the park’s people through a change to a storm, hail or snow and back', () => {
-    const noon = 12 * 60;
-    const crowd = new ParkCrowd(PARK_MEMBERS, (m) => wantsPark(m, noon));
-    const count = (): number => crowd.people.filter((p) => crowd.poseOf(p).pose !== 'away').length;
-    const start = count();
-    for (const wet of [true, false, true]) {
-      for (let i = 0; i < 30 * 20; i++) crowd.step(0.05, (m) => wantsPark(m, noon), wet);
-      expect(count()).toBe(start);
-    }
-  });
-
+describe('the weather on the street', () => {
   it('keeps every pedestrian on the street in any weather: sheltering, under umbrellas, or walking on', () => {
     for (const storm of [false, true, 'hail'] as const) for (const p of PEDESTRIANS) expect(pedestrianAt(p, 30, 20, storm).x).toEqual(expect.any(Number));
     expect(PEDESTRIANS.length).toBe(12);

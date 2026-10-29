@@ -252,7 +252,8 @@ describe('weather moods, the two-second blend and the wind', () => {
     expect(fogLeft(9.4 * 60)).toBeGreaterThan(0);
     expect(fogLeft(9.4 * 60)).toBeLessThan(1);
     expect(fogLeft(FOG_LIFT)).toBe(0);
-    expect(atmosphereAt(8.5 * 60, WEATHER_MIX.fog).mist).toBe(1);
+    // Thick, but never a blinding wall: the mist tops out short of opaque.
+    expect(atmosphereAt(8.5 * 60, WEATHER_MIX.fog).mist).toBe(0.85);
     // The ground mist thins as the fog lifts, but lies over the streets, lawns and car park all day while it is foggy.
     expect(atmosphereAt(12 * 60, WEATHER_MIX.fog).mist).toBeLessThan(1);
     expect(atmosphereAt(12 * 60, WEATHER_MIX.fog).mist).toBeGreaterThanOrEqual(GROUND_FOG);
@@ -292,7 +293,7 @@ describe('weather moods, the two-second blend and the wind', () => {
     const morning = atmosphereAt(8.5 * 60);
     expect(snow!.snowCover).toBe(1);
     expect(clear!.snowCover).toBe(0);
-    expect(fog.mist).toBe(1);
+    expect(fog.mist).toBe(0.85);
     expect(fog.fog.far).toBeLessThan(morning.fog.far - 25);
     expect(snow!.motes).toBe(0);
     expect(fog.motes).toBe(0);
@@ -565,7 +566,7 @@ describe('staff going home', () => {
 
   it('empties the seat of someone off shift, and walks them out only when it happens in front of the learner', () => {
     const src = (import.meta.glob('../Desk3D.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)['../Desk3D.tsx']!;
-    expect(src).toContain('if (!seat || (!automated && isOffShift(w.activity))) return null;');
+    expect(src).toContain('if (!seat || absent.has(w.id) || (!automated && isOffShift(w.activity) && !early.has(w.id))) return null;');
     expect(src).toMatch(/was\.get\(w\.id\) === true && next\.get\(w\.id\) === false/);
   });
 });

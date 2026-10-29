@@ -820,6 +820,11 @@ export const WALL_WINDOWS: readonly WallWindow[] = [
 
 /** The polar angle of a true isometric view, measured from straight up (54.74 degrees): the camera looks down at 35.26 degrees. */
 export const ISO_POLAR = Math.acos(1 / Math.sqrt(3));
+/**
+ * The lowest the learner may tilt the camera (right-drag up and down), from straight up (73 degrees): looking down at only 17
+ * degrees, a nearly eye-level view across the lobby. Home, and "Reset view", is the isometric ISO_POLAR.
+ */
+export const EYE_POLAR = 1.27;
 /** The home azimuth of the camera, from the +z axis: front-left, 45 degrees. */
 export const ISO_AZIMUTH = Math.atan2(CAMERA_DIRECTION[0], CAMERA_DIRECTION[1]);
 /** How far (radians) the learner may swing the view either side of home. The back walls stay behind the office. */

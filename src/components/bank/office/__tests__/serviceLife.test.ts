@@ -5,9 +5,9 @@ import { atmosphereAt, GROUND_FOG, WEATHER_MIX } from '../atmosphere';
 import { CARRY_PATH, CIT_RUN, LOADING_BAY, LOADING_DOOR, LOADS, VAN_REAR, type CitPhase } from '../citRun';
 import { pathLength } from '../tour3d';
 import { chatPhase, MIST_BANKS, MIST_CLIP, MIST_LAYERS } from '../Environment3D';
-import { evacuationRoute } from '../evacuation';
+import { evacuationRoute, servedExit } from '../evacuation';
 import { FrontGuard, PARKING_CABIN, PARKING_PLAN } from '../guardCabin';
-import { arrivalPath, ATM_STATIONS, atmBooth, CAR_PARK_FOOTWAY_X, CUSTOMER_DOOR, ENTRANCES, FLOOR_SLAB, KERB_Z, queueSlots, ROAD_END, WALK_IN_DESKS, type V2 } from '../layout3d';
+import { arrivalPath, ATM_STATIONS, atmBooth, atmExitPath, CAR_PARK_FOOTWAY_X, CUSTOMER_DOOR, ENTRANCES, FLOOR_SLAB, KERB_Z, queueSlots, ROAD_END, WALK_IN_DESKS, type V2 } from '../layout3d';
 import { AISLE, CIT_CLEAR, CIT_MOVER, FOOTWAY, LOT, LOT_SIDE, ParkingLot, SIZE, slotsOf } from '../parking';
 import { ParkCrowd, PARK_MEMBERS, talkers } from '../parkLife';
 import { PARK } from '../parkPlan';
@@ -171,7 +171,8 @@ describe('people on the pavement keep apart', () => {
     expect(read('../Environment3D.tsx')).toContain('sidewalk.place(`passer-${p.index}`');
     const traffic = read('../Traffic.tsx');
     expect(traffic).toContain("placeWalkers(walks.current, pool.current, 'arrival')");
-    expect(traffic).toContain("placeWalkers(walks.current, pool.current, 'atm-leaver')");
+    // Whoever has been served walks off from the desk itself, curving round the others on the pavement too.
+    expect(read('../Desk3D.tsx')).toContain('const [x, z] = sidewalk.place(who, p.x, p.z, motion.dt);');
     const cars = read('../Vehicles3D.tsx');
     expect(cars).toContain('sidewalk.place(`rider-${v.id}`');
     expect(cars).toContain('sidewalk.place(`bus-${id}`');
@@ -182,7 +183,7 @@ describe('the ATM queues, from the street to the machine and away', () => {
   it('walks customers to the ATMs at an unhurried pace on the motion clock, each on one figure the whole way', () => {
     const traffic = read('../Traffic.tsx');
     expect(traffic).toContain('export const ARRIVAL_PACE = { atm: 0.85, gate: 1.0 } as const;');
-    expect(traffic).toContain('export const LEAVE_PACE = 0.9;');
+    expect(read('../Desk3D.tsx')).toContain('export const SERVED = { counter: 1.1, atm: ATM_TURN_S, turn: 0.45, pace: 0.95 } as const;');
     // Paced walks on the scaled motion clock, not squeezed into a beat: and nobody's figure is taken over mid-walk.
     expect(traffic).toContain('const p = laneAt(w.path, (t - w.start) * w.pace);');
     expect(traffic).not.toContain('walks.current.splice(0, walks.current.length - MAX_WALKERS)');
@@ -206,7 +207,12 @@ describe('the ATM queues, from the street to the machine and away', () => {
   it('turns the customer round at the machine before they walk off down the street', () => {
     const traffic = read('../Traffic.tsx');
     expect(traffic).toContain('export const ATM_TURN_S = 0.8;');
-    expect(traffic).toContain('const path: V2[] = [[kx, b.head - 0.01], ...atmExitPath(id)];');
+    // From the machine, along the inside of the booth, out by the rope's gap and off down the street.
+    for (const id of ATM_STATIONS) {
+      const out = servedExit(id);
+      expect(out[0]).toEqual(queueSlots(id, 1)[0]);
+      expect(out.slice(1)).toEqual(atmExitPath(id));
+    }
   });
 });
 

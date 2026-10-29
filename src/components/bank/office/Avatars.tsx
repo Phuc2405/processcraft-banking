@@ -325,8 +325,11 @@ interface CustomerProps {
   wear?: Wear;
   /** How far the right arm is raised overhead (holding an umbrella, waving a car in), 0-1, read every frame. */
   raise?: { current: number };
-  /** How far the legs swing when walking, 0-1: 0 stands still (a guard waving cars in). */
-  stride?: number;
+  /** How far the legs swing when walking, 0-1: 0 stands still (a guard waving cars in). Read every frame when a ref, for
+   * someone who stands a while and then walks off. */
+  stride?: number | { current: number };
+  /** How quick the steps are: 1 a walk, more a run (quicker, longer strides and a lean into it). */
+  tempo?: number;
 }
 
 const WEAR_TONES = ['#b91c1c', '#1d4ed8', '#047857', '#7c2d12', '#6d28d9', '#be185d'];
@@ -407,15 +410,15 @@ function Wearables({ wear, index }: { wear: Wear; index: number }) {
  * A customer. Smaller than the staff so a queue reads as a crowd at the front of a counter. Standing, they shift their
  * weight; walking, their legs and arms swing and they bob along.
  */
-export const CustomerFigure = memo(function CustomerFigure({ index, shirt, phase = 0, walking = false, scale = 0.72, wear = 'none', raise, stride = 1 }: CustomerProps) {
+export const CustomerFigure = memo(function CustomerFigure({ index, shirt, phase = 0, walking = false, scale = 0.72, wear = 'none', raise, stride = 1, tempo = 1 }: CustomerProps) {
   return walking ? (
-    <Walker index={index} shirt={shirt} phase={phase} scale={scale} wear={wear} raise={raise} stride={stride} />
+    <Walker index={index} shirt={shirt} phase={phase} scale={scale} wear={wear} raise={raise} stride={stride} tempo={tempo} />
   ) : (
     <Stander index={index} shirt={shirt} phase={phase} scale={scale} wear={wear} />
   );
 });
 
-type FigureProps = Required<Omit<CustomerProps, 'walking' | 'raise' | 'stride'>> & { raise?: { current: number }; stride?: number };
+type FigureProps = Required<Omit<CustomerProps, 'walking' | 'raise' | 'stride' | 'tempo'>> & { raise?: { current: number }; stride?: CustomerProps['stride']; tempo?: number };
 
 /**
  * Someone sitting (on a park bench), facing +z: knees forward, hands in the lap, rocking gently as they talk. The seat is
@@ -473,7 +476,7 @@ function Stander({ index, shirt, phase, scale, wear }: Omit<FigureProps, 'raise'
   );
 }
 
-function Walker({ index, shirt, phase, scale, wear, raise, stride = 1 }: FigureProps) {
+function Walker({ index, shirt, phase, scale, wear, raise, stride = 1, tempo = 1 }: FigureProps) {
   const rig = useMemo(() => walkerRig(index, shirt), [index, shirt]);
   const root = useRef<Group>(null);
   const legL = useRef<Group>(null);
@@ -482,9 +485,13 @@ function Walker({ index, shirt, phase, scale, wear, raise, stride = 1 }: FigureP
   const armR = useRef<Group>(null);
   useFrame(() => {
     // The stride follows the motion clock, so legs swing in step with how fast the person moves (and stop on pause).
-    const t = motion.t * 9 + phase;
-    const swing = Math.sin(t) * stride;
-    if (root.current) root.current.position.y = Math.abs(swing) * 0.06;
+    // A run: quicker steps, a longer swing and a lean forward into it.
+    const t = motion.t * 9 * tempo + phase;
+    const swing = Math.sin(t) * (typeof stride === 'number' ? stride : stride.current) * Math.min(1.5, tempo);
+    if (root.current) {
+      root.current.position.y = Math.abs(swing) * 0.06;
+      root.current.rotation.x = tempo > 1 ? 0.18 : 0;
+    }
     if (legL.current) legL.current.rotation.x = swing * 0.7;
     if (legR.current) legR.current.rotation.x = -swing * 0.7;
     if (armL.current) armL.current.rotation.x = -swing * 0.55;

@@ -10,7 +10,7 @@ import { customerShirt, SIDE_DOORS_RIGHT } from './layout3d';
 import { glow, solid } from './materials';
 import { motion, substeps } from './motion';
 import { TREE_STRIP } from './parking';
-import { ParkCrowd, SWING_XS, talkers, wantsPark, type ParkPose, type ParkState, type Talker } from './parkLife';
+import { ParkCrowd, SWING_XS, talkers, wantsPark, type ParkPose, type ParkSky, type ParkState, type Talker } from './parkLife';
 import { FLOWERBEDS, FOUNTAIN, HEDGES, LOOP, PARK, PARK_BENCHES, PARK_CX as cx, PARK_CZ as cz, PICNIC, PLAYGROUND } from './parkPlan';
 import { isRaining, outfitOf, outfitShirt, useWeather, weatherStore, type Outfit } from './weather';
 
@@ -311,10 +311,14 @@ function ParkPerson({ crowd, i, outfit }: { crowd: ParkCrowd; i: number; outfit:
   const brolly = useRef<Group>(null);
   const raise = useMemo(() => ({ current: 0 }), []);
   const [look, setLook] = useState<Look>(() => lookOf(p, crowd.poseOf(p).pose));
+  const [running, setRunning] = useState(false);
   useFrame(() => {
     const s = crowd.poseOf(p);
     const l = lookOf(p, s.pose);
     if (l !== look) setLook(l);
+    // Hurrying out of a storm: at a run.
+    const run = l === 'walk' && crowd.storm && p.going === 'out';
+    if (run !== running) setRunning(run);
     const g = root.current;
     if (!g) return;
     g.visible = l !== 'away' && l !== 'swing';
@@ -355,7 +359,7 @@ function ParkPerson({ crowd, i, outfit }: { crowd: ParkCrowd; i: number; outfit:
           )}
         </>
       ) : (
-        <CustomerFigure index={index} shirt={shirt} phase={p.m.k * 2.3} walking stride={look === 'walk' ? 1 : 0} scale={p.m.role === 'swing' ? 0.5 : 0.7} wear={WEAR[outfit]} raise={raise} />
+        <CustomerFigure index={index} shirt={shirt} phase={p.m.k * 2.3} walking stride={look === 'walk' ? 1 : 0} tempo={running ? 1.7 : 1} scale={p.m.role === 'swing' ? 0.5 : 0.7} wear={WEAR[outfit]} raise={raise} />
       )}
       <group ref={brolly} position={[0.13, 0.95, 0.1]} visible={false}>
         <mesh geometry={stick} position={[0, -0.1, 0]} material={solid} />
@@ -402,8 +406,9 @@ export const Park3D = memo(function Park3D() {
   useFrame(() => {
     const minute = bankStore.getState().view.minute;
     const w = weatherStore.getState().weather;
-    const wet = isRaining() || w === 'hail' || w === 'snow';
-    for (const h of substeps(motion.dt)) crowd.step(h, (m) => wantsPark(m, minute), wet);
+    // A storm or hail clears the park at a run; rain or snow cuts visits short under umbrellas.
+    const sky: ParkSky = w === 'storm' || w === 'hail' ? 'storm' : isRaining() || w === 'snow' ? 'rain' : 'dry';
+    for (const h of substeps(motion.dt)) crowd.step(h, (m) => wantsPark(m, minute), sky, minute);
   }, -1);
   return (
     <group name="office-park">

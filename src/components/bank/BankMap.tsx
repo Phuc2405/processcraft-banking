@@ -35,7 +35,7 @@ import { DESK_HEAT, deskHeat, type DeskHeat } from '../../sim/deskHeat';
 import { useMessages } from '../../utils/i18nHelper';
 import { analystWorkspaceMessages } from './analystWorkspace.messages';
 import { deskBadgeMessages } from './deskBadge.messages';
-import { isWorking } from './deskActivity';
+import { statusAfterWorking, workingCount } from './deskActivity';
 
 /** Border and queue-number colours of the roleplay desks' congestion heat. */
 const HEAT_BORDER: Readonly<Record<DeskHeat, string>> = { green: 'border-emerald-400/60', orange: 'border-amber-400/80', red: 'border-rose-500/90' };
@@ -255,10 +255,11 @@ const StationCard = memo(function StationCard({
   const flowLit = flow ? flow.scope.places.has(id) : false;
   const dim = !focus && !flowLit && sv.status === 'IDLE' && sv.queueLength === 0 && !isOnShift(id, phase);
   const worst = sv.alerts.some((a) => a.severity === 'crit' && a.live) ? 'crit' : sv.alerts.length > 0 ? 'warn' : null;
-  // One wording on every desk, accounts included: "0 waiting · Idle"; and beside the count, "Working" while a case is being
-  // worked on at the counter, so a desk with nobody waiting but a case in hand never reads as just "0".
+  // One wording on every desk, accounts included, the same as the 3D badges: "X waiting · Y working" while cases are being
+  // worked on (so a desk with nobody waiting but a case in hand never reads as just "0"), else "0 waiting · Idle".
   const unit = t('waiting');
-  const working = isWorking(sv);
+  const working = workingCount(sv);
+  const showStatus = statusAfterWorking(sv.status, working);
   const name = terms.station(id);
   const title = terms.stationTitle(id);
 
@@ -284,7 +285,7 @@ const StationCard = memo(function StationCard({
         onClick={() => (focus ? spotlightFocus(id) : select({ kind: 'station', id }))}
         onDoubleClick={() => !focus && roleForStation(id) && openStaffDesk(id)}
         aria-pressed={selected}
-        aria-label={`${title}: ${statusLabel(sv.status)}, ${sv.queueLength} ${unit}${working ? `, ${bm('working')}` : ''}${heatText ? `. ${wm('heatLabel')}: ${heatText}` : ''}`}
+        aria-label={`${title}: ${statusLabel(sv.status)}, ${sv.queueLength} ${unit}${working ? `, ${bm('working', { n: working })}` : ''}${heatText ? `. ${wm('heatLabel')}: ${heatText}` : ''}`}
         data-testid={`station-${id}`}
         data-status={sv.status}
         data-heat={heat ?? undefined}
@@ -312,12 +313,6 @@ const StationCard = memo(function StationCard({
           )}
           <div className="min-w-0 flex-1 text-right">
             <div className="flex items-center justify-end gap-1">
-              {working && (
-                <span className="shrink-0 rounded-full bg-emerald-500/20 px-1 py-px text-[8.5px] font-semibold leading-tight text-emerald-300" title={bm('workingHint')} data-testid={`working-${id}`}>
-                  <span className="mr-0.5 inline-block h-1 w-1 animate-pulse rounded-full bg-emerald-300 align-middle" />
-                  {bm('working')}
-                </span>
-              )}
               <div className={`text-[21px] font-bold leading-none tabular-nums ${heat && sv.queueLength > 0 ? HEAT_TEXT[heat] : sv.queueLength > 0 ? (sv.status === 'CONGESTED' || sv.status === 'ALERT' ? 'text-amber-300' : 'text-slate-100') : 'text-slate-600'}`} data-testid={`queue-${id}`}>
                 {sv.queueLength}
               </div>
@@ -325,8 +320,21 @@ const StationCard = memo(function StationCard({
             {/* The unit and the status share a line, so a two-line name never pushes them into the staff and chapter row. */}
             <div className="mt-0.5 truncate text-[9.5px] leading-tight">
               <span className="text-slate-500">{unit}</span>
-              <span className="text-slate-600"> · </span>
-              <span className={`font-medium ${STATUS_TEXT_CLASS[sv.status]}`}>{statusLabel(sv.status)}</span>
+              {working > 0 && (
+                <>
+                  <span className="text-slate-600"> · </span>
+                  <span className="font-semibold text-emerald-300" title={bm('workingHint')} data-testid={`working-${id}`}>
+                    <span className="mr-0.5 inline-block h-1 w-1 animate-pulse rounded-full bg-emerald-300 align-middle" />
+                    {bm('working', { n: working })}
+                  </span>
+                </>
+              )}
+              {showStatus && (
+                <>
+                  <span className="text-slate-600"> · </span>
+                  <span className={`font-medium ${STATUS_TEXT_CLASS[sv.status]}`}>{statusLabel(sv.status)}</span>
+                </>
+              )}
             </div>
           </div>
         </div>

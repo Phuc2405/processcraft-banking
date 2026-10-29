@@ -195,7 +195,7 @@ function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Ma
       person.current.visible = r !== null;
       if (r) {
         // On the pavement they step aside for others rather than walk into them (sidewalk.ts).
-        const [x, z] = sidewalk.place(`rider-${v.id}`, r.x, r.z, motion.dt);
+        const [x, z] = sidewalk.place(`rider-${v.id}`, r.x, r.z, motion.dt, !r.walking);
         person.current.position.set(x, 0, z);
         person.current.rotation.y = r.heading;
       } else sidewalk.leave(`rider-${v.id}`);
@@ -300,7 +300,7 @@ function BusPeople({ v, index, live }: { v: Vehicle; index: number; live: { stat
       if (g) {
         g.visible = !!r;
         if (r) {
-          const [x, z] = sidewalk.place(`bus-${id}`, r.x, r.z, motion.dt);
+          const [x, z] = sidewalk.place(`bus-${id}`, r.x, r.z, motion.dt, !r.walking);
           g.position.set(x, 0, z);
           g.rotation.y = r.heading;
         } else sidewalk.leave(`bus-${id}`);

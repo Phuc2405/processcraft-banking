@@ -1,7 +1,8 @@
 import { flowPlaces, flowScope } from '../../../sim/guidedFlows';
 import type { PlaceId } from '../../../sim/topology';
 import type { FlowId } from '../../../types/viewport';
-import { COUNTER, LANES, STREET, type Pose, type V2 } from './layout3d';
+import { DAY_START, EOD_START } from '../../../sim/clock';
+import { COUNTER, FRONT_AISLE_Z, KERB_Z, LANES, MAIN_GATE, STREET, type Pose, type V2 } from './layout3d';
 import { pathLength, pointAlongPath } from './tour3d';
 
 /**
@@ -97,21 +98,63 @@ export const isOffShift = (activity: string): boolean => /^(Off shift|Desk close
 /** How fast staff walk out, in world units a second. */
 export const LEAVE_SPEED = 1.4;
 
+/** The pavement's inner walking lane (clear of the ATM booths and the guard's cabin), where staff come and go. */
+const STAFF_LANE_Z = KERB_Z - 0.85;
+
 /**
  * The way out for someone seated at `seat` (relative to the desk at `pose`): up from the chair, along the back of the counter
- * to its end, down the aisle beside the desk to the front of the branch, and out onto the pavement.
+ * to its end, down the aisle beside the desk to the clear aisle along the front of the hall, along it to the main entrance,
+ * out onto the pavement and off down the street (`k` odd to the left, even to the right). Every leg runs straight along x
+ * or z: never through a desk, the front wall or an ATM booth.
  */
-export function leaveRoute(pose: Pose, seat: V2): V2[] {
+export function leaveRoute(pose: Pose, seat: V2, k = 0): V2[] {
   const sx = pose.x + seat[0];
   const sz = pose.z + seat[1];
   const aisle = pose.x + COUNTER.w / 2 + 0.55;
+  const end = (k % 2 ? -1 : 1) * (STREET.halfWidth + 1.5);
   return [
     [sx, sz],
     [aisle, sz],
-    [aisle, STREET.z0 + 0.6],
-    [aisle, STREET.z0 + 1.7],
+    [aisle, FRONT_AISLE_Z],
+    [MAIN_GATE.x, FRONT_AISLE_Z],
+    [MAIN_GATE.x, STAFF_LANE_Z],
+    [end, STAFF_LANE_Z],
   ];
 }
+
+/**
+ * Staff coming in before their shift: the day's staff in the first half hour of the day (08:00 to 08:30), seated well before
+ * the doors open at 09:00; the night's an hour to half an hour before the night's work starts at 23:00 (22:00 to 22:30).
+ */
+export const STAFF_ARRIVAL = { day: [DAY_START, DAY_START + 30], night: [EOD_START - 60, EOD_START - 30] } as const;
+
+/** The minute the `k`th member of staff at a desk sets off for work: spread through their shift's arrival window, steady per person. */
+export function arrivalMinute(night: boolean, seed: string, k: number): number {
+  const [from, by] = night ? STAFF_ARRIVAL.night : STAFF_ARRIVAL.day;
+  let h = k * 7;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 9973;
+  return from + ((h % 97) / 97) * (by - from - 4);
+}
+
+/**
+ * At `minute`, who of a desk's staff (`ids`, in seat order) is not in yet (`away`: their shift's arrival window has begun
+ * and their time to set off has not come), and, at a night desk, who has come in and sits ready before the night's work
+ * starts (`early`: the simulation still has them off shift until 23:00).
+ */
+export function arrivalState(night: boolean, ids: readonly string[], minute: number): { away: string[]; early: string[] } {
+  const [from] = night ? STAFF_ARRIVAL.night : STAFF_ARRIVAL.day;
+  const away: string[] = [];
+  const early: string[] = [];
+  ids.forEach((id, k) => {
+    const due = arrivalMinute(night, id, k);
+    if (minute >= from && minute < due) away.push(id);
+    else if (night && minute >= due && minute < EOD_START) early.push(id);
+  });
+  return { away, early };
+}
+
+/** The way in to `seat`: the way out walked backwards, from down the street, in at the main entrance, to the chair. */
+export const arriveRoute = (pose: Pose, seat: V2, k = 0): V2[] => leaveRoute(pose, seat, k).reverse();
 
 /** Where someone on `route` is after walking for `t` seconds, which way they face, and whether they are out. */
 export function leaveAt(route: readonly V2[], t: number): { at: V2; heading: number; done: boolean } {

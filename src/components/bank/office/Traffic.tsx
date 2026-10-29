@@ -8,7 +8,7 @@ import type { Move, PacketKind } from '../../../sim/types';
 import { bankStore, useBankStore } from '../../../store/bankStore';
 import { CustomerFigure, phaseOf } from './Avatars';
 import { box, cyl, merge, shade, tint, type Part } from './kit';
-import { arrivalPath, atmBooth, atmExitPath, customerShirt, hopHeight, hopTiming, laneAt, laneLength, packetLane, WALKER_STATIONS, type V2 } from './layout3d';
+import { arrivalPath, customerShirt, hopHeight, hopTiming, laneAt, laneLength, packetLane, WALKER_STATIONS, type V2 } from './layout3d';
 import { glow } from './materials';
 import { PACKET_HEX } from './palette';
 import { motion, motionNow } from './motion';
@@ -323,59 +323,6 @@ export const Arrivals = memo(function Arrivals() {
   );
 });
 
-/** How many people can be walking away from the ATMs at once, and how fast they go. */
-const MAX_LEAVERS = 6;
-export const LEAVE_PACE = 0.9;
-/** How long someone finishing at the machine takes to put their card and cash away and turn round before walking off. */
+/** How long someone finishing at the machine takes to put their card and cash away and turn round before walking off (the
+ * served customer walks away from the desk itself: ServedCustomer in Desk3D). */
 export const ATM_TURN_S = 0.8;
-
-/**
- * Customers walking away from the sidewalk ATMs. Each time a machine finishes with someone (its count of the day goes up), that
- * person takes their card and cash, turns round from the panel, walks along the inside of the booth to the gap by the rope,
- * out onto the pavement and off down the street: nobody vanishes at the machine. They walk on the motion clock, so they stop
- * where they are on pause.
- */
-export const AtmLeavers = memo(function AtmLeavers() {
-  const tick = useBankStore((s) => s.view.tick);
-  const walks = useRef<Walk[]>([]);
-  const seen = useRef<Partial<Record<string, number>>>({});
-  const pool = useRef<Array<Group | null>>([]);
-
-  useEffect(() => {
-    const state = bankStore.getState();
-    for (const [n, id] of ATM_STATIONS.entries()) {
-      const done = state.view.stations[id].stats.processedToday;
-      const before = seen.current[id];
-      seen.current[id] = done;
-      // The first look, and a new day's reset, set nobody walking.
-      if (before === undefined || done <= before) continue;
-      for (let k = 0; k < Math.min(2, done - before); k++) {
-        const slot = freeSlot(walks.current, MAX_LEAVERS);
-        if (slot < 0) break;
-        // A moment at the machine first (turning round), then off: the walk starts with a short pause at the panel.
-        const b = atmBooth(id);
-        const kx = (b.x0 + b.x1) / 2;
-        const path: V2[] = [[kx, b.head - 0.01], ...atmExitPath(id)];
-        walks.current.push({ path, length: laneLength(path), start: motion.t + ATM_TURN_S + k * 1.6 + n * 0.3, pace: LEAVE_PACE, slot });
-      }
-    }
-  }, [tick]);
-
-  useFrame(() => placeWalkers(walks.current, pool.current, 'atm-leaver'));
-
-  return (
-    <group name="office-atm-leavers">
-      {Array.from({ length: MAX_LEAVERS }, (_, i) => (
-        <group
-          key={i}
-          ref={(g) => {
-            pool.current[i] = g;
-          }}
-          visible={false}
-        >
-          <CustomerFigure index={i * 11 + 5} shirt={customerShirt(i * 5 + 2)} phase={phaseOf(`atm-leaver-${i}`)} walking />
-        </group>
-      ))}
-    </group>
-  );
-});

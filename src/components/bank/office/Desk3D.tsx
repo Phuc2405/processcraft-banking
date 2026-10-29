@@ -1,5 +1,5 @@
 import { useMessages } from '../../../utils/i18nHelper';
-import { isWorking } from '../deskActivity';
+import { statusAfterWorking, workingCount } from '../deskActivity';
 import { deskBadgeMessages } from '../deskBadge.messages';
 import { ATM_TURN_S } from './Traffic';
 import { Html } from '@react-three/drei';
@@ -13,19 +13,21 @@ import { useTerms } from '../useTerms';
 import { CustomerFigure, SeatedAvatar } from './Avatars';
 import { deskGlow, deskSolid, isPodium, SURFACE } from './desks';
 import { box, merge } from './kit';
-import { COUNTER, LANE_LABELS, QUEUE_VISIBLE, WING, accentOf, customerShirt, deskPose, hasWing, queueSlots, queueStyle, seatOffsets, surgeLevel, wingPose, type V2 } from './layout3d';
+import { COUNTER, LANE_LABELS, QUEUE_VISIBLE, WING, accentOf, customerShirt, deskPose, hasWing, laneAt, laneLength, queueSlots, queueStyle, seatOffsets, surgeLevel, wingPose, type V2 } from './layout3d';
 import { blobMaterial, glow, solid } from './materials';
 import { STATUS_HEX } from './palette';
 import { cursor } from './cursor';
 import { isAutomatedNode } from '../../../sim/nodeKind';
 import { ServerRack3D } from './ServerRack3D';
-import { badgeRect, isOffShift, leaveAt, leaveRoute, tipSide3d, type TipSide3d } from './focus3d';
+import { arriveRoute, arrivalState, badgeRect, isOffShift, leaveAt, leaveRoute, tipSide3d, type TipSide3d } from './focus3d';
+import { isNightStation } from '../../../sim/roster';
 import { useFocusFade } from './useFocusFade';
 import { t } from '../../../i18n/t';
 import { routingRules } from '../routingRules';
 import { statusLabel } from '../ui';
 import { motion } from './motion';
-import { CUSTOMER_DESKS, isClosed } from './evacuation';
+import { CUSTOMER_DESKS, isClosed, servedExit } from './evacuation';
+import { sidewalk } from './sidewalk';
 
 export { cursor } from './cursor';
 
@@ -164,18 +166,24 @@ function DeskBody({ id, accent }: { id: StationId; accent: string }) {
  * Who works the desk: people on a human desk, server racks on an automated node (sim/nodeKind.ts). A rack stands in the seat
  * of the thread it represents, so the count follows the engine's workers and clicking a rack selects that thread.
  */
-/** Who is walking home from a desk: their seat, and how long they have been walking (seconds of drawn time). */
+/** Who is walking to or from a desk: their way (home, or in to their seat), and how long they have been walking (seconds of
+ * drawn time). */
 interface Leaver {
   id: string;
-  seat: V2;
+  route: V2[];
   t: number;
   index: number;
+  /** Coming in to work (their seat stays empty until they reach it), rather than going home. */
+  arriving?: boolean;
 }
 
 /**
- * Staff going home. When the simulation sends someone off shift (its "Off shift…" or "Desk closed…" words), they get up,
- * walk along the back of the counter, down the aisle beside the desk and out of the front of the branch onto the pavement,
- * and are gone. Someone already off shift when the office opens is simply not at their seat.
+ * Staff coming and going. When the simulation sends someone off shift (its "Off shift…" or "Desk closed…" words), they get
+ * up, walk along the back of the counter, down the aisle beside the desk, along the front of the hall and out of the main
+ * entrance, and off down the street. Before their shift they come the same way in (focus3d.STAFF_ARRIVAL): the day's staff
+ * between 08:00 and 08:30, the night's between 22:00 and 22:30, each walking in from down the street, through the main
+ * entrance and up the aisles to their chair, and sitting down. Someone already off shift when the office opens is simply
+ * not at their seat.
  */
 function LeavingStaff({ id, accent, leavers, onGone }: { id: StationId; accent: string; leavers: readonly Leaver[]; onGone: (who: string) => void }) {
   const pose = useMemo(() => deskPose(id), [id]);
@@ -190,7 +198,7 @@ function LeavingStaff({ id, accent, leavers, onGone }: { id: StationId; accent: 
 
 function Leaving({ leaver, pose, accent, onGone }: { leaver: Leaver; pose: ReturnType<typeof deskPose>; accent: string; onGone: (who: string) => void }) {
   const root = useRef<Group>(null);
-  const route = useMemo(() => leaveRoute(pose, leaver.seat), [pose, leaver.seat]);
+  const route = leaver.route;
   const gone = useRef(false);
   useFrame(() => {
     leaver.t += motion.dt;
@@ -215,6 +223,18 @@ function Leaving({ leaver, pose, accent, onGone }: { leaver: Leaver; pose: Retur
 function DeskStaff({ id, accent }: { id: StationId; accent: string }) {
   const workers = useBankStore((s) => s.view.stations[id].workers);
   const automated = isAutomatedNode(id);
+  const pose = useMemo(() => deskPose(id), [id]);
+  // Who is not in yet this morning (or tonight), and which of the night's staff has come in early and sits ready: as a key,
+  // so the desk only redraws when someone arrives.
+  const arrivalKey = useBankStore((s) => {
+    if (automated) return '|';
+    const st = arrivalState(isNightStation(id), s.view.stations[id].workers.map((w) => w.id), s.view.minute);
+    return `${st.away.join(',')}|${st.early.join(',')}`;
+  });
+  const [awayKey = '', earlyKey = ''] = arrivalKey.split('|');
+  const away = useMemo(() => new Set(awayKey ? awayKey.split(',') : []), [awayKey]);
+  const early = useMemo(() => new Set(earlyKey ? earlyKey.split(',') : []), [earlyKey]);
+  const wasAway = useRef<ReadonlySet<string> | null>(null);
   // Who was on shift at the last look, so someone going off shift now (not already off when the office opened) walks out.
   const onShift = useRef<Map<string, boolean> | null>(null);
   const [leavers, setLeavers] = useState<Leaver[]>([]);
@@ -223,24 +243,35 @@ function DeskStaff({ id, accent }: { id: StationId; accent: string }) {
     const was = onShift.current;
     const next = new Map(workers.map((w) => [w.id, automated || !isOffShift(w.activity)]));
     if (was) {
-      const going = workers.flatMap((w, i) => (was.get(w.id) === true && next.get(w.id) === false && seatsNow[i] ? [{ id: w.id, seat: seatsNow[i]!, t: 0, index: i }] : []));
+      const going = workers.flatMap((w, i) => (was.get(w.id) === true && next.get(w.id) === false && seatsNow[i] ? [{ id: w.id, route: leaveRoute(pose, seatsNow[i]!, i), t: 0, index: i }] : []));
       if (going.length) setLeavers((l) => [...l.filter((x) => !going.some((g) => g.id === x.id)), ...going]);
       // Back on shift (the next morning): no longer walking out.
       const back = workers.filter((w) => was.get(w.id) === false && next.get(w.id) === true).map((w) => w.id);
       if (back.length) setLeavers((l) => l.filter((x) => !back.includes(x.id)));
     }
     onShift.current = next;
-  }, [workers, automated, seatsNow]);
+  }, [workers, automated, seatsNow, pose]);
+  useEffect(() => {
+    // Someone whose time to come in has just come (while the office was watching) walks in to their seat.
+    const was = wasAway.current;
+    wasAway.current = away;
+    if (!was || automated) return;
+    const coming = workers.flatMap((w, i) => (was.has(w.id) && !away.has(w.id) && seatsNow[i] ? [{ id: w.id, route: arriveRoute(pose, seatsNow[i]!, i), t: 0, index: i, arriving: true }] : []));
+    if (coming.length) setLeavers((l) => [...l.filter((x) => !coming.some((c) => c.id === x.id)), ...coming]);
+    // Read when the arrivals change; the desk's people and seats as they stand then.
+  }, [away]); // eslint-disable-line react-hooks/exhaustive-deps
   const gone = useMemo(() => (who: string) => setLeavers((l) => l.filter((x) => x.id !== who)), []);
+  // Empty seats: not in yet, or still on the way in.
+  const absent = useMemo(() => new Set([...away, ...leavers.filter((l) => l.arriving).map((l) => l.id)]), [away, leavers]);
   return (
     <>
-      <DeskSeats id={id} accent={accent} />
+      <DeskSeats id={id} accent={accent} absent={absent} early={early} />
       {!automated && leavers.length > 0 && <LeavingStaff id={id} accent={accent} leavers={leavers} onGone={gone} />}
     </>
   );
 }
 
-function DeskSeats({ id, accent }: { id: StationId; accent: string }) {
+function DeskSeats({ id, accent, absent, early }: { id: StationId; accent: string; absent: ReadonlySet<string>; early: ReadonlySet<string> }) {
   const workers = useBankStore((s) => s.view.stations[id].workers);
   const surge = useBankStore((s) => surgeLevel(s.view.stations[id].queueLength, s.view.stations[id].status));
   const selectedWorker = useBankStore((s) => (s.selection.kind === 'worker' && s.selection.station === id ? s.selection.workerId : null));
@@ -251,8 +282,8 @@ function DeskSeats({ id, accent }: { id: StationId; accent: string }) {
     <>
       {workers.map((w, i) => {
         const seat = seats[i];
-        // Gone home: the chair is empty (a machine is never off shift).
-        if (!seat || (!automated && isOffShift(w.activity))) return null;
+        // Gone home, or not in yet: the chair is empty (a machine is never off shift). The night's staff, in early, sit ready.
+        if (!seat || absent.has(w.id) || (!automated && isOffShift(w.activity) && !early.has(w.id))) return null;
         return (
           <group key={w.id} position={[seat[0], 0, seat[1]]}>
             {automated ? (
@@ -329,6 +360,85 @@ function AtmUser({ index, shirt, phase }: { index: number; shirt: string; phase:
 export const atmPress = (t: number): number => 0.42 + 0.05 * Math.max(0, Math.sin(t * 9));
 
 /**
+ * The customer at the front of a counter's line, talking to the teller: the right hand comes up now and then as they
+ * explain, and goes back down while they listen. Standing still on their spot (only the arm moves).
+ */
+function CounterUser({ index, shirt, phase }: { index: number; shirt: string; phase: number }) {
+  const hand = useMemo(() => ({ current: 0 }), []);
+  useFrame(() => {
+    hand.current = counterGesture(motion.t + phase);
+  });
+  return <CustomerFigure index={index} shirt={shirt} phase={phase} walking stride={0} raise={hand} />;
+}
+
+/** How far the hand is up while talking at a counter at time `t`: down while listening, a little up and moving while speaking. */
+export const counterGesture = (t: number): number => (Math.sin(t * 0.8) > 0 ? 0.1 + 0.08 * Math.max(0, Math.sin(t * 3.1)) : 0);
+
+/**
+ * When someone has been served: how long they stay at the counter (finishing up) or the machine (taking their card and
+ * cash) before walking off, the last `turn` of it turning round to face the way out; and how fast they walk away.
+ */
+export const SERVED = { counter: 1.1, atm: ATM_TURN_S, turn: 0.45, pace: 0.95 } as const;
+
+interface Served {
+  key: number;
+  /** Who they are (their look), the same as when they stood in the line. */
+  who: number;
+  path: V2[];
+  length: number;
+  start: number;
+  wait: number;
+}
+
+const wrapAngle = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
+
+/**
+ * Someone just served at a desk: on the spot where they were served, facing the counter or machine for a moment, then
+ * turning round and walking away along their way out (servedExit), until they are out of the branch or off down the street.
+ * Positions are the desk's own (the group sits at the desk), worked out from the way out in the world. On the motion clock.
+ */
+function ServedCustomer({ id, s, onGone }: { id: StationId; s: Served; onGone: (key: number) => void }) {
+  const pose = useMemo(() => deskPose(id), [id]);
+  const g = useRef<Group>(null);
+  const stride = useMemo(() => ({ current: 0 }), []);
+  const who = `served-${id}-${s.key}`;
+  useEffect(() => () => sidewalk.leave(who), [who]);
+  useFrame(() => {
+    const el = g.current;
+    if (!el) return;
+    const t = motion.t - s.start;
+    if (t < s.wait) {
+      // Still at the counter, then turning round to the way out (never a snap).
+      const [x, z] = s.path[0]!;
+      el.position.set(x - pose.x, 0, z - pose.z);
+      const out = laneAt(s.path, 0.05).heading + Math.PI / 2;
+      const u = Math.max(0, Math.min(1, (t - (s.wait - SERVED.turn)) / SERVED.turn));
+      el.rotation.y = Math.PI + wrapAngle(out - Math.PI) * u * u * (3 - 2 * u);
+      stride.current = 0;
+      return;
+    }
+    const d = (t - s.wait) * SERVED.pace;
+    if (d >= s.length) {
+      el.visible = false;
+      onGone(s.key);
+      return;
+    }
+    const p = laneAt(s.path, d);
+    // On the pavement they curve round the others there (sidewalk.ts).
+    const [x, z] = sidewalk.place(who, p.x, p.z, motion.dt);
+    el.position.set(x - pose.x, 0, z - pose.z);
+    el.rotation.y = p.heading + Math.PI / 2;
+    stride.current = 1;
+  });
+  const [x, z] = s.path[0]!;
+  return (
+    <group ref={g} position={[x - pose.x, 0, z - pose.z]} rotation={[0, Math.PI, 0]}>
+      <CustomerFigure index={s.who} shirt={customerShirt(s.who * 3 + 1)} phase={s.key * 0.7} walking stride={stride} />
+    </group>
+  );
+}
+
+/**
  * A case waiting at an internal desk: a wire tray on a short stand with a few case folders in it, a coloured tab on top.
  * Only the bank's own staff and systems work these desks, so what queues there is paperwork, never a customer.
  */
@@ -370,9 +480,10 @@ export const STEP_UP_PACE = 0.9;
 
 /**
  * What waits at the front of the counter: customers at the desks customers come to (at an ATM, the one at the machine
- * keying in), phones at a digital gate, case files at an internal desk. Each place takes the look of whoever is next in
- * line, and when the one in front is served everyone walks up a place (on the motion clock): at an ATM, the next in the
- * line behind the rope steps up to the machine.
+ * keying in; at a counter, the one at the front talking to the teller), phones at a digital gate, case files at an internal
+ * desk. Each place takes the look of whoever is next in line. When the one in front is served they finish up, turn round
+ * and walk away (ServedCustomer: nobody vanishes at a counter or a machine), and once they have stepped clear everyone
+ * walks up a place (on the motion clock): at an ATM, the next in the line behind the rope steps up to the machine.
  */
 export function DeskQueue({ id }: { id: StationId }) {
   // After closing time nobody queues at a customer desk (they walked out at 17:00: see Evacuation).
@@ -389,18 +500,38 @@ export function DeskQueue({ id }: { id: StationId }) {
   const placed = useRef<boolean[]>([]);
   const last = useRef(processed);
   const hold = useRef(0);
+  const [leaving, setLeaving] = useState<readonly Served[]>([]);
+  const nextKey = useRef(0);
+  const wasShown = useRef(0);
+  const atm = STATIONS[id].kind === 'ATM';
   useEffect(() => {
     const served = processed - last.current;
+    const before = last.current;
     last.current = processed;
     if (served <= 0 || style === 'files') return;
-    // Everyone left in line was `served` places further back: they walk up from there. At an ATM they wait for the one who
-    // has finished to turn round and step away from the machine first.
-    hold.current = motion.t + (STATIONS[id].kind === 'ATM' ? ATM_TURN_S + 0.7 : 0.2);
+    // Whoever was served (those who were at the front, up to two in a beat) finishes up, turns round and walks away.
+    if (style === 'people' && !closedHere) {
+      const wait = atm ? SERVED.atm : SERVED.counter;
+      const out: Served[] = [];
+      for (let j = 0; j < Math.min(2, served, wasShown.current); j++) {
+        const path = servedExit(id, j);
+        out.push({ key: nextKey.current++, who: before + j + salt, path, length: laneLength(path), start: motion.t + j * 0.6, wait });
+      }
+      if (out.length) setLeaving((list) => [...list, ...out].slice(-4));
+    }
+    // Everyone left in line was `served` places further back: they walk up from there, once the one who has finished has
+    // turned round and stepped away from the machine or the counter.
+    hold.current = motion.t + (atm ? SERVED.atm : SERVED.counter) + 0.7;
     groups.current.forEach((g, i) => {
       const from = slots[i + served];
       if (g && from && placed.current[i]) g.position.set(from[0], 0, from[1]);
     });
   }, [processed, slots, style, id]);
+  // How many stood in line as the last count of served came in (read above before it is brought up to date here).
+  useEffect(() => {
+    wasShown.current = shown;
+  }, [shown]);
+  const gone = useMemo(() => (key: number) => setLeaving((list) => list.filter((s) => s.key !== key)), []);
   useFrame(() => {
     const step = motion.t < hold.current ? 0 : STEP_UP_PACE * motion.dt;
     groups.current.forEach((g, i) => {
@@ -435,14 +566,19 @@ export function DeskQueue({ id }: { id: StationId }) {
               <PhoneToken phase={i * 0.9 + salt} />
             ) : style === 'files' ? (
               <FileToken phase={i * 0.9 + salt} tab={accentOf(id)} />
-            ) : i === 0 && STATIONS[id].kind === 'ATM' ? (
+            ) : i === 0 && atm ? (
               <AtmUser index={who} shirt={customerShirt(who * 3 + 1)} phase={salt} />
+            ) : i === 0 ? (
+              <CounterUser index={who} shirt={customerShirt(who * 3 + 1)} phase={salt} />
             ) : (
               <CustomerFigure index={who} shirt={customerShirt(who * 3 + 1)} phase={i * 0.9 + salt} />
             )}
           </group>
         );
       })}
+      {leaving.map((s) => (
+        <ServedCustomer key={s.key} id={id} s={s} onGone={gone} />
+      ))}
     </>
   );
 }
@@ -454,7 +590,7 @@ export function DeskQueue({ id }: { id: StationId }) {
 export function DeskPin({ id, height }: { id: StationId; height?: number }) {
   const status = useBankStore((s) => s.view.stations[id].status);
   const queueLength = useBankStore((s) => s.view.stations[id].queueLength);
-  const working = useBankStore((s) => isWorking(s.view.stations[id]));
+  const working = useBankStore((s) => workingCount(s.view.stations[id]));
   const selected = useBankStore((s) => s.selection.kind === 'station' && s.selection.id === id);
   const always = useBankStore((s) => s.labelMode === 'always');
   const hovered = useBankStore((s) => s.hoverPlace === id);
@@ -521,7 +657,7 @@ function useTipPlacement(id: StationId, top: number): { side: TipSide3d; at: [nu
 function DeskTooltip3D({ id, top }: { id: StationId; top: number }) {
   const status = useBankStore((s) => s.view.stations[id].status);
   const queueLength = useBankStore((s) => s.view.stations[id].queueLength);
-  const working = useBankStore((s) => isWorking(s.view.stations[id]));
+  const working = useBankStore((s) => workingCount(s.view.stations[id]));
   const bm = useMessages(deskBadgeMessages);
   const terms = useTerms();
   const rules = routingRules(id);
@@ -556,7 +692,8 @@ function DeskTooltip3D({ id, top }: { id: StationId; top: number }) {
         )}
         <span className="mt-1.5 inline-block rounded bg-slate-800 px-1.5 py-px text-[11px] font-semibold text-slate-200">
           {queueLength} {t('waiting')}
-          {working ? ` · ${bm('working')}` : ''} · {statusLabel(status)}
+          {working > 0 ? ` · ${bm('working', { n: working })}` : ''}
+          {statusAfterWorking(status, working) ? ` · ${statusLabel(status)}` : ''}
         </span>
       </div>
     </Html>
@@ -565,9 +702,10 @@ function DeskTooltip3D({ id, top }: { id: StationId; top: number }) {
 
 /**
  * The badge itself: the status dot, the desk's name, how many are waiting ("3 waiting", amber when anyone is), and beside it
- * a green "Working" while a case is being worked on at the counter, so a busy desk with an empty queue never reads as idle.
+ * a green "2 working" while cases are being worked on at the counter, so a busy desk with an empty queue never reads as
+ * idle: "X waiting · Y working", the same as the 2D map's desk cards.
  */
-function PinBadge({ id, top, status, queueLength, working, selected, name }: { id: StationId; top: number; status: keyof typeof STATUS_HEX; queueLength: number; working: boolean; selected: boolean; name: string }) {
+function PinBadge({ id, top, status, queueLength, working, selected, name }: { id: StationId; top: number; status: keyof typeof STATUS_HEX; queueLength: number; working: number; selected: boolean; name: string }) {
   const bm = useMessages(deskBadgeMessages);
   return (
     <Html position={[0, top, 0.1]} center zIndexRange={[20, 0]}>
@@ -584,10 +722,10 @@ function PinBadge({ id, top, status, queueLength, working, selected, name }: { i
         <span className="min-w-[16px] shrink-0 rounded-full px-1 text-center tabular-nums" style={queueLength > 0 ? { background: '#fde68a', color: '#78350f' } : { background: '#e2e8f0', color: '#64748b' }} data-testid={`pin-waiting-${id}`}>
           {queueLength} {t('waiting')}
         </span>
-        {working && (
+        {working > 0 && (
           <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-100 px-1 text-emerald-800" data-testid={`pin-working-${id}`}>
             <span className="h-1 w-1 animate-pulse rounded-full bg-emerald-500" />
-            {bm('working')}
+            {bm('working', { n: working })}
           </span>
         )}
       </button>

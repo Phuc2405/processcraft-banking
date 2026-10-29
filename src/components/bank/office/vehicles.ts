@@ -128,6 +128,8 @@ const MERGE_BEFORE = 28;
 const KERB_MISS = 4;
 /** How much clear kerb lane a drop-off pulling over needs behind it (beyond what anything faster coming up will close). */
 const DROP_BEHIND = 2;
+/** Below this speed, with traffic close in front, a vehicle is held up: a drop-off pulls over right there. */
+const HALTED = 2;
 
 export interface VehicleState {
   x: number;
@@ -212,7 +214,9 @@ export class TrafficSim {
    * nearest place it can brake to in comfort, if nothing in its lane is in the way; or, held up behind a vehicle standing
    * at the kerb, right where it is (the passenger gets out there rather than waiting, or being driven on down the street).
    * Out in the car lane: as soon as the kerb lane beside and ahead of it is clear, the place just far enough on to signal,
-   * move across and brake, so it pulls straight over. Never in the bus stop's box. Null while there is none yet.
+   * move across and brake, so it pulls straight over; and when traffic ahead brings it to a crawl or a halt, the kerb lane
+   * right beside it, if that is clear: it signals and moves across where it stands, and the passenger gets out there instead
+   * of sitting in the queue. Never in the bus stop's box. Null while there is none yet.
    */
   private findSpot(c: Driving): number | null {
     const along = mod(c.s, SPAN);
@@ -228,7 +232,13 @@ export class TrafficSim {
       const here = along + Math.max(0, gap - MIN_GAP - 0.05);
       return held && ok(here) ? here : null;
     }
-    if (c.lane !== c.lat || c.wants !== null) return null;
+    if (c.lane !== c.lat || (c.wants !== null && c.wants !== 0)) return null;
+    // Held up by the traffic in front: straight across into the kerb lane beside it, if that is clear.
+    const { gap, lead } = this.gapAhead(c);
+    if (lead !== null && c.speed < HALTED && gap < OVERTAKE.look) {
+      const near = Math.max(brake, 1);
+      if (ok(along + near) && this.laneClear(c, 0, DROP_BEHIND, near + 1)) return along + near;
+    }
     // From the car lane: the indicator, the move across, and the braking all fit before the spot.
     const need = Math.max(brake, c.speed * (OVERTAKE.signal + OVERTAKE.shift) + KERB_MISS + 0.5);
     if (!ok(along + need)) return null;
@@ -306,13 +316,17 @@ export class TrafficSim {
       const at = c.doneLap < lap ? this.stopOf(c, lap) : null;
       let pending = at !== null ? at - along : null;
       if (pending !== null && pending >= 0 && pending < MERGE_BEFORE) kerbBound = true;
-      this.steer(c, kerbBound, dropping ? DROP_BEHIND : OVERTAKE.behind);
+      // A drop-off only needs the kerb lane clear as far as its spot (it stops there).
+      const kerbAhead = dropping && pending !== null ? Math.min(OVERTAKE.beyond, Math.max(1, pending + 1)) : OVERTAKE.beyond;
+      this.steer(c, kerbBound, dropping ? DROP_BEHIND : OVERTAKE.behind, kerbAhead);
       // Move across towards its lane.
       const step = h / OVERTAKE.shift;
       c.lat = Math.abs(c.lane - c.lat) <= step ? c.lane : c.lat + Math.sign(c.lane - c.lat) * step;
       // A vehicle stops at the kerb only from the kerb lane. Still out in the car lane as its stop comes up (the kerb lane
       // was never clear), it gives the stop a miss this time round and drives on: nobody is let out across the traffic.
-      if (pending !== null && c.lane !== 0 && pending < KERB_MISS) {
+      // (A drop-off held up in traffic, signalling across to a spot right beside it, is let finish the move.)
+      const crossing = dropping && c.wants === 0 && c.speed < HALTED;
+      if (pending !== null && c.lane !== 0 && pending < KERB_MISS && !crossing) {
         c.doneLap = lap;
         pending = null;
       }
@@ -350,7 +364,7 @@ export class TrafficSim {
    * clear (indicator first, then across); and back to its own lane once that is clear again. A move only starts when the
    * lane it is going to is clear behind and ahead, and only after the indicator has blinked for a moment.
    */
-  private steer(c: Driving, kerbBound: boolean, kerbBehind: number = OVERTAKE.behind): void {
+  private steer(c: Driving, kerbBound: boolean, kerbBehind: number = OVERTAKE.behind, kerbAhead: number = OVERTAKE.beyond): void {
     const home = homeLane(c.v);
     const other = (1 - c.lane) as LaneIndex;
     let want: LaneIndex | null = null;
@@ -376,7 +390,7 @@ export class TrafficSim {
     }
     if (want !== null && want === c.lane) want = null;
     if (want !== null && want !== 0 && kerbBound) want = null;
-    if (want === 0 && kerbBound && !this.laneClear(c, 0, kerbBehind, OVERTAKE.beyond)) want = null;
+    if (want === 0 && kerbBound && !this.laneClear(c, 0, kerbBehind, kerbAhead)) want = null;
     if (want === null) {
       c.wants = null;
       return;

@@ -27,6 +27,7 @@ import {
   FLOOR_SLAB,
   HOME_TARGET,
   ISO_AZIMUTH,
+  EYE_POLAR,
   ISO_POLAR,
   LANES,
   LANE_LABELS,
@@ -47,7 +48,7 @@ import {
 } from './layout3d';
 import { tape } from './materials';
 import { LANE_STYLE, laneKind, SET } from './palette';
-import { Arrivals, AtmLeavers, Packets } from './Traffic';
+import { Arrivals, Packets } from './Traffic';
 import { SignalPulses } from './SignalPulses';
 import { GuardCabin3D } from './GuardCabin3D';
 import { TOUR_DAYLIGHT, TOUR_GLIDE_MS, type CamFocus } from './tour3d';
@@ -73,12 +74,19 @@ type Controls = {
 const RESET_MS = 520;
 const easeInOut = (u: number): number => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
 
-/** The height of the camera above the point it looks at, and how far it stands from it on the floor. They never change: the tilt is fixed. */
+/** The height of the camera above the point it looks at, and how far it stands from it on the floor, at the isometric tilt;
+ * and how far it stands from that point, whatever the tilt. */
 const CAM_HEIGHT = CAMERA_DISTANCE / Math.sqrt(CAMERA_DIRECTION[0] ** 2 + CAMERA_DIRECTION[1] ** 2 + 1);
 const CAM_REACH = CAM_HEIGHT * Math.hypot(CAMERA_DIRECTION[0], CAMERA_DIRECTION[1]);
+const CAM_RADIUS = Math.hypot(CAM_HEIGHT, CAM_REACH);
 
-/** Where the camera stands to look at `target` from the direction `az` (radians round the vertical axis, 0 = straight in front). */
-const standAt = (target: Vector3, az: number): Vector3 => new Vector3(target.x + Math.sin(az) * CAM_REACH, CAM_HEIGHT, target.z + Math.cos(az) * CAM_REACH);
+/** Where the camera stands to look at `target` from the direction `az` (radians round the vertical axis, 0 = straight in
+ * front), tilted `polar` from straight up (the isometric tilt unless the learner has lowered the view). */
+const standAt = (target: Vector3, az: number, polar: number = ISO_POLAR): Vector3 =>
+  new Vector3(target.x + Math.sin(az) * Math.sin(polar) * CAM_RADIUS, target.y + Math.cos(polar) * CAM_RADIUS, target.z + Math.cos(az) * Math.sin(polar) * CAM_RADIUS);
+
+/** The camera's tilt from straight up, looking at `target`. */
+const polarOf = (camera: Vector3, target: Vector3): number => Math.acos(Math.max(-1, Math.min(1, (camera.y - target.y) / Math.max(1e-6, camera.distanceTo(target)))));
 
 /** One camera move: the point looked at, the direction it is looked from, and the zoom all slide from where they are to where they should be. */
 interface Glide {
@@ -88,14 +96,17 @@ interface Glide {
   toTarget: Vector3;
   fromAz: number;
   toAz: number;
+  fromPolar: number;
+  toPolar: number;
   fromZoom: number;
   toZoom: number;
 }
 
 /**
- * The isometric camera. It is orthographic and always looks down at the same angle; the learner can pan (drag), zoom
- * (scroll or pinch) and swing the view a little either side (right-drag), all with damping, and cannot lose the office:
- * the point the camera looks at is kept over the floor. "Reset view" glides back to the whole office.
+ * The isometric camera. It is orthographic and looks down at the isometric angle; the learner can pan (drag), zoom (scroll
+ * or pinch), swing the view a little either side and tilt it lower, down to a nearly eye-level look across the lobby
+ * (right-drag), all with damping, and cannot lose the office: the point the camera looks at is kept over the floor. "Reset
+ * view" glides back to the whole office, at the isometric tilt.
  *
  * During a guided tour `focus` says where the camera should be for the current step. The camera dollies over the desks in play
  * and orbits a little towards them, and glides back home when the tour ends. The learner can still pan and zoom by hand
@@ -126,22 +137,24 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
   /** The point the home view looks at: the middle of the office and the pavement in front of it. */
   const homeTarget = (): Vector3 => new Vector3(HOME_TARGET[0], 0, HOME_TARGET[1]);
 
-  /** Slides the camera to look at (x, z) from direction `az` at `zoom`. */
-  function glideTo(x: number, z: number, az: number, zoom: number, ms: number): void {
+  /** Slides the camera to look at (x, z) from direction `az` at `zoom`, tilted `polar` (by default, as the learner has it). */
+  function glideTo(x: number, z: number, az: number, zoom: number, ms: number, polar?: number): void {
     const c = controls.current;
     if (!c) return;
     if (interacting.current) {
-      pendingGlide.current = [x, z, az, zoom, ms];
+      pendingGlide.current = [x, z, az, zoom, ms, polar];
       return;
     }
     const fromTarget = c.target.clone();
     const fromAz = Math.atan2(camera.position.x - fromTarget.x, camera.position.z - fromTarget.z);
+    const fromPolar = polarOf(camera.position, fromTarget);
+    const toPolar = polar ?? fromPolar;
     if (ms <= 0 || prefersReducedMotion()) {
       glide.current = null;
       c.enableDamping = false;
       c.update();
       c.target.set(x, 0, z);
-      camera.position.copy(standAt(c.target, az));
+      camera.position.copy(standAt(c.target, az, toPolar));
       camera.zoom = zoom;
       camera.updateProjectionMatrix();
       camera.lookAt(c.target);
@@ -150,7 +163,7 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
       invalidate();
       return;
     }
-    glide.current = { t0: performance.now(), ms, fromTarget, toTarget: new Vector3(x, 0, z), fromAz, toAz: az, fromZoom: camera.zoom, toZoom: zoom };
+    glide.current = { t0: performance.now(), ms, fromTarget, toTarget: new Vector3(x, 0, z), fromAz, toAz: az, fromPolar, toPolar, fromZoom: camera.zoom, toZoom: zoom };
     invalidate();
   }
 
@@ -160,7 +173,7 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
     home.current = { w: size.width, h: size.height };
     touched.current = false;
     if (animate && c) {
-      glideTo(HOME_TARGET[0], HOME_TARGET[1], ISO_AZIMUTH, zoom, RESET_MS);
+      glideTo(HOME_TARGET[0], HOME_TARGET[1], ISO_AZIMUTH, zoom, RESET_MS, ISO_POLAR);
       return;
     }
     glide.current = null;
@@ -262,7 +275,7 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
     const u = Math.min(1, (performance.now() - g.t0) / g.ms);
     const e = easeInOut(u);
     c.target.lerpVectors(g.fromTarget, g.toTarget, e);
-    camera.position.copy(standAt(c.target, g.fromAz + (g.toAz - g.fromAz) * e));
+    camera.position.copy(standAt(c.target, g.fromAz + (g.toAz - g.fromAz) * e, g.fromPolar + (g.toPolar - g.fromPolar) * e));
     // Zoom moves by a constant ratio per step of the glide, which looks even; a straight blend rushes at the end.
     camera.zoom = g.fromZoom * Math.pow(g.toZoom / g.fromZoom, e);
     camera.updateProjectionMatrix();
@@ -324,9 +337,9 @@ export function CameraRig({ resetKey, focus }: { resetKey: number; focus: CamFoc
       dampingFactor={0.1}
       enableRotate
       rotateSpeed={0.55}
-      // The view is isometric: the camera looks down at one fixed angle and may only swing a little to either side.
+      // Isometric at home; the learner may tilt it lower, to a nearly eye-level view into the lobby, and swing it a little either side.
       minPolarAngle={ISO_POLAR}
-      maxPolarAngle={ISO_POLAR}
+      maxPolarAngle={EYE_POLAR}
       minAzimuthAngle={ISO_AZIMUTH - ORBIT_RANGE}
       maxAzimuthAngle={ISO_AZIMUTH + ORBIT_RANGE}
       screenSpacePanning
@@ -886,7 +899,6 @@ export function OfficeScene({ resetKey }: { resetKey: number }) {
       {STATION_IDS.map((id) => (isMachine(id) ? <AtmKiosk key={id} id={id} /> : <Desk3D key={id} id={id} />))}
       <Kiosks />
       <Arrivals />
-      <AtmLeavers />
       <Packets />
       <SignalPulses />
       <TourStage />

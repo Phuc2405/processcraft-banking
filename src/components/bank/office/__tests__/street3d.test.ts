@@ -468,7 +468,7 @@ describe('closing time and the pause', () => {
     expect(substeps(0.5).reduce((a, b) => a + b, 0)).toBeCloseTo(0.5, 9);
     expect(substeps(0)).toEqual([]);
     // Staff, customers, passers-by, vehicles and payments all read the motion clock.
-    expect(src['../Avatars.tsx']).toContain('const t = motion.t * 9 + phase;');
+    expect(src['../Avatars.tsx']).toContain('const t = motion.t * 9 * tempo + phase;');
     expect(src['../Avatars.tsx']).toContain('const t = motion.t + seed;');
     expect(src['../Traffic.tsx']).toContain('const now = (): number => motionNow();');
     expect(src['../Vehicles3D.tsx']).toContain('for (const h of substeps(motion.dt)) sim.step(h);');

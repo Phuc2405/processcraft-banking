@@ -5,9 +5,10 @@ import { pathLength, pointAlongPath } from './tour3d';
 /**
  * The people in the park, as a small simulation the tests can step: who is there, where each one is, and how they come and
  * go. Nobody pops in or out of the park. Everyone has a place (a bench, a seat at the picnic table, a swing, or the loop
- * path for a stroller) and a way out to the street through the gap in the hedge: when they are no longer wanted there (the
- * rain comes, night falls, the evening crowd thins) they get up after a moment's look at the sky, one after another, and
- * walk out along the paths (briskly, umbrella up, in the wet); when they are wanted again they walk back in the same way.
+ * path for a stroller) and a way out to the street through the gap in the hedge: when their visit is up (about half an hour
+ * in fair weather, five to ten minutes once it rains, at once in a storm or hail), or night falls, or the evening crowd
+ * thins, they get up after a moment's look at the sky, one after another, and walk out along the paths (briskly, umbrella
+ * up, in the rain; at a run in a storm); a while later, if the day still wants them, they walk back in the same way.
  * Their walks only ever follow the paths and the open lawn: never through the fountain, a flowerbed, the picnic table or
  * the hedge.
  */
@@ -132,8 +133,8 @@ export function SWING_XS(): number[] {
 }
 
 /**
- * Who wants to be in the park at `minute`: more on the benches and paths after the bank closes at 17:00. The weather never
- * changes who is there (a shower sends nobody home and brings nobody out): it only changes what they do (ParkCrowd.step).
+ * Who wants to be in the park at `minute`: more on the benches and paths after the bank closes at 17:00. How long each of
+ * them stays on a visit, and whether they come at all, is the weather's to say (ParkCrowd.step, PARK_STAY).
  */
 export function wantsPark(m: ParkMember, minute: number): boolean {
   const h = minute / 60;
@@ -150,9 +151,26 @@ export function wantsPark(m: ParkMember, minute: number): boolean {
   }
 }
 
-/** Walking paces (units a second): an easy stroll in, a brisk walk out in the wet. And the pauses before anyone moves. */
-export const PARK_PACE = { stroll: 0.85, in: 0.9, out: 1.0, wet: 1.45 } as const;
-export const PARK_HOLD = { look: 0.7, stagger: 0.45, back: 1.2 } as const;
+/** Walking paces (units a second): an easy stroll in, a brisk walk out in the wet, a run in a storm. And the pauses before
+ * anyone moves (in a storm they hardly stop to look). */
+export const PARK_PACE = { stroll: 0.85, in: 0.9, out: 1.0, wet: 1.45, run: 2.6 } as const;
+export const PARK_HOLD = { look: 0.7, stagger: 0.45, back: 1.2, storm: 0.15 } as const;
+
+/** The weather in the park: dry; rain (or snow), umbrellas up; a storm (or hail), everyone out. */
+export type ParkSky = 'dry' | 'rain' | 'storm';
+
+/**
+ * How long a visit to the park lasts, in the bank's minutes: [shortest, longest] in fair weather and in the rain; and how
+ * long someone who has left stays away before they come back (longer in the rain). In a storm nobody stays or comes.
+ */
+export const PARK_STAY = { dry: [25, 35], rain: [5, 10], away: [4, 10], rainAway: [10, 18] } as const;
+
+const spread = ([lo, hi]: readonly [number, number], u: number): number => lo + (hi - lo) * u;
+/** A steady 0-1 for a member and a key: each person's own stay and break, the same on every load. */
+const unitOf = (m: ParkMember, key: number): number => {
+  const x = Math.sin((m.id.length * 31 + m.k * 7 + m.role.length * 3) * 12.9898 + key * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+};
 
 export type ParkPose = 'away' | 'home' | 'up' | 'walk';
 
@@ -168,41 +186,65 @@ export interface ParkState {
   going: 'out' | 'in' | null;
   /** A stroller's place round the loop, when at home. */
   loop: number;
+  /** The bank's minute their visit is up (null while not in the park); and the minute they may come back after leaving. */
+  leaveAt: number | null;
+  backAt: number;
 }
 
 /**
- * The park's people, stepped on the motion clock. In the wet nobody leaves: everyone puts up an umbrella where they are
- * (Park3D), the strollers keep to the loop, and the children get off the swings and wait under the swing frame.
+ * The park's people, stepped on the motion clock. When it rains everyone puts up an umbrella where they are (Park3D), the
+ * strollers keep to the loop, and the children get off the swings and wait under the swing frame; their visits are cut to
+ * five to ten minutes, and they walk out briskly when they are up. In a storm or hail everyone hurries out at once, at a
+ * run, and nobody comes in until it has passed.
  */
 export class ParkCrowd {
   t = 0;
-  /** It is raining (or hailing, or snowing) now. */
+  /** It is raining (or hailing, or snowing) now; and whether it is a storm (or hail). */
   wet = false;
+  storm = false;
   readonly people: ParkState[];
+  private sky: ParkSky = 'dry';
+  private minute: number | null = null;
 
   constructor(members: readonly ParkMember[] = PARK_MEMBERS, present: (m: ParkMember) => boolean = () => false) {
     this.people = members.map((m, i) => {
       const route = exitRoute(m);
       const len = pathLength(route);
       const here = present(m);
-      return { m, d: here ? 0 : len, route, len, hold: 0, going: null, loop: mod(GATE_PARAM + (i * LOOP_LEN) / 5, LOOP_LEN) };
+      return { m, d: here ? 0 : len, route, len, hold: 0, going: null, loop: mod(GATE_PARAM + (i * LOOP_LEN) / 5, LOOP_LEN), leaveAt: null, backAt: -Infinity };
     });
   }
 
-  /** Moves everyone on by `dt` seconds; `wanted` says who should be in the park now, `wet` whether it is raining. */
-  step(dt: number, wanted: (m: ParkMember) => boolean, wet: boolean): void {
+  /**
+   * Moves everyone on by `dt` seconds; `wanted` says who the day wants in the park now, `wet` what the weather is (true for
+   * rain). Given the bank's `minute`, visits have a length: each person stays their while (PARK_STAY, cut short by rain, ended
+   * at once by a storm), then leaves for a break before coming back.
+   */
+  step(dt: number, wanted: (m: ParkMember) => boolean, wet: boolean | ParkSky, minute?: number): void {
     this.t += dt;
-    this.wet = wet;
+    const sky: ParkSky = wet === true ? 'rain' : wet === false ? 'dry' : wet;
+    this.wet = sky !== 'dry';
+    this.storm = sky === 'storm';
+    const rainBegins = sky === 'rain' && this.sky !== 'rain';
+    this.sky = sky;
+    // A new day (the clock went back): every visit starts afresh.
+    if (minute !== undefined && this.minute !== null && minute < this.minute - 1)
+      for (const p of this.people) {
+        p.leaveAt = null;
+        p.backAt = -Infinity;
+      }
+    if (minute !== undefined) this.minute = minute;
     let leaving = 0;
     let coming = 0;
     for (const p of this.people) {
-      const want = wanted(p.m);
+      let want = wanted(p.m);
+      if (minute !== undefined) want = this.visit(p, want, minute, rainBegins);
       const target: 'out' | 'in' | null = want ? (p.d > 0 ? 'in' : null) : p.d < p.len ? 'out' : null;
       if (target !== p.going) {
         // A change of mind: a look at the sky (or a moment to notice the sun is back) first, everyone a beat apart.
         p.going = target;
         if (target === 'out' && p.d === 0) {
-          p.hold = PARK_HOLD.look + leaving * PARK_HOLD.stagger;
+          p.hold = this.storm ? PARK_HOLD.storm * (1 + leaving) : PARK_HOLD.look + leaving * PARK_HOLD.stagger;
           if (p.m.role === 'stroll') this.leaveLoop(p);
         } else if (target === 'in' && p.d >= p.len) {
           p.hold = PARK_HOLD.back + coming * PARK_HOLD.stagger * 2;
@@ -220,7 +262,7 @@ export class ParkCrowd {
         continue;
       }
       if (p.going === 'out') {
-        p.d = Math.min(p.len, p.d + dt * (wet ? PARK_PACE.wet : PARK_PACE.out));
+        p.d = Math.min(p.len, p.d + dt * (this.storm ? PARK_PACE.run : this.wet ? PARK_PACE.wet : PARK_PACE.out));
         if (p.d >= p.len) p.going = null;
       } else {
         p.d = Math.max(0, p.d - dt * PARK_PACE.in);
@@ -230,6 +272,31 @@ export class ParkCrowd {
         }
       }
     }
+  }
+
+  /**
+   * Whether `p` should be in the park now, by their visit: once settled in their place their visit's end is set (a long
+   * stay in fair weather, a short one in rain; those there at the start part-way through theirs, so they do not all get up
+   * together); rain cuts a long stay short; a storm ends it now. Once out, they stay away for a while before coming back,
+   * and nobody comes in during a storm.
+   */
+  private visit(p: ParkState, want: boolean, minute: number, rainBegins: boolean): boolean {
+    const home = p.d === 0 && p.going !== 'out';
+    const rainStay = spread(PARK_STAY.rain, unitOf(p.m, 1));
+    if (home && p.leaveAt === null) {
+      const stay = this.sky === 'rain' ? rainStay : spread(PARK_STAY.dry, unitOf(p.m, 2));
+      p.leaveAt = minute + (p.backAt === -Infinity ? stay * (0.3 + 0.7 * unitOf(p.m, 3)) : stay);
+    }
+    if (home && p.leaveAt !== null && rainBegins) p.leaveAt = Math.min(p.leaveAt, minute + rainStay);
+    if (p.d >= p.len && p.leaveAt !== null) {
+      // Gone: a break before the next visit.
+      p.leaveAt = null;
+      p.backAt = minute + spread(this.sky === 'dry' ? PARK_STAY.away : PARK_STAY.rainAway, unitOf(p.m, 4));
+    }
+    if (this.storm) return false;
+    if (p.leaveAt !== null && minute >= p.leaveAt) return false;
+    if (p.d >= p.len && minute < p.backAt) return false;
+    return want;
   }
 
   /** A stroller stops where they are on the loop, and their way out starts from there. */

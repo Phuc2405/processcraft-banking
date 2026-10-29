@@ -25,7 +25,7 @@ import {
   type Group,
 } from 'three';
 import { bankStore } from '../../../store/bankStore';
-import { atmosphereAt, gustOf, rainOf, sameMix, stepMix, WEATHER_MIX, windOf, type WeatherMix } from './atmosphere';
+import { atmosphereAt, fadeToward, gustOf, rainOf, sameMix, stepMix, WEATHER_MIX, windOf, type WeatherMix } from './atmosphere';
 import { useMerged } from './Dressing';
 import { box, cyl, mix, type Part } from './kit';
 import { avenueMarkings, customerShirt, FLOOR_SLAB, KERB_Z, ROAD_END, SIDE_DOORS_RIGHT, STATION_POSES, STREET } from './layout3d';
@@ -570,17 +570,18 @@ function useGroundMistTexture(): CanvasTexture {
     c.width = c.height = 256;
     const g = c.getContext('2d');
     if (g) {
-      g.fillStyle = 'rgba(255,255,255,0.24)';
+      // Mostly an even veil, with only a gentle swell to it, so the mist lies evenly over everything outdoors.
+      g.fillStyle = 'rgba(255,255,255,0.5)';
       g.fillRect(0, 0, 256, 256);
       for (let i = 0; i < 34; i++) {
         const x = rnd(i, 11) * 256;
         const y = rnd(i, 12) * 256;
-        const r = 36 + rnd(i, 13) * 64;
+        const r = 48 + rnd(i, 13) * 64;
         // Each blob drawn again across the edges it overlaps, so the tile wraps.
         for (const ox of [-256, 0, 256])
           for (const oy of [-256, 0, 256]) {
             const grad = g.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, r);
-            grad.addColorStop(0, 'rgba(255,255,255,0.6)');
+            grad.addColorStop(0, 'rgba(255,255,255,0.22)');
             grad.addColorStop(1, 'rgba(255,255,255,0)');
             g.fillStyle = grad;
             g.fillRect(x + ox - r, y + oy - r, r * 2, r * 2);
@@ -601,28 +602,39 @@ function useGroundMistTexture(): CanvasTexture {
  * (texture tiles a second). Stacked, they give the mist depth from any angle; each drifts its own way, so it rolls.
  */
 export const MIST_LAYERS: ReadonlyArray<{ lift: number; alpha: number; drift: readonly [number, number] }> = [
-  { lift: 0, alpha: 0.55, drift: [0.012, 0.004] },
-  { lift: 0.3, alpha: 0.38, drift: [-0.009, 0.006] },
-  { lift: 0.65, alpha: 0.22, drift: [0.006, -0.008] },
+  { lift: 0, alpha: 0.45, drift: [0.012, 0.004] },
+  { lift: 0.3, alpha: 0.3, drift: [-0.009, 0.006] },
+  { lift: 0.65, alpha: 0.18, drift: [0.006, -0.008] },
 ];
 /** How wide (world units) one tile of the mist texture lies. */
 const MIST_TILE = 7;
 
-/**
- * The mist banks: [x, floor height, z, width along x, depth along z]. Low over the pavement and the avenue in front of the
- * branch, over the lane behind it, over the park's lawns and the car park either side, and higher over the city all round.
- */
-export const MIST_BANKS: ReadonlyArray<readonly [number, number, number, number, number]> = [
-  [0, 0.12, KERB_Z - 0.4, 44, 6],
-  [0, 0.08, KERB_Z + 4.5, 60, 9],
-  [0, 0.05, -HZ - 3.2, 60, 4],
-  [(PARK.x0 + PARK.x1) / 2, 0.18, (PARK.z0 + PARK.z1) / 2, PARK.x1 - PARK.x0 + 2, PARK.z1 - PARK.z0],
-  [LOT_SIDE * ((LOT.x0 + LOT.x1) / 2), 0.15, (LOT.z0 + LOT.z1) / 2, LOT.x1 - LOT.x0 + 2, LOT.z1 - LOT.z0],
-  [-HX - 8, 0.8, 0, 40, 11],
-  [HX + 8, 0.7, -2, 37, 10],
-  [0, 1.1, -HZ - 8, 54, 14],
-  [0, 0.9, ROAD_END + 5, 48, 12.6],
+/** What the mist has to cover: the pavement and the avenue in front of the branch, the lane behind it, the park's lawns and
+ * the car park either side, and the city all round ([x, z, width along x, depth along z]). */
+const MIST_REACH: ReadonlyArray<readonly [number, number, number, number]> = [
+  [0, KERB_Z - 0.4, 44, 6],
+  [0, KERB_Z + 4.5, 60, 9],
+  [0, -HZ - 3.2, 60, 4],
+  [(PARK.x0 + PARK.x1) / 2, (PARK.z0 + PARK.z1) / 2, PARK.x1 - PARK.x0 + 2, PARK.z1 - PARK.z0],
+  [LOT_SIDE * ((LOT.x0 + LOT.x1) / 2), (LOT.z0 + LOT.z1) / 2, LOT.x1 - LOT.x0 + 2, LOT.z1 - LOT.z0],
+  [-HX - 8, 0, 40, 11],
+  [HX + 8, -2, 37, 10],
+  [0, -HZ - 8, 54, 14],
+  [0, ROAD_END + 5, 48, 12.6],
 ];
+
+/**
+ * The mist banks: [x, floor height, z, width along x, depth along z]. One even sheet over all of MIST_REACH at a single
+ * height just above the ground, so the mist is the same thickness everywhere outdoors: no bank overlapping another and
+ * doubling up, no seam where one ends. The branch is cut out of it (MIST_CLIP).
+ */
+export const MIST_BANKS: ReadonlyArray<readonly [number, number, number, number, number]> = (() => {
+  const x0 = Math.min(...MIST_REACH.map(([x, , w]) => x - w / 2));
+  const x1 = Math.max(...MIST_REACH.map(([x, , w]) => x + w / 2));
+  const z0 = Math.min(...MIST_REACH.map(([, z, , d]) => z - d / 2));
+  const z1 = Math.max(...MIST_REACH.map(([, z, , d]) => z + d / 2));
+  return [[(x0 + x1) / 2, 0.2, (z0 + z1) / 2, x1 - x0, z1 - z0]];
+})();
 
 /**
  * Ground mist: layered banks rolling low over the streets, the pavements, the lane, the park's lawns and the car park, and
@@ -632,6 +644,9 @@ export const MIST_BANKS: ReadonlyArray<readonly [number, number, number, number,
  */
 function Mist() {
   const map = useGroundMistTexture();
+  // What is shown, eased towards the atmosphere's mist and smog tint over WEATHER_BLEND_S: a change of weather (or the
+  // clock jumping) cross-fades the mist instead of snapping it.
+  const shown = useRef<{ mist: number; smog: number } | null>(null);
   const layers = useMemo(
     () =>
       MIST_LAYERS.map((layer) => {
@@ -664,13 +679,16 @@ function Mist() {
     [],
   );
   useEffect(() => () => planes.forEach((g) => g.dispose()), [planes]);
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, dt) => {
     const a = atmosphereAt(bankStore.getState().view.minute, liveMix);
     const t = clock.elapsedTime;
+    const s = (shown.current ??= { mist: a.mist, smog: liveMix.smog });
+    s.mist = fadeToward(s.mist, a.mist, dt);
+    s.smog = fadeToward(s.smog, Math.min(1, liveMix.smog), dt);
     for (const { layer, m, tile } of layers) {
-      m.opacity = layer.alpha * a.mist;
-      m.visible = a.mist > 0.01;
-      m.color.copy(MIST_WHITE).lerp(MIST_SMOG, Math.min(1, liveMix.smog));
+      m.opacity = layer.alpha * s.mist;
+      m.visible = s.mist > 0.01;
+      m.color.copy(MIST_WHITE).lerp(MIST_SMOG, s.smog);
       // The weather's own clock: the mist keeps rolling while the bank is paused, as weather does.
       tile.offset.set(layer.drift[0] * t, layer.drift[1] * t);
     }
@@ -1061,7 +1079,7 @@ function Passer({ p, clock }: { p: Pedestrian; clock: PavementClock }) {
   useFrame(() => {
     const s = pedestrianAt(p, clock.t, clock.rainFor, clock.storm, clock.after);
     // Stepping aside for anyone else on the pavement (sidewalk.ts) rather than walking into them.
-    const [x, z] = sidewalk.place(`passer-${p.index}`, s.x, s.z, motion.dt);
+    const [x, z] = sidewalk.place(`passer-${p.index}`, s.x, s.z, motion.dt, s.speed === 0);
     if (root.current) {
       root.current.position.set(x, 0, z);
       root.current.rotation.y = s.heading;
@@ -1089,6 +1107,7 @@ function Passer({ p, clock }: { p: Pedestrian; clock: PavementClock }) {
         shirt={outfitShirt(outfit, p.index, customerShirt(p.index * 5 + 2))}
         phase={p.index * 1.7}
         walking={moving}
+        tempo={pose === 'run' ? 1.7 : 1}
         scale={0.7}
         wear={WEAR[outfit]}
         raise={raise}

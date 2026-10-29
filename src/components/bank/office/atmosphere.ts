@@ -91,6 +91,13 @@ export function stepMix(from: WeatherMix, to: WeatherMix, dt: number): WeatherMi
 
 export const sameMix = (a: WeatherMix, b: WeatherMix): boolean => MOODS.every((m) => a[m] === b[m]);
 
+/** One step of a 0-1 value easing linearly towards `to`, a full swing taking `span` seconds: for anything drawn from the
+ * weather (the ground mist's thickness and tint) that must cross-fade rather than snap. */
+export function fadeToward(from: number, to: number, dt: number, span: number = WEATHER_BLEND_S): number {
+  const k = Math.max(0, Math.min(dt, 0.1)) / span;
+  return from < to ? Math.min(to, from + k) : Math.max(to, from - k);
+}
+
 /** How hard the wind blows, 0 (still) to about 2 (storm): it sways the trees, slants the rain and carries the leaves. */
 export const windOf = (w: WeatherMix): number =>
   Math.max(0.1, 0.3 - 0.15 * w.harsh + 0.35 * w.overcast + 0.45 * w.rain + 1.3 * w.storm + 0.55 * w.leaves + 0.2 * w.petals + 0.25 * w.snow - 0.2 * w.fog + 0.5 * w.hail - 0.15 * w.smog);
@@ -247,7 +254,7 @@ export function atmosphereAt(minute: number, weather: WeatherMix | boolean = CLE
     fog: { near: lerp(a.fogNear, b.fogNear, t) - haze * 0.4, far: lerp(a.fogFar, b.fogFar, t) - haze, color: sky(horizon, '#dbe9f7') },
     // Ground mist: the morning's, a little in rain or under cloud, and thick in fog and in smog. When a fog lifts off the
     // city (the distance haze above), a low mist stays lying over the streets, the car park and the lawns all day.
-    mist: Math.min(1, lerp(a.mist, b.mist, t) * fogLeft(minute) + 0.2 * w.rain + 0.15 * w.overcast + Math.max(0.8 * w.fog, GROUND_FOG * picked.fog) + 0.5 * w.smog),
+    mist: Math.min(0.85, lerp(a.mist, b.mist, t) * fogLeft(minute) + 0.2 * w.rain + 0.15 * w.overcast + Math.max(0.7 * w.fog, GROUND_FOG * picked.fog) + 0.45 * w.smog),
     lamps: Math.min(1, lerp(a.lamps, b.lamps, t) + (0.35 * w.rain + 0.5 * w.storm + 0.4 * w.fog + 0.3 * w.golden + 0.5 * w.smog + 0.3 * w.hail) * daylight),
     windows: Math.min(1, lerp(a.windows, b.windows, t) + 0.5 * w.storm * daylight + 0.3 * w.golden * daylight),
     motes:
