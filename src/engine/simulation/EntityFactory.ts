@@ -39,6 +39,11 @@ export class EntityFactory {
     return new FrontGuard(minute, wet, plan);
   }
 
+  /** The fleet on the avenue. */
+  vehicles(): readonly Vehicle[] {
+    return this.fleet;
+  }
+
   /** The passers-by on the pavement. */
   pedestrians(): readonly Pedestrian[] {
     return this.walkers;

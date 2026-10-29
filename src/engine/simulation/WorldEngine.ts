@@ -13,6 +13,7 @@ import { STATION_IDS, type StationId } from '../../sim/topology';
 import type { BankView } from '../../sim/types';
 import { ClosingWalkout } from './closingWalkout';
 import { ArrivalWalks, DeskLine, StaffWalks } from './people';
+import { StreetPeople } from '../world/streetPeople';
 import { EntityFactory } from './EntityFactory';
 
 /**
@@ -63,6 +64,8 @@ export class WorldEngine {
   /** Closing time's walk-out of the counters' lines; `walkoutVersion` moves on whenever who is walking out changes. */
   readonly walkout: ClosingWalkout;
   walkoutVersion = 0;
+  /** The street's people: passers-by and the passengers of the taxis, motorbikes and buses. */
+  readonly street: StreetPeople;
   /** Customers walking to the desks' lines; each desk's line and served customers; each desk's staff walking in and out. */
   readonly arrivals: ArrivalWalks;
   private readonly lines = new Map<StationId, DeskLine>();
@@ -87,6 +90,7 @@ export class WorldEngine {
     this.park = factory.parkCrowd(start.minute);
     this.walkout = new ClosingWalkout(isClosed(start.minute));
     this.arrivals = new ArrivalWalks(this.handoff, this.sidewalk);
+    this.street = new StreetPeople(factory.pedestrians(), factory.vehicles(), this.sidewalk);
   }
 
   /** The guards at a post (made the first time it is asked for, as things stand then), stepped with the rest of the world. */
@@ -127,6 +131,7 @@ export class WorldEngine {
     for (const h of steps) this.lot.step(h);
 
     stepPavementClock(this.pavement, motion.dt, input.weather);
+    this.street.step(this.pavement, this.trafficView.states, isClosed(minute), motion.dt);
 
     // The people of the desks: walkers to the lines first (they hand over to the lines), then the lines, then the staff.
     this.arrivals.step(motion.t, motion.dt);

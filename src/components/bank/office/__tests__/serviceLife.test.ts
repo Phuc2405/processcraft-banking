@@ -168,12 +168,12 @@ describe('people on the pavement keep apart', () => {
   });
 
   it('steers every walker on the pavement: passers-by, ATM customers coming and going, and people off the buses and taxis', () => {
-    expect(read('../Environment3D.tsx')).toContain('sidewalk.place(`passer-${p.index}`');
+    expect(read('../../../../engine/world/streetPeople.ts')).toContain('sidewalk.place(`passer-${p.index}`');
     const people = read('../../../../engine/simulation/people.ts');
     expect(people).toContain('this.sidewalk.place(`arrival-${i}`, p.x, p.z, dt)');
     // Whoever has been served walks off from the desk itself, curving round the others on the pavement too.
     expect(people).toContain('this.sidewalk.place(`served-${this.id}-${s.key}`, p.at[0], p.at[1], dt)');
-    const cars = read('../Vehicles3D.tsx');
+    const cars = read('../../../../engine/world/streetPeople.ts');
     expect(cars).toContain('sidewalk.place(`rider-${v.id}`');
     expect(cars).toContain('sidewalk.place(`bus-${id}`');
   });

@@ -161,8 +161,9 @@ describe('waiting and talking people stand still; walkers curve smoothly round t
   });
 
   it('locks the talking pairs, the bus stop and the riders waiting at the kerb', () => {
-    expect(read('../Environment3D.tsx')).toContain('sidewalk.place(`passer-${p.index}`, s.x, s.z, motion.dt, s.speed === 0)');
-    expect(read('../Vehicles3D.tsx')).toContain('sidewalk.place(`bus-${id}`, r.x, r.z, motion.dt, !r.walking)');
+    const street = read('../../../../engine/world/streetPeople.ts');
+    expect(street).toContain('this.sidewalk.place(`passer-${p.index}`, s.x, s.z, dt, s.speed === 0)');
+    expect(street).toContain('this.sidewalk.place(`bus-${id}`, b.x, b.z, dt, !b.walking)');
     // Runners for shelter run: quicker steps and a lean.
     expect(read('../Environment3D.tsx')).toContain("tempo={pose === 'run' ? 1.7 : 1}");
   });

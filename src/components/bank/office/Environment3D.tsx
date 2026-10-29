@@ -44,9 +44,6 @@ import {
   outfitShirt,
   OVERHANG,
   PEDESTRIANS,
-  pedestrianAt,
-  UMBRELLA_RATE,
-  underCover,
   type Outfit,
   type PavementClock,
   type Pedestrian,
@@ -54,8 +51,6 @@ import {
   type Roof,
 } from '../../../engine/world/weather';
 import { useWeather } from './useWeather';
-import { motion } from '../../../engine/simulation/motion';
-import { sidewalk } from '../../../engine/world/sidewalk';
 
 /**
  * The world around the branch in the 3D office: the city it stands in, the sky light and the haze, the morning mist, the
@@ -1041,33 +1036,26 @@ export const umbrellaWobble = (index: number, t: number, wind: number): { z: num
 export const chatPhase = (index: number): number => (index % 2) * (Math.PI / 1.3) + Math.floor(index / 2) * 0.7;
 
 /** One person on the pavement, placed each frame from pedestrianAt (weather.ts). Walking and standing are separate rigs. */
-function Passer({ p, clock }: { p: Pedestrian; clock: PavementClock }) {
+function Passer({ p, i, clock }: { p: Pedestrian; i: number; clock: PavementClock }) {
+  const street = useWorld().street;
   const root = useRef<Group>(null);
   const hand = useRef<Group>(null);
   const brolly = useRef<Group>(null);
   const raise = useMemo(() => ({ current: 0 }), []);
-  // How far the umbrella is up now (eased, so it never pops).
-  const open = useRef(0);
   const outfit = useWeather((s) => outfitOf(s.weather));
   const drink = useWeather((s) => carriesDrink(s.weather));
-  const [pose, setPose] = useState<PedestrianPose>(() => pedestrianAt(p, 0, null).pose);
+  const [pose, setPose] = useState<PedestrianPose>(() => street.passers[i]!.pose);
   useFrame(() => {
-    const s = pedestrianAt(p, clock.t, clock.rainFor, clock.storm, clock.after);
-    // Stepping aside for anyone else on the pavement (sidewalk.ts) rather than walking into them.
-    const [x, z] = sidewalk.place(`passer-${p.index}`, s.x, s.z, motion.dt, s.speed === 0);
+    // Where they are, what they do and how far the umbrella is up are the engine's (WorldEngine.street); this draws them.
+    const s = street.passers[i]!;
     if (root.current) {
-      root.current.position.set(x, 0, z);
+      root.current.position.set(s.x, 0, s.z);
       root.current.rotation.y = s.heading;
       // Looking up at the first drops: a lean back. Shaking the water off a furled umbrella: a quick wiggle.
       root.current.rotation.x = s.pose === 'lookup' ? -0.12 : 0;
       root.current.rotation.z = s.pose === 'shake' ? Math.sin(clock.t * 34) * 0.09 : 0;
     }
-    // An umbrella carrier keeps it up in the wet out in the open, running for shelter too, and puts it down under a roof
-    // (the entrance's overhang, the bus stop, the guard's cabin), putting it up again on stepping back out into the rain.
-    const out = clock.rainFor !== null && p.umbrella && s.pose !== 'lookup' ? 1 : 0;
-    const want = underCover(x, z) ? 0 : Math.max(s.umbrella, out);
-    open.current = fadeToward(open.current, want, motion.dt, 1 / UMBRELLA_RATE);
-    const u0 = open.current;
+    const u0 = s.umbrella;
     // The arm comes up first, then the umbrella pops open over the head: from a furled stick to its full canopy.
     raise.current = Math.min(1, u0 * 2);
     const h = hand.current;
@@ -1141,8 +1129,8 @@ export function Pedestrians() {
   const clock = useWorld().pavement;
   return (
     <group name="office-pedestrians">
-      {PEDESTRIANS.map((p) => (
-        <Passer key={p.index} p={p} clock={clock} />
+      {PEDESTRIANS.map((p, i) => (
+        <Passer key={p.index} p={p} i={i} clock={clock} />
       ))}
     </group>
   );

@@ -85,7 +85,7 @@ describe('umbrellas come down under cover', () => {
   });
 
   it('lowers them on the street and in the park, under the picnic umbrella too', () => {
-    expect(read('../Environment3D.tsx')).toContain('const want = underCover(x, z) ? 0 : Math.max(s.umbrella, out);');
+    expect(read('../../../../engine/world/streetPeople.ts')).toContain('const want = underCover(x, z) ? 0 : Math.max(s.umbrella, out);');
     const park = read('../Park3D.tsx');
     expect(park).toContain('PICNIC_ROOF');
     for (const m of PARK_MEMBERS.filter((x) => x.role === 'picnic')) expect(Math.hypot(m.at[0] - PICNIC.x, m.at[1] - PICNIC.z)).toBeLessThan(1.05);

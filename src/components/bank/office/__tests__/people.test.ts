@@ -89,3 +89,29 @@ describe('the people of the desks live in the engine', () => {
     expect(heard).toBeGreaterThan(0);
   });
 });
+
+describe('the street’s people live in the engine', () => {
+  it('walks the passers-by, opens umbrellas out in the rain, and lets passengers off the taxis and buses', async () => {
+    const { PEDESTRIANS, underCover } = await import('../../../../engine/world/weather');
+    const store = createBankStore();
+    const world = new SimulationEngine(store).createWorld('clear');
+    const frame = (weather: 'clear' | 'rain') => world.tick({ realDt: 1 / 30, playing: true, speed: 2, minute: 12 * 60, weather });
+    let riders = 0;
+    let busRiders = 0;
+    for (let f = 0; f < 30 * 120; f++) {
+      frame('clear');
+      riders += [...world.street.riders.values()].filter(Boolean).length;
+      for (const m of world.street.busRiders.values()) busRiders += m.size;
+    }
+    expect(world.street.passers.length).toBe(PEDESTRIANS.length);
+    expect(riders).toBeGreaterThan(0);
+    expect(busRiders).toBeGreaterThan(0);
+    for (let f = 0; f < 30 * 6; f++) frame('rain');
+    // Umbrella carriers out in the open have theirs up; nobody has one up under a roof.
+    PEDESTRIANS.forEach((p, i) => {
+      const s = world.street.passers[i]!;
+      if (underCover(s.x, s.z)) expect(s.umbrella, `${p.index}`).toBeLessThan(1);
+      else if (p.umbrella && s.pose !== 'lookup') expect(s.umbrella, `${p.index}`).toBe(1);
+    });
+  });
+});

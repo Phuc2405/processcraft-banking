@@ -534,6 +534,9 @@ export interface RiderState {
   walking: boolean;
 }
 
+/** Who gets off and on a bus at its stop: two off, two on. */
+export const BUS_PEOPLE = ['off-0', 'off-1', 'on-0', 'on-1'] as const;
+
 /** What a taxi does at its stop this lap: even laps drop someone off, odd laps pick someone up. */
 export const taxiAction = (cycle: number): 'alight' | 'board' => (cycle % 2 === 0 ? 'alight' : 'board');
 

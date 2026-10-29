@@ -36,6 +36,7 @@ import { useMessages } from '../../utils/i18nHelper';
 import { analystWorkspaceMessages } from './analystWorkspace.messages';
 import { deskBadgeMessages } from './deskBadge.messages';
 import { useDeskStatusLine } from './useSimulation';
+import { isOnShift } from '../../engine/simulation/deskActivity';
 
 /** Border and queue-number colours of the roleplay desks' congestion heat. */
 const HEAT_BORDER: Readonly<Record<DeskHeat, string>> = { green: 'border-emerald-400/60', orange: 'border-amber-400/80', red: 'border-rose-500/90' };
@@ -47,15 +48,8 @@ const HEAT_DOT: Readonly<Record<DeskHeat, string>> = { green: 'bg-emerald-400', 
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Who is on shift
+// Who is on shift: the engine's rule (engine/simulation/deskActivity.ts isOnShift)
 // ─────────────────────────────────────────────────────────────────────────────
-
-/** Desks that have nothing to do at this hour are drawn dim, unless something is still waiting at them. */
-function isOnShift(id: StationId, phase: Phase): boolean {
-  const def = STATIONS[id];
-  if (def.department === 'EOD') return def.openHoursOnly ? phase === 'WORKING' : phase === 'EOD';
-  return phase === 'WORKING' || phase === 'AFTER_HOURS';
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Chips that open the Learning Hub

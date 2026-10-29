@@ -1,7 +1,7 @@
 import { t } from '../../i18n/t';
 import { useEffect, useRef, useState } from 'react';
 import { useBankStore } from '../../store/bankStore';
-import { HUD_EVENTS, HUD_TTL_MS, newEvents, pushToasts, type DeclineCounts, type HudToast } from './hudToastLogic';
+import { HUD_EVENTS, HUD_TTL_MS, newEvents, pushToasts, type DeclineCounts, type HudToast } from '../../engine/simulation/hudEvents';
 
 const TONE = {
   amber: 'border-amber-400/50 bg-[#1c1406]/95 text-amber-100 [--dot:#fbbf24]',

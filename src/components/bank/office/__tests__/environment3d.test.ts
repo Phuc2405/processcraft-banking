@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { VI_DICTIONARY } from '../../../../i18n/viDictionary';
 import { STATION_IDS, WIRES } from '../../../../sim/topology';
-import { routingRules } from '../../routingRules';
+import { routingRules } from '../../../../engine/plan/routingRules';
 import { flowPlaces, flowScope } from '../../../../sim/guidedFlows';
 import { FLOW_IDS } from '../../../../types/viewport';
 import { badgeFocus, badgeOpacity, dashLane, deskFocus, DIM, FLOW_BADGE_DIM, isOffShift, LANE_DIM, leaveAt, leaveRoute, litLanes, neighbours, PULSE, pulseDistance } from '../focus3d';

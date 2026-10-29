@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HUD_EVENTS, HUD_MAX, HUD_TTL_MS, newEvents, pushToasts, type HudToast } from '../hudToastLogic';
+import { HUD_EVENTS, HUD_MAX, HUD_TTL_MS, newEvents, pushToasts, type HudToast } from '../../../engine/simulation/hudEvents';
 
 describe('HUD alert toasts', () => {
   it('watches the three events of the brief, amber for walk-aways and timeouts, red for NSF', () => {

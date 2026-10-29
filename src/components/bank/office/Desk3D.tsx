@@ -21,7 +21,7 @@ import { ServerRack3D } from './ServerRack3D';
 import { badgeRect, isOffShift, tipSide3d, type TipSide3d } from './focus3d';
 import { useFocusFade } from './useFocusFade';
 import { t } from '../../../i18n/t';
-import { routingRules } from '../routingRules';
+import { routingRules } from '../../../engine/plan/routingRules';
 import { motion } from '../../../engine/simulation/motion';
 import { DeskLine, StaffWalks, type Served, type StaffWalk } from '../../../engine/simulation/people';
 import { usePeopleVersion, useWorld } from './WorldProvider';

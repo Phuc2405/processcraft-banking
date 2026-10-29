@@ -10,12 +10,9 @@ import { glow, solid } from './materials';
 import { outfitOf, outfitShirt, type Outfit } from '../../../engine/world/weather';
 import { useWeather } from './useWeather';
 import { MeshBasicMaterial } from 'three';
-import { ALIGHT, BUS_DOORS, BUS_X, busRiders, kerbZ, LENGTH, riderAt, WIDTH, VEHICLES, type BusRider, type Vehicle, type VehicleState } from '../../../engine/world/vehicles';
+import { ALIGHT, BUS_DOORS, BUS_PEOPLE, BUS_X, kerbZ, LENGTH, WIDTH, VEHICLES, type Vehicle, type VehicleState } from '../../../engine/world/vehicles';
+import type { StreetPose } from '../../../engine/world/streetPeople';
 import { Html } from '@react-three/drei';
-import { motion } from '../../../engine/simulation/motion';
-import { sidewalk } from '../../../engine/world/sidewalk';
-import { isClosed } from '../../../engine/world/evacuation';
-import { bankStore } from '../../../store/bankStore';
 
 /**
  * The traffic on the avenue (vehicles.ts says where everything is): motorbikes, many carrying two, cars, green taxis and
@@ -158,6 +155,7 @@ const WEAR: Readonly<Record<Outfit, Wear>> = { everyday: 'none', summer: 'summer
 
 /** One vehicle, and the person getting on or off it at the kerb. */
 function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Map<string, VehicleState>; t: number } }) {
+  const street = useWorld().street;
   const root = useRef<Group>(null);
   const person = useRef<Group>(null);
   const door = useRef<Group>(null);
@@ -192,15 +190,14 @@ function Car({ v, index, live }: { v: Vehicle; index: number; live: { states: Ma
     if (blinkR.current) blinkR.current.visible = s.signal === 1 && on;
     // The kerbside door swings open while the taxi stands, and shuts before it pulls away.
     if (door.current) door.current.rotation.y = 1.1 * s.door;
-    const r = riderAt(v, s, isClosed(bankStore.getState().view.minute));
+    // The passenger on foot is the engine's (WorldEngine.street), already stepped round others on the pavement.
+    const r = street.riders.get(v.id) ?? null;
     if (person.current) {
       person.current.visible = r !== null;
       if (r) {
-        // On the pavement they step aside for others rather than walk into them (sidewalk.ts).
-        const [x, z] = sidewalk.place(`rider-${v.id}`, r.x, r.z, motion.dt, !r.walking);
-        person.current.position.set(x, 0, z);
+        person.current.position.set(r.x, 0, r.z);
         person.current.rotation.y = r.heading;
-      } else sidewalk.leave(`rider-${v.id}`);
+      }
     }
     const look = r ? { walking: r.walking } : null;
     if ((look === null) !== (rider === null) || (look && rider && look.walking !== rider.walking)) setRider(look);
@@ -284,17 +281,18 @@ export function CitMarker() {
   );
 }
 
-const BUS_PEOPLE = ['off-0', 'off-1', 'on-0', 'on-1'] as const;
 
 /** The people getting off and on the bus (busRiders), each placed every frame. */
 function BusPeople({ v, index, live }: { v: Vehicle; index: number; live: { states: Map<string, VehicleState> } }) {
+  const street = useWorld().street;
   const groups = useRef<Array<Group | null>>([]);
   const outfit = useWeather((s) => outfitOf(s.weather));
   const [walking, setWalking] = useState<readonly boolean[]>(() => BUS_PEOPLE.map(() => true));
   useFrame(() => {
     const s = live.states.get(v.id);
     if (!s) return;
-    const riders = new Map<string, BusRider>(busRiders(v, s, isClosed(bankStore.getState().view.minute)).map((r) => [r.id, r]));
+    // Who is getting off and on, and where, is the engine's (WorldEngine.street).
+    const riders = street.busRiders.get(v.id) ?? new Map<string, StreetPose>();
     let changed = false;
     const next = BUS_PEOPLE.map((id, i) => {
       const g = groups.current[i];
@@ -302,10 +300,9 @@ function BusPeople({ v, index, live }: { v: Vehicle; index: number; live: { stat
       if (g) {
         g.visible = !!r;
         if (r) {
-          const [x, z] = sidewalk.place(`bus-${id}`, r.x, r.z, motion.dt, !r.walking);
-          g.position.set(x, 0, z);
+          g.position.set(r.x, 0, r.z);
           g.rotation.y = r.heading;
-        } else sidewalk.leave(`bus-${id}`);
+        }
       }
       const w = r ? r.walking : walking[i]!;
       if (w !== walking[i]) changed = true;
