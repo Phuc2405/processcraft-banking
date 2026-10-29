@@ -422,13 +422,16 @@ and fails on any of them.
 | --- | --- | --- |
 | Bank simulation | `src/sim/` | `BankSimulation`, the clock and its beats, topology, roster, traffic of customers, KPIs, tours |
 | Banking engines | `src/engine/*.ts` | ProcessRunner, evaluator, expressions, ledger and postings, ISO 20022, AML, disputes, ATM |
-| Simulation engine | `src/engine/simulation/` | `SimulationEngine`, `WorldEngine`, `EntityFactory`, `DeskStatusFeed`, staff and shift schedules, way-finding, customer journeys, closing-time walk-out, the motion clock, the hand-off of walkers to desks' lines |
-| The 3D world | `src/engine/world/` | the avenue's traffic and drop-offs, the car park and cash van, the park's people, guard posts, pavement steering, weather and its spells, closing time, digital signals |
+| Simulation engine | `src/engine/simulation/` | `SimulationEngine`, `WorldEngine`, `EntityFactory`, `DeskStatusFeed`, the people of the desks (`people.ts`: customers walking to the lines, the line figures, the customers being served, staff walking in and out), staff and shift schedules, way-finding, customer journeys, closing-time walk-out, HUD failure events, the desks' on-shift rule, the motion clock, the hand-off of walkers to desks' lines |
+| The 3D world | `src/engine/world/` | the avenue's traffic and drop-offs, the street's people (`streetPeople.ts`: passers-by with their umbrellas, passengers of taxis, motorbikes and buses), the car park and cash van, the park's people, guard posts, pavement steering, weather and its spells, closing time, digital signals |
 | The floor plan | `src/engine/plan/` | the 2D layout, the office plan, the 3D layout (where everything stands, queue places, routes) and path geometry |
 | Views | `src/components/` | React and three.js only: they subscribe to the engine and draw |
 
 The seams between the two sides are small and explicit:
 
+* **The bank in, the people out.** `WorldEngine.onBank(view)` runs the moment the bank's view changes: customers set off for
+  the desks' lines, the lines take in who has been served, staff who went off shift or are due in start walking. The views
+  re-render a desk only when its people change (`usePeopleVersion`).
 * **Inputs go in, state comes out.** `WorldEngine.tick({ realDt, playing, speed, minute, weather, queueLength })` is the only
   way the 3D world moves; it advances the motion clock (frozen on pause, scaled by the speed), then steps every system in a
   fixed order with small substeps, so a fast speed never makes anything jump. The views read `trafficView`, `lot`, `park`,
@@ -473,6 +476,20 @@ Where the code uses a named pattern ([refactoring.guru catalogue](https://refact
 | Strategy | `DropOffStrategy` (`engine/world/vehicles.ts`, `KerbsideDropOff`) | How a drop-off picks its spot and whether it keeps its stop when held in traffic, injected into `TrafficSim`. |
 | Strategy | `CAPABILITY_HANDLERS` (`engine/capabilities.ts`) | One handler per banking capability behind each TASK node, picked by the node's capability. |
 | Interpreter | `engine/expression.ts`, `engine/processRunner.ts` | XOR gateway conditions are parsed and evaluated from their grammar; ProcessRunner is a discrete-event interpreter for a ProcessGraph. |
+| Observer | `WorldEngine.subscribe` with version counters (`usePeopleVersion`) | A desk's 3D figures re-render only when that desk's line, served customers or staff walks change. |
+
+### Simulation and architecture patterns (beyond the GoF catalogue)
+
+From Robert Nystrom's *Game Programming Patterns* and from ports-and-adapters architecture, which fit a simulation drawn every frame.
+
+| Pattern | Where | Why |
+| --- | --- | --- |
+| Game Loop / Update Method | `WorldEngine.tick` | One loop advances the motion clock (frozen on pause, scaled by speed) and updates every system in a fixed order, in small substeps (`substeps`), so a fast speed never makes anything jump and every frame is reproducible in a test. |
+| Object Pool | `ArrivalWalks` (`MAX_WALKERS` figures), payments in flight (`Traffic.tsx` `POOL`), signal pulses | A fixed set of figures is reused, so a busy beat allocates nothing and nobody's figure is taken over mid-walk. |
+| Dirty Flag | `version` on `ArrivalWalks`, `DeskLine`, `StaffWalks`, `walkoutVersion`; `DeskStatusFeed`'s per-desk `told` | Views redraw their structure only when something they show actually changed; per-frame motion is read straight from the engine. |
+| Event Queue | `QueueHandoff` (`engine/simulation/queueHandoff.ts`) | A walker reaching the end of a desk's line posts their arrival; the line takes them up on its next step, where they stopped (or, if their turn has already come, they walk up and are served). |
+| Service Locator | `useWorld()` (`components/bank/office/WorldProvider.tsx`) | Every view in a 3D scene finds that scene's world engine without it being passed down through every component. |
+| Ports and Adapters | `BankSource` / `BankClockSource` (`engine/simulation/deskStatus.ts`, `SimulationEngine.ts`) | The engine names the shape it needs from the bank's store; the zustand store fits it as it is, so the engine never imports the store or React. |
 
 ## Layout
 
@@ -495,9 +512,11 @@ src/
       EntityFactory.ts deskStatus.ts deskActivity.ts   making the world's people and vehicles; "X waiting · Y working"
       staff.ts routes.ts customerLifecycle.ts closingWalkout.ts   shifts and staff walks; way-finding; journeys; closing time
       motion.ts queueHandoff.ts   the motion clock (frozen on pause); walkers handed over to the desks' lines
-    world/                      the 3D world's systems: vehicles, parking, citRun, parkLife, parkPlan, guardCabin, sidewalk,
+      people.ts                 customers walking to the lines, the lines and those served, staff walking in and out
+      hudEvents.ts deskActivity.ts   failure events for the HUD toasts; "working" counts and the desks' on-shift rule
+    world/                      the 3D world's systems: vehicles, streetPeople, parking, citRun, parkLife, parkPlan, guardCabin, sidewalk,
                                 weather, weatherCycle, atmosphere, evacuation, signals
-    plan/                       the floor plan: layout.ts (2D), officePlan.ts, layout3d.ts (3D), path.ts (path geometry)
+    plan/                       the floor plan: layout.ts (2D), officePlan.ts, layout3d.ts (3D), path.ts, routingRules.ts
   sim/                          the Living Bank and the tours, with no React in it
     bankSimulation.ts           desks, staff, queues, night team, carry-over, KPIs, today's ledger
     processes.ts                plans each payment's route by running the real diagrams
@@ -540,7 +559,8 @@ src/
 
 ## Tests
 
-`npm test` runs 37 files with 1121 tests.
+`npm test` runs 91 files with 1759 tests. The table below lists the original suites; the 3D office, the engine and its
+patterns have their own under `src/components/bank/office/__tests__` (`engine`, `people`, `patterns`, `street3d`, ...).
 
 | Area | Files (tests) | Covers |
 | --- | --- | --- |
