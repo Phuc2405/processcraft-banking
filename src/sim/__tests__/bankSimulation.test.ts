@@ -143,9 +143,11 @@ describe('an ordinary day', () => {
 
   it('every break is in the suspense account, worth what was posted', () => {
     const breaks = k.recon.breakAmount + k.recon.breakMissing + k.recon.breakDuplicate;
-    expect(r.close.suspenseItems).toBe(breaks);
-    expect(r.close.suspenseCents).toBe(k.recon.suspenseAddedCents);
-    expect(sim.snapshot().suspense.items).toBe(breaks);
+    // An ATM that jams once the suspense desk has closed (17:00) leaves its refund parked there until the morning too.
+    const atmParked = sim.carryState().suspense.filter((s) => s.source === 'ATM').length;
+    expect(r.close.suspenseItems).toBe(breaks + atmParked);
+    expect(r.close.suspenseCents).toBe(k.recon.suspenseAddedCents + sim.carryState().suspense.filter((s) => s.source === 'ATM').reduce((n, s) => n + s.amountCents, 0));
+    expect(sim.snapshot().suspense.items).toBe(breaks + atmParked);
   });
 
   it('the ordinary rules make a profit', () => {
@@ -360,7 +362,9 @@ describe('the next day', () => {
     expect(promo.close.reconBacklog).toBeGreaterThan(0);
     sim.nextDay();
     const next = sim.runToEndOfDay();
-    expect(next.kpis.recon.records).toBeGreaterThan(next.kpis.approved - next.kpis.a2a.released - next.kpis.atm.dispensed);
+    // The same day started afresh, with nothing carried over: last night's leftovers make tonight's work the bigger.
+    const fresh = new BankSimulation({ seed: SEED, day: PROMO_DAY + 1 }).runToEndOfDay();
+    expect(next.kpis.recon.records).toBeGreaterThan(fresh.kpis.recon.records);
   });
 
   it('can finish a day that is not over when asked to move on', () => {

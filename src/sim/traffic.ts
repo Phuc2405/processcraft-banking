@@ -113,9 +113,42 @@ export const WORKING_BEATS = (WORK_END - WORK_START) / beatMinutes('WORKING');
 export const ALWAYS_ON_KINDS = ['POS', 'ECOM', 'VIRTUAL', 'A2A', 'ATM'] as const satisfies readonly CheckoutKind[];
 export type AlwaysOnKind = (typeof ALWAYS_ON_KINDS)[number];
 /** Customers an hour on them while the branch is shut (07:00-09:00 and from 17:00), on an ordinary day: a quiet trickle. */
-export const OFF_HOURS_RATE: Readonly<Record<AlwaysOnKind, number>> = { POS: 3, ECOM: 3, VIRTUAL: 1, A2A: 1.5, ATM: 3 };
+export const OFF_HOURS_RATE: Readonly<Record<AlwaysOnKind, number>> = { POS: 1.5, ECOM: 1.5, VIRTUAL: 0.5, A2A: 2, ATM: 3 };
+
+/** The digital channels, whose day follows people's phones and cards rather than the branch's doors: the card gateways, online checkouts, transfers, VietQR, SWIFT and the ATM. */
+export const DIGITAL_KINDS: ReadonlySet<CheckoutKind> = new Set<CheckoutKind>(['POS', 'ECOM', 'VIRTUAL', 'A2A', 'ATM', 'QR', 'SWIFT']);
+
+/**
+ * How a digital channel's day goes, on top of the high street's own shape: a busier morning (07:00-11:59), a lunch peak
+ * (12:00-13:00) strongest for online cards, VietQR and ATM cash, and the evening (17:00-22:00) the busiest stretch of the
+ * night for online shopping, card taps, transfers and the ATM, once the branches have shut. Card payments are lifted gently
+ * and their night rates kept low: every one approved is a record for the 23:00 batch, which the night team must still clear
+ * before midnight on an ordinary day. Transfers and ATM cash settle on their own rails, so they surge freely.
+ */
+export const DIGITAL_CURVE = {
+  morning: 1.1,
+  lunch: { ECOM: 1.25, VIRTUAL: 1.2, QR: 1.45, ATM: 1.45, other: 1.1 },
+  afternoon: { other: 1 },
+  evening: { ECOM: 3, POS: 2.5, A2A: 3, ATM: 2.5, VIRTUAL: 2, other: 1 },
+  late: 1.2,
+  midnight: 0.8,
+} as const;
+
+/** The multiplier on channel `kind`'s rate at `minute` (1 for the branch's own channels: the teller, eKYC, BNPL, claims). */
+export function digitalBoost(kind: CheckoutKind, minute: number): number {
+  if (!DIGITAL_KINDS.has(kind)) return 1;
+  const pick = (table: Readonly<Record<string, number>>): number => table[kind] ?? table.other!;
+  if (minute < 12 * 60) return DIGITAL_CURVE.morning;
+  if (minute < 13 * 60) return pick(DIGITAL_CURVE.lunch);
+  if (minute < WORK_END) return pick(DIGITAL_CURVE.afternoon);
+  if (minute < 22 * 60) return pick(DIGITAL_CURVE.evening);
+  if (minute < EOD_START) return DIGITAL_CURVE.late;
+  return DIGITAL_CURVE.midnight;
+}
 /** Card payments stop at the night's cut-off (the batch takes the day's approvals at 23:00); transfers and ATM cash settle on their own rails and keep coming until midnight. */
 const CARD_CUTOFF = EOD_START;
+/** How many minutes of the day's last hour take new customers. */
+const LAST_ARRIVAL_SPAN = 45;
 /** Their ids: a block of their own, clear of the card channels, Phase 8, A2A (5001) and ATM (7001). */
 const OFF_HOURS_SERIAL = 6000;
 
@@ -135,9 +168,11 @@ function offHoursTraffic(seed: number, day: number, event: DayEvent): Customer[]
       for (const kind of ALWAYS_ON_KINDS) {
         const card = kind !== 'A2A' && kind !== 'ATM';
         if (card && hour >= CARD_CUTOFF) continue;
-        const n = rng.poisson(OFF_HOURS_RATE[kind] * event.volume * (event.mix[kind] ?? 1));
+        const n = rng.poisson(OFF_HOURS_RATE[kind] * digitalBoost(kind, hour) * event.volume * (event.mix[kind] ?? 1));
+        // The last hour's come by 23:45, so each one is through before midnight closes the day.
+        const span = hour + 60 >= DAY_END ? LAST_ARRIVAL_SPAN : 60;
         for (let i = 0; i < n; i++) {
-          const minute = hour + Math.floor(rng.next() * 60);
+          const minute = hour + Math.floor(rng.next() * span);
           out.push(makeCustomer(seed, day, `d${day}-${++serial}`, kind, minute, event));
         }
       }
@@ -184,7 +219,7 @@ export function generateDay(seed: number, day: number): DayTraffic {
     const beatStart = WORK_START + b * beatMinutes('WORKING');
     const intensity = intensityAt(beatStart + 2.5);
     for (const kind of ['POS', 'ECOM', 'VIRTUAL', 'BNPL'] as const) {
-      const lambda = BASE_RATE[kind] * event.volume * (event.mix[kind] ?? 1) * intensity;
+      const lambda = BASE_RATE[kind] * event.volume * (event.mix[kind] ?? 1) * intensity * digitalBoost(kind, beatStart);
       const n = arrivals.poisson(lambda);
       for (let i = 0; i < n; i++) {
         serial++;
@@ -204,7 +239,7 @@ export function generateDay(seed: number, day: number): DayTraffic {
     const beatStart = WORK_START + b * beatMinutes('WORKING');
     const intensity = intensityAt(beatStart + 2.5);
     for (const kind of ['A2A', 'ATM'] as const) {
-      const lambda = EXTRA_RATE[kind] * event.volume * (event.mix[kind] ?? 1) * intensity;
+      const lambda = EXTRA_RATE[kind] * event.volume * (event.mix[kind] ?? 1) * intensity * digitalBoost(kind, beatStart);
       const n = extras.poisson(lambda);
       for (let i = 0; i < n; i++) {
         const serial = ++serials[kind];
@@ -222,7 +257,7 @@ export function generateDay(seed: number, day: number): DayTraffic {
     const beatStart = WORK_START + b * beatMinutes('WORKING');
     const intensity = intensityAt(beatStart + 2.5);
     for (const kind of PHASE8_KINDS) {
-      const n = phase8.poisson(PHASE8_RATE[kind] * event.volume * (event.mix[kind] ?? 1) * intensity);
+      const n = phase8.poisson(PHASE8_RATE[kind] * event.volume * (event.mix[kind] ?? 1) * intensity * digitalBoost(kind, beatStart));
       for (let i = 0; i < n; i++) {
         const serial = ++serials8[kind];
         const minute = beatStart + Math.min(4, Math.floor(phase8.next() * 5));

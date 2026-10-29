@@ -50,9 +50,9 @@ describe('one Standard / Expert switch everywhere', () => {
     expect(dock).toContain('🔄');
     expect(dock).toContain('title={t(SCOPE_TITLE)}');
     expect(VI_DICTIONARY['Sub-process']).toBe('Quy trình con');
-    expect(VI_DICTIONARY['Full process']).toBe('Toàn trình');
+    expect(VI_DICTIONARY['Full process']).toBe('Toàn bộ');
     expect(VI_DICTIONARY['Switch between an isolated sub-process view (Sub-process) and the full end-to-end operating map (Full process)']).toBe(
-      'Chuyển đổi giữa góc nhìn phân đoạn quy trình con (Sub-process) và sơ đồ vận hành toàn trình (Full process)',
+      'Chuyển đổi giữa góc nhìn phân đoạn quy trình con (Sub-process) và sơ đồ vận hành toàn bộ (Full process)',
     );
   });
 });

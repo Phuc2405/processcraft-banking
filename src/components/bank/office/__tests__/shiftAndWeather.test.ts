@@ -71,7 +71,7 @@ describe('served at a counter or an ATM: finish, turn, walk away', () => {
     expect(desk).toContain('function ServedCustomer(');
     // While finishing up they stand at the spot where they were served, then turn smoothly to the way out.
     const people = read('../../../../engine/simulation/people.ts');
-    expect(people).toContain('const p: CustomerPose = journeyPose(journey, now - s.start);');
+    expect(people).toContain('const p: CustomerPose = journeyPose(this.journeyOf(s), now - s.start);');
     expect(people).toContain('who: before + j + this.salt');
     // Talking to the teller at the front of a counter's line.
     expect(desk).toContain('<CounterUser index={who}');

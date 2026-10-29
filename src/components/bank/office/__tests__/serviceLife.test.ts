@@ -183,7 +183,7 @@ describe('the ATM queues, from the street to the machine and away', () => {
   it('walks customers to the ATMs at an unhurried pace on the motion clock, each on one figure the whole way', () => {
     const people = read('../../../../engine/simulation/people.ts');
     expect(people).toContain('export const ARRIVAL_PACE = { atm: 0.85, gate: 1.0 } as const;');
-    expect(people).toContain('export const SERVED = { counter: 1.1, atm: ATM_TURN_S, turn: 0.45, pace: 0.95, business: { atm: 3.5, counter: 4 } } as const;');
+    expect(people).toContain('export const SERVED = { counter: 1.4, atm: 1.2, turn: 0.45, pace: 0.95, business: { atm: 3.5, counter: 4 } } as const;');
     // Paced walks on the scaled motion clock, not squeezed into a beat: and nobody's figure is taken over mid-walk.
     expect(people).toContain('const p = laneAt(w.path, (now - w.start) * w.pace);');
     expect(people).not.toContain('this.walks.splice(0, this.walks.length - MAX_WALKERS)');

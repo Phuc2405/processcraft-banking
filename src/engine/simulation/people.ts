@@ -4,7 +4,7 @@ import type { StationView } from '../../sim/types';
 import { laneAt, laneLength, QUEUE_VISIBLE, queueSalt, queueSlots, queueStyle, seatOffsets, deskPose, type V2, WALKER_STATIONS, ATM_STATIONS } from '../plan/layout3d';
 import { CUSTOMER_DESKS, isClosed, servedExit } from '../world/evacuation';
 import type { SidewalkCrowd } from '../world/sidewalk';
-import { journeyPose, type CustomerPose, type Journey } from './customerLifecycle';
+import { journeyPose, journeyState, type CustomerPose, type Journey } from './customerLifecycle';
 import type { QueueHandoff } from './queueHandoff';
 import { routesFor, MAIN_GATE_STAFF_ROUTE } from './routes';
 import { ARRIVE_SPEED, arrivalMinute, arrivalState, isOffShift, LEAVE_SPEED, leaveAt, walkedFor } from './staff';
@@ -21,8 +21,10 @@ export const MAX_WALKERS = 14;
 export const ATM_TURN_S = 0.8;
 /** How fast people in a line walk up a place when the one in front is served. */
 export const STEP_UP_PACE = 0.9;
-/** Served customers: time at the counter or machine before leaving, the turn, the walking pace, and the business of one who walks up late. */
-export const SERVED = { counter: 1.1, atm: ATM_TURN_S, turn: 0.45, pace: 0.95, business: { atm: 3.5, counter: 4 } } as const;
+/** Served customers: time at the counter or machine before leaving (the one at the front finishes their business there: keying in and taking the cash, or a last word with the teller), the turn, the walking pace, and the business of one who walks up late. */
+export const SERVED = { counter: 1.4, atm: 1.2, turn: 0.45, pace: 0.95, business: { atm: 3.5, counter: 4 } } as const;
+/** How many served customers a desk keeps on screen at once: more would crowd the way out (and the oldest, already walking off, goes first). */
+export const SERVED_KEEP = 8;
 
 /** A pose for a figure the view draws: where (world or desk-local, as stated), which way it faces, and whether it shows. */
 export interface FigurePose {
@@ -216,7 +218,8 @@ export class DeskLine {
         const wait = this.atm ? SERVED.atm : SERVED.counter;
         for (let j = 0; j < Math.min(2, served, this.inLine); j++) {
           const path = servedExit(this.id, j);
-          this.addServed({ key: this.nextKey++, who: before + j + this.salt, path, length: laneLength(path), start: now + j * 0.6, wait, stopAt: 0, business: false }, 4);
+          // The one at the counter or machine finishes their business there before turning away; the one behind just steps out.
+          this.addServed({ key: this.nextKey++, who: before + j + this.salt, path, length: laneLength(path), start: now + j * 0.6, wait, stopAt: 0, business: j === 0 });
           changed = true;
         }
       }
@@ -284,7 +287,7 @@ export class DeskLine {
         const exit = servedExit(this.id);
         const path: V2[] = [got.at, ...exit];
         const stopAt = Math.hypot(exit[0]![0] - got.at[0], exit[0]![1] - got.at[1]);
-        this.addServed({ key: this.nextKey++, who: got.who, path, length: laneLength(path), start: now, wait: this.atm ? SERVED.business.atm : SERVED.business.counter, stopAt, business: true }, 6);
+        this.addServed({ key: this.nextKey++, who: got.who, path, length: laneLength(path), start: now, wait: this.atm ? SERVED.business.atm : SERVED.business.counter, stopAt, business: true });
         late = true;
       }
       if (late) this.version++;
@@ -292,9 +295,17 @@ export class DeskLine {
     this.stepServed(now, dt);
   }
 
-  private addServed(s: Served, keep: number): void {
+  /** Someone served joins those on screen; past SERVED_KEEP, the one furthest along their way out is let go, never someone still at the counter or machine (unless nobody is walking off yet). */
+  private addServed(s: Served, now: number = s.start): void {
     this.served.push(s);
-    while (this.served.length > keep) this.forget(this.served[0]!);
+    while (this.served.length > SERVED_KEEP) {
+      const leaving = this.served.filter((x) => x !== s && journeyState(this.journeyOf(x), now - x.start) === 'departing');
+      this.forget(leaving.length ? leaving.reduce((a, b) => (a.start <= b.start ? a : b)) : this.served[0]!);
+    }
+  }
+
+  private journeyOf(s: Served): Journey {
+    return { path: s.path, length: s.length, stopAt: s.stopAt, wait: s.wait, turn: SERVED.turn, pace: SERVED.pace, business: s.business };
   }
 
   private forget(s: Served): void {
@@ -305,8 +316,7 @@ export class DeskLine {
 
   private stepServed(now: number, dt: number): void {
     for (const s of [...this.served]) {
-      const journey: Journey = { path: s.path, length: s.length, stopAt: s.stopAt, wait: s.wait, turn: SERVED.turn, pace: SERVED.pace, business: s.business };
-      const p: CustomerPose = journeyPose(journey, now - s.start);
+      const p: CustomerPose = journeyPose(this.journeyOf(s), now - s.start);
       if (p.state === 'gone') {
         this.forget(s);
         this.version++;

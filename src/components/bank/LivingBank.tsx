@@ -19,7 +19,7 @@ import { LedgerDrawer } from './LedgerDrawer';
 import { LearningHub } from './LearningHub';
 import { PresetDock } from './PresetDock';
 import { useBankClock } from './useBankClock';
-import { ViewportControls } from './ViewportControls';
+import { useTopBand, ViewportControls } from './ViewportControls';
 import { ZoomToolbar } from '../shell/ZoomToolbar';
 
 /** The 3D office is loaded only when someone asks for it: three.js is the heaviest thing in the app. */
@@ -80,8 +80,10 @@ function NoticeColumn() {
   const viewMode = useBankStore((s) => s.viewMode);
   const splitOpen = useAcademyStore((s) => s.isSplitScreenOpen);
   const corner = viewMode === '3d' ? NOTICE_CORNER[splitOpen ? '3dSplit' : '3d'] : NOTICE_CORNER['2d'];
+  // In 3D, under the toolbar wherever it is (it drops below the dock when the dock leaves it no room in the corner).
+  const underToolbar = useTopBand((s) => (viewMode === '3d' && s.toolbar ? s.toolbar.bottom + 8 : 0));
   return (
-    <div className={`pointer-events-none absolute left-4 ${corner} ${viewMode === '3d' ? 'z-30' : 'z-50'} flex max-w-[min(440px,calc(100%-32px))] flex-col items-start gap-2`} data-testid="notice-column">
+    <div className={`pointer-events-none absolute left-4 ${corner} ${viewMode === '3d' ? 'z-30' : 'z-50'} flex max-w-[min(440px,calc(100%-32px))] flex-col items-start gap-2`} style={underToolbar > 64 ? { top: underToolbar } : undefined} data-testid="notice-column">
       <Notice />
       <HudToasts />
     </div>

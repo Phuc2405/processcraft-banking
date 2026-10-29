@@ -180,7 +180,10 @@ The same bank as a daylight diorama, built from low-poly pieces with one warm pa
   counter or a person to open the inspector. **Labels: Always Show / Hover Only** (top left of the view) hides the badges until
   the pointer is over a workstation, to keep the diorama clean. Badges follow the zoom, like a map (`office/labelLod.ts`): zoomed
   out below 75% of the fitted view they fold to a status dot and a count, and the kiosks' tallies hide; up to 150% they show the
-  name and "X waiting"; closer, the "Y working" chip fades in too. A desk pointed at or picked always shows everything.
+  name with "X waiting" and "Y working". A desk pointed at or picked always shows everything. The number zoomed out is the
+  desk's total active items (waiting + working), so a desk working cases with nobody waiting reads "2", never "0"; no pill ever
+  says 0 (`badgePills`). Only desks with something active wear a badge; one with nothing shows its badge (its name, no number)
+  when pointed at. The suspense account and the outcome tallies, whose counts only grow, keep to a compact dot and count. Badges not pointed at are a little translucent, so the payments flying behind them show through.
 * **Weather bar:** the time of day and the weather menu sit in their own bar centred under the viewport dock (Sub-process /
   Full process / 2D / 3D), above the map's banners and cards; the start-of-day banner opens below it.
 

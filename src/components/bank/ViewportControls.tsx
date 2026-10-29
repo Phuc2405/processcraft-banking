@@ -1,8 +1,10 @@
 import { t } from '../../i18n/t';
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { useStore } from 'zustand';
+import { createStore } from 'zustand/vanilla';
 import { flowText, GUIDED_FLOWS } from '../../sim/guidedFlows';
 import { FLOW_IDS, type Dimension, type FlowId, type Scope } from '../../types/viewport';
-import { dataDepthOf, useBankStore } from '../../store/bankStore';
+import { dataDepthOf, kickoffOpenOf, useBankStore } from '../../store/bankStore';
 import { webglAvailable } from './office/webgl';
 import { DepthToggle, SegmentedToggle, type SegmentOption } from '../shell/SegmentedToggle';
 
@@ -67,6 +69,8 @@ function ViewportControlsView() {
   const dimension = useBankStore((s) => s.viewMode);
   const depth = useBankStore(dataDepthOf);
   const touring = useBankStore((s) => s.spotlight !== null);
+  // While a tour's kickoff card is open the dock stands aside; it is back as soon as the tour starts, to switch views during its steps.
+  const kickoff = useBankStore(kickoffOpenOf);
   const setScope = useBankStore((s) => s.setScope);
   const setDimension = useBankStore((s) => s.setDimension);
   const setDepth = useBankStore((s) => s.setDataDepth);
@@ -87,8 +91,14 @@ function ViewportControlsView() {
 
   const solid = dimension === '3d';
   const left = useMapCentre();
+  const box = useRef<HTMLDivElement>(null);
+  useMeasuredBox(box, (b) => topBand.setState({ dock: b }), [left, scope, touring, noWebgl, kickoff]);
+  useEffect(() => {
+    if (kickoff) topBand.setState({ dock: null });
+  }, [kickoff]);
+  if (kickoff) return null;
   return (
-    <div className="pointer-events-none absolute top-3 z-40 flex -translate-x-1/2 flex-col items-center transition-[left] duration-200 ease-out" style={{ left }} data-testid="viewport-controls">
+    <div ref={box} className="pointer-events-none absolute top-3 z-40 flex -translate-x-1/2 flex-col items-center transition-[left] duration-200 ease-out" style={{ left }} data-testid="viewport-controls">
       <div className={`pointer-events-auto flex items-center gap-3 rounded-2xl border border-slate-800 p-1.5 px-3 shadow-2xl ${solid ? 'bg-slate-900/95' : 'bg-slate-950/90 backdrop-blur-md'}`} role="toolbar" aria-label={t('Viewport')}>
         <SegmentedToggle<Scope> label={t('Scope')} value={scope} options={SCOPE_OPTIONS()} onChange={setScope} testId="scope" stateKey="scope" title={t(SCOPE_TITLE)} />
         <span className="h-5 w-px bg-slate-800" aria-hidden="true" />
@@ -118,19 +128,97 @@ export function useMapCentre(): string {
   return shift ? `calc(50% - ${shift}px)` : '50%';
 }
 
-/** How much room the dock (and the flow bar under it) takes at the top of the map, so the 2D blueprint can sit below it. */
+/** A floating panel's box on the map, in pixels from the map's top-left corner. */
+export interface MapBox {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/** What floats along the top of the map, as measured on screen: the viewport dock (with its flow bar), the 3D office's toolbar and its weather bar. Each panel reports its own box, so the others can keep clear of it whatever its language, the flow bar's rows or the width of the window. */
+export interface TopBand {
+  dock: MapBox | null;
+  toolbar: MapBox | null;
+  weather: MapBox | null;
+}
+export const topBand = createStore<TopBand>(() => ({ dock: null, toolbar: null, weather: null }));
+export const useTopBand = <T,>(select: (s: TopBand) => T): T => useStore(topBand, select);
+
+const sameBox = (a: MapBox | null, b: MapBox | null): boolean => a === b || (!!a && !!b && a.left === b.left && a.right === b.right && a.top === b.top && a.bottom === b.bottom);
+
+/** Reports `ref`'s box on the map (its offset parent) whenever it may have moved: it or the map resizes, the window resizes, its slide ends, or one of `deps` changes. Null once it is gone. */
+export function useMeasuredBox(ref: RefObject<HTMLElement | null>, report: (box: MapBox | null) => void, deps: readonly unknown[]): void {
+  const last = useRef<MapBox | null>(null);
+  const tell = useRef(report);
+  tell.current = report;
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = (): void => {
+      const parent = (el.offsetParent as HTMLElement | null) ?? el.parentElement;
+      if (!parent) return;
+      const r = el.getBoundingClientRect();
+      const p = parent.getBoundingClientRect();
+      const box = { left: Math.round(r.left - p.left), right: Math.round(r.right - p.left), top: Math.round(r.top - p.top), bottom: Math.round(r.bottom - p.top) };
+      if (sameBox(box, last.current)) return;
+      last.current = box;
+      tell.current(box);
+    };
+    measure();
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    ro?.observe(el);
+    if (el.parentElement) ro?.observe(el.parentElement);
+    window.addEventListener('resize', measure);
+    el.addEventListener('transitionend', measure);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', measure);
+      el.removeEventListener('transitionend', measure);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  useEffect(
+    () => () => {
+      last.current = null;
+      tell.current(null);
+    },
+    [],
+  );
+}
+
+/** How much room the dock (and the flow bar under it) takes at the top of the map, so what sits below it keeps clear: as measured, and never less than its usual height. */
 export function useDockInset(): number {
   const beginnerBar = useBankStore((s) => s.scope === 'beginner' && s.spotlight === null);
-  return beginnerBar ? 100 : 60;
+  const measured = useTopBand((s) => s.dock?.bottom ?? 0);
+  return Math.max(beginnerBar ? 100 : 60, measured);
 }
 
 /** The 3D office's weather bar, just under the dock: the gap above it and its height. */
 export const WEATHER_BAR_GAP = 6;
 export const WEATHER_BAR_H = 34;
 
-/** Where the first thing under the dock may start: under the weather bar in 3D, straight under the dock in 2D. */
+/** Where the first thing under the dock may start: under the weather bar (and the toolbar, if it had to drop below the dock) in 3D, straight under the dock in 2D. */
 export function useBelowDock(): number {
   const inset = useDockInset();
   const office = useBankStore((s) => s.viewMode === '3d');
-  return office ? inset + WEATHER_BAR_GAP + WEATHER_BAR_H + 8 : inset;
+  const below = useTopBand((s) => Math.max(s.weather?.bottom ?? 0, s.toolbar?.bottom ?? 0));
+  return office ? Math.max(inset + WEATHER_BAR_GAP + WEATHER_BAR_H, below) + 8 : inset;
 }
+
+/** Where the 3D office's top-left toolbar and the weather bar go, from their measured sizes: the toolbar stays in the corner while the dock leaves room beside it, else it drops just under the dock; the weather bar goes centred under the dock, and under the toolbar as well if the two would touch. */
+export function topBandLayout(band: { dock: MapBox | null; toolbarW: number; toolbarH: number; weatherW: number }): { toolbarTop: number; weatherTop: number } {
+  const { dock, toolbarW, toolbarH, weatherW } = band;
+  const corner = 12;
+  if (!dock) return { toolbarTop: corner, weatherTop: 60 + WEATHER_BAR_GAP };
+  const below = dock.bottom + WEATHER_BAR_GAP;
+  const toolbarRight = TOOLBAR_LEFT + toolbarW + 12;
+  const drop = toolbarRight > dock.left && corner < dock.bottom;
+  const toolbarTop = drop ? below : corner;
+  const centre = (dock.left + dock.right) / 2;
+  const touches = centre - weatherW / 2 < toolbarRight && below < toolbarTop + toolbarH;
+  return { toolbarTop, weatherTop: touches ? toolbarTop + toolbarH + WEATHER_BAR_GAP : below };
+}
+
+/** The 3D toolbar's distance from the map's left edge (left-4). */
+export const TOOLBAR_LEFT = 16;

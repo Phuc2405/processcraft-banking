@@ -12,8 +12,12 @@ import { CIT_YIELD, CitRun, LOADING_BAY } from '../../../../engine/world/citRun'
 import { approachPath, citRoutes, departPath, ParkingLot } from '../../../../engine/world/parking';
 import { LENGTH } from '../../../../engine/world/vehicles';
 import { SIDEWALK, SidewalkCrowd } from '../../../../engine/world/sidewalk';
-import { StaffWalks } from '../../../../engine/simulation/people';
-import { LABEL_LOD, labelLodAt, lodShows } from '../labelLod';
+import { SERVED_KEEP, StaffWalks } from '../../../../engine/simulation/people';
+import { digitalBoost, generateDay } from '../../../../sim/traffic';
+import { topBandLayout, WEATHER_BAR_GAP } from '../../ViewportControls';
+import { ACCUMULATING, activeCount, badgeMode, badgePills, LABEL_LOD, labelLodAt, lodShows } from '../labelLod';
+
+const readSrc = import.meta.glob(['../Desk3D.tsx', '../Dressing.tsx'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 import { buildSearchIndex, searchIndex } from '../../../../hooks/useSearchIndex';
 import type { WorldEngine } from '../../../../engine/simulation/WorldEngine';
 
@@ -249,9 +253,9 @@ describe('labels by zoom', () => {
     expect(labelLodAt(LABEL_LOD.mid - 1)).toBe('far');
     expect(labelLodAt(100)).toBe('mid');
     expect(labelLodAt(LABEL_LOD.near)).toBe('near');
-    expect(lodShows('far')).toEqual({ name: false, working: false, tally: false });
-    expect(lodShows('mid')).toEqual({ name: true, working: false, tally: true });
-    expect(lodShows('near')).toEqual({ name: true, working: true, tally: true });
+    expect(lodShows('far')).toEqual({ name: false, words: false, tally: false });
+    expect(lodShows('mid')).toEqual({ name: true, words: true, tally: true });
+    expect(lodShows('near')).toEqual({ name: true, words: true, tally: true });
   });
 });
 
@@ -265,5 +269,142 @@ describe('the cash van in the search', () => {
     }
     expect(buildSearchIndex('expert', 'en').find((e) => e.id === 'station:CIT_VAN')!.label).toBe('Cash Transporter (CIT)');
     expect(buildSearchIndex('expert', 'vi').find((e) => e.id === 'station:CIT_VAN')!.label).toBe('Xe chở tiền (CIT)');
+  });
+});
+
+describe('badges only where something is going on', () => {
+  const base = { hovered: false, selected: false, lit: null, always: true, waiting: 0, working: 0, accumulates: false } as const;
+  it('hides idle desks, shows busy ones, keeps accumulating desks compact, and always shows the one pointed at or picked', () => {
+    expect(badgeMode(base)).toBe('hidden');
+    expect(badgeMode({ ...base, waiting: 2 })).toBe('full');
+    expect(badgeMode({ ...base, working: 1 })).toBe('full');
+    expect(badgeMode({ ...base, accumulates: true, waiting: 40 })).toBe('compact');
+    expect(badgeMode({ ...base, accumulates: true, waiting: 40, hovered: true })).toBe('full');
+    expect(badgeMode({ ...base, hovered: true })).toBe('full');
+    expect(badgeMode({ ...base, selected: true })).toBe('full');
+    expect(badgeMode({ ...base, lit: true })).toBe('full');
+    expect(badgeMode({ ...base, lit: false, waiting: 3 })).toBe('hidden');
+    expect(badgeMode({ ...base, always: false, waiting: 3 })).toBe('hidden');
+    expect(ACCUMULATING.has('SUSPENSE')).toBe(true);
+    // An accumulating desk with nothing in it wears no badge either.
+    expect(badgeMode({ ...base, accumulates: true })).toBe('hidden');
+  });
+});
+
+describe('a badge counts everything active at its desk, and never says 0', () => {
+  const base = { hovered: false, selected: false, lit: null, always: true, accumulates: false } as const;
+  it('is active whenever waiting + working > 0, a desk only working included', () => {
+    expect(activeCount({ waiting: 0, working: 2 })).toBe(2);
+    expect(activeCount({ waiting: 3, working: 1 })).toBe(4);
+    expect(badgeMode({ ...base, waiting: 0, working: 1 })).toBe('full');
+    expect(badgeMode({ ...base, waiting: 1, working: 0 })).toBe('full');
+    expect(badgeMode({ ...base, accumulates: true, waiting: 0, working: 1 })).toBe('compact');
+  });
+
+  it('is hidden whenever waiting + working = 0, unless the desk is pointed at, picked or lit by a tour', () => {
+    expect(badgeMode({ ...base, waiting: 0, working: 0 })).toBe('hidden');
+    expect(badgeMode({ ...base, accumulates: true, waiting: 0, working: 0 })).toBe('hidden');
+    for (const lit of [null, false] as const) expect(badgeMode({ ...base, lit, waiting: 0, working: 0 })).toBe('hidden');
+    expect(badgeMode({ ...base, hovered: true, waiting: 0, working: 0 })).toBe('full');
+    expect(badgeMode({ ...base, selected: true, waiting: 0, working: 0 })).toBe('full');
+    expect(badgeMode({ ...base, lit: true, waiting: 0, working: 0 })).toBe('full');
+  });
+
+  it('shows the total zoomed out, "X waiting" and "Y working" closer, and no pill at all for a 0', () => {
+    // A desk working two cases with nobody waiting: "2", or "2 working", never "0 waiting".
+    expect(badgePills({ waiting: 0, working: 2, lod: 'far' })).toEqual({ total: 2, waiting: null, working: null });
+    expect(badgePills({ waiting: 0, working: 2, lod: 'mid' })).toEqual({ total: null, waiting: null, working: 2 });
+    expect(badgePills({ waiting: 3, working: 1, lod: 'far' })).toEqual({ total: 4, waiting: null, working: null });
+    expect(badgePills({ waiting: 3, working: 1, lod: 'near' })).toEqual({ total: null, waiting: 3, working: 1 });
+    expect(badgePills({ waiting: 3, working: 0, lod: 'mid' })).toEqual({ total: null, waiting: 3, working: null });
+    // A desk pointed at with nothing active: its dot and name, no number.
+    for (const lod of ['far', 'mid', 'near'] as const) expect(badgePills({ waiting: 0, working: 0, lod })).toEqual({ total: null, waiting: null, working: null });
+    // Every combination: a pill shown is never 0.
+    for (let w = 0; w < 4; w++)
+      for (let k = 0; k < 4; k++)
+        for (const lod of ['far', 'mid', 'near'] as const) for (const n of Object.values(badgePills({ waiting: w, working: k, lod }))) expect(n === null || n > 0).toBe(true);
+  });
+
+  it('draws only those pills, the desk badge and the outcome tallies alike', () => {
+    const desk = readSrc['../Desk3D.tsx']!;
+    expect(desk).toContain('const pills = badgePills({ waiting: queueLength, working, lod });');
+    expect(desk).toContain('{pills.total !== null && (');
+    expect(desk).toContain('{pills.waiting !== null && (');
+    expect(desk).toContain('{pills.working !== null && (');
+    expect(desk).not.toContain('BADGE_LINGER_BEATS');
+    const kiosk = readSrc['../Dressing.tsx']!;
+    expect(kiosk).toContain('{count > 0 && (');
+  });
+});
+
+describe('the top of the map keeps its panels apart', () => {
+  const dock = (left: number, bottom: number) => ({ left, right: left + 794, top: 12, bottom });
+  it('keeps the toolbar in the corner beside a dock that leaves room, and drops it under the dock when not', () => {
+    expect(topBandLayout({ dock: dock(420, 132), toolbarW: 218, toolbarH: 31, weatherW: 322 })).toEqual({ toolbarTop: 12, weatherTop: 132 + WEATHER_BAR_GAP });
+    const narrow = topBandLayout({ dock: dock(170, 133), toolbarW: 218, toolbarH: 31, weatherW: 322 });
+    expect(narrow.toolbarTop).toBe(133 + WEATHER_BAR_GAP);
+    // The weather bar, centred at 567, starts at 406: clear of the toolbar (it ends at 246).
+    expect(narrow.weatherTop).toBe(133 + WEATHER_BAR_GAP);
+  });
+
+  it('puts the weather bar under a dropped toolbar when the two would touch', () => {
+    const tight = topBandLayout({ dock: dock(-150, 133), toolbarW: 218, toolbarH: 31, weatherW: 322 });
+    expect(tight.toolbarTop).toBe(133 + WEATHER_BAR_GAP);
+    expect(tight.weatherTop).toBe(tight.toolbarTop + 31 + WEATHER_BAR_GAP);
+  });
+
+  it('always clears the dock, however many rows its flow bar has', () => {
+    for (const bottom of [60, 100, 132, 170]) expect(topBandLayout({ dock: dock(420, bottom), toolbarW: 218, toolbarH: 31, weatherW: 322 }).weatherTop).toBeGreaterThan(bottom);
+  });
+});
+
+describe('the digital channels follow people, not the branch', () => {
+  const count = (pick: (c: { kind: string; minute: number }) => boolean) => [1, 3, 4, 5].reduce((n, d) => n + [...generateDay(7, d).customers, ...generateDay(7, d).offHours].filter(pick).length, 0);
+  const perHour = (kind: string, from: number, to: number) => count((c) => c.kind === kind && c.minute >= from && c.minute < to) / ((to - from) / 60);
+  it('lifts the morning, steps up the lunch hour, and makes the evening the busiest stretch of all for online shopping, card taps, transfers and the ATM', () => {
+    expect(digitalBoost('ECOM', 8 * 60)).toBeGreaterThan(1);
+    expect(digitalBoost('ECOM', 12.5 * 60)).toBeGreaterThan(digitalBoost('POS', 12.5 * 60));
+    expect(digitalBoost('TELLER', 12.5 * 60)).toBe(1);
+    for (const kind of ['ECOM', 'POS', 'A2A', 'ATM'] as const) {
+      expect(digitalBoost(kind, 19 * 60)).toBeGreaterThanOrEqual(2);
+      // In the evening, with the branch shut, they are busier than in the early hours before it opens.
+      expect(perHour(kind, 17 * 60, 22 * 60), kind).toBeGreaterThan(perHour(kind, 7 * 60, 9 * 60));
+    }
+    // Transfers and ATM cash peak in the evening: busier than any other hour the branch is shut.
+    for (const kind of ['A2A', 'ATM'] as const) expect(perHour(kind, 17 * 60, 22 * 60)).toBeGreaterThan(perHour(kind, 22 * 60, 24 * 60));
+    // Lunch is the online cards' busiest working hour.
+    expect(perHour('ECOM', 12 * 60, 13 * 60)).toBeGreaterThan(perHour('ECOM', 9 * 60, 12 * 60));
+    expect(perHour('ECOM', 14 * 60, 16 * 60)).toBeLessThan(perHour('ECOM', 12 * 60, 13 * 60));
+  });
+});
+
+describe('a customer is never whisked away mid-business', () => {
+  it('has the one served at the counter or machine finish there (keying in, talking), and lets the busiest line forget only those already walking off', () => {
+    const { store, world } = bankAt(12 * 60);
+    const seenAt = new Map<string, number>();
+    // Each served customer's last pose: when they leave the screen, they were walking away, never standing at the counter or machine.
+    const last = new Map<string, { walking: boolean; busy: boolean }>();
+    play(store, world, 30, () => {
+      for (const id of ['GATE_ATM', 'ATM_CASH', 'TELLER_CASH'] as const) {
+        const line = world.line(id);
+        const now = new Set<string>();
+        for (const s of line.served) {
+          const key = `${id}-${s.key}`;
+          now.add(key);
+          const p = line.servedPoses.get(s.key);
+          if (!p) continue;
+          if (p.busy) seenAt.set(key, (seenAt.get(key) ?? 0) + 1);
+          last.set(key, { walking: p.walking, busy: p.busy });
+        }
+        for (const [key, p] of last)
+          if (key.startsWith(`${id}-`) && !now.has(key)) {
+            expect(p.busy, key).toBe(false);
+            expect(p.walking, key).toBe(true);
+            last.delete(key);
+          }
+        expect(line.served.length).toBeLessThanOrEqual(SERVED_KEEP);
+      }
+    }, 40);
+    expect(seenAt.size).toBeGreaterThan(0);
   });
 });

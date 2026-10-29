@@ -1184,6 +1184,8 @@ export function useBankStore<T>(selector: (state: BankState) => T): T {
 export const dataDepthOf = (s: Pick<BankState, 'termMode'>): DataDepth => (s.termMode === 'expert' ? 'expert' : 'standard');
 
 /** The guided flow in focus: only in the Beginner scope, and never while a chapter tour has the map. */
+/** Whether a tour's kickoff card (its briefing, before "Start the tour") is open: the floating dock and the weather bar stand aside for it, and come back the moment the tour starts. */
+export const kickoffOpenOf = (s: Pick<BankState, 'spotlight'>): boolean => s.spotlight?.intro === true;
 export const activeFlowOf = (s: Pick<BankState, 'scope' | 'flow' | 'spotlight'>): FlowId | null => (s.scope === 'beginner' && !s.spotlight ? s.flow : null);
 
 /** The node the Academy is teaching, if it should show. */

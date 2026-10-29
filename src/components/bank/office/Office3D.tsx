@@ -2,7 +2,7 @@ import { t } from '../../../i18n/t';
 import { Canvas } from '@react-three/fiber';
 import { Component, memo, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
 import { useAcademyStore } from '../../../store/academyStore';
-import { activeFlowOf, useBankStore } from '../../../store/bankStore';
+import { activeFlowOf, kickoffOpenOf, useBankStore } from '../../../store/bankStore';
 import { OfficeScene } from './OfficeScene';
 import { TourLayer3D } from './TourLayer3D';
 import { CAMERA_DIRECTION, CAMERA_DISTANCE } from '../../../engine/plan/layout3d';
@@ -12,7 +12,7 @@ import { weatherStore, type WeatherChoice } from '../../../engine/world/weather'
 import { useWeather } from './useWeather';
 import { skyFlash } from './Environment3D';
 import { MapLegend } from '../MapLegend';
-import { useDockInset, useMapCentre, WEATHER_BAR_GAP } from '../ViewportControls';
+import { topBand, topBandLayout, useDockInset, useMapCentre, useMeasuredBox, useTopBand } from '../ViewportControls';
 
 /** The sky behind the diorama: a gradient from the time-of-day presets and the weather blend, redrawn every ten bank minutes and as the weather eases. A white layer over it flashes with the storm's lightning. */
 function SkyBackdrop() {
@@ -157,7 +157,6 @@ function WeatherControls({ compact }: { compact: boolean }) {
   const label = t(DAY_PART_LABEL[part]);
   return (
     <div className="flex items-center gap-1.5">
-      <RandomWeather />
       <span className="whitespace-nowrap rounded-lg border border-white bg-white/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-700 shadow-md" data-testid="office-daypart" data-part={part} title={label}>
         {compact ? label.split(' ')[0] : label}
       </span>
@@ -166,18 +165,34 @@ function WeatherControls({ compact }: { compact: boolean }) {
   );
 }
 
-/** Where the 3D toolbar sits: one row in the top-left corner, always, whatever panel is open beside the map. */
+/** Where the 3D toolbar sits: one row in the top-left corner, or just under the viewport dock when the dock leaves it no room beside it (a narrow window, the inspector open, longer words): topBandLayout. */
 export const TOOLBAR_CLASS = 'absolute left-4 top-3 z-40 flex flex-row flex-nowrap items-center gap-1.5';
 
 /** The weather bar: centred just under the viewport dock (and its flow bar), above the map's banners and cards (z-40) but under every modal (z-50 and up). */
 export const WEATHER_BAR_CLASS = 'pointer-events-auto absolute z-[45] flex -translate-x-1/2 items-center transition-[left] duration-200 ease-out';
 
-/** The weather bar's place: under the dock, over the middle of the map that the inspector leaves free. */
-function WeatherBar({ compact }: { compact: boolean }) {
-  const top = useDockInset() + WEATHER_BAR_GAP;
+/** Where the toolbar and the weather bar go now, from what the top of the map measures (topBandLayout). */
+function useTopBandLayout(): { toolbarTop: number; weatherTop: number } {
+  const dock = useTopBand((s) => s.dock);
+  const toolbarW = useTopBand((s) => (s.toolbar ? s.toolbar.right - s.toolbar.left : 0));
+  const toolbarH = useTopBand((s) => (s.toolbar ? s.toolbar.bottom - s.toolbar.top : 0));
+  const weatherW = useTopBand((s) => (s.weather ? s.weather.right - s.weather.left : 0));
+  return topBandLayout({ dock, toolbarW, toolbarH, weatherW });
+}
+
+/** The weather bar's place: under the dock (however many rows its flow bar has), over the middle of the map that the inspector leaves free, and under the toolbar if that had to drop below the dock too. */
+function WeatherBar({ compact, top }: { compact: boolean; top: number }) {
   const left = useMapCentre();
+  const box = useRef<HTMLDivElement>(null);
+  // Like the dock, it stands aside while a tour's kickoff card is open.
+  const kickoff = useBankStore(kickoffOpenOf);
+  useMeasuredBox(box, (b) => topBand.setState({ weather: b }), [left, top, compact, kickoff]);
+  useEffect(() => {
+    if (kickoff) topBand.setState({ weather: null });
+  }, [kickoff]);
+  if (kickoff) return null;
   return (
-    <div className={WEATHER_BAR_CLASS} style={{ top, left }} data-testid="office-weather-bar">
+    <div ref={box} className={WEATHER_BAR_CLASS} style={{ top, left }} data-testid="office-weather-bar">
       <WeatherControls compact={compact} />
     </div>
   );
@@ -231,6 +246,10 @@ function Office3DView() {
   const back = useCallback(() => setViewMode('2d'), [setViewMode]);
   // The legend sits top-right, under the viewport dock and left of the zoom toolbar and the inspector, as on the 2D map.
   const dockInset = useDockInset();
+  // The toolbar keeps clear of the dock, and the weather bar of both, whatever their sizes on screen.
+  const band = useTopBandLayout();
+  const toolbar = useRef<HTMLDivElement>(null);
+  useMeasuredBox(toolbar, (b) => topBand.setState({ toolbar: b }), [band.toolbarTop, splitOpen, labelMode, touring]);
   const legendRight = useBankStore((s) => 76 + (s.selection.kind !== 'none' ? s.inspectorWidth : 0));
 
   if (lost) return <Unavailable reason="The graphics context was lost." onBack={back} />;
@@ -286,7 +305,7 @@ function Office3DView() {
         </span>
       </div>
       {/* One row in the top-left corner, never pushed down into the view: beside the Academy panel, where the map is narrow, the buttons shrink to their icons instead (the full words are in their tooltips). */}
-      <div className={TOOLBAR_CLASS} data-testid="office-toolbar">
+      <div ref={toolbar} className={TOOLBAR_CLASS} style={{ top: band.toolbarTop }} data-testid="office-toolbar">
         <button
           type="button"
           onClick={() => setResetKey((n) => n + 1)}
@@ -308,7 +327,9 @@ function Office3DView() {
           {splitOpen ? `🏷 ${labelMode === 'always' ? t('Always Show') : t('Hover Only')}` : `${t('Labels:')} ${labelMode === 'always' ? t('Always Show') : t('Hover Only')}`}
         </button>
       </div>
-      <WeatherBar compact={splitOpen} />
+      {/* The weather keeps changing in random mode even while its bar stands aside (a tour's kickoff card). */}
+      <RandomWeather />
+      <WeatherBar compact={splitOpen} top={band.weatherTop} />
       {!touring && <MapLegend top={dockInset + 12} right={legendRight} />}
     </div>
   );

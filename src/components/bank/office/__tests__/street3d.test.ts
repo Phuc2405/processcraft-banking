@@ -541,8 +541,9 @@ describe('the 3D toolbar', () => {
 
   it('puts the time and the weather in their own bar under the viewport dock, over the banners and cards of the map but under the modals', () => {
     const office = src['../Office3D.tsx']!;
-    expect(office).toContain('<WeatherBar compact={splitOpen} />');
-    expect(office).toContain('const top = useDockInset() + WEATHER_BAR_GAP;');
+    // Placed from what the top of the map measures (topBandLayout): under the dock, whatever its rows, and under a dropped toolbar.
+    expect(office).toContain('<WeatherBar compact={splitOpen} top={band.weatherTop} />');
+    expect(office).toContain('style={{ top: band.toolbarTop }}');
     expect(office).toContain('const left = useMapCentre();');
     // Above the day banner, the walkthrough cards and the inspector (z-40); under every modal (z-50 and up).
     expect(office).toContain("WEATHER_BAR_CLASS = 'pointer-events-auto absolute z-[45]");
