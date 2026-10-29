@@ -82,9 +82,9 @@ describe('the ATM queue: a line to wait in, a turn at the machine, and out witho
   });
 
   it('walks the next in line up to the machine once the one before has turned away, on the motion clock', () => {
-    const desk = read('../Desk3D.tsx');
-    expect(desk).toContain('hold.current = motion.t + (atm ? SERVED.atm : SERVED.counter) + 0.7;');
-    expect(desk).toContain('const step = motion.t < hold.current ? 0 : STEP_UP_PACE * motion.dt;');
+    const people = read('../../../../engine/simulation/people.ts');
+    expect(people).toContain('this.hold = now + (this.atm ? SERVED.atm : SERVED.counter) + 0.7;');
+    expect(people).toContain('const step = now < this.hold ? 0 : STEP_UP_PACE * dt;');
   });
 
   it('runs people caught by the rain along the pavement and then straight in to shelter, never through a booth', () => {

@@ -339,7 +339,9 @@ export class TrafficSim {
     const h = Math.min(Math.max(dt, 0), 0.1);
     this.t += h;
     // Leaders first, so each follower brakes for where the vehicle in front has got to now.
-    const order = [...this.cars].sort((a, b) => this.gapAhead(b).gap - this.gapAhead(a).gap);
+    // Each gap worked out once (nothing moves while sorting), so the order is the same as comparing gaps afresh, only cheaper.
+    const gaps = new Map(this.cars.map((c) => [c, this.gapAhead(c).gap]));
+    const order = [...this.cars].sort((a, b) => gaps.get(b)! - gaps.get(a)!);
     for (const c of order) {
       const lap = Math.floor(c.s / SPAN);
       // Standing at the kerb: its state handles the step (or hands it on, as it pulls away).

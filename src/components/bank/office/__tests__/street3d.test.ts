@@ -15,6 +15,8 @@ import { ATM_STATIONS } from '../../../../engine/plan/layout3d';
 const src = import.meta.glob(['../Environment3D.tsx', '../Office3D.tsx', '../Vehicles3D.tsx', '../Parking3D.tsx', '../GuardCabin3D.tsx', '../Desk3D.tsx', '../Avatars.tsx', '../Traffic.tsx', '../OfficeScene.tsx'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 
 /** Runs the street for `seconds` at 60 frames a second, calling `each` after every frame. */
+const people = (import.meta.glob('../../../../engine/simulation/people.ts', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)['../../../../engine/simulation/people.ts']!;
+
 function drive(seconds: number, each: (sim: TrafficSim) => void): TrafficSim {
   const sim = new TrafficSim();
   for (let i = 0; i < seconds * 60; i++) {
@@ -443,10 +445,8 @@ describe('closing time and the pause', () => {
   });
 
   it('empties the customer desks’ queues after closing, keeps the ATMs open all night, and never evacuates on a pause', async () => {
-    const desk = src['../Desk3D.tsx']!;
-    expect(desk).toContain('CUSTOMER_DESKS.includes(id) && isClosed(s.view.minute)');
-    const traffic = src['../Traffic.tsx']!;
-    expect(traffic).toContain('if (closed && !ATM_STATIONS.includes(id)) continue;');
+    expect(people).toContain('CUSTOMER_DESKS.includes(this.id) && isClosed(minute)');
+    expect(people).toContain('if (closed && !ATM_STATIONS.includes(id)) continue;');
     // The walk-out is triggered by the clock crossing 17:00, never by the play/pause switch (engine: ClosingWalkout).
     const { ClosingWalkout } = await import('../../../../engine/simulation/closingWalkout');
     const walkout = new ClosingWalkout(false);
@@ -480,7 +480,7 @@ describe('closing time and the pause', () => {
     expect(src['../Vehicles3D.tsx']).toContain('const live = useWorld().trafficView;');
     expect(src['../Parking3D.tsx']).toContain('const lot = useWorld().lot;');
     expect(src['../Environment3D.tsx']).toContain('const clock = useWorld().pavement;');
-    expect(src['../Desk3D.tsx']).toContain('leaver.t += motion.dt;');
+    expect(people).toContain('w.t += dt;');
   });
 });
 

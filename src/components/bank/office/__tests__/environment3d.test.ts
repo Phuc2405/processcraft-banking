@@ -571,6 +571,8 @@ describe('staff going home', () => {
   it('empties the seat of someone off shift, and walks them out only when it happens in front of the learner', () => {
     const src = (import.meta.glob('../Desk3D.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)['../Desk3D.tsx']!;
     expect(src).toContain('if (!seat || absent.has(w.id) || (!automated && isOffShift(w.activity) && !early.has(w.id))) return null;');
-    expect(src).toMatch(/was\.get\(w\.id\) === true && next\.get\(w\.id\) === false/);
+    // Who walks out is the engine's to say (engine/simulation/people.ts StaffWalks).
+    const people = (import.meta.glob('../../../../engine/simulation/people.ts', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)['../../../../engine/simulation/people.ts']!;
+    expect(people).toMatch(/was\.get\(w\.id\) === true && next\.get\(w\.id\) === false/);
   });
 });

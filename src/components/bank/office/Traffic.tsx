@@ -1,6 +1,6 @@
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import type { BufferGeometry, Group, Mesh } from 'three';
 import { beatMs, SPEEDS } from '../../../sim/clock';
 import { localizeScenarioText } from '../../../sim/scenarios';
@@ -8,18 +8,13 @@ import type { Move, PacketKind } from '../../../sim/types';
 import { bankStore, useBankStore } from '../../../store/bankStore';
 import { CustomerFigure, phaseOf } from './Avatars';
 import { box, cyl, merge, shade, tint, type Part } from './kit';
-import { customerShirt, QUEUE_VISIBLE, queueSalt, hopHeight, hopTiming, laneAt, laneLength, packetLane, WALKER_STATIONS, type V2 } from '../../../engine/plan/layout3d';
+import { customerShirt, hopHeight, hopTiming, laneAt, laneLength, packetLane, type V2 } from '../../../engine/plan/layout3d';
 import { glow } from './materials';
 import { PACKET_HEX } from './palette';
 import { motion, motionNow } from '../../../engine/simulation/motion';
-import { sidewalk } from '../../../engine/world/sidewalk';
-import { isClosed } from '../../../engine/world/evacuation';
-import { ATM_STATIONS } from '../../../engine/plan/layout3d';
-import { queueHandoff } from '../../../engine/simulation/queueHandoff';
-import { routesFor } from '../../../engine/simulation/routes';
-import type { StationId } from '../../../sim/topology';
+import { MAX_WALKERS } from '../../../engine/simulation/people';
+import { usePeopleVersion, useWorld } from './WorldProvider';
 
-const MAX_WALKERS = 14;
 const HEIGHT = 0.62;
 const KINDS = Object.keys(PACKET_HEX) as PacketKind[];
 
@@ -229,119 +224,26 @@ export const Packets = memo(function Packets() {
   );
 });
 
-interface Walk {
-  path: V2[];
-  length: number;
-  /** When they set off (motion-clock seconds), and how fast they walk. */
-  start: number;
-  pace: number;
-  /** The figure that walks it, kept for the whole walk (so nobody swaps looks or jumps when someone else arrives). */
-  slot: number;
-  /** The desk whose line they are walking to (its queue takes them over where they stop: queueHandoff), and their look. */
-  desk: StationId;
-  who: number;
-}
-
 /**
- * How fast customers walk to the desks, on the motion clock: an unhurried pace at 1x (it follows the speed multiplier like
- * everything else). Down the pavement to the ATMs they stroll; into the branch, a little brisker.
- */
-export const ARRIVAL_PACE = { atm: 0.85, gate: 1.0 } as const;
-
-/** The first figure of a pool not walking anyone, or -1 when all are busy. */
-const freeSlot = (walks: readonly Walk[], size: number): number => {
-  for (let i = 0; i < size; i++) if (!walks.some((w) => w.slot === i)) return i;
-  return -1;
-};
-
-/**
- * Places pooled walkers on their walks at time `t`, steering those on the pavement round each other (sidewalk.ts). Someone
- * at the end of their walk is handed over to their desk's line right where they stand (`arrived`).
- */
-function placeWalkers(walks: Walk[], pool: Array<Group | null>, prefix: string, arrived: (w: Walk) => void = () => {}): void {
-  const t = motion.t;
-  for (let i = walks.length - 1; i >= 0; i--)
-    if ((t - walks[i]!.start) * walks[i]!.pace > walks[i]!.length) {
-      arrived(walks[i]!);
-      walks.splice(i, 1);
-    }
-  pool.forEach((g, i) => {
-    if (!g) return;
-    const w = walks.find((x) => x.slot === i);
-    if (!w || t < w.start) {
-      g.visible = false;
-      sidewalk.leave(`${prefix}-${i}`);
-      return;
-    }
-    const p = laneAt(w.path, (t - w.start) * w.pace);
-    const [x, z] = sidewalk.place(`${prefix}-${i}`, p.x, p.z, motion.dt);
-    g.visible = true;
-    g.position.set(x, 0, z);
-    // Face the way they walk; towards the counter on the last leg.
-    g.rotation.y = p.heading + Math.PI / 2;
-  });
-}
-
-/**
- * Customers coming to the desks. Whenever the teller's or the disputes desk's queue grows in a beat, a customer walks in
- * from their car in the car park, across to the side door, in along the wall and the front aisle to the end of the line;
- * an ATM's come strolling down the pavement to the booth. They look as they will in the line, and the desk leaves their
- * place in it empty until they get there, then takes them over on the spot (queueHandoff): nobody vanishes on arrival and
- * nobody shows twice. The gates are digital: their customers arrive as signals (SignalPulses), never on foot. When every
- * figure is out walking, or their place is further back than the line drawn, the newcomer simply joins the line unseen.
+ * Customers walking to the desks' lines (WorldEngine.arrivals): from their car in the car park in at the side door to a
+ * counter, or down the pavement to an ATM's booth, each looking as they will in the line. This only draws them.
  */
 export const Arrivals = memo(function Arrivals() {
-  const tick = useBankStore((s) => s.view.tick);
-  const walks = useRef<Walk[]>([]);
+  const world = useWorld();
+  const walks = world.arrivals;
+  // Their looks change only when someone new sets off.
+  usePeopleVersion((w) => w.arrivals.version);
   const pool = useRef<Array<Group | null>>([]);
-  const queued = useRef<Partial<Record<string, number>>>({});
-  const [looks, setLooks] = useState<readonly number[]>(() => Array.from({ length: MAX_WALKERS }, (_, i) => i * 7 + 2));
-
-  // Before the frame: the desks must know whose place to keep empty from the very first frame of the new line.
-  useLayoutEffect(() => {
-    const state = bankStore.getState();
-    // Customers walk in from the car park to the counters and up the pavement to the ATMs; nobody walks to a digital gate.
-    // After closing time customers only come for the sidewalk ATMs.
-    const closed = isClosed(state.view.minute);
-    const next = [...looks];
-    let changed = false;
-    for (const id of WALKER_STATIONS) {
-      const sv = state.view.stations[id];
-      // A counter's newcomers are what its queue grew by (its arrivals are counted at the gates the cases came in at).
-      const grew = Math.max(0, sv.queueLength - (queued.current[id] ?? sv.queueLength));
-      queued.current[id] = sv.queueLength;
-      if (closed && !ATM_STATIONS.includes(id)) continue;
-      const count = Math.min(2, ATM_STATIONS.includes(id) ? sv.arrivals : Math.max(sv.arrivals, grew));
-      for (let k = 0; k < count; k++) {
-        // Their place in the line: the newcomers are its last `count`.
-        const place = sv.queueLength - count + k;
-        if (place < 0 || place >= QUEUE_VISIBLE) continue;
-        const slot = freeSlot(walks.current, MAX_WALKERS);
-        if (slot < 0) break;
-        const path = routesFor(id).approach(place);
-        const pace = ATM_STATIONS.includes(id) ? ARRIVAL_PACE.atm : ARRIVAL_PACE.gate;
-        // The look of whoever stands in that place of the line (Desk3D: DeskQueue).
-        const who = sv.stats.processedToday + place + queueSalt(id);
-        walks.current.push({ path, length: laneLength(path), start: motion.t + k * 0.9, pace, slot, desk: id, who });
-        queueHandoff.expect(id);
-        next[slot] = who;
-        changed = true;
-      }
-    }
-    if (changed) setLooks(next);
-    // Only a new beat sets anyone walking; the looks are read as they stand then.
-  }, [tick]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Anyone still on their way when the office stops drawing them will never arrive.
-  useEffect(
-    () => () => {
-      for (const w of walks.current) queueHandoff.drop(w.desk);
-    },
-    [],
-  );
-
-  useFrame(() => placeWalkers(walks.current, pool.current, 'arrival', (w) => queueHandoff.arrive(w.desk, w.path[w.path.length - 1]!, motion.t, w.who)));
-
+  useFrame(() => {
+    pool.current.forEach((g, i) => {
+      const p = walks.poses[i];
+      if (!g || !p) return;
+      g.visible = p.visible;
+      if (!p.visible) return;
+      g.position.set(p.x, 0, p.z);
+      g.rotation.y = p.yaw;
+    });
+  });
   return (
     <group name="office-arrivals">
       {Array.from({ length: MAX_WALKERS }, (_, i) => (
@@ -352,13 +254,11 @@ export const Arrivals = memo(function Arrivals() {
           }}
           visible={false}
         >
-          <CustomerFigure index={looks[i]!} shirt={customerShirt(looks[i]! * 3 + 1)} phase={phaseOf(`walker-${i}`)} walking />
+          <CustomerFigure index={walks.looks[i]!} shirt={customerShirt(walks.looks[i]! * 3 + 1)} phase={phaseOf(`walker-${i}`)} walking />
         </group>
       ))}
     </group>
   );
 });
 
-/** How long someone finishing at the machine takes to put their card and cash away and turn round before walking off (the
- * served customer walks away from the desk itself: ServedCustomer in Desk3D). */
-export const ATM_TURN_S = 0.8;
+export { ARRIVAL_PACE, ATM_TURN_S } from '../../../engine/simulation/people';

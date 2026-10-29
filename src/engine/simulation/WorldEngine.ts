@@ -8,8 +8,11 @@ import { queueHandoff, type QueueHandoff } from './queueHandoff';
 import { sidewalk, type SidewalkCrowd } from '../world/sidewalk';
 import type { TrafficSim, VehicleState } from '../world/vehicles';
 import { liveMix, newPavementClock, stepPavementClock, type PavementClock } from '../world/weather';
-import type { StationId } from '../../sim/topology';
+import { isAutomatedNode } from '../../sim/nodeKind';
+import { STATION_IDS, type StationId } from '../../sim/topology';
+import type { BankView } from '../../sim/types';
 import { ClosingWalkout } from './closingWalkout';
+import { ArrivalWalks, DeskLine, StaffWalks } from './people';
 import { EntityFactory } from './EntityFactory';
 
 /**
@@ -60,6 +63,14 @@ export class WorldEngine {
   /** Closing time's walk-out of the counters' lines; `walkoutVersion` moves on whenever who is walking out changes. */
   readonly walkout: ClosingWalkout;
   walkoutVersion = 0;
+  /** Customers walking to the desks' lines; each desk's line and served customers; each desk's staff walking in and out. */
+  readonly arrivals: ArrivalWalks;
+  private readonly lines = new Map<StationId, DeskLine>();
+  private readonly staffWalks = new Map<StationId, StaffWalks>();
+  private readonly listeners = new Set<() => void>();
+  private seenView: BankView | null = null;
+  private seenTick: number | null = null;
+  private peopleVersion = 0;
   private readonly guards = new Map<GuardPostPlan, FrontGuard>();
   private minute: number;
   private weather: Weather;
@@ -75,6 +86,7 @@ export class WorldEngine {
     // Everyone wanted in the park at the start is already in place; after that they come and go on foot.
     this.park = factory.parkCrowd(start.minute);
     this.walkout = new ClosingWalkout(isClosed(start.minute));
+    this.arrivals = new ArrivalWalks(this.handoff, this.sidewalk);
   }
 
   /** The guards at a post (made the first time it is asked for, as things stand then), stepped with the rest of the world. */
@@ -116,11 +128,75 @@ export class WorldEngine {
 
     stepPavementClock(this.pavement, motion.dt, input.weather);
 
+    // The people of the desks: walkers to the lines first (they hand over to the lines), then the lines, then the staff.
+    this.arrivals.step(motion.t, motion.dt);
+    for (const line of this.lines.values()) line.step(motion.t, motion.dt);
+    for (const staff of this.staffWalks.values()) staff.step(motion.dt);
+    this.publishPeople();
+
     // Closing time: everyone in the counters' lines walks out (pausing never sets anyone walking; the clock reaching 17:00 does).
     if (this.walkout.update(isClosed(minute), input.queueLength ?? (() => 0))) this.walkoutVersion++;
     if (this.walkout.step(motion.dt)) this.walkoutVersion++;
 
     return { mixChanged: this.stepSky(input.realDt, input.weather) };
+  }
+
+  /** A desk's line and the customers served at it. */
+  line(id: StationId): DeskLine {
+    let l = this.lines.get(id);
+    if (!l) {
+      l = new DeskLine(id, this.handoff, this.sidewalk);
+      this.lines.set(id, l);
+    }
+    return l;
+  }
+
+  /** A desk's staff walking in and out. */
+  staff(id: StationId): StaffWalks {
+    let s = this.staffWalks.get(id);
+    if (!s) {
+      s = new StaffWalks(id, isAutomatedNode(id));
+      this.staffWalks.set(id, s);
+    }
+    return s;
+  }
+
+  /**
+   * The bank moved on (call it as soon as the bank's view changes, and once at the start): customers set off for the lines on
+   * a new beat, the lines take in who has been served, and the staff who went off shift or are due in start walking.
+   */
+  onBank(view: BankView): void {
+    if (view === this.seenView) return;
+    this.seenView = view;
+    if (view.tick !== this.seenTick) {
+      this.seenTick = view.tick;
+      this.arrivals.onBeat(view.stations, view.minute, motion.t);
+    }
+    for (const id of STATION_IDS) {
+      this.line(id).sync(view.stations[id], view.minute, motion.t);
+      this.staff(id).sync(view.stations[id].workers, view.minute);
+    }
+    this.publishPeople();
+  }
+
+  /** Hears whenever the people of the desks change (Observer); returns the way to stop. */
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
+
+  /** Puts the world away: anyone still walking to a line will never arrive. */
+  dispose(): void {
+    this.arrivals.dispose();
+  }
+
+  private publishPeople(): void {
+    let v = this.arrivals.version;
+    for (const l of this.lines.values()) v += l.version;
+    for (const s of this.staffWalks.values()) v += s.version;
+    if (v === this.peopleVersion) return;
+    this.peopleVersion = v;
+    for (const l of this.listeners) l();
   }
 
   /** Eases the live weather blend (liveMix) towards the pick, over WEATHER_BLEND_S; true a few times a second while it moves. */

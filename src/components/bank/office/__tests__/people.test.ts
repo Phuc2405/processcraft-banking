@@ -1,0 +1,91 @@
+import { describe, expect, it } from 'vitest';
+import { STATION_IDS } from '../../../../sim/topology';
+import { createBankStore } from '../../../../store/bankStore';
+import { SimulationEngine } from '../../../../engine/simulation/SimulationEngine';
+import { motion } from '../../../../engine/simulation/motion';
+import { MAX_WALKERS } from '../../../../engine/simulation/people';
+import type { WorldEngine } from '../../../../engine/simulation/WorldEngine';
+import { QUEUE_VISIBLE } from '../../../../engine/plan/layout3d';
+
+/** A bank playing a day, with a 3D world following it the way the scene does: synced as the bank moves, ticked each frame. */
+function playing(beats: number, onFrame: (world: WorldEngine) => void, framesPerBeat = 40) {
+  const store = createBankStore();
+  store.setState({ playing: true });
+  const engine = new SimulationEngine(store);
+  const world = engine.createWorld('clear');
+  const stop = store.subscribe((s) => world.onBank(s.view));
+  for (let b = 0; b < beats; b++) {
+    store.getState().tickBeat();
+    for (let f = 0; f < framesPerBeat; f++) {
+      const s = store.getState();
+      world.tick({ realDt: 1 / 30, playing: true, speed: 1, minute: s.view.minute, weather: 'clear', queueLength: (id) => s.view.stations[id].queueLength });
+      onFrame(world);
+    }
+  }
+  stop();
+  return { store, world };
+}
+
+describe('the people of the desks live in the engine', () => {
+  it('walks customers to the lines, keeps their places, serves them and walks them off: nobody vanishes', () => {
+    let walked = 0;
+    let served = 0;
+    let lateServed = 0;
+    playing(160, (world) => {
+      walked = Math.max(walked, world.arrivals.walks.length);
+      for (const id of STATION_IDS) {
+        const line = world.line(id);
+        // Never more figures than places drawn, and every one shown stands where the engine put it.
+        expect(line.figures.filter((f) => f.visible).length).toBeLessThanOrEqual(Math.min(line.shown, QUEUE_VISIBLE));
+        served = Math.max(served, line.served.length);
+        if (line.served.some((s) => s.stopAt > 0)) lateServed++;
+        // Everyone being served has a pose the view can draw.
+        for (const s of line.served) if (motion.t >= s.start) expect(line.servedPoses.has(s.key)).toBe(true);
+      }
+      expect(world.arrivals.walks.length).toBeLessThanOrEqual(MAX_WALKERS);
+    });
+    expect(walked).toBeGreaterThan(0);
+    expect(served).toBeGreaterThan(0);
+    expect(lateServed).toBeGreaterThan(0);
+  });
+
+  it('walks the day’s staff in before their shift, keeping their seats empty until they sit', () => {
+    let walkingIn = 0;
+    let away = 0;
+    // At the app's own pace: a beat before a shift is on screen 2.4 s at 1x (sim/clock.ts), 72 frames at 30 a second.
+    const { world } = playing(12, (w) => {
+      for (const id of STATION_IDS) {
+        const staff = w.staff(id);
+        walkingIn += staff.walks.filter((x) => x.arriving).length;
+        away += staff.away.size;
+        // A seat is empty while its person is away or still on the way in.
+        for (const x of staff.walks) if (x.arriving) expect(staff.absent().has(x.id)).toBe(true);
+      }
+    }, 72);
+    expect(away).toBeGreaterThan(0);
+    expect(walkingIn).toBeGreaterThan(0);
+    // By 08:00 everyone is in and seated.
+    for (const id of STATION_IDS) {
+      expect(world.staff(id).away.size, id).toBe(0);
+      expect(world.staff(id).walks.filter((x) => x.arriving).length, id).toBe(0);
+    }
+  });
+
+  it('tells the views only when the people change (Observer)', () => {
+    const store = createBankStore();
+    store.setState({ playing: true });
+    const world = new SimulationEngine(store).createWorld('clear');
+    let heard = 0;
+    world.subscribe(() => heard++);
+    const s = store.getState();
+    for (let f = 0; f < 5; f++) world.tick({ realDt: 1 / 30, playing: false, speed: 1, minute: s.view.minute, weather: 'clear' });
+    expect(heard).toBe(0);
+    // The same view again changes nothing.
+    world.onBank(s.view);
+    expect(heard).toBe(0);
+    store.getState().tickBeat();
+    world.onBank(store.getState().view);
+    for (let f = 0; f < 200; f++) world.tick({ realDt: 1 / 30, playing: true, speed: 1, minute: store.getState().view.minute, weather: 'clear' });
+    expect(heard).toBeGreaterThan(0);
+  });
+});

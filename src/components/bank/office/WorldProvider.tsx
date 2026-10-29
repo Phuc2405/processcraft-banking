@@ -1,5 +1,5 @@
 import { useFrame } from '@react-three/fiber';
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { SPEEDS } from '../../../sim/clock';
 import { bankStore } from '../../../store/bankStore';
 import type { WorldEngine } from '../../../engine/simulation/WorldEngine';
@@ -18,6 +18,13 @@ export function useWorld(): WorldEngine {
   const world = useContext(WorldContext);
   if (!world) throw new Error('useWorld: no WorldProvider above this view');
   return world;
+}
+
+/** A number from the world's people that changes when they do (a desk's line's version, say): re-renders only then. */
+export function usePeopleVersion(read: (world: WorldEngine) => number): number {
+  const world = useWorld();
+  const snap = (): number => read(world);
+  return useSyncExternalStore(world.subscribe, snap, snap);
 }
 
 /** Ticks the engine every frame, first of all (priority -10), with the bank's clock and speed and the weather picked. */
@@ -41,6 +48,15 @@ function WorldTicker({ world }: { world: WorldEngine }) {
 /** Makes the scene's world engine, ticks it, and hands it to everything drawn inside. */
 export function WorldProvider({ children }: { children: ReactNode }) {
   const world = useMemo(() => simulation.createWorld(weatherStore.getState().weather), []);
+  // The people of the desks follow the bank as soon as it moves, before anything draws; put away with the scene.
+  useEffect(() => {
+    world.onBank(bankStore.getState().view);
+    const stop = bankStore.subscribe((s) => world.onBank(s.view));
+    return () => {
+      stop();
+      world.dispose();
+    };
+  }, [world]);
   return (
     <WorldContext.Provider value={world}>
       <WorldTicker world={world} />

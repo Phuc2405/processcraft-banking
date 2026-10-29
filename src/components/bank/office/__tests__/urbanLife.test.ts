@@ -64,7 +64,7 @@ describe('queue ropes, stanchions and booth glass are walls to walk round', () =
       expect(atmPress(t)).toBeLessThanOrEqual(0.47);
     }
     // The one served is drawn by the desk itself, on the spot, then walks off: there is no separate pool of leavers.
-    expect(read('../Desk3D.tsx')).toContain('<ServedCustomer key={s.key} id={id} s={s} onGone={gone} />');
+    expect(read('../Desk3D.tsx')).toContain('<ServedCustomer key={s.key} id={id} s={s} line={line} />');
     expect(read('../OfficeScene.tsx')).not.toContain('<AtmLeavers />');
   });
 

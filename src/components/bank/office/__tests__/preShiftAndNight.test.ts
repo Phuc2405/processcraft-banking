@@ -64,14 +64,14 @@ describe('customers are handed from their walk to the line, never shown twice or
   });
 
   it('wires the walkers and the desks together', () => {
-    const traffic = read('../Traffic.tsx');
-    expect(traffic).toContain('queueHandoff.expect(id);');
-    expect(traffic).toContain('const who = sv.stats.processedToday + place + queueSalt(id);');
-    expect(traffic).toContain('queueHandoff.arrive(w.desk, w.path[w.path.length - 1]!, motion.t, w.who)');
-    const desk = read('../Desk3D.tsx');
-    expect(desk).toContain("const standing = style === 'people' ? Math.max(0, shown - queueHandoff.pending(id)) : shown;");
+    // The engine wires them (engine/simulation/people.ts); the views only draw.
+    const people = read('../../../../engine/simulation/people.ts');
+    expect(people).toContain('this.handoff.expect(id);');
+    expect(people).toContain('const who = sv.stats.processedToday + place + queueSalt(id);');
+    expect(people).toContain('this.handoff.arrive(w.desk, w.path[w.path.length - 1]!, now, w.who);');
+    expect(people).toContain("const standing = this.style === 'people' ? Math.max(0, this.shown - this.handoff.pending(this.id)) : this.shown;");
     // Someone who arrives after their turn came walks up, does their business, and leaves.
-    expect(desk).toContain('wait: atm ? SERVED.business.atm : SERVED.business.counter, stopAt });');
+    expect(people).toContain('wait: this.atm ? SERVED.business.atm : SERVED.business.counter, stopAt }');
   });
 });
 

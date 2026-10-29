@@ -70,8 +70,9 @@ describe('served at a counter or an ATM: finish, turn, walk away', () => {
     const desk = read('../Desk3D.tsx');
     expect(desk).toContain('function ServedCustomer(');
     // While finishing up they stand at the spot where they were served, then turn smoothly to the way out.
-    expect(desk).toContain('const now = journeyPose(journey, motion.t - s.start);');
-    expect(desk).toContain('who: before + j + salt');
+    const people = read('../../../../engine/simulation/people.ts');
+    expect(people).toContain('const p: CustomerPose = journeyPose(journey, now - s.start);');
+    expect(people).toContain('who: before + j + this.salt');
     // Talking to the teller at the front of a counter's line.
     expect(desk).toContain('<CounterUser index={who}');
     expect(read('../OfficeScene.tsx')).not.toContain('AtmLeavers');
@@ -206,7 +207,7 @@ describe('staff walk in before their shift', () => {
         for (const b of ATM_STATIONS.map((s) => atmBooth(s))) expect(x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1, `${id} through a booth`).toBe(false);
       }
     }
-    expect(read('../Desk3D.tsx')).toContain('route: MAIN_GATE_STAFF_ROUTE.arrive(pose, seatsNow[i]!, i), t: 0, index: i, arriving: true');
+    expect(read('../../../../engine/simulation/people.ts')).toContain('route: MAIN_GATE_STAFF_ROUTE.arrive(this.pose, seats[i]!, i), t: 0, index: i, arriving: true');
   });
 });
 

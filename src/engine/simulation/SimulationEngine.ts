@@ -42,6 +42,9 @@ export class SimulationEngine {
 
   /** A world for a 3D scene to draw, starting from the bank's clock now and the weather picked. */
   createWorld(weather: Weather): WorldEngine {
-    return new WorldEngine({ minute: this.bank.getState().view.minute, weather }, this.factory);
+    const view = this.bank.getState().view;
+    const world = new WorldEngine({ minute: view.minute, weather }, this.factory);
+    world.onBank(view);
+    return world;
   }
 }
