@@ -1,4 +1,4 @@
-import { defineMessages } from '../utils/i18nHelper';
+import { defineMessages } from './messageCore';
 
 /** The scripted Chaos Monkey days by name. The panel and the Ops feed both read these, so a day is called the same thing everywhere. */
 export const dayScenarios = defineMessages('dayScenarios', {

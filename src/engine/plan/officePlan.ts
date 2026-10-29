@@ -2,8 +2,8 @@
 // Phase 8 adds a wing inside the front of the building for the extended flows (the band of the 2D map, same shape) and moves
 // the sidewalk ATM down with the new front wall (+370 stage units).
 
-import type { DepartmentId, PlaceId } from '../../../sim/topology';
-import { bandBoxes, bandDepts, bandRoutes, buildWires, CARD, R, type DeptBox, type PlaceBox, type RouteSpec, type Wire } from '../layout';
+import type { DepartmentId, PlaceId } from '../../sim/topology';
+import { bandBoxes, bandDepts, bandRoutes, buildWires, CARD, R, type DeptBox, type PlaceBox, type RouteSpec, type Wire } from './layout';
 
 /** The first row of the Phase 8 wing on the office plan. */
 export const BAND_ROW_3D = 932;

@@ -10,7 +10,7 @@
  * read here, because the bank cannot observe it.
  */
 
-import { tr } from '../i18n/locale';
+import { tr } from '../i18n/localeCore';
 import type {
   BankingCapability,
   BankingPayload,

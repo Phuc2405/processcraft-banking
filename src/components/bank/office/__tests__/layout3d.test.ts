@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { STATION_IDS, STATIONS, WIRES, edgeId } from '../../../../sim/topology';
-import { OFFICE_DEPT_BOX as DEPT_BOX, OFFICE_PLACE_BOX as PLACE_BOX } from '../officePlan';
-import { BUILDING } from '../../layout';
+import { OFFICE_DEPT_BOX as DEPT_BOX, OFFICE_PLACE_BOX as PLACE_BOX } from '../../../../engine/plan/officePlan';
+import { BUILDING } from '../../../../engine/plan/layout';
 import {
   arrivalPath,
   CAR_PARK_FOOTWAY_X,
@@ -72,7 +72,7 @@ import {
   wireLane,
   ZOOM_LIMITS,
   STATION_POSES,
-} from '../layout3d';
+} from '../../../../engine/plan/layout3d';
 
 /** The Ingestion Gates in the order they stand down the left of the floor. */
 const GATE_COLUMN = ['GATE_VIRTUAL', 'GATE_POS', 'GATE_A2A', 'GATE_ECOM'] as const;

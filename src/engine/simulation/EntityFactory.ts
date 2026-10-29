@@ -1,10 +1,10 @@
-import { isNightStation } from '../../../../sim/roster';
-import type { StationId } from '../../../../sim/topology';
-import { FrontGuard, type GuardPostPlan } from '../guardCabin';
-import { ParkingLot } from '../parking';
-import { ParkCrowd, PARK_MEMBERS, wantsPark } from '../parkLife';
-import { TrafficSim, VEHICLES, type Vehicle } from '../vehicles';
-import { PEDESTRIANS, type Pedestrian } from '../weather';
+import { isNightStation } from '../../sim/roster';
+import type { StationId } from '../../sim/topology';
+import { FrontGuard, type GuardPostPlan } from '../world/guardCabin';
+import { ParkingLot } from '../world/parking';
+import { ParkCrowd, PARK_MEMBERS, wantsPark } from '../world/parkLife';
+import { TrafficSim, VEHICLES, type Vehicle } from '../world/vehicles';
+import { PEDESTRIANS, type Pedestrian } from '../world/weather';
 import { StaffEntity, NIGHT_SHIFT_SCHEDULE, MORNING_SHIFT_SCHEDULE } from './staff';
 
 /**

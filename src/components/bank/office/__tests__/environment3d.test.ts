@@ -5,12 +5,12 @@ import { routingRules } from '../../routingRules';
 import { flowPlaces, flowScope } from '../../../../sim/guidedFlows';
 import { FLOW_IDS } from '../../../../types/viewport';
 import { badgeFocus, badgeOpacity, dashLane, deskFocus, DIM, FLOW_BADGE_DIM, isOffShift, LANE_DIM, leaveAt, leaveRoute, litLanes, neighbours, PULSE, pulseDistance } from '../focus3d';
-import { atmosphereAt, CLEAR, DAY_KEYS, FOG_LIFT, fogLeft, GROUND_FOG, gustOf, MOODS, sunsetAt, nextRandomWeather, RANDOM_WEATHERS, WEATHER_SPAN, weatherSpan, sameMix, stepMix, WEATHER_BLEND_S, WEATHER_MIX, WEATHERS, wetOf, windOf } from '../atmosphere';
+import { atmosphereAt, CLEAR, DAY_KEYS, FOG_LIFT, fogLeft, GROUND_FOG, gustOf, MOODS, sunsetAt, nextRandomWeather, RANDOM_WEATHERS, WEATHER_SPAN, weatherSpan, sameMix, stepMix, WEATHER_BLEND_S, WEATHER_MIX, WEATHERS, wetOf, windOf } from '../../../../engine/world/atmosphere';
 import { CITY_BLOCKS, downpourOf, driftAt, DRIFTS, swayAt, TREE_BELTS, TREES, umbrellaWobble, type Tree } from '../Environment3D';
 import { LANE_STYLE, laneKind } from '../palette';
 import { pathLength } from '../tour3d';
-import { deskPose, FLOOR_SLAB, KERB_Z, LANE_LABELS, LANES, laneLabelShown, lanesOf, ROAD_END, STREET } from '../layout3d';
-import { BUS_STOP, carriesDrink, FOLD, LOOK_UP, outfitOf, outfitShirt, OVERHANG, PAVEMENT, PEDESTRIANS, pedestrianAt, shelterSpot, stormGoesToBus, UMBRELLA, umbrellaDelay, underRoof, WALK, weatherStore } from '../weather';
+import { deskPose, FLOOR_SLAB, KERB_Z, LANE_LABELS, LANES, laneLabelShown, lanesOf, ROAD_END, STREET } from '../../../../engine/plan/layout3d';
+import { BUS_STOP, carriesDrink, FOLD, LOOK_UP, outfitOf, outfitShirt, OVERHANG, PAVEMENT, PEDESTRIANS, pedestrianAt, shelterSpot, stormGoesToBus, UMBRELLA, umbrellaDelay, underRoof, WALK, weatherStore } from '../../../../engine/world/weather';
 
 const lum = (hex: string): number => {
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));

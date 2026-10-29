@@ -26,14 +26,14 @@ import {
   type Group,
 } from 'three';
 import { bankStore } from '../../../store/bankStore';
-import { atmosphereAt, fadeToward, gustOf, rainOf, windOf } from './atmosphere';
+import { atmosphereAt, fadeToward, gustOf, rainOf, windOf } from '../../../engine/world/atmosphere';
 import { useMerged } from './Dressing';
 import { box, cyl, mix, type Part } from './kit';
-import { avenueMarkings, customerShirt, FLOOR_SLAB, KERB_Z, ROAD_END, SIDE_DOORS_RIGHT, STATION_POSES, STREET } from './layout3d';
+import { avenueMarkings, customerShirt, FLOOR_SLAB, KERB_Z, ROAD_END, SIDE_DOORS_RIGHT, STATION_POSES, STREET } from '../../../engine/plan/layout3d';
 import { glow, pane, solid } from './materials';
 import { CustomerFigure, type Wear } from './Avatars';
 import { Bubble } from './Bubble3D';
-import { LOT, LOT_SIDE, TREE_STRIP } from './parking';
+import { LOT, LOT_SIDE, TREE_STRIP } from '../../../engine/world/parking';
 import { FOUNTAIN, LOOP, PARK } from './Park3D';
 import { Sky3D } from './Sky3D';
 import {
@@ -52,10 +52,10 @@ import {
   type Pedestrian,
   type PedestrianPose,
   type Roof,
-} from './weather';
+} from '../../../engine/world/weather';
 import { useWeather } from './useWeather';
-import { motion } from './motion';
-import { sidewalk } from './sidewalk';
+import { motion } from '../../../engine/simulation/motion';
+import { sidewalk } from '../../../engine/world/sidewalk';
 
 /**
  * The world around the branch in the 3D office: the city it stands in, the sky light and the haze, the morning mist, the
@@ -1023,7 +1023,7 @@ const UMBRELLA_TONES = ['#1d4ed8', '#e11d48', '#0f766e', '#7c3aed', '#ea580c', '
 
 const WEAR: Readonly<Record<Outfit, Wear>> = { everyday: 'none', summer: 'summer', winter: 'winter', rain: 'rain', mask: 'mask', jacket: 'none' };
 
-export { downpourOf } from './weather';
+export { downpourOf } from '../../../engine/world/weather';
 
 /** Where the hand holding an umbrella is (figure scale 0.7): low by the side, then raised overhead and a little forward. */
 const HAND = { down: [0.19, 0.36, 0], up: [0.19, 0.95, 0.13] } as const;

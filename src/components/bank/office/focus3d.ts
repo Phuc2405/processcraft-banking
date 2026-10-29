@@ -1,8 +1,7 @@
 import { flowPlaces, flowScope } from '../../../sim/guidedFlows';
 import type { PlaceId } from '../../../sim/topology';
 import type { FlowId } from '../../../types/viewport';
-import { MORNING_SHIFT_SCHEDULE, NIGHT_SHIFT_SCHEDULE, STAFF_ARRIVAL, StaffEntity } from './engine/staff';
-import { COUNTER, FRONT_AISLE_Z, KERB_Z, LANES, MAIN_GATE, STREET, type Pose, type V2 } from './layout3d';
+import { LANES, type V2 } from '../../../engine/plan/layout3d';
 import { pathLength, pointAlongPath } from './tour3d';
 
 /**
@@ -89,81 +88,10 @@ export const PULSE = { perLane: 2, speed: 3.2 } as const;
 export const pulseDistance = (len: number, k: number, t: number): number => (len <= 0 ? 0 : (((t * PULSE.speed + (k * len) / PULSE.perLane) % len) + len) % len);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Staff going home
+// Staff coming and going: the engine's (engine/staff.ts), re-exported for the views that draw them
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** The simulation's own words for a member of staff who has gone home (bankSimulation.ts workerView). */
-export const isOffShift = (activity: string): boolean => /^(Off shift|Desk closed)/.test(activity);
-
-/** How fast staff walk out, in world units a second; and how briskly they come in before a shift, to be at their desks
- * well before it starts. */
-export const LEAVE_SPEED = 1.4;
-export const ARRIVE_SPEED = 3.5;
-
-/** The pavement's inner walking lane (clear of the ATM booths and the guard's cabin), where staff come and go. */
-const STAFF_LANE_Z = KERB_Z - 0.85;
-
-/**
- * The way out for someone seated at `seat` (relative to the desk at `pose`): up from the chair, along the back of the counter
- * to its end, down the aisle beside the desk to the clear aisle along the front of the hall, along it to the main entrance,
- * out onto the pavement and off down the street (`k` odd to the left, even to the right). Every leg runs straight along x
- * or z: never through a desk, the front wall or an ATM booth.
- */
-export function leaveRoute(pose: Pose, seat: V2, k = 0): V2[] {
-  const sx = pose.x + seat[0];
-  const sz = pose.z + seat[1];
-  const aisle = pose.x + COUNTER.w / 2 + 0.55;
-  const end = (k % 2 ? -1 : 1) * (STREET.halfWidth + 1.5);
-  return [
-    [sx, sz],
-    [aisle, sz],
-    [aisle, FRONT_AISLE_Z],
-    [MAIN_GATE.x, FRONT_AISLE_Z],
-    [MAIN_GATE.x, STAFF_LANE_Z],
-    [end, STAFF_LANE_Z],
-  ];
-}
-
-/**
- * Staff coming in before their shift: the day's staff set off between 07:00 and 07:20 for their 08:00 shift, the night's
- * between 22:00 and 22:20 for the night's work at 23:00. The hour before each shift ticks in short beats (sim/clock.ts
- * PRE_SHIFT) and they walk in briskly (ARRIVE_SPEED), so everyone is seated well before it starts.
- */
-export { STAFF_ARRIVAL };
-
-/** The minute the `k`th member of staff at a desk sets off for work: spread through their shift's arrival window, steady per
- * person (their shift's ShiftScheduleStrategy). */
-export const arrivalMinute = (night: boolean, seed: string, k: number): number => (night ? NIGHT_SHIFT_SCHEDULE : MORNING_SHIFT_SCHEDULE).setOff(seed, k);
-
-/**
- * At `minute`, who of a desk's staff (`ids`, in seat order) is not in yet (`away`: their shift's arrival window has begun
- * and their time to set off has not come), and, at a night desk, who has come in and sits ready before the night's work
- * starts (`early`: the simulation still has them off shift until 23:00). Each is a StaffEntity on their shift's schedule.
- */
-export function arrivalState(night: boolean, ids: readonly string[], minute: number): { away: string[]; early: string[] } {
-  const schedule = night ? NIGHT_SHIFT_SCHEDULE : MORNING_SHIFT_SCHEDULE;
-  const away: string[] = [];
-  const early: string[] = [];
-  ids.forEach((id, k) => {
-    const presence = new StaffEntity(id, null, k, schedule).presence(minute);
-    if (presence === 'away') away.push(id);
-    else if (presence === 'ready') early.push(id);
-  });
-  return { away, early };
-}
-
-/** The way in to `seat`: the way out walked backwards, from down the street, in at the main entrance, to the chair. */
-export const arriveRoute = (pose: Pose, seat: V2, k = 0): V2[] => leaveRoute(pose, seat, k).reverse();
-
-/** Where someone on `route` is after walking for `t` seconds at `speed`, which way they face, and whether they are there. */
-export function leaveAt(route: readonly V2[], t: number, speed: number = LEAVE_SPEED): { at: V2; heading: number; done: boolean } {
-  const len = pathLength(route);
-  const d = Math.min(len, Math.max(0, t) * speed);
-  const at = pointAlongPath(route, d);
-  const ahead = pointAlongPath(route, Math.min(len, d + 0.05));
-  const heading = ahead[0] === at[0] && ahead[1] === at[1] ? 0 : Math.atan2(ahead[0] - at[0], ahead[1] - at[1]);
-  return { at, heading, done: d >= len };
-}
+export { ARRIVE_SPEED, arriveRoute, arrivalMinute, arrivalState, isOffShift, LEAVE_SPEED, leaveAt, leaveRoute, STAFF_ARRIVAL } from '../../../engine/simulation/staff';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Where a desk's description opens, clear of its own badges

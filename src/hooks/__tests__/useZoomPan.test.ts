@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EDGE_PAD, needsRightPad, STAGE } from '../../components/bank/layout';
+import { EDGE_PAD, needsRightPad, STAGE } from '../../engine/plan/layout';
 import { flowScope } from '../../sim/guidedFlows';
 import type { FlowId } from '../../types/viewport';
 import { boundsOf, freeCentre, smartView } from '../useSmartZoom';

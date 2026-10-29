@@ -1,5 +1,5 @@
-import type { StationId } from '../../../sim/topology';
-import type { V2 } from './layout3d';
+import type { StationId } from '../../sim/topology';
+import type { V2 } from '../plan/layout3d';
 
 /** How long an arrival waits to be taken over by its desk (motion-clock seconds). */
 const HANDOFF_S = 3;

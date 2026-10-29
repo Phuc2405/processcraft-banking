@@ -14,15 +14,15 @@ import { Desk3D } from './Desk3D';
 import { AtmKiosk } from './AtmKiosk';
 import { GateStanchions, Kiosks, Plants, ServerRoom, VaultRoom, Walls } from './Dressing';
 import { Street } from './Street';
-import { atmosphereAt, CLEAR, sameMix } from './atmosphere';
+import { atmosphereAt, CLEAR, sameMix } from '../../../engine/world/atmosphere';
 import { Environment3D, Pedestrians, WeatherRenderer } from './Environment3D';
 import { Park3D } from './Park3D';
 import { Parking3D } from './Parking3D';
 import { Vehicles3D } from './Vehicles3D';
-import { liveMix, weatherStore } from './weather';
+import { liveMix, weatherStore } from '../../../engine/world/weather';
 import { badgeFocus, badgeOpacity, dashLane, litLanes, PULSE, pulseDistance, type BadgeFocus } from './focus3d';
 import { pathLength, pointAlongPath } from './tour3d';
-import { customerShirt, type V2 } from './layout3d';
+import { customerShirt, type V2 } from '../../../engine/plan/layout3d';
 import { ribbonGeometry, roundedRect, roundedRectPath, shade, tint } from './kit';
 import {
   CAMERA_DIRECTION,
@@ -48,7 +48,7 @@ import {
   seatOffsets,
   smoothLane,
   viewGround,
-} from './layout3d';
+} from '../../../engine/plan/layout3d';
 import { tape } from './materials';
 import { LANE_STYLE, laneKind, SET } from './palette';
 import { Arrivals, Packets } from './Traffic';
@@ -57,8 +57,8 @@ import { GuardCabin3D } from './GuardCabin3D';
 import { TOUR_DAYLIGHT, TOUR_GLIDE_MS, type CamFocus } from './tour3d';
 import { TourStage, useTourCamera } from './TourStage';
 import { WorldProvider } from './WorldProvider';
-import { evacuees, EXIT_PACE, isClosed } from './evacuation';
-import { motion } from './motion';
+import { evacuees, EXIT_PACE, isClosed } from '../../../engine/world/evacuation';
+import { motion } from '../../../engine/simulation/motion';
 import { CustomerFigure } from './Avatars';
 
 // ─────────────────────────────────────────────────────────────────────────────

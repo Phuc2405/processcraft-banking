@@ -1,18 +1,18 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { atmosphereAt, GROUND_FOG, WEATHER_MIX } from '../atmosphere';
-import { CARRY_PATH, CIT_RUN, LOADING_BAY, LOADING_DOOR, LOADS, VAN_REAR, type CitPhase } from '../citRun';
+import { atmosphereAt, GROUND_FOG, WEATHER_MIX } from '../../../../engine/world/atmosphere';
+import { CARRY_PATH, CIT_RUN, LOADING_BAY, LOADING_DOOR, LOADS, VAN_REAR, type CitPhase } from '../../../../engine/world/citRun';
 import { pathLength } from '../tour3d';
 import { chatPhase, MIST_BANKS, MIST_CLIP, MIST_LAYERS } from '../Environment3D';
-import { evacuationRoute, servedExit } from '../evacuation';
-import { FrontGuard, PARKING_CABIN, PARKING_PLAN } from '../guardCabin';
-import { arrivalPath, ATM_STATIONS, atmBooth, atmExitPath, CAR_PARK_FOOTWAY_X, CUSTOMER_DOOR, ENTRANCES, FLOOR_SLAB, KERB_Z, queueSlots, ROAD_END, WALK_IN_DESKS, type V2 } from '../layout3d';
-import { AISLE, CIT_CLEAR, CIT_MOVER, FOOTWAY, LOT, LOT_SIDE, ParkingLot, SIZE, slotsOf } from '../parking';
-import { ParkCrowd, PARK_MEMBERS, talkers } from '../parkLife';
-import { PARK } from '../parkPlan';
-import { SIDEWALK, SidewalkCrowd } from '../sidewalk';
-import { BUS_X, busBoxClear, DROP_ZONE, LENGTH, taxiAction, TrafficSim, VEHICLES, WIDTH } from '../vehicles';
+import { evacuationRoute, servedExit } from '../../../../engine/world/evacuation';
+import { FrontGuard, PARKING_CABIN, PARKING_PLAN } from '../../../../engine/world/guardCabin';
+import { arrivalPath, ATM_STATIONS, atmBooth, atmExitPath, CAR_PARK_FOOTWAY_X, CUSTOMER_DOOR, ENTRANCES, FLOOR_SLAB, KERB_Z, queueSlots, ROAD_END, WALK_IN_DESKS, type V2 } from '../../../../engine/plan/layout3d';
+import { AISLE, CIT_CLEAR, CIT_MOVER, FOOTWAY, LOT, LOT_SIDE, ParkingLot, SIZE, slotsOf } from '../../../../engine/world/parking';
+import { ParkCrowd, PARK_MEMBERS, talkers } from '../../../../engine/world/parkLife';
+import { PARK } from '../../../../engine/world/parkPlan';
+import { SIDEWALK, SidewalkCrowd } from '../../../../engine/world/sidewalk';
+import { BUS_X, busBoxClear, DROP_ZONE, LENGTH, taxiAction, TrafficSim, VEHICLES, WIDTH } from '../../../../engine/world/vehicles';
 import { DAY_INTRO_FADE_MS } from '../../dayIntro';
 
 const read = (rel: string): string => readFileSync(join(__dirname, rel), 'utf8');

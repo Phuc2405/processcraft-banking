@@ -2,18 +2,18 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { StationView } from '../../../../sim/types';
-import { workingCount, statusAfterWorking } from '../../deskActivity';
-import { fadeToward, WEATHER_BLEND_S } from '../atmosphere';
+import { workingCount, statusAfterWorking } from '../../../../engine/simulation/deskActivity';
+import { fadeToward, WEATHER_BLEND_S } from '../../../../engine/world/atmosphere';
 import { MIST_BANKS, MIST_CLIP } from '../Environment3D';
-import { servedExit } from '../evacuation';
+import { servedExit } from '../../../../engine/world/evacuation';
 import { arriveRoute, arrivalMinute, arrivalState, leaveRoute, STAFF_ARRIVAL } from '../focus3d';
-import { ATM_STATIONS, atmBooth, CAR_PARK_FOOTWAY_X, deskPose, EYE_POLAR, ISO_POLAR, KERB_Z, MAIN_GATE, queueSlots, ROAD_END, STREET, WALK_IN_DESKS, type V2 } from '../layout3d';
-import { LOT, LOT_SIDE } from '../parking';
-import { PARK } from '../parkPlan';
-import { ParkCrowd, PARK_MEMBERS, PARK_PACE, PARK_STAY, wantsPark } from '../parkLife';
-import { SidewalkCrowd, SIDEWALK } from '../sidewalk';
+import { ATM_STATIONS, atmBooth, CAR_PARK_FOOTWAY_X, deskPose, EYE_POLAR, ISO_POLAR, KERB_Z, MAIN_GATE, queueSlots, ROAD_END, STREET, WALK_IN_DESKS, type V2 } from '../../../../engine/plan/layout3d';
+import { LOT, LOT_SIDE } from '../../../../engine/world/parking';
+import { PARK } from '../../../../engine/world/parkPlan';
+import { ParkCrowd, PARK_MEMBERS, PARK_PACE, PARK_STAY, wantsPark } from '../../../../engine/world/parkLife';
+import { SidewalkCrowd, SIDEWALK } from '../../../../engine/world/sidewalk';
 import { pathLength, pointAlongPath } from '../tour3d';
-import { TAXI_X, TrafficSim, TRAFFIC_SPAN, type Vehicle } from '../vehicles';
+import { TAXI_X, TrafficSim, TRAFFIC_SPAN, type Vehicle } from '../../../../engine/world/vehicles';
 
 const read = (rel: string): string => readFileSync(join(__dirname, rel), 'utf8');
 

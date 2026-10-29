@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ACCOUNT_IDS, CHART_OF_ACCOUNTS } from '../../engine/ledger';
-import { PLACE_BOX } from '../../components/bank/layout';
+import { PLACE_BOX } from '../../engine/plan/layout';
 import { ACADEMY_LEVELS } from '../../sim/academyCatalog';
 import { STATION_IDS } from '../../sim/topology';
 import { createNavStore } from '../../store/navStore';

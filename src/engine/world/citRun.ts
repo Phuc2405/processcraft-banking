@@ -1,5 +1,5 @@
-import { FLOOR_SLAB, type V2 } from './layout3d';
-import { pathLength, pointAlongPath } from './tour3d';
+import { FLOOR_SLAB, type V2 } from '../plan/layout3d';
+import { pathLength, pointAlongPath } from '../plan/path';
 import { LENGTH, WIDTH } from './vehicles';
 
 /**

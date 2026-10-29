@@ -11,9 +11,9 @@
  * A desk is a teller counter that faces +z: customers queue on that side, the staff sit behind it.
  */
 
-import { DEPARTMENTS, STATION_IDS, STATIONS, type DepartmentId, type PlaceId, type StationId } from '../../../sim/topology';
-import type { StationStatus } from '../../../sim/types';
-import { BUILDING } from '../layout';
+import { DEPARTMENTS, STATION_IDS, STATIONS, type DepartmentId, type PlaceId, type StationId } from '../../sim/topology';
+import type { StationStatus } from '../../sim/types';
+import { BUILDING } from './layout';
 import { OFFICE_DEPT_BOX as DEPT_BOX, OFFICE_PLACE_BOX as PLACE_BOX, OFFICE_WIRES as BANK_WIRES, officeWireById as wireById } from './officePlan';
 
 /** Stage units per world unit. A 160-wide desk card is four world units wide. */

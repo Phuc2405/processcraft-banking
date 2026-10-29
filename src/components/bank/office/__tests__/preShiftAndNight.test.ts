@@ -5,14 +5,14 @@ import { beatMinutesAt, beatMs, DAY_START, EOD_START, isPreShift } from '../../.
 import { STATION_IDS, STATIONS } from '../../../../sim/topology';
 import { isAutomatedNode } from '../../../../sim/nodeKind';
 import { isNightStation } from '../../../../sim/roster';
-import { atmosphereAt } from '../atmosphere';
+import { atmosphereAt } from '../../../../engine/world/atmosphere';
 import { ARRIVE_SPEED, arriveRoute, arrivalMinute, STAFF_ARRIVAL } from '../focus3d';
-import { deskPose, seatOffsets } from '../layout3d';
-import { exitRoute, PARK_MEMBERS, wantsPark } from '../parkLife';
-import { PARK_BENCHES, PARK_LAMPS, PICNIC } from '../parkPlan';
-import { QueueHandoff } from '../queueHandoff';
+import { deskPose, seatOffsets } from '../../../../engine/plan/layout3d';
+import { exitRoute, PARK_MEMBERS, wantsPark } from '../../../../engine/world/parkLife';
+import { PARK_BENCHES, PARK_LAMPS, PICNIC } from '../../../../engine/world/parkPlan';
+import { QueueHandoff } from '../../../../engine/simulation/queueHandoff';
 import { pathLength, pointAlongPath } from '../tour3d';
-import { BUS_STOP, OVERHANG, PAVEMENT, underCover } from '../weather';
+import { BUS_STOP, OVERHANG, PAVEMENT, underCover } from '../../../../engine/world/weather';
 
 const read = (rel: string): string => readFileSync(join(__dirname, rel), 'utf8');
 
@@ -122,7 +122,7 @@ describe('the park after dark', () => {
 
 describe('a drop-off held up in traffic keeps its passenger’s stop', () => {
   it('looks again for a spot rather than giving up when the kerb lane fills', () => {
-    expect(read('../vehicles.ts')).toMatch(/if \(dropping && this\.dropOff\.keepsIntent\(c\)\) \{[\s\S]*?c\.spot = null;/);
-    expect(read('../vehicles.ts')).toMatch(/keepsIntent\(c: Driving\): boolean \{\s*return c\.speed < HALTED;/);
+    expect(read('../../../../engine/world/vehicles.ts')).toMatch(/if \(dropping && this\.dropOff\.keepsIntent\(c\)\) \{[\s\S]*?c\.spot = null;/);
+    expect(read('../../../../engine/world/vehicles.ts')).toMatch(/keepsIntent\(c: Driving\): boolean \{\s*return c\.speed < HALTED;/);
   });
 });

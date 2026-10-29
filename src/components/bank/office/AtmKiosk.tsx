@@ -9,7 +9,7 @@ import { pickPlace } from './tourHooks';
 import { Sign } from './Dressing';
 import { DeskPin, DeskQueue, SelectionFrame, cursor } from './Desk3D';
 import { box, merge, type Part } from './kit';
-import { ATM_KIOSK, atmQueueMarks, deskPose } from './layout3d';
+import { ATM_KIOSK, atmQueueMarks, deskPose } from '../../../engine/plan/layout3d';
 import { blobMaterial, glow, solid } from './materials';
 import { STATUS_HEX } from './palette';
 

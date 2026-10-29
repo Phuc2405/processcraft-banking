@@ -40,7 +40,7 @@
 
 import { CONDITION_VARIABLES, NODE_CATALOG } from '../data/seedChallenges';
 import { labLabel as L } from '../i18n/labText';
-import { tr } from '../i18n/locale';
+import { tr } from '../i18n/localeCore';
 import type {
   BankingCapability,
   ConditionVariable,

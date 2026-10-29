@@ -1,4 +1,4 @@
-import { GUARD_CABIN, KERB_Z, MAIN_GATE, STREET, type V2 } from './layout3d';
+import { GUARD_CABIN, KERB_Z, MAIN_GATE, STREET, type V2 } from '../plan/layout3d';
 import { AISLE, BACK_LANE, GUARD_DOOR, GUARD_POST, guardPatrol, HANDOVER_S, LOT, LOT_SIDE, shiftOf } from './parking';
 
 /**

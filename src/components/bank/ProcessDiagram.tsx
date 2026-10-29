@@ -6,7 +6,7 @@ import { exampleOf, graphKeyOf, layoutFor, type Lesson, type DiagramKind, type E
 import { lessonGraph, wireLabel, type StepTone, type Walkthrough } from '../../sim/walkthrough';
 import type { TokenLook } from '../../store/liveSimulation';
 import type { Outcome } from '../../types/processLearning';
-import { roundedPath } from './layout';
+import { roundedPath } from '../../engine/plan/layout';
 import { useTerms } from './useTerms';
 import { EdgeTraveller } from '../canvas/edges/EdgeTraveller';
 import { TokenShape } from '../canvas/tokens/TokenGlyph';

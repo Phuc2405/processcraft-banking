@@ -18,7 +18,7 @@
 
 import { activeLocale, pick, type Localized } from '../i18n/localeCore';
 import { STATION_BRAND, stationBrandMessages } from '../i18n/stationBrand.messages';
-import { message } from '../utils/i18nHelper';
+import { message } from '../i18n/messageCore';
 import { DEPARTMENTS, STATIONS, type DepartmentId, type ExternalId, type PlaceId, type StationId, isStation } from './topology';
 
 export type TermMode = 'expert' | 'beginner';

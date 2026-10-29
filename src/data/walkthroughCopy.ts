@@ -4,7 +4,7 @@
  * entry and not a change to any component.
  */
 
-import { pick, type Localized } from '../i18n/locale';
+import { pick, type Localized } from '../i18n/localeCore';
 import type { ProcessId } from '../sim/learning';
 
 export interface Scene {

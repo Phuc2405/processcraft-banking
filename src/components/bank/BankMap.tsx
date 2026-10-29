@@ -21,7 +21,7 @@ import { StepPreviewBody } from './StepPreview';
 import { useDockInset } from './ViewportControls';
 import { PathTraveller } from '../canvas/edges/PathTraveller';
 import { WorkstationGraphic } from '../canvas/nodes/WorkstationGraphic';
-import { BANK_WIRES, CARD, connectedWires, DEPT_BOX, gatewayCarries, GATEWAY_SPOKES, GATEWAYS, pathOfWire, PLACE_BOX, STAGE, TIP_SIDE, type Gateway, type TipSide } from './layout';
+import { BANK_WIRES, CARD, connectedWires, DEPT_BOX, gatewayCarries, GATEWAY_SPOKES, GATEWAYS, pathOfWire, PLACE_BOX, STAGE, TIP_SIDE, type Gateway, type TipSide } from '../../engine/plan/layout';
 import { SpotlightOverlay, SpotlightToken } from './Spotlight';
 import { StageScaleContext, useStageScale } from './stage';
 import { lookOfKind, RUN_STATUS, STATUS_DOT_CLASS, STATUS_TEXT_CLASS, statusLabel, MachineFace, WorkerFace } from './ui';
@@ -35,7 +35,7 @@ import { DESK_HEAT, deskHeat, type DeskHeat } from '../../sim/deskHeat';
 import { useMessages } from '../../utils/i18nHelper';
 import { analystWorkspaceMessages } from './analystWorkspace.messages';
 import { deskBadgeMessages } from './deskBadge.messages';
-import { useDeskStatus } from './useSimulation';
+import { useDeskStatusLine } from './useSimulation';
 
 /** Border and queue-number colours of the roleplay desks' congestion heat. */
 const HEAT_BORDER: Readonly<Record<DeskHeat, string>> = { green: 'border-emerald-400/60', orange: 'border-amber-400/80', red: 'border-rose-500/90' };
@@ -258,8 +258,10 @@ const StationCard = memo(function StationCard({
   // One wording on every desk, accounts included, the same as the 3D badges: "X waiting · Y working" while cases are being
   // worked on (so a desk with nobody waiting but a case in hand never reads as just "0"), else "0 waiting · Idle".
   const unit = t('waiting');
-  // The same status stream the 3D badges read (SimulationEngine.desks): one source of truth for both views.
-  const { working, showStatus } = useDeskStatus(id);
+  // The same status stream the 3D badges and tooltips read (SimulationEngine.desks): one source of truth for both views.
+  // Every figure on the card, its tooltip and its label comes from it.
+  const { status: desk, line } = useDeskStatusLine(id);
+  const { working, showStatus, waiting } = desk;
   const name = terms.station(id);
   const title = terms.stationTitle(id);
 
@@ -285,7 +287,7 @@ const StationCard = memo(function StationCard({
         onClick={() => (focus ? spotlightFocus(id) : select({ kind: 'station', id }))}
         onDoubleClick={() => !focus && roleForStation(id) && openStaffDesk(id)}
         aria-pressed={selected}
-        aria-label={`${title}: ${statusLabel(sv.status)}, ${sv.queueLength} ${unit}${working ? `, ${bm('working', { n: working })}` : ''}${heatText ? `. ${wm('heatLabel')}: ${heatText}` : ''}`}
+        aria-label={`${title}: ${line}${heatText ? `. ${wm('heatLabel')}: ${heatText}` : ''}`}
         data-testid={`station-${id}`}
         data-status={sv.status}
         data-heat={heat ?? undefined}
@@ -313,8 +315,8 @@ const StationCard = memo(function StationCard({
           )}
           <div className="min-w-0 flex-1 text-right">
             <div className="flex items-center justify-end gap-1">
-              <div className={`text-[21px] font-bold leading-none tabular-nums ${heat && sv.queueLength > 0 ? HEAT_TEXT[heat] : sv.queueLength > 0 ? (sv.status === 'CONGESTED' || sv.status === 'ALERT' ? 'text-amber-300' : 'text-slate-100') : 'text-slate-600'}`} data-testid={`queue-${id}`}>
-                {sv.queueLength}
+              <div className={`text-[21px] font-bold leading-none tabular-nums ${heat && waiting > 0 ? HEAT_TEXT[heat] : waiting > 0 ? (desk.status === 'CONGESTED' || desk.status === 'ALERT' ? 'text-amber-300' : 'text-slate-100') : 'text-slate-600'}`} data-testid={`queue-${id}`}>
+                {waiting}
               </div>
             </div>
             {/* The unit and the status share a line, so a two-line name never pushes them into the staff and chapter row. */}
@@ -332,7 +334,7 @@ const StationCard = memo(function StationCard({
               {showStatus && (
                 <>
                   <span className="text-slate-600"> · </span>
-                  <span className={`font-medium ${STATUS_TEXT_CLASS[sv.status]}`}>{statusLabel(sv.status)}</span>
+                  <span className={`font-medium ${STATUS_TEXT_CLASS[desk.status]}`}>{statusLabel(desk.status)}</span>
                 </>
               )}
             </div>
@@ -356,7 +358,7 @@ const StationCard = memo(function StationCard({
           +{sv.arrivals}
         </span>
       )}
-      {!focus && (flow && flowLit ? <StepPreviewTip flow={flow.flow} place={id} side={TIP_SIDE[id]} /> : <HoverTip name={title} tip={terms.tip(id)} caption={terms.caption(id)} side={TIP_SIDE[id]} status={{ text: `${statusLabel(sv.status)} · ${sv.queueLength} ${unit}`, className: STATUS_TEXT_CLASS[sv.status] }} />)}
+      {!focus && (flow && flowLit ? <StepPreviewTip flow={flow.flow} place={id} side={TIP_SIDE[id]} /> : <HoverTip name={title} tip={terms.tip(id)} caption={terms.caption(id)} side={TIP_SIDE[id]} status={{ text: line, className: STATUS_TEXT_CLASS[desk.status] }} />)}
     </div>
   );
 });

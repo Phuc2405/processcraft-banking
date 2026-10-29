@@ -1,6 +1,6 @@
-import { FLOOR_SLAB, type V2 } from './layout3d';
+import { FLOOR_SLAB, type V2 } from '../plan/layout3d';
 import { LOT } from './parking';
-import { pathLength, pointAlongPath } from './tour3d';
+import { pathLength, pointAlongPath } from '../plan/path';
 
 /**
  * Where everything in the public park is (the park on the right of the branch, between it and the houses): the lawn, the

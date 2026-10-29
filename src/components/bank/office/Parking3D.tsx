@@ -5,14 +5,14 @@ import type { BufferGeometry, Group } from 'three';
 import { CustomerFigure } from './Avatars';
 import { Sign, useMerged } from './Dressing';
 import { box, cyl, merge, type Part } from './kit';
-import { customerShirt } from './layout3d';
+import { customerShirt } from '../../../engine/plan/layout3d';
 import { glow, pane, solid } from './materials';
 import { GuardCabin3D } from './GuardCabin3D';
 import { LoadingBay3D } from './LoadingBay3D';
-import { PARKING_PLAN } from './guardCabin';
-import { AISLE, CIT_CLEAR, FOOTWAY, LOT, LOT_SIDE, ROWS, SIDE_DOORS_LEFT, TREE_STRIP, WALKWAY, type LotKind, type ParkingLot } from './parking';
+import { PARKING_PLAN } from '../../../engine/world/guardCabin';
+import { AISLE, CIT_CLEAR, FOOTWAY, LOT, LOT_SIDE, ROWS, SIDE_DOORS_LEFT, TREE_STRIP, WALKWAY, type LotKind, type ParkingLot } from '../../../engine/world/parking';
 import { bodyParts, Rider } from './Vehicles3D';
-import { outfitOf, outfitShirt } from './weather';
+import { outfitOf, outfitShirt } from '../../../engine/world/weather';
 import { useWeather } from './useWeather';
 
 /**

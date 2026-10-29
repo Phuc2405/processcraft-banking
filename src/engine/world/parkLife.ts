@@ -1,6 +1,6 @@
-import { KERB_Z, STREET, type V2 } from './layout3d';
+import { KERB_Z, STREET, type V2 } from '../plan/layout3d';
 import { FOUNTAIN, LOOP, PARK, PARK_BENCHES, PICNIC, PLAYGROUND } from './parkPlan';
-import { pathLength, pointAlongPath } from './tour3d';
+import { pathLength, pointAlongPath } from '../plan/path';
 
 /**
  * The people in the park, as a small simulation the tests can step: who is there, where each one is, and how they come and

@@ -4,18 +4,18 @@ import { describe, expect, it } from 'vitest';
 import { STATION_IDS, STATIONS } from '../../../../sim/topology';
 import type { StationView } from '../../../../sim/types';
 import { bundleProblems } from '../../../../utils/i18nHelper';
-import { isWorking } from '../../deskActivity';
+import { isWorking } from '../../../../engine/simulation/deskActivity';
 import { deskBadgeMessages } from '../../deskBadge.messages';
 import { DAY_INTRO_FADE_MS, DAY_INTRO_MS } from '../../dayIntro';
-import { atmosphereAt, WEATHER_MIX } from '../atmosphere';
-import { CUSTOMER_DESKS, evacuees } from '../evacuation';
-import { atmBooth, atmExitPath, atmQueueMarks, ATM_KIOSK, ATM_STATIONS, arrivalPath, FLOOR_SLAB, isDigital, kioskCentre, KERB_Z, queueSlots, queueStyle, STREET, WALKER_STATIONS } from '../layout3d';
-import { ParkingLot, walkPath } from '../parking';
-import { CELL_TOWER, DIGITAL_GATES, SIGNAL_KIND, signalPoint, signalTarget } from '../signals';
-import { SIDEWALK, SidewalkCrowd } from '../sidewalk';
+import { atmosphereAt, WEATHER_MIX } from '../../../../engine/world/atmosphere';
+import { CUSTOMER_DESKS, evacuees } from '../../../../engine/world/evacuation';
+import { atmBooth, atmExitPath, atmQueueMarks, ATM_KIOSK, ATM_STATIONS, arrivalPath, FLOOR_SLAB, isDigital, kioskCentre, KERB_Z, queueSlots, queueStyle, STREET, WALKER_STATIONS } from '../../../../engine/plan/layout3d';
+import { ParkingLot, walkPath } from '../../../../engine/world/parking';
+import { CELL_TOWER, DIGITAL_GATES, SIGNAL_KIND, signalPoint, signalTarget } from '../../../../engine/world/signals';
+import { SIDEWALK, SidewalkCrowd } from '../../../../engine/world/sidewalk';
 import { pathLength, pointAlongPath } from '../tour3d';
-import { busRiders, riderAt, taxiAction, TrafficSim, VEHICLES } from '../vehicles';
-import { pedestrianAt, PEDESTRIANS } from '../weather';
+import { busRiders, riderAt, taxiAction, TrafficSim, VEHICLES } from '../../../../engine/world/vehicles';
+import { pedestrianAt, PEDESTRIANS } from '../../../../engine/world/weather';
 
 const read = (rel: string): string => readFileSync(join(__dirname, rel), 'utf8');
 const HX = FLOOR_SLAB.w / 2;
@@ -185,7 +185,7 @@ describe('after hours: nobody but staff inside', () => {
     }
     expect(seen).toBeGreaterThan(0);
     // By day, the first one off the bus still goes in to the teller.
-    expect(read('../vehicles.ts')).toContain('k === 0 && !closed ? lobbyWalkIn(front) : downStreet(front)');
+    expect(read('../../../../engine/world/vehicles.ts')).toContain('k === 0 && !closed ? lobbyWalkIn(front) : downStreet(front)');
   });
 
   it('empties every customer queue at closing through a way out', () => {
@@ -211,11 +211,12 @@ describe('desk badges: waiting and working, in 2D and 3D', () => {
     expect(desk).toContain("{queueLength} {t('waiting')}");
     expect(desk).toContain('data-testid={`pin-working-${id}`}');
     expect(desk).toContain("{bm('working', { n: working })}");
-    expect(desk).toContain("{working > 0 ? ` · ${bm('working', { n: working })}` : ''}");
+    // The tooltip's line is the shared "X waiting · Y working · status" (engine/simulation/deskStatus.ts deskStatusLine).
+    expect(desk).toContain('{line}');
     expect(desk).not.toContain("bm('working')}");
     const map = read('../../BankMap.tsx');
     // Read from the one desk-status stream both views share (engine/deskStatus.ts: deskStatusOf uses workingCount).
-    expect(map).toContain('const { working, showStatus } = useDeskStatus(id);');
+    expect(map).toContain('const { working, showStatus, waiting } = desk;');
     expect(map).toContain('data-testid={`working-${id}`}');
     expect(map).toContain("{bm('working', { n: working })}");
     expect(map).not.toContain("bm('working')}");

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { LESSON_LIST } from '../../../../sim/learning';
 import { spotPlan, spotScope } from '../../../../sim/spotlightPlan';
 import { STATIONS, type PlaceId } from '../../../../sim/topology';
-import { fitZoom, ISO_AZIMUTH, ORBIT_RANGE, SCENE, ZOOM_LIMITS } from '../layout3d';
+import { fitZoom, ISO_AZIMUTH, ORBIT_RANGE, SCENE, ZOOM_LIMITS } from '../../../../engine/plan/layout3d';
 import {
   azimuthReachable,
   frameFocus,

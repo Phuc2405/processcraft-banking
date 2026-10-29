@@ -1,6 +1,6 @@
 import { CitRun, LOADING_BAY } from './citRun';
-import { CAR_PARK_FOOTWAY_X, CUSTOMER_DOOR, deskPose, ENTRANCES, FLOOR_SLAB, FRONT_AISLE_Z, LEFT_WALK_X, smoothLane, WALK_IN_DESKS, type V2 } from './layout3d';
-import { pathLength, pointAlongPath } from './tour3d';
+import { CAR_PARK_FOOTWAY_X, CUSTOMER_DOOR, deskPose, ENTRANCES, FLOOR_SLAB, FRONT_AISLE_Z, LEFT_WALK_X, smoothLane, WALK_IN_DESKS, type V2 } from '../plan/layout3d';
+import { pathLength, pointAlongPath } from '../plan/path';
 
 /**
  * The car park on the left of the branch (the park is on the right, Park3D), reached from the quiet lane behind the

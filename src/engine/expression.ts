@@ -20,7 +20,7 @@
  */
 
 import { variableDescription } from '../i18n/catalogVi';
-import { tr } from '../i18n/locale';
+import { tr } from '../i18n/localeCore';
 import type { ConditionVariable } from '../types/processLearning';
 
 const TYPE_VI: Readonly<Record<string, string>> = { number: 'số', string: 'chuỗi', boolean: 'true/false', unknown: 'không rõ', undefined: 'không xác định', object: 'đối tượng' };

@@ -1,4 +1,4 @@
-import { FLOOR_SLAB, KERB_Z, lobbyWalkIn, MAIN_GATE, ROAD_END, STREET, type V2 } from './layout3d';
+import { FLOOR_SLAB, KERB_Z, lobbyWalkIn, MAIN_GATE, ROAD_END, STREET, type V2 } from '../plan/layout3d';
 import { BUS_STOP } from './weather';
 
 /**

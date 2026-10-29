@@ -1,5 +1,5 @@
-import { beatMs, SPEEDS } from '../../../../sim/clock';
-import type { Weather } from '../atmosphere';
+import { beatMs, SPEEDS } from '../../sim/clock';
+import type { Weather } from '../world/atmosphere';
 import { DeskStatusFeed, type BankSource } from './deskStatus';
 import { EntityFactory } from './EntityFactory';
 import { WorldEngine } from './WorldEngine';

@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { CLEAR, WEATHER_MIX } from '../atmosphere';
+import { CLEAR, WEATHER_MIX } from '../../../../engine/world/atmosphere';
 import { HOUSES, INDOORS, indoors } from '../Environment3D';
-import { CLOSING, CUSTOMER_DESKS, deskSpans, evacuationRoute, evacuees, isClosed } from '../evacuation';
+import { CLOSING, CUSTOMER_DESKS, deskSpans, evacuationRoute, evacuees, isClosed } from '../../../../engine/world/evacuation';
 import { badgeRect, tipRect3d, tipSide3d, TIP_SIDES_3D } from '../focus3d';
-import { atmBooth, CUSTOMER_DOOR, ENTRANCES, FLOOR_SLAB, KERB_Z, MAIN_GATE, ROAD_END, SERVER_ROOM, SIDE_DOOR_W, SIDE_DOORS_RIGHT, STREET, WALL_WINDOWS } from '../layout3d';
-import { advanceMotion, motion, motionScale, substeps } from '../motion';
+import { atmBooth, CUSTOMER_DOOR, ENTRANCES, FLOOR_SLAB, KERB_Z, MAIN_GATE, ROAD_END, SERVER_ROOM, SIDE_DOOR_W, SIDE_DOORS_RIGHT, STREET, WALL_WINDOWS } from '../../../../engine/plan/layout3d';
+import { advanceMotion, motion, motionScale, substeps } from '../../../../engine/simulation/motion';
 import { FOUNTAIN, LOOP, PARK, PARK_BENCHES, PICNIC, PLAYGROUND, strollerAt } from '../Park3D';
-import { AISLE, BACK_LANE, CIT_MOVER, counterSpot, FOOTWAY, GUARD_POST, guardPatrol, handoverAt, HANDOVER_S, LOT, LOT_SIDE, ParkingLot, PATROL, ROWS, shiftOf, SIDE_DOORS_LEFT, SIZE, slotsOf, TREE_STRIP, walkPath } from '../parking';
+import { AISLE, BACK_LANE, CIT_MOVER, counterSpot, FOOTWAY, GUARD_POST, guardPatrol, handoverAt, HANDOVER_S, LOT, LOT_SIDE, ParkingLot, PATROL, ROWS, shiftOf, SIDE_DOORS_LEFT, SIZE, slotsOf, TREE_STRIP, walkPath } from '../../../../engine/world/parking';
 import { cloudCover, cloudDark, CLOUDS, cloudsFor, sunPlace } from '../Sky3D';
-import { homeLane, LANE_W, LANE_Z, LENGTH, MIN_GAP, OVERTAKE, riderAt, ROAD, SPAN, taxiAction, TrafficSim, VEHICLES, WIDTH, type VehicleState } from '../vehicles';
-import { OVERHANG, overhangSpot, PAVEMENT, PEDESTRIANS } from '../weather';
-import { ATM_STATIONS } from '../layout3d';
+import { homeLane, LANE_W, LANE_Z, LENGTH, MIN_GAP, OVERTAKE, riderAt, ROAD, SPAN, taxiAction, TrafficSim, VEHICLES, WIDTH, type VehicleState } from '../../../../engine/world/vehicles';
+import { OVERHANG, overhangSpot, PAVEMENT, PEDESTRIANS } from '../../../../engine/world/weather';
+import { ATM_STATIONS } from '../../../../engine/plan/layout3d';
 
 const src = import.meta.glob(['../Environment3D.tsx', '../Office3D.tsx', '../Vehicles3D.tsx', '../Parking3D.tsx', '../GuardCabin3D.tsx', '../Desk3D.tsx', '../Avatars.tsx', '../Traffic.tsx', '../OfficeScene.tsx'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 

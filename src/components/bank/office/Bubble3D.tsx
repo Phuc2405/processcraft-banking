@@ -1,7 +1,7 @@
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import { CanvasTexture, SpriteMaterial, SRGBColorSpace, type Sprite } from 'three';
-import { motion } from './motion';
+import { motion } from '../../../engine/simulation/motion';
 
 /**
  * A speech bubble (💬) or a thought bubble (💭) floating over people who are talking, drawn once on a canvas and shown as

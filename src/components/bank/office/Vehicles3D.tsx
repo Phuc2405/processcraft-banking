@@ -5,16 +5,16 @@ import type { Group } from 'three';
 import { CustomerFigure, type Wear } from './Avatars';
 import { useMerged } from './Dressing';
 import { ball, box, shade, tint, type Part } from './kit';
-import { customerShirt } from './layout3d';
+import { customerShirt } from '../../../engine/plan/layout3d';
 import { glow, solid } from './materials';
-import { outfitOf, outfitShirt, type Outfit } from './weather';
+import { outfitOf, outfitShirt, type Outfit } from '../../../engine/world/weather';
 import { useWeather } from './useWeather';
 import { MeshBasicMaterial } from 'three';
-import { ALIGHT, BUS_DOORS, BUS_X, busRiders, kerbZ, LENGTH, riderAt, WIDTH, VEHICLES, type BusRider, type Vehicle, type VehicleState } from './vehicles';
+import { ALIGHT, BUS_DOORS, BUS_X, busRiders, kerbZ, LENGTH, riderAt, WIDTH, VEHICLES, type BusRider, type Vehicle, type VehicleState } from '../../../engine/world/vehicles';
 import { Html } from '@react-three/drei';
-import { motion } from './motion';
-import { sidewalk } from './sidewalk';
-import { isClosed } from './evacuation';
+import { motion } from '../../../engine/simulation/motion';
+import { sidewalk } from '../../../engine/world/sidewalk';
+import { isClosed } from '../../../engine/world/evacuation';
 import { bankStore } from '../../../store/bankStore';
 
 /**

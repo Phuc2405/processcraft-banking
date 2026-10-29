@@ -1,4 +1,4 @@
-import { LOADING_DOOR } from './citRun';
+import { LOADING_DOOR } from '../../../engine/world/citRun';
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef, type DependencyList } from 'react';
@@ -31,7 +31,7 @@ import {
   type PlantKind,
   type Rect,
   type WallSide,
-} from './layout3d';
+} from '../../../engine/plan/layout3d';
 import { blobMaterial, glow, pane, satin, solid } from './materials';
 import { KIOSK_HEX, SET } from './palette';
 

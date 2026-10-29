@@ -28,7 +28,7 @@ import { CONDITION_VARIABLES, NODE_CATALOG } from '../data/seedChallenges';
 import { configLabel, nodeDefLabel, portLabel } from '../i18n/catalogVi';
 import { tagText } from '../i18n/challengeVi';
 import { labLabel as L } from '../i18n/labText';
-import { activeLocale, tr } from '../i18n/locale';
+import { activeLocale, tr } from '../i18n/localeCore';
 import type {
   BankingCapability,
   ChallengeLevel,

@@ -3,11 +3,11 @@ import { memo, useEffect, useMemo, useRef } from 'react';
 import { CanvasTexture, Color, MeshBasicMaterial, RepeatWrapping, SRGBColorSpace, type MeshStandardMaterial } from 'three';
 import { bankStore } from '../../../store/bankStore';
 import { Sign, useMerged } from './Dressing';
-import { ATM_ALCOVE, ATM_STATIONS, atmBooth, avenueMarkings, KERB_Z, LAMP, ROAD_END, STREET, STREET_LAMPS } from './layout3d';
+import { ATM_ALCOVE, ATM_STATIONS, atmBooth, avenueMarkings, KERB_Z, LAMP, ROAD_END, STREET, STREET_LAMPS } from '../../../engine/plan/layout3d';
 import { box, cyl, tint, type Part } from './kit';
 import { glow, pane, satin, solid } from './materials';
-import { atmosphereAt, wetOf } from './atmosphere';
-import { liveMix } from './weather';
+import { atmosphereAt, wetOf } from '../../../engine/world/atmosphere';
+import { liveMix } from '../../../engine/world/weather';
 
 /**
  * The street in front of the branch: a paved sidewalk with tiles, a kerb, a strip of road with its markings, the street

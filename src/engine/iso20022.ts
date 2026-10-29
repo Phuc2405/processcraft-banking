@@ -13,7 +13,7 @@
  * time, no cap, backed by the central bank). The gateway in front of both has a queue and a liquidity budget.
  */
 
-import { tr } from '../i18n/locale';
+import { tr } from '../i18n/localeCore';
 import type { A2aContext, BankingPayload, MinorUnits } from '../types/processLearning';
 import { formatAud } from './money';
 

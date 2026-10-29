@@ -2,9 +2,9 @@ import { useFrame } from '@react-three/fiber';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { SPEEDS } from '../../../sim/clock';
 import { bankStore } from '../../../store/bankStore';
-import type { WorldEngine } from './engine/WorldEngine';
+import type { WorldEngine } from '../../../engine/simulation/WorldEngine';
 import { simulation } from '../useSimulation';
-import { liveMix, weatherStore } from './weather';
+import { liveMix, weatherStore } from '../../../engine/world/weather';
 
 /**
  * The 3D office's bridge to its world engine (engine/WorldEngine.ts): one engine per scene, made when the scene mounts,

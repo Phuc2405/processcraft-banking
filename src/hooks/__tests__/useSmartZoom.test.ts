@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { PLACE_BOX, STAGE } from '../../components/bank/layout';
-import { clampZoom3d, isCameraResetKey, zoomBounds3d, ZOOM_3D } from '../../components/bank/office/layout3d';
+import { PLACE_BOX, STAGE } from '../../engine/plan/layout';
+import { clampZoom3d, isCameraResetKey, zoomBounds3d, ZOOM_3D } from '../../engine/plan/layout3d';
 import { LESSONS } from '../../sim/learning';
 import { flowScope } from '../../sim/guidedFlows';
 import { spotPlan, spotScope } from '../../sim/spotlightPlan';

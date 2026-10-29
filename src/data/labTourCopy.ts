@@ -7,7 +7,7 @@
  * written twice.
  */
 
-import { pick, type Localized } from '../i18n/locale';
+import { pick, type Localized } from '../i18n/localeCore';
 import type { BankingCapability, Id, Outcome } from '../types/processLearning';
 import { sceneOf, WALK_COPY, type Scene, type WalkUi } from './walkthroughCopy';
 

@@ -5,7 +5,7 @@
 
 import type { PlaceId } from '../../sim/topology';
 import { edgeId } from '../../sim/topology';
-import { CARD, PLACE_BOX, wireById } from './layout';
+import { CARD, PLACE_BOX, wireById } from '../../engine/plan/layout';
 
 export type Pt = readonly [number, number];
 

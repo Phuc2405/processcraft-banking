@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { setActiveLocale } from '../../../i18n/locale';
 import { t } from '../../../i18n/t';
 import { DEPARTMENT_IDS, DEPARTMENTS, EXTERNAL_IDS, STATION_IDS, WIRES, edgeId, type PlaceId } from '../../../sim/topology';
-import { OFFICE_PLACE_BOX } from '../office/officePlan';
-import { deskPose, toWorld } from '../office/layout3d';
-import { BAND, BANK_WIRES, CARD, DEPT_BOX, GATEWAYS, ownLabelBoxes, PLACE_BOX, STAGE, TIP_PREFERENCE, TIP_SIDE, pathOfWire, roundedPath, tipRect, wireById } from '../layout';
+import { OFFICE_PLACE_BOX } from '../../../engine/plan/officePlan';
+import { deskPose, toWorld } from '../../../engine/plan/layout3d';
+import { BAND, BANK_WIRES, CARD, DEPT_BOX, GATEWAYS, ownLabelBoxes, PLACE_BOX, STAGE, TIP_PREFERENCE, TIP_SIDE, pathOfWire, roundedPath, tipRect, wireById } from '../../../engine/plan/layout';
 
 describe('the bank map', () => {
   it('gives every place on the topology a box on the stage', () => {

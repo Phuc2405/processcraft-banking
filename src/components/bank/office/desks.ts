@@ -11,7 +11,7 @@
 
 import { STATIONS, type StationId } from '../../../sim/topology';
 import { box, cyl, mix, shade, tint, xform, type Part } from './kit';
-import { COUNTER, hasWing, seatOffsets, SEAT_ROW, WING, wingPose } from './layout3d';
+import { COUNTER, hasWing, seatOffsets, SEAT_ROW, WING, wingPose } from '../../../engine/plan/layout3d';
 import { SET } from './palette';
 import { stationProp, type PropParts } from './props';
 

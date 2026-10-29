@@ -1,6 +1,6 @@
 import { createStore } from 'zustand/vanilla';
 import { CLEAR, rainOf, WEATHER_MIX, type Weather, type WeatherMix } from './atmosphere';
-import { ATM_STATIONS, atmBooth, GUARD_CABIN, KERB_Z, STREET } from './layout3d';
+import { ATM_STATIONS, atmBooth, GUARD_CABIN, KERB_Z, STREET } from '../plan/layout3d';
 
 /**
  * The weather over the 3D office, the shelters on the pavement, and how the people there behave. The weather is a learner's

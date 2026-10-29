@@ -3,13 +3,13 @@ import { useMemo, useRef, useState } from 'react';
 import type { Group } from 'three';
 import { MeshBasicMaterial } from 'three';
 import { CustomerFigure } from './Avatars';
-import { CARRY_PATH, LOADING_BAY, LOADING_DOOR, VAN_REAR, type CitPhase, type CitRun, type Load } from './citRun';
+import { CARRY_PATH, LOADING_BAY, LOADING_DOOR, VAN_REAR, type CitPhase, type CitRun, type Load } from '../../../engine/world/citRun';
 import { Sign, useMerged } from './Dressing';
 import { box, type Part } from './kit';
-import { FLOOR_SLAB } from './layout3d';
+import { FLOOR_SLAB } from '../../../engine/plan/layout3d';
 import { glow, solid } from './materials';
 import { CitMarker, bodyParts } from './Vehicles3D';
-import { LENGTH, WIDTH } from './vehicles';
+import { LENGTH, WIDTH } from '../../../engine/world/vehicles';
 
 /**
  * The cash-in-transit run to the vault (citRun.ts says where everything is): the painted yellow loading bay in the car

@@ -3,11 +3,11 @@ import { memo, useMemo, useRef } from 'react';
 import type { BufferGeometry, Group } from 'three';
 import type { WorkerProfileSeed } from '../../../sim/types';
 import { blob, box, cyl, merge, shade, type Part } from './kit';
-import { isSlumped, typingRate } from './layout3d';
+import { isSlumped, typingRate } from '../../../engine/plan/layout3d';
 import { cursor } from './cursor';
 import { solid } from './materials';
 import { SET } from './palette';
-import { motion } from './motion';
+import { motion } from '../../../engine/simulation/motion';
 
 /** A stable number in [0, 2π) from a string, so every avatar breathes out of step with the others. */
 export function phaseOf(text: string): number {

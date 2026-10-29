@@ -1,7 +1,7 @@
-import { STATIONS, type StationId } from '../../../../sim/topology';
-import { evacuationRoute } from '../evacuation';
-import { arriveRoute, leaveRoute } from '../focus3d';
-import { arrivalPath, atmExitPath, queueSlots, type Pose, type V2 } from '../layout3d';
+import { STATIONS, type StationId } from '../../sim/topology';
+import { evacuationRoute } from '../world/evacuation';
+import { arriveRoute, leaveRoute } from './staff';
+import { arrivalPath, atmExitPath, queueSlots, type Pose, type V2 } from '../plan/layout3d';
 
 /**
  * How people find their way in the 3D office (Strategy). A customer's way to and from a desk depends on the kind of desk:

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
-import { STAGE } from '../components/bank/layout';
+import { STAGE } from '../engine/plan/layout';
 import { clampZoom, wheelZoom, ZOOM_STEP, zoomStore } from '../store/zoomStore';
 import { freeCentre, type SmartView, type SmartZoomCamera, type ViewInsets, type Viewport } from './useSmartZoom';
 

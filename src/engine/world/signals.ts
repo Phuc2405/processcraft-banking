@@ -1,6 +1,6 @@
-import type { PacketKind } from '../../../sim/types';
-import { STATION_IDS, STATIONS, type StationId } from '../../../sim/topology';
-import { deskPose, FLOOR_SLAB, isDigital } from './layout3d';
+import type { PacketKind } from '../../sim/types';
+import { STATION_IDS, STATIONS, type StationId } from '../../sim/topology';
+import { deskPose, FLOOR_SLAB, isDigital } from '../plan/layout3d';
 
 /**
  * How the digital gates' customers arrive in the 3D office. Nobody walks in for a card tapped at a shop's terminal, a

@@ -1,4 +1,4 @@
-import { ATM_STATIONS, atmBooth, KERB_Z } from './layout3d';
+import { ATM_STATIONS, atmBooth, KERB_Z } from '../plan/layout3d';
 
 /**
  * Keeping people apart on the pavement. Everyone walking along the front of the branch follows their own line (passers-by

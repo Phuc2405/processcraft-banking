@@ -1,5 +1,5 @@
-import { laneAt, type V2 } from '../layout3d';
-import { pointAlongPath } from '../tour3d';
+import { laneAt, type V2 } from '../plan/layout3d';
+import { pointAlongPath } from '../plan/path';
 
 /**
  * The journey of a customer served at a counter or an ATM, as a state machine (State pattern). Each state knows how long

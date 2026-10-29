@@ -6,9 +6,9 @@ import type { StationId } from '../../../sim/topology';
 import { useMerged } from './Dressing';
 import { box, cyl } from './kit';
 import { glow, solid } from './materials';
-import { motion } from './motion';
+import { motion } from '../../../engine/simulation/motion';
 import { PACKET_HEX } from './palette';
-import { CELL_TOWER, DIGITAL_GATES, SIGNAL, SIGNAL_KIND, signalPoint, signalTarget } from './signals';
+import { CELL_TOWER, DIGITAL_GATES, SIGNAL, SIGNAL_KIND, signalPoint, signalTarget } from '../../../engine/world/signals';
 
 /** How many pulses can be in the air at once, and how many ripples can spread at the tower and the desks. */
 const PULSES = 24;

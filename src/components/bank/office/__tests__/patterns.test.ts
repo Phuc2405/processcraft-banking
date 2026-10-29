@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { STATION_IDS, STATIONS } from '../../../../sim/topology';
-import { journeyPose, journeyState, type Journey } from '../engine/customerLifecycle';
-import { EntityFactory } from '../engine/EntityFactory';
-import { routesFor, MAIN_GATE_STAFF_ROUTE } from '../engine/routes';
-import { MORNING_SHIFT_SCHEDULE, NIGHT_SHIFT_SCHEDULE, StaffEntity } from '../engine/staff';
-import { evacuationRoute, servedExit } from '../evacuation';
+import { journeyPose, journeyState, type Journey } from '../../../../engine/simulation/customerLifecycle';
+import { EntityFactory } from '../../../../engine/simulation/EntityFactory';
+import { routesFor, MAIN_GATE_STAFF_ROUTE } from '../../../../engine/simulation/routes';
+import { MORNING_SHIFT_SCHEDULE, NIGHT_SHIFT_SCHEDULE, StaffEntity } from '../../../../engine/simulation/staff';
+import { evacuationRoute, servedExit } from '../../../../engine/world/evacuation';
 import { arriveRoute, leaveRoute } from '../focus3d';
-import { arrivalPath, atmExitPath, deskPose, laneLength, queueSlots, WALKER_STATIONS, type V2 } from '../layout3d';
+import { arrivalPath, atmExitPath, deskPose, laneLength, queueSlots, WALKER_STATIONS, type V2 } from '../../../../engine/plan/layout3d';
 import { DAY_SHIFT, NIGHT_SHIFT } from '../../../../sim/roster';
-import { drivingStateOf, KerbsideDropOff, TrafficSim, VEHICLES, type DropOffStrategy } from '../vehicles';
+import { drivingStateOf, KerbsideDropOff, TrafficSim, VEHICLES, type DropOffStrategy } from '../../../../engine/world/vehicles';
 
 describe('a served customer’s journey (State)', () => {
   const path: V2[] = [

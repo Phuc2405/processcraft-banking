@@ -3,9 +3,9 @@ import { memo, useEffect, useMemo, useRef } from 'react';
 import { AdditiveBlending, CanvasTexture, Color, IcosahedronGeometry, MeshBasicMaterial, SpriteMaterial, SRGBColorSpace, Vector3, type Group, type Mesh, type Sprite } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { bankStore } from '../../../store/bankStore';
-import { atmosphereAt, type WeatherMix } from './atmosphere';
-import { FLOOR_SLAB, KERB_Z } from './layout3d';
-import { liveMix } from './weather';
+import { atmosphereAt, type WeatherMix } from '../../../engine/world/atmosphere';
+import { FLOOR_SLAB, KERB_Z } from '../../../engine/plan/layout3d';
+import { liveMix } from '../../../engine/world/weather';
 
 /**
  * The sky over the diorama: the sun (with a soft glare) or the moon, and a layer of low-poly clouds drifting across. The

@@ -7,18 +7,18 @@ import { CustomerFigure, SittingFigure, type Wear } from './Avatars';
 import { Bubble } from './Bubble3D';
 import { Sign, useMerged } from './Dressing';
 import { ball, box, cyl, type Part } from './kit';
-import { customerShirt, SIDE_DOORS_RIGHT } from './layout3d';
+import { customerShirt, SIDE_DOORS_RIGHT } from '../../../engine/plan/layout3d';
 import { glow, solid } from './materials';
-import { motion } from './motion';
-import { TREE_STRIP } from './parking';
-import { ParkCrowd, SWING_XS, talkers, type ParkPose, type ParkState, type Talker } from './parkLife';
-import { FLOWERBEDS, FOUNTAIN, HEDGES, LOOP, PARK, PARK_BENCHES, PARK_CX as cx, PARK_CZ as cz, PARK_LAMP_HEIGHT, PARK_LAMPS, PICNIC, PLAYGROUND } from './parkPlan';
-import { liveMix, outfitOf, outfitShirt, underCover, type Outfit, type Roof } from './weather';
+import { motion } from '../../../engine/simulation/motion';
+import { TREE_STRIP } from '../../../engine/world/parking';
+import { ParkCrowd, SWING_XS, talkers, type ParkPose, type ParkState, type Talker } from '../../../engine/world/parkLife';
+import { FLOWERBEDS, FOUNTAIN, HEDGES, LOOP, PARK, PARK_BENCHES, PARK_CX as cx, PARK_CZ as cz, PARK_LAMP_HEIGHT, PARK_LAMPS, PICNIC, PLAYGROUND } from '../../../engine/world/parkPlan';
+import { liveMix, outfitOf, outfitShirt, underCover, type Outfit, type Roof } from '../../../engine/world/weather';
 import { useWeather } from './useWeather';
-import { atmosphereAt } from './atmosphere';
+import { atmosphereAt } from '../../../engine/world/atmosphere';
 import { useGlowTexture } from './Street';
 
-export { FOUNTAIN, LOOP, PARK, PARK_BENCHES, PICNIC, PLAYGROUND, strollerAt } from './parkPlan';
+export { FOUNTAIN, LOOP, PARK, PARK_BENCHES, PICNIC, PLAYGROUND, strollerAt } from '../../../engine/world/parkPlan';
 
 /**
  * The public park on the right of the branch, between it and the houses: a striped, tufted lawn with a cobbled loop path,

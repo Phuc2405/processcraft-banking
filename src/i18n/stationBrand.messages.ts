@@ -1,4 +1,4 @@
-import { defineMessages } from '../utils/i18nHelper';
+import { defineMessages } from './messageCore';
 import type { StationId } from '../sim/topology';
 
 /**

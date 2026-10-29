@@ -1,13 +1,13 @@
-import { rainOf, sameMix, stepMix, WEATHER_MIX, type Weather } from '../atmosphere';
-import { isClosed } from '../evacuation';
-import type { FrontGuard, GuardPostPlan } from '../guardCabin';
-import { advanceMotion, motion, substeps } from '../motion';
-import type { ParkingLot } from '../parking';
-import { wantsPark, type ParkCrowd, type ParkSky } from '../parkLife';
-import { queueHandoff, type QueueHandoff } from '../queueHandoff';
-import { sidewalk, type SidewalkCrowd } from '../sidewalk';
-import type { TrafficSim, VehicleState } from '../vehicles';
-import { liveMix, newPavementClock, stepPavementClock, type PavementClock } from '../weather';
+import { rainOf, sameMix, stepMix, WEATHER_MIX, type Weather } from '../world/atmosphere';
+import { isClosed } from '../world/evacuation';
+import type { FrontGuard, GuardPostPlan } from '../world/guardCabin';
+import { advanceMotion, motion, substeps } from './motion';
+import type { ParkingLot } from '../world/parking';
+import { wantsPark, type ParkCrowd, type ParkSky } from '../world/parkLife';
+import { queueHandoff, type QueueHandoff } from './queueHandoff';
+import { sidewalk, type SidewalkCrowd } from '../world/sidewalk';
+import type { TrafficSim, VehicleState } from '../world/vehicles';
+import { liveMix, newPavementClock, stepPavementClock, type PavementClock } from '../world/weather';
 import { EntityFactory } from './EntityFactory';
 
 /**

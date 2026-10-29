@@ -1,5 +1,5 @@
 import { useMessages } from '../../../utils/i18nHelper';
-import { useDeskStatus } from '../useSimulation';
+import { useDeskStatus, useDeskStatusLine } from '../useSimulation';
 import { deskBadgeMessages } from '../deskBadge.messages';
 import { ATM_TURN_S } from './Traffic';
 import { Html } from '@react-three/drei';
@@ -13,7 +13,7 @@ import { useTerms } from '../useTerms';
 import { CustomerFigure, SeatedAvatar } from './Avatars';
 import { deskGlow, deskSolid, isPodium, SURFACE } from './desks';
 import { box, merge } from './kit';
-import { COUNTER, LANE_LABELS, QUEUE_VISIBLE, WING, accentOf, customerShirt, deskPose, hasWing, laneLength, queueSalt, queueSlots, queueStyle, seatOffsets, surgeLevel, wingPose, type V2 } from './layout3d';
+import { COUNTER, LANE_LABELS, QUEUE_VISIBLE, WING, accentOf, customerShirt, deskPose, hasWing, laneLength, queueSalt, queueSlots, queueStyle, seatOffsets, surgeLevel, wingPose, type V2 } from '../../../engine/plan/layout3d';
 import { blobMaterial, glow, solid } from './materials';
 import { STATUS_HEX } from './palette';
 import { cursor } from './cursor';
@@ -24,13 +24,12 @@ import { isNightStation } from '../../../sim/roster';
 import { useFocusFade } from './useFocusFade';
 import { t } from '../../../i18n/t';
 import { routingRules } from '../routingRules';
-import { statusLabel } from '../ui';
-import { motion } from './motion';
-import { CUSTOMER_DESKS, isClosed, servedExit } from './evacuation';
-import { sidewalk } from './sidewalk';
-import { queueHandoff } from './queueHandoff';
-import { journeyPose, type Journey } from './engine/customerLifecycle';
-import { MAIN_GATE_STAFF_ROUTE } from './engine/routes';
+import { motion } from '../../../engine/simulation/motion';
+import { CUSTOMER_DESKS, isClosed, servedExit } from '../../../engine/world/evacuation';
+import { sidewalk } from '../../../engine/world/sidewalk';
+import { queueHandoff } from '../../../engine/simulation/queueHandoff';
+import { journeyPose, type Journey } from '../../../engine/simulation/customerLifecycle';
+import { MAIN_GATE_STAFF_ROUTE } from '../../../engine/simulation/routes';
 
 export { cursor } from './cursor';
 
@@ -672,8 +671,8 @@ function useTipPlacement(id: StationId, top: number): { side: TipSide3d; at: [nu
 }
 
 function DeskTooltip3D({ id, top }: { id: StationId; top: number }) {
-  const { status, waiting: queueLength, working, showStatus } = useDeskStatus(id);
-  const bm = useMessages(deskBadgeMessages);
+  // The same "X waiting · Y working · status" line as the 2D desk card's tooltip.
+  const { line } = useDeskStatusLine(id);
   const terms = useTerms();
   const rules = routingRules(id);
   const { side, at } = useTipPlacement(id, top);
@@ -706,9 +705,7 @@ function DeskTooltip3D({ id, top }: { id: StationId; top: number }) {
           </dl>
         )}
         <span className="mt-1.5 inline-block rounded bg-slate-800 px-1.5 py-px text-[11px] font-semibold text-slate-200">
-          {queueLength} {t('waiting')}
-          {working > 0 ? ` · ${bm('working', { n: working })}` : ''}
-          {showStatus ? ` · ${statusLabel(status)}` : ''}
+          {line}
         </span>
       </div>
     </Html>

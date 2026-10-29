@@ -3,14 +3,14 @@ import { useWorld } from './WorldProvider';
 import { memo, useMemo, useRef, useState } from 'react';
 import type { Group, MeshBasicMaterial } from 'three';
 import { bankStore } from '../../../store/bankStore';
-import { atmosphereAt } from './atmosphere';
+import { atmosphereAt } from '../../../engine/world/atmosphere';
 import { CustomerFigure } from './Avatars';
 import { Sign, useMerged } from './Dressing';
-import { FRONT_PLAN, FrontGuard, type Cabin, type GuardPostPlan } from './guardCabin';
+import { FRONT_PLAN, FrontGuard, type Cabin, type GuardPostPlan } from '../../../engine/world/guardCabin';
 import { box, type Part } from './kit';
 import { glow, pane, solid } from './materials';
-import { motion } from './motion';
-import { liveMix } from './weather';
+import { motion } from '../../../engine/simulation/motion';
+import { liveMix } from '../../../engine/world/weather';
 
 /**
  * The security guard's cabin by the main entrance (guardCabin.ts says where the guard is): a small glass booth on a plinth,

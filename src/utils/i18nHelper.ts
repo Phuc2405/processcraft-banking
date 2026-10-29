@@ -45,6 +45,9 @@ import {
   type Localized,
 } from '../i18n/locale';
 import { t } from '../i18n/t';
+import { format, message, PLACEHOLDER, type MessageBundle, type Values } from '../i18n/messageCore';
+
+export { defineMessages, format, message, registeredBundles, type MessageBundle, type Values } from '../i18n/messageCore';
 
 export { DEFAULT_LOCALE, LOCALES, LOCALE_KEY, activeLocale, isLocale, localeStore, pick, setActiveLocale, t, tr, useLocale };
 export type { Locale, Localized };
@@ -87,16 +90,6 @@ export const hasVietnamese = (text: string): boolean => VIETNAMESE.test(text);
 // Values and plurals
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type Values = Readonly<Record<string, string | number>>;
-
-const PLACEHOLDER = /\{([A-Za-z_][\w]*)\}/g;
-
-/** Fills `{name}` placeholders. A placeholder with no value is left as written, so a missing value is visible, not blank. */
-export function format(template: string, values?: Values): string {
-  if (!values) return template;
-  return template.replace(PLACEHOLDER, (hit, name: string) => (name in values ? String(values[name]) : hit));
-}
-
 /**
  * Fills `{name}` placeholders with React nodes (a <kbd>, a link, a bold word), so the sentence stays ONE translatable string
  * and each language puts the node where its grammar wants it: 'Press {key} to skip' / 'Nhấn {key} để bỏ qua'.
@@ -130,32 +123,6 @@ export function plural<T>(n: number, forms: { one: T; other: T }, locale: Locale
 // ─────────────────────────────────────────────────────────────────────────────
 // Message bundles
 // ─────────────────────────────────────────────────────────────────────────────
-
-export interface MessageBundle<K extends string = string> {
-  readonly id: string;
-  readonly messages: Readonly<Record<K, Localized<string>>>;
-}
-
-const BUNDLES = new Map<string, MessageBundle>();
-
-/**
- * Declares the copy of a feature. Every key needs every language (the compiler checks it), and the bundle is registered so the
- * i18n test can check its placeholders and spot an untranslated entry. Define bundles at module level, never inside a component.
- */
-export function defineMessages<K extends string>(id: string, messages: Readonly<Record<K, Localized<string>>>): MessageBundle<K> {
-  const bundle: MessageBundle<K> = { id, messages };
-  BUNDLES.set(id, bundle as MessageBundle);
-  return bundle;
-}
-
-/** Every bundle defined so far. */
-export const registeredBundles = (): readonly MessageBundle[] => [...BUNDLES.values()];
-
-/** One message in a language (the active one by default). */
-export function message<K extends string>(bundle: MessageBundle<K>, key: K, values?: Values, locale: Locale = activeLocale()): string {
-  const entry = bundle.messages[key];
-  return format(pick(entry, locale), values);
-}
 
 export type Translate<K extends string> = (key: K, values?: Values) => string;
 
