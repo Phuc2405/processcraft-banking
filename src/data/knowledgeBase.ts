@@ -337,8 +337,8 @@ export type GlFamily = 'cash' | 'lending' | 'interbank' | 'buffer' | 'deposits' 
 
 /** Section 2: every account in one family, by the job it does. A test checks that the families cover the ledger exactly once. */
 export const GL_TAXONOMY: readonly { id: GlFamily; title: Localized<string>; note: Localized<string>; risk: boolean; accounts: readonly GlAccount[] }[] = [
-  { id: 'cash', title: L('Cash and liquidity', 'Tiền mặt và thanh khoản'), note: L('Physical notes in machines and tills.', 'Tiền mặt trong máy ATM và tại quầy.'), risk: false, accounts: ['ATM_CASH', 'TILL_CASH'] },
-  { id: 'lending', title: L('Lending', 'Cho vay'), note: L('Money customers owe the bank.', 'Khoản khách hàng nợ ngân hàng.'), risk: false, accounts: ['OVERDRAFT_RECV', 'LOAN_PRINCIPAL'] },
+  { id: 'cash', title: L('Cash and liquidity', 'Tiền mặt và thanh khoản'), note: L('Physical notes in machines and tills.', 'Tiền mặt trong máy ATM và tại quầy.'), risk: false, accounts: ['VAULT_CASH', 'ATM_CASH', 'TILL_CASH'] },
+  { id: 'lending', title: L('Lending', 'Cho vay'), note: L('Money customers owe the bank.', 'Khoản khách hàng nợ ngân hàng.'), risk: false, accounts: ['OVERDRAFT_RECV', 'LOAN_PRINCIPAL', 'LOAN_LOSS_ALLOWANCE'] },
   { id: 'interbank', title: L('Interbank and correspondent', 'Liên ngân hàng và ngân hàng đại lý'), note: L('Positions with NAPAS and foreign correspondents.', 'Vị thế với NAPAS và ngân hàng đại lý nước ngoài.'), risk: false, accounts: ['INTERBANK_SETTLEMENT', 'NOSTRO'] },
   {
     id: 'buffer',
@@ -348,10 +348,10 @@ export const GL_TAXONOMY: readonly { id: GlFamily; title: Localized<string>; not
     accounts: ['ATM_SUSPENSE', 'DISPUTE_ACCOUNT', 'CLEARING_SUSPENSE', 'FROZEN_ASSETS', 'TD_PLEDGED'],
   },
   { id: 'deposits', title: L('Customer deposits', 'Tiền gửi của khách hàng'), note: L('What the bank owes its customers.', 'Khoản ngân hàng nợ khách hàng.'), risk: false, accounts: ['CASA', 'TERM_DEPOSIT'] },
-  { id: 'payables', title: L('Payables', 'Các khoản phải trả'), note: L('Money owed to wallets, billers and loyalty members.', 'Khoản phải trả cho ví điện tử, nhà cung cấp hóa đơn và hội viên tích điểm.'), risk: false, accounts: ['WALLET_SETTLEMENT', 'LOYALTY_LIABILITY', 'BILLER_PAYABLE'] },
+  { id: 'payables', title: L('Payables', 'Các khoản phải trả'), note: L('Money owed to wallets, billers and loyalty members.', 'Khoản phải trả cho ví điện tử, nhà cung cấp hóa đơn và hội viên tích điểm.'), risk: false, accounts: ['WALLET_SETTLEMENT', 'LOYALTY_LIABILITY', 'BILLER_PAYABLE', 'GOV_ASSET_RECOVERY'] },
   { id: 'capital', title: L('Capital', 'Vốn'), note: L('The owners’ stake.', 'Phần vốn của chủ sở hữu.'), risk: false, accounts: ['EQUITY'] },
   { id: 'income', title: L('Income', 'Thu nhập'), note: L('Interest, fees and penalties earned.', 'Lãi, phí và tiền phạt thu được.'), risk: false, accounts: ['INTEREST_INCOME', 'FEE_INCOME', 'PENALTY_INCOME', 'LATE_PENALTY_INCOME', 'WIRE_FEE_INCOME'] },
-  { id: 'expense', title: L('Expenses', 'Chi phí'), note: L('Interest paid, rewards and network fees.', 'Lãi trả, chi phí thưởng và phí mạng lưới.'), risk: false, accounts: ['INTEREST_EXPENSE', 'REWARDS_EXPENSE', 'SWITCH_FEE_EXPENSE'] },
+  { id: 'expense', title: L('Expenses', 'Chi phí'), note: L('Interest paid, rewards and network fees.', 'Lãi trả, chi phí thưởng và phí mạng lưới.'), risk: false, accounts: ['INTEREST_EXPENSE', 'REWARDS_EXPENSE', 'SWITCH_FEE_EXPENSE', 'REGULATORY_PENALTY_EXPENSE', 'PROVISION_EXPENSE'] },
 ];
 
 /** A journal in the buffer mechanics: its debit and credit accounts. */

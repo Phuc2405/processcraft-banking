@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from 'react';
 import { useLocale } from '../../i18n/locale';
 import { accountDescription, accountName } from '../../sim/plainLanguage';
+import { memoVi } from '../../sim/memoVi';
 import { ledgerUi, postingKindLabel } from '../../data/ledgerCopy';
 import { CHART_OF_ACCOUNTS, groupByTransaction, isBalanced, trialBalance, type TrialBalance as Trial } from '../../engine/ledger';
 import { formatAud } from '../../engine/money';
@@ -49,10 +50,9 @@ function AccountName({ id }: { id: AccountId }) {
   );
 }
 
-/** The memo of a line. The engine writes it in English; in Vietnamese it is rebuilt from the line's kind, accounts and amount. */
+/** The memo of a line. The engine writes it in English; in Vietnamese it is rebuilt in banking terms from the line's kind, accounts and amount. */
 function memoOf(entry: GLEntry, locale: string, t: (s: string) => string): string {
-  if (locale !== 'vi') return t(entry.memo);
-  return `${postingKindLabel(entry.kind)}: Nợ ${CHART_OF_ACCOUNTS[entry.debitAccount].code} ${accountName(entry.debitAccount, 'vi')} / Có ${CHART_OF_ACCOUNTS[entry.creditAccount].code} ${accountName(entry.creditAccount, 'vi')}, ${formatAud(entry.amount)}.`;
+  return locale === 'vi' ? memoVi(entry) : t(entry.memo);
 }
 
 function Line({ entry }: { entry: GLEntry }) {

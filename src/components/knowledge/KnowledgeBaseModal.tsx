@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import {
   accountsOn,
@@ -25,18 +25,22 @@ import {
   type ArticleFlow,
   type BufferJournal,
 } from '../../data/knowledgeBase';
+import { AML_ARTICLE, type KbTable } from '../../data/amlKnowledge';
+import { RETAIL_GUIDES, type RetailGuide } from '../../data/retailKnowledge';
 import { pick, useLocale, type Locale, type Localized } from '../../i18n/locale';
 import { fold } from '../../hooks/useSearchIndex';
 import { formatMoney } from '../../sim/kpis';
 import { GL_ACCOUNTS, GL_CODE, GL_SIDE, type GlAccount } from '../../sim/staffRoleplay';
-import { uiStore, useUiStore } from '../../store/uiStore';
-import { message, useMessages } from '../../utils/i18nHelper';
+import { uiStore, useUiStore, type KnowledgeTab } from '../../store/uiStore';
+import { formatNodes, message, useMessages } from '../../utils/i18nHelper';
 import { analystWorkspaceMessages, type AnalystWorkspaceKey } from '../bank/analystWorkspace.messages';
 import { glossaryTerms, glPlain } from '../bank/codeGlossary';
 import { LanguageToggle } from '../shell/LanguageToggle';
 import { Modal } from '../shell/Modal';
 import { ViewModeToggle, type ViewMode } from '../shell/SegmentedToggle';
 import { knowledgeBaseMessages } from './knowledgeBase.messages';
+import { AuthorLink } from '../shell/AuthorLink';
+import { creditsMessages } from '../shell/credits.messages';
 
 /** The formal account name the ledger sheet uses ("Nostro accounts (correspondents)"). */
 const glName = (gl: GlAccount, locale: Locale): string => message(analystWorkspaceMessages, `gl_${gl}` as AnalystWorkspaceKey, undefined, locale);
@@ -531,10 +535,227 @@ export function CoreLedgerArticle({ highlight = null, view = 'basic', accountQue
   );
 }
 
-/** The Knowledge Base window, opened from the search bar or the ledger legend. Sits above the workspace (z-[90]). */
+/** A comparison table of the AML article. */
+function CompareTable({ table, locale, testId }: { table: KbTable; locale: Locale; testId: string }) {
+  return (
+    <div className="mt-3 overflow-x-auto">
+      <table className="w-full min-w-[640px] border-collapse text-[14px]" data-testid={testId}>
+        <thead>
+          <tr>
+            {table.columns.map((c, i) => (
+              <th key={i} className={th}>
+                {pick(c, locale)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {table.rows.map((row, r) => (
+            <tr key={r}>
+              {row.map((cell, i) => (
+                <td key={i} className={`${td} ${i === 0 ? 'font-semibold text-slate-100' : 'text-slate-300'}`}>
+                  {pick(cell, locale)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** A step-by-step SOP drawn as a flow: numbered boxes joined by arrows, wrapping on narrow screens. */
+export function SopFlow({ steps, title, testId = 'kb-sop-flow' }: { steps: readonly string[]; title: string; testId?: string }) {
+  return (
+    <figure className="mt-3" data-testid={testId}>
+      <figcaption className="text-[12.5px] font-bold uppercase tracking-wider text-sky-300">{title}</figcaption>
+      <ol className="mt-1.5 flex flex-wrap items-stretch gap-y-2">
+        {steps.map((step, i) => (
+          <li key={i} className="flex items-center" data-step={i + 1}>
+            <span className="flex h-full max-w-[15rem] items-start gap-1.5 rounded-lg border border-sky-400/40 bg-sky-500/10 px-2.5 py-1.5 text-[13.5px] leading-snug text-sky-50">
+              <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-sky-400 text-[11.5px] font-black text-slate-950">{i + 1}</span>
+              {step}
+            </span>
+            {i < steps.length - 1 && (
+              <span className="px-1.5 text-[18px] font-black text-sky-400" aria-hidden="true">
+                →
+              </span>
+            )}
+          </li>
+        ))}
+      </ol>
+    </figure>
+  );
+}
+
+/** What each answer leads to: the SOP followed, a breach approved, a clean case rejected. */
+function DecisionTree({ right, wrongApprove, wrongReject }: { right: string; wrongApprove: string; wrongReject: string }) {
+  const m = useMessages(knowledgeBaseMessages);
+  const leaf = (label: string, text: string, tone: string) => (
+    <div className={`rounded-lg border px-2.5 py-1.5 text-[13.5px] ${tone}`}>
+      <div className="font-bold">{label}</div>
+      <div className="mt-0.5 leading-snug opacity-90">{text}</div>
+    </div>
+  );
+  return (
+    <figure className="mt-3" data-testid="kb-decision-tree">
+      <figcaption className="text-[12.5px] font-bold uppercase tracking-wider text-violet-300">{m('treeTitle')}</figcaption>
+      <div className="mt-1.5 grid gap-2 sm:grid-cols-3">
+        {leaf(m('treeRight'), right, 'border-lime-400/40 bg-lime-950/30 text-lime-50')}
+        {leaf(m('treeWrongApprove'), wrongApprove, 'border-rose-400/40 bg-rose-950/30 text-rose-50')}
+        {leaf(m('treeWrongReject'), wrongReject, 'border-amber-400/40 bg-amber-950/30 text-amber-50')}
+      </div>
+    </figure>
+  );
+}
+
+/** One retail guide: plain intro, then each scenario's trigger, SOP flow and decision tree (Basic or Advanced copy), and the rules and postings in the Advanced view. */
+function RetailGuideSection({ g, advanced, locale, lit }: { g: RetailGuide; advanced: boolean; locale: Locale; lit: boolean }) {
+  const m = useMessages(knowledgeBaseMessages);
+  const v = advanced ? 'Exp' : 'Std';
+  return (
+    <section id={kbAnchorId(g.id)} data-section={g.id} className={`mt-5 scroll-mt-2 ${lit ? 'rounded-lg ring-2 ring-amber-300/80' : ''}`}>
+      <h3 className="text-[17px] font-bold text-slate-50">{pick(g.title, locale)}</h3>
+      <p className="mt-1.5">{pick(g.intro, locale)}</p>
+      {advanced && (
+        <div className="mt-2 rounded-r-lg border-l-2 border-violet-400/70 bg-violet-500/[0.07] py-1.5 pl-3 pr-2" data-advanced={g.id}>
+          <div className="text-[12px] font-bold uppercase tracking-wider text-violet-300">{m('foundationTag')}</div>
+          <p className="mt-1 text-slate-200">{pick(g.foundation, locale)}</p>
+        </div>
+      )}
+      {g.scenarios.map((id) => (
+        <div key={id} className="mt-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3" data-scenario={id}>
+          <h4 className="text-[15px] font-bold text-emerald-200">{aw(`retail_${id}_title`, locale)}</h4>
+          <p className="mt-1 text-[14px] text-slate-300">
+            <span className="mr-1 font-semibold text-slate-400">{m('scenarioWhen')}:</span>
+            {aw(`scene_retail_${id}_trigger${v}`, locale)}
+          </p>
+          <SopFlow title={m('flowTitle')} steps={[1, 2, 3].map((n) => aw(`retail_${id}_sop${v}_${n}`, locale))} />
+          <DecisionTree right={aw(`risk_retail_${id}_benefit${v}`, locale)} wrongApprove={aw(`risk_retail_${id}_approve${v}`, locale)} wrongReject={aw(`risk_retail_${id}_reject${v}`, locale)} />
+        </div>
+      ))}
+    </section>
+  );
+}
+
+/** The retail operations article: 11 guides, each on both levels, with SOP flows and decision trees. */
+export function RetailArticle({ highlight = null, view = 'basic' }: { highlight?: string | null; view?: ViewMode }) {
+  const m = useMessages(knowledgeBaseMessages);
+  const locale = useLocale();
+  return (
+    <article data-testid="kb-article" data-article="retail-operations" data-view={view} className="text-[15px] leading-relaxed text-slate-200">
+      <h3 className="text-[20px] font-extrabold text-slate-50">{m('retailTitle')}</h3>
+      <p className="mt-1 text-slate-300">{m('retailIntro')}</p>
+      <nav aria-label={m('onThisPage')} className="mt-3 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2">
+        <div className="text-[12.5px] font-semibold uppercase tracking-wider text-slate-500">{m('onThisPage')}</div>
+        <ul className="mt-1 grid gap-x-4 gap-y-0.5 sm:grid-cols-2">
+          {RETAIL_GUIDES.map((g) => (
+            <li key={g.id}>
+              <a href={`#${kbAnchorId(g.id)}`} className="text-[14.5px] text-sky-300 hover:underline">
+                {pick(g.title, locale)}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      {RETAIL_GUIDES.map((g) => (
+        <RetailGuideSection key={g.id} g={g} advanced={view === 'advanced'} locale={locale} lit={highlight === g.id} />
+      ))}
+    </article>
+  );
+}
+
+/** The AML compliance article: AML and CFT, the 3 stages, the 3 fraud patterns, red flags, the legal rules, KYC and CFT, with a golden rule each.
+ *  Basic shows the intuitive, action-oriented sections; Advanced adds the legal and technical foundations. */
+export function AmlArticle({ highlight = null, view = 'basic' }: { highlight?: string | null; view?: ViewMode }) {
+  const m = useMessages(knowledgeBaseMessages);
+  const locale = useLocale();
+  const advanced = view === 'advanced';
+  const a = { ...AML_ARTICLE, sections: AML_ARTICLE.sections.filter((s) => advanced || !('level' in s && s.level === 'advanced')) };
+  return (
+    <article data-testid="kb-article" data-article={a.id} data-view={view} className="text-[15px] leading-relaxed text-slate-200">
+      <h3 className="text-[20px] font-extrabold text-slate-50">{pick(a.title, locale)}</h3>
+      <p className="mt-1 text-slate-300">{pick(a.intro, locale)}</p>
+      <nav aria-label={m('onThisPage')} className="mt-3 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2">
+        <div className="text-[12.5px] font-semibold uppercase tracking-wider text-slate-500">{m('onThisPage')}</div>
+        <ul className="mt-1 grid gap-x-4 gap-y-0.5 sm:grid-cols-2">
+          {a.sections.map((s) => (
+            <li key={s.id}>
+              <a href={`#${kbAnchorId(s.id)}`} className="text-[14.5px] text-sky-300 hover:underline">
+                {pick(s.title, locale)}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      {a.sections.map((s) => (
+        <section key={s.id} id={kbAnchorId(s.id)} data-section={s.id} className={`mt-5 scroll-mt-2 ${highlight === s.id ? 'rounded-lg ring-2 ring-amber-300/80' : ''}`}>
+          <h3 className="text-[17px] font-bold text-slate-50">{pick(s.title, locale)}</h3>
+          {s.paragraphs.map((p, i) => (
+            <p key={i} className="mt-1.5">
+              {pick(p, locale)}
+            </p>
+          ))}
+          {s.rule && (
+            <div className="mt-3 rounded-lg border border-amber-300/50 bg-amber-400/10 px-3 py-2 text-[15px] font-bold text-amber-100" data-testid="kb-golden-rule">
+              <span className="mr-1.5 text-[12.5px] font-black uppercase tracking-wider text-amber-300">{m('goldenRule')}</span>
+              {pick(s.rule, locale)}
+            </div>
+          )}
+          {'flow' in s && s.flow && <SopFlow title={m('flowTitle')} steps={s.flow.map((f) => pick(f, locale))} testId={`kb-flow-${s.id}`} />}
+          {s.table && <CompareTable table={s.table} locale={locale} testId={`kb-table-${s.id}`} />}
+          {advanced && s.advanced.length > 0 && <AdvancedNote id={s.id} paragraphs={s.advanced} locale={locale} />}
+        </section>
+      ))}
+    </article>
+  );
+}
+
+/** The Knowledge Base's categories (Strategy): each tab's label and the article it renders. A new category is one more entry. */
+const KB_TABS: readonly { id: KnowledgeTab; label: 'tabCore' | 'tabAml' | 'tabRetail'; render: (highlight: string | null, view: ViewMode) => ReactNode }[] = [
+  { id: 'core', label: 'tabCore', render: (highlight, view) => <CoreLedgerArticle highlight={highlight} view={view} /> },
+  { id: 'aml', label: 'tabAml', render: (highlight, view) => <AmlArticle highlight={highlight} view={view} /> },
+  { id: 'retail', label: 'tabRetail', render: (highlight, view) => <RetailArticle highlight={highlight} view={view} /> },
+];
+
+/** The category tab bar: opens on the tab of wherever the window was opened from, and any tab is one click away. */
+export function KnowledgeTabs({ tab, onTab }: { tab: KnowledgeTab; onTab: (tab: KnowledgeTab) => void }) {
+  const m = useMessages(knowledgeBaseMessages);
+  return (
+    <div role="tablist" aria-label={m('tabsLabel')} className="mb-4 flex gap-1 border-b border-slate-800" data-testid="kb-tabs">
+      {KB_TABS.map((t) => (
+        <button
+          key={t.id}
+          type="button"
+          role="tab"
+          aria-selected={tab === t.id}
+          data-testid={`kb-tab-${t.id}`}
+          onClick={() => onTab(t.id)}
+          className={`-mb-px whitespace-nowrap rounded-t-lg border-b-2 px-4 py-2 text-[14.5px] font-bold transition ${tab === t.id ? 'border-sky-400 bg-slate-800/60 text-slate-50' : 'border-transparent text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'}`}
+        >
+          {m(t.label)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** The window's footer: the knowledge is simulated, and feedback is welcome, via the author's LinkedIn. */
+export function KnowledgeDisclaimer() {
+  const c = useMessages(creditsMessages);
+  return (
+    <p className="text-center text-[12px] leading-snug text-slate-400" data-testid="kb-disclaimer">
+      {formatNodes(c('kbDisclaimer', { author: '{author}' }), { author: <AuthorLink /> })}
+    </p>
+  );
+}
+
+/** The Knowledge Base window, opened from the search bar, the ledger legend or the AML desk. Sits above the workspace (z-[90]); closing it returns to where it was opened. */
 export function KnowledgeBaseModal() {
   const m = useMessages(knowledgeBaseMessages);
   const anchor = useUiStore((s) => s.knowledgeAnchor);
+  const tab = useUiStore((s) => s.knowledgeTab);
   const [highlight, setHighlight] = useState<string | null>(anchor);
   const [view, setView] = useState<ViewMode>('basic');
   useEffect(() => {
@@ -545,8 +766,11 @@ export function KnowledgeBaseModal() {
     return () => window.clearTimeout(t);
   }, [anchor]);
   return (
-    <Modal title={m('title')} subtitle={m('subtitle')} icon="📒" onClose={() => uiStore.getState().close()} width="max-w-5xl" testId="knowledge-base" z="z-[90]" actions={<KnowledgeHeaderControls view={view} onView={setView} />}>
-      <CoreLedgerArticle highlight={highlight} view={view} />
+    <Modal title={m('title')} subtitle={m('subtitle')} icon="📒" onClose={() => uiStore.getState().closeKnowledge()} width="max-w-5xl" testId="knowledge-base" z="z-[90]" actions={<KnowledgeHeaderControls view={view} onView={setView} />} footer={<KnowledgeDisclaimer />}>
+      <KnowledgeTabs tab={tab} onTab={(t) => uiStore.getState().setKnowledgeTab(t)} />
+      <div role="tabpanel" data-tab={tab}>
+        {KB_TABS.find((t) => t.id === tab)!.render(highlight, view)}
+      </div>
     </Modal>
   );
 }

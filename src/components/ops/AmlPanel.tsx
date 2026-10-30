@@ -6,10 +6,14 @@ import { formatMoney } from '../../sim/kpis';
 import { rcLabel } from '../../sim/plainLanguage';
 import { localizeScenarioText, scenarioLabel } from '../../sim/scenarios';
 import type { TxRecord } from '../../sim/types';
-import { amlStore, useAmlStore, type AmlCase } from '../../store/amlStore';
+import { amlStore, useAmlStore, type AmlCase, type KeptAlert } from '../../store/amlStore';
 import { bankStore, useBankStore } from '../../store/bankStore';
 import { uiStore, useUiStore } from '../../store/uiStore';
 import { glossText } from '../bank/codeGlossary';
+import { alertCase, typologyCases, type ReviewCase } from '../../sim/amlReview';
+import { useMessages } from '../../utils/i18nHelper';
+import { amlDecisionMessages } from './amlDecision.messages';
+import { AmlScorecardView, bankNow, DebuffBanner, CaseActions, CaseTime, DEFAULT_DESK_VIEW, deskList, DeskListControls, EscalationPopup, HistoryFooter, KycContextCard, StateBadge, TypologyReview, ViolationBanner, type DeskView } from './AmlReview';
 import { Modal } from '../shell/Modal';
 
 /** The AML / SAR compliance desk, in three steps: 1. */
@@ -35,11 +39,8 @@ const STEP_TEXT: Record<Step, Localized<string>> = {
   3: { en: 'Report', vi: 'Báo cáo' },
 };
 
-function statusBadge(c: AmlCase | undefined) {
-  if (!c) return <span className="rounded-full bg-sky-400/15 px-2 py-0.5 text-[12.5px] font-bold text-sky-200 ring-1 ring-sky-400/40">{tr({ en: 'Open', vi: 'Đang mở' })}</span>;
-  if (c.status === 'SAR_FILED') return <span className="rounded-full bg-lime-400/15 px-2 py-0.5 text-[12.5px] font-bold text-lime-200 ring-1 ring-lime-400/40">{tr({ en: 'SAR filed', vi: 'Đã nộp SAR' })}</span>;
-  return <span className="rounded-full bg-slate-700/60 px-2 py-0.5 text-[12.5px] font-bold text-slate-300 ring-1 ring-slate-600">{tr({ en: 'False positive', vi: 'Cảnh báo sai' })}</span>;
-}
+/** An alert's state as the review badge shows it: its decision, or (decided before the review existed) a SAR or a false positive. */
+const alertState = (c: AmlCase | undefined): 'OPEN' | 'SAR_FILED' | 'RELEASED' => (!c ? 'OPEN' : c.status === 'SAR_FILED' ? 'SAR_FILED' : 'RELEASED');
 
 function riskFactors(a: AmlAlert, rows: readonly TxRecord[]): string[] {
   const out: string[] = [];
@@ -155,17 +156,75 @@ export function AmlPanel() {
   const minute = useBankStore((s) => s.view.minute);
   const dayOver = useBankStore((s) => s.view.dayOver);
   const cases = useAmlStore((s) => s.cases);
+  const reviews = useAmlStore((s) => s.reviews);
+  const seed = useBankStore((s) => s.seed);
+  const dm = useMessages(amlDecisionMessages);
+  const [tab, setTab] = useState<'alerts' | 'review' | 'scorecard'>('alerts');
   const [step, setStep] = useState<Step>(1);
   const [selected, setSelected] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'open' | 'all'>('all');
+  // The list opens on what needs action, newest first; the history is paged.
+  const [view, setView] = useState<DeskView>(DEFAULT_DESK_VIEW);
+  const pruned = useAmlStore((s) => s.pruned);
   const [sent, setSent] = useState<string | null>(null);
+  const focus = useUiStore((s) => s.amlFocus);
+  const [reviewFocus, setReviewFocus] = useState<string | null>(null);
 
   // The alerts are recomputed only when another payment has finished, and only while the panel is open.
   const log = useMemo(() => (open ? [...bankStore.getState().sim.transactionLog()] : []), [open, finished, day]);
   const alerts = useMemo(() => scanForAml(log), [log]);
-  const shown = filter === 'open' ? alerts.filter((a) => !cases[a.id]) : alerts;
-  const alert = alerts.find((a) => a.id === selected) ?? null;
-  const rows = useMemo(() => (alert ? alert.txIds.map((id) => log.find((t) => t.id === id)).filter((t): t is TxRecord => t !== undefined) : []), [alert, log]);
+  const kept = useAmlStore((s) => s.alerts);
+  const todays = useMemo((): KeptAlert[] => {
+    const byId = new Map(log.map((t) => [t.id, t]));
+    return alerts.map((a) => ({ alert: a, day, rows: a.txIds.map((id) => byId.get(id)).filter((t): t is TxRecord => t !== undefined) }));
+  }, [alerts, log, day]);
+  useEffect(() => {
+    if (open) amlStore.getState().keepAlerts(day, alerts, log);
+  }, [open, day, alerts, log]);
+  // Nothing is wiped at the rollover: the earlier days' alerts and cases stay on the desk until they are resolved.
+  const pastAlerts = useMemo(() => Object.values(kept).filter((e) => e.day < day && !pruned[e.alert.id]), [kept, day, pruned]);
+  // Every alert still in memory (the resolved ones too, for the history); the filters decide what shows.
+  const entries = useMemo(() => [...pastAlerts, ...todays.filter((e) => !pruned[e.alert.id])], [pastAlerts, todays, pruned]);
+  const list = useMemo(() => deskList(entries, view, (e) => reviews[e.alert.id], (e) => e.day * 1440 + e.alert.minute, bankNow(day, minute)), [entries, view, reviews, day, minute]);
+  const shown = list.shown;
+  const entry = entries.find((e) => e.alert.id === selected) ?? null;
+  const alert = entry?.alert ?? null;
+  const rows = entry?.rows ?? [];
+  const alertDay = entry?.day ?? day;
+  // The what-if review: the typology cases as they turn up (and the earlier days' still open), and every alert as a case, on the bank's clock.
+  const now = bankNow(day, minute);
+  const pastTypologies = useMemo(() => Array.from({ length: Math.max(0, day - 1) }, (_, i) => typologyCases(seed, i + 1)).flat(), [seed, day]);
+  const typologies = useMemo(() => [...pastTypologies, ...typologyCases(seed, day).filter((c) => c.minute <= minute || dayOver)].filter((c) => !pruned[c.id]), [pastTypologies, seed, day, minute, dayOver, pruned]);
+  const alertCases = useMemo(() => [...pastAlerts, ...todays].map((e) => alertCase(e.alert, e.rows, e.day)), [pastAlerts, todays]);
+  // Every case of the session (the scorecard, EDD timeouts, the FIU's directives), and the ones on the desk now.
+  const allCases = useMemo((): ReviewCase[] => [...pastTypologies, ...typologies.filter((c) => c.day === day), ...alertCases], [pastTypologies, typologies, alertCases, day]);
+  const alertReview = alert ? alertCases.find((x) => x.id === alert.id) : undefined;
+  useEffect(() => {
+    if (open) amlStore.getState().tick(allCases, now);
+  }, [open, allCases, now]);
+  // Opened from a toast: straight to that case, an alert on the alerts tab, a typology case on the review tab.
+  useEffect(() => {
+    if (!open || !focus) return;
+    if (entries.some((e) => e.alert.id === focus)) {
+      setTab('alerts');
+      setSelected(focus);
+      setStep(2);
+    } else if (typologies.some((c) => c.id === focus)) {
+      setTab('review');
+      setReviewFocus(focus);
+    }
+    uiStore.getState().clearAmlFocus();
+  }, [open, focus, entries, typologies]);
+  // A case that left the desk (settled, or carried over and now resolved) never leaves a blank step behind: back to the list.
+  const lost = step > 1 && !alert;
+  useEffect(() => {
+    if (!lost) return;
+    setStep(1);
+    setSelected(null);
+  }, [lost]);
+  const backToList = (): void => {
+    setStep(1);
+    setSelected(null);
+  };
 
   useEffect(() => {
     if (!open) {
@@ -196,7 +255,34 @@ export function AmlPanel() {
         vi: `Ngày ${day}. Quy tắc chạy trên mọi giao dịch đã hoàn tất: trên ${formatMoney(AML_THRESHOLD_CENTS)}, hoặc từ ${VELOCITY_MIN_COUNT} giao dịch trực tuyến rất nhỏ trong ${VELOCITY_WINDOW_MIN} phút.`,
       })}
       onClose={close}
+      actions={
+        <button type="button" onClick={() => uiStore.getState().openKnowledge(null, 'aml')} title={dm('kbOpenHint')} data-testid="aml-open-kb" className="whitespace-nowrap rounded-lg border border-sky-400/50 px-2.5 py-1 text-[13px] font-semibold text-sky-100 hover:bg-sky-500/10">
+          {dm('kbOpen')}
+        </button>
+      }
     >
+      <ViolationBanner />
+      {tab !== 'scorecard' && <DebuffBanner m={dm} />}
+      <EscalationPopup cases={allCases} />
+      <div className="mb-3 flex flex-wrap gap-1 rounded-xl bg-slate-950 p-1 ring-1 ring-slate-800" role="tablist" data-testid="aml-tabs">
+        {(['alerts', 'review', 'scorecard'] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            aria-selected={tab === t}
+            data-testid={`aml-tab-${t}`}
+            onClick={() => setTab(t)}
+            className={`flex-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-[13.5px] font-semibold transition ${tab === t ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}
+          >
+            {dm(t === 'alerts' ? 'tabAlerts' : t === 'review' ? 'tabReview' : 'tabScorecard')}
+          </button>
+        ))}
+      </div>
+      {tab === 'review' && <TypologyReview cases={typologies} now={now} today={day} focus={reviewFocus} />}
+      {tab === 'scorecard' && <AmlScorecardView cases={allCases} />}
+      {tab === 'alerts' && (
+      <>
       <ol className="mb-4 flex items-center gap-2" aria-label={tr({ en: 'Steps', vi: 'Các bước' })} data-testid="aml-steps">
         {([1, 2, 3] as const).map((n) => {
           const active = step === n;
@@ -216,13 +302,6 @@ export function AmlPanel() {
       {step === 1 && (
         <section data-testid="aml-monitor">
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <div className="flex rounded-lg bg-slate-950 p-0.5 ring-1 ring-slate-800" role="group">
-              {(['all', 'open'] as const).map((f) => (
-                <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} className={`rounded-md px-2.5 py-1 text-[13.5px] font-semibold ${filter === f ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-100'}`}>
-                  {f === 'all' ? tr({ en: `All alerts (${alerts.length})`, vi: `Tất cả (${alerts.length})` }) : tr({ en: `Open (${alerts.filter((a) => !cases[a.id]).length})`, vi: `Đang mở (${alerts.filter((a) => !cases[a.id]).length})` })}
-                </button>
-              ))}
-            </div>
             <span className="flex-1" />
             <button
               type="button"
@@ -240,7 +319,16 @@ export function AmlPanel() {
               {tr({ en: `Test transfer ${sent} is in the bank. Its alert appears here as soon as it finishes.`, vi: `Lệnh chuyển thử ${sent} đã vào ngân hàng. Cảnh báo sẽ hiện ở đây ngay khi giao dịch hoàn tất.` })}
             </p>
           )}
-          {shown.length === 0 ? (
+          {entries.length > 0 && (
+            <div className="mb-3">
+              <DeskListControls view={view} onView={setView} counts={list.counts} m={dm} />
+            </div>
+          )}
+          {entries.length > 0 && shown.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-slate-700 px-4 py-6 text-center text-[14px] text-slate-400" data-testid="aml-filter-empty">
+              {dm('filterEmpty')}
+            </p>
+          ) : shown.length === 0 ? (
             <p className="rounded-xl border border-dashed border-slate-700 px-4 py-8 text-center text-[14.5px] leading-relaxed text-slate-400" data-testid="aml-empty">
               {tr({
                 en: 'No alerts yet today. Ordinary traffic rarely crosses $10,000; send the test transfer, or play day 3 (botnet) to see a velocity burst.',
@@ -249,8 +337,18 @@ export function AmlPanel() {
             </p>
           ) : (
             <div className="overflow-hidden rounded-xl border border-slate-800">
-              <table className="w-full text-left text-[14px]" data-testid="aml-alerts">
-                <thead className="bg-slate-950 text-[12.5px] uppercase tracking-wider text-slate-500">
+              <table className="w-full table-fixed text-left text-[14px]" data-testid="aml-alerts">
+                {/* Fixed columns: long text truncates in its own cell; the action column keeps its width at any size. */}
+                <colgroup>
+                  <col className="w-[6.5rem]" />
+                  <col className="w-[9.5rem]" />
+                  <col />
+                  <col className="w-[7rem]" />
+                  <col className="w-[4.25rem]" />
+                  <col className="w-[10.5rem]" />
+                  <col className="w-[7.5rem]" />
+                </colgroup>
+                <thead className="whitespace-nowrap bg-slate-950 text-[12.5px] uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="px-3 py-2 font-semibold">{tr({ en: 'Time', vi: 'Giờ' })}</th>
                     <th className="px-3 py-2 font-semibold">{tr({ en: 'Rule', vi: 'Quy tắc' })}</th>
@@ -262,24 +360,28 @@ export function AmlPanel() {
                   </tr>
                 </thead>
                 <tbody>
-                  {shown.map((a) => (
-                    <tr key={a.id} className="border-t border-slate-800 text-slate-200 hover:bg-slate-800/40" data-testid="aml-alert" data-kind={a.kind}>
-                      <td className="whitespace-nowrap px-3 py-2 font-mono tabular-nums text-slate-400">{formatClock(Math.floor(a.minute))}</td>
+                  {shown.map(({ alert: a, day: d, rows: aRows }) => (
+                    <tr key={a.id} className="border-t border-slate-800 text-slate-200 hover:bg-slate-800/40" data-testid="aml-alert" data-kind={a.kind} data-day={d}>
+                      <td className="truncate whitespace-nowrap px-3 py-2 font-mono tabular-nums text-slate-400">
+                        <CaseTime c={{ day: d }} today={day} minute={a.minute} m={dm} />
+                      </td>
                       <td className="px-3 py-2">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12.5px] font-bold ring-1 ${KIND_TEXT[a.kind].tone}`}>
+                        <span className={`inline-flex max-w-full items-center gap-1 truncate whitespace-nowrap rounded-full px-2 py-0.5 text-[12px] font-bold ring-1 ${KIND_TEXT[a.kind].tone}`}>
                           <span aria-hidden="true">{KIND_TEXT[a.kind].icon}</span>
                           {tr(KIND_TEXT[a.kind].label)}
                         </span>
                       </td>
-                      <td className="max-w-[16rem] truncate px-3 py-2" title={localizeScenarioText(a.scenario)}>
-                        {a.kind === 'VELOCITY_BURST' ? tr({ en: `${a.count} payments${isBotBurst(a, log) ? ' (botnet)' : ''}`, vi: `${a.count} giao dịch${isBotBurst(a, log) ? ' (botnet)' : ''}` }) : localizeScenarioText(a.scenario)}
+                      <td className="truncate px-3 py-2" title={localizeScenarioText(a.scenario)}>
+                        {a.kind === 'VELOCITY_BURST' ? tr({ en: `${a.count} payments${isBotBurst(a, aRows) ? ' (botnet)' : ''}`, vi: `${a.count} giao dịch${isBotBurst(a, aRows) ? ' (botnet)' : ''}` }) : localizeScenarioText(a.scenario)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums">{formatMoney(a.amountCents)}</td>
                       <td className="px-3 py-2 text-right">
                         <span className={`font-mono font-bold ${a.riskScore >= 80 ? 'text-rose-300' : 'text-amber-300'}`}>{a.riskScore}</span>
                       </td>
-                      <td className="px-3 py-2">{statusBadge(cases[a.id])}</td>
-                      <td className="px-3 py-2 text-right">
+                      <td className="px-3 py-2">
+                        <StateBadge record={reviews[a.id]} state={alertState(cases[a.id])} now={now} m={dm} />
+                      </td>
+                      <td className="px-2 py-2 text-right">
                         <button
                           type="button"
                           onClick={() => {
@@ -287,7 +389,7 @@ export function AmlPanel() {
                             setStep(2);
                           }}
                           data-testid="aml-investigate"
-                          className="rounded-md bg-sky-500 px-2.5 py-1 text-[13.5px] font-bold text-sky-950 hover:bg-sky-400"
+                          className="whitespace-nowrap rounded-md bg-sky-500 px-2.5 py-1 text-[13.5px] font-bold text-sky-950 hover:bg-sky-400"
                         >
                           {tr({ en: 'Investigate →', vi: 'Điều tra →' })}
                         </button>
@@ -298,6 +400,7 @@ export function AmlPanel() {
               </table>
             </div>
           )}
+          <HistoryFooter view={view} onView={setView} pages={list.pages} m={dm} />
         </section>
       )}
 
@@ -308,12 +411,13 @@ export function AmlPanel() {
               {KIND_TEXT[alert.kind].icon} {tr(KIND_TEXT[alert.kind].label)}
             </span>
             <span className="font-mono text-[14px] text-slate-400">{alert.id}</span>
-            {statusBadge(c)}
+            <StateBadge record={reviews[alert.id]} state={alertState(c)} now={now} m={dm} />
             <span className="flex-1" />
             <span className="text-[14px] text-slate-300">
               {tr({ en: 'Risk score', vi: 'Điểm rủi ro' })} <b className="font-mono text-rose-300">{alert.riskScore}</b>
             </span>
           </div>
+          {alertReview && <KycContextCard c={alertReview} />}
           <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
             <h3 className="text-[13px] font-bold uppercase tracking-wider text-slate-400">{tr({ en: 'Risk factors', vi: 'Yếu tố rủi ro' })}</h3>
             <ul className="mt-2 space-y-1.5" data-testid="aml-factors">
@@ -358,32 +462,16 @@ export function AmlPanel() {
               {tr({ en: `SAR filed with the regulator, reference ${c.reference}.`, vi: `Đã nộp SAR cho cơ quan quản lý, mã tham chiếu ${c.reference}.` })}
             </p>
           )}
+          {alertReview && !c && <CaseActions c={alertReview} now={now} onFileSar={() => setStep(3)} onResolved={backToList} />}
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <button type="button" onClick={() => setStep(1)} className="rounded-lg px-3 py-1.5 text-[14px] font-semibold text-slate-300 ring-1 ring-slate-700 hover:bg-slate-800">
               ← {tr({ en: 'All alerts', vi: 'Tất cả cảnh báo' })}
             </button>
             <span className="flex-1" />
-            {c ? (
+            {c && !reviews[alert.id] && (
               <button type="button" onClick={() => amlStore.getState().reopen(alert.id)} className="rounded-lg px-3 py-1.5 text-[14px] font-semibold text-slate-300 ring-1 ring-slate-700 hover:bg-slate-800">
                 {tr({ en: 'Reopen the case', vi: 'Mở lại hồ sơ' })}
               </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    amlStore.getState().closeFalsePositive(alert.id, day, minute);
-                    setStep(1);
-                  }}
-                  data-testid="aml-close-fp"
-                  className="rounded-lg bg-slate-800 px-3 py-1.5 text-[14px] font-semibold text-slate-100 ring-1 ring-slate-700 hover:bg-slate-700"
-                >
-                  {tr({ en: 'Close as false positive', vi: 'Đóng: cảnh báo sai' })}
-                </button>
-                <button type="button" onClick={() => setStep(3)} data-testid="aml-escalate" className="rounded-lg bg-rose-500 px-3 py-1.5 text-[14px] font-bold text-white hover:bg-rose-400">
-                  {tr({ en: 'Escalate: draft a SAR →', vi: 'Chuyển cấp: soạn SAR →' })}
-                </button>
-              </>
             )}
           </div>
         </section>
@@ -412,9 +500,20 @@ export function AmlPanel() {
               </button>
             </div>
           ) : (
-            <SarForm alert={alert} day={day} minute={minute} onFiled={() => setStep(3)} onBack={() => setStep(2)} />
+            <SarForm
+              alert={alert}
+              day={alertDay}
+              minute={minute}
+              onFiled={() => {
+                if (alertReview) amlStore.getState().decide(alertReview, 'FILE_SAR', now);
+                setStep(3);
+              }}
+              onBack={() => setStep(2)}
+            />
           )}
         </section>
+      )}
+      </>
       )}
     </Modal>
   );

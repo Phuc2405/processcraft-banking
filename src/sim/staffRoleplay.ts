@@ -206,6 +206,9 @@ export function buildStaffCase(role: StaffRoleId, p: Packet, ctx: StaffDeskConte
   return { id: p.id, station: ROLE_STATION[role], role, scenario: p.scenario, amountCents: p.amountCents, waitedMin, fields: built.fields, scene: built.scene, expected: built.expected };
 }
 
+/** The identity checks' outcome, as the inspector names it: a spoofed face (liveness), a document that fails OCR or validation, a face that is not the document's, or verified. */
+const EKYC_VERDICT_MSG = { LIVENESS_FAILED: 'ekycVerdictLiveness', FAKE_ID: 'ekycVerdictDocument', CITIZEN_DB_MISMATCH: 'ekycVerdictDocument', FACE_MISMATCH: 'ekycVerdictFace', VERIFIED: 'ekycVerdictVerified' } as const;
+
 function fieldsFor(role: StaffRoleId, p: Packet, stop: Stop, ctx: StaffDeskContext, ext: ExtendedContext | undefined): { fields: StaffField[]; expected: StaffDecision; scene: StaffScene } | null {
   const id = p.id;
   switch (role) {
@@ -302,6 +305,7 @@ function fieldsFor(role: StaffRoleId, p: Packet, stop: Stop, ctx: StaffDeskConte
           { key: 'ocrMatch', value: { t: 'pct', v: c.ocrMatchPct }, flag: c.ocrMatchPct < EKYC_POLICY.ocrMinPct },
           { key: 'tamper', value: { t: 'num', v: tamper }, flag: tamper > EKYC_POLICY.tamperMax },
           { key: 'nationalDb', value: { t: 'bool', v: db }, flag: !db },
+          { key: 'ekycVerdict', value: { t: 'msg', key: EKYC_VERDICT_MSG[c.verdict] }, flag: c.verdict !== 'VERIFIED' },
         ],
       };
     }
@@ -331,6 +335,8 @@ function fieldsFor(role: StaffRoleId, p: Packet, stop: Stop, ctx: StaffDeskConte
         fields: [
           { key: 'fxRate', value: { t: 'code', v: sw ? `1 ${sw.currency} = ${sw.fxRate.toFixed(4)} AUD` : c.currency } },
           { key: 'fxSpread', value: { t: 'code', v: `${between(id, 'spread', 18, 65)} bps` } },
+          { key: 'fxGross', value: { t: 'code', v: sw ? `${sw.currency} ${(p.amountCents / 100 / sw.fxRate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—' } },
+          { key: 'fxMarkup', value: { t: 'money', cents: fxMarkupCents(p.amountCents, between(id, 'spread', 18, 65)) } },
           { key: 'pacs008', value: { t: 'code', v: sw ? `E2E ${sw.endToEndId || '∅'} · ${sw.debtorAgent} → ${sw.creditorAgent}` : 'pacs.008.001.08' } },
           { key: 'invalidField', value: c.field ? { t: 'code', v: c.field } : { t: 'msg', key: 'none' }, flag: c.field !== null },
           { key: 'nostro', value: { t: 'money', cents: ctx.nostroCents }, flag: ctx.nostroCents < p.amountCents },
@@ -452,6 +458,7 @@ function drillCase(role: StaffRoleId, drill: StaffDrillNo, id: string, hit: bool
           { key: 'ocrMatch', value: pct(ocr), flag: ocr < S.ekycOcrMinPct },
           { key: 'imageQuality', value: msg(hit ? pickOf(id, 'q', ['qualityBlurred', 'qualityCornerCut', 'qualityGlare']) : 'qualityClear'), flag: hit },
           { key: 'idReadable', value: bool(!hit), flag: hit },
+          { key: 'ekycVerdict', value: msg(hit ? 'ekycVerdictDocument' : 'ekycVerdictVerified'), flag: hit },
         ],
       };
     }
@@ -466,6 +473,7 @@ function drillCase(role: StaffRoleId, drill: StaffDrillNo, id: string, hit: bool
           { key: 'declaredAge', value: num(declared) },
           { key: 'documentAge', value: num(docAge), flag: docAge !== declared },
           { key: 'docExpired', value: bool(expired), flag: expired },
+          { key: 'ekycVerdict', value: msg(hit ? 'ekycVerdictDocument' : 'ekycVerdictVerified'), flag: hit },
         ],
       };
     }
@@ -478,6 +486,7 @@ function drillCase(role: StaffRoleId, drill: StaffDrillNo, id: string, hit: bool
           { key: 'liveness', value: pct(live), flag: live < S.ekycLivenessRejectBelow },
           { key: 'faceMatch', value: pct(hit ? b('face', 70, 96) : b('face', 90, 99)) },
           { key: 'replaySignal', value: bool(hit), flag: hit },
+          { key: 'ekycVerdict', value: msg(hit ? 'ekycVerdictLiveness' : 'ekycVerdictVerified'), flag: hit },
         ],
       };
     }
@@ -655,6 +664,9 @@ function drillCase(role: StaffRoleId, drill: StaffDrillNo, id: string, hit: bool
         expected: hit ? 'REJECT' : 'APPROVE',
         fields: [
           { key: 'fxRate', value: code(`1 USD = ${(1.48 + unit(id, 'fx') * 0.08).toFixed(4)} AUD`) },
+          { key: 'fxSpread', value: code(`${DEFAULT_FX_SPREAD_BPS} bps`) },
+          { key: 'fxGross', value: code(`USD ${(amount / 100 / (1.48 + unit(id, 'fx') * 0.08)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`) },
+          { key: 'fxMarkup', value: cash(fxMarkupCents(amount, DEFAULT_FX_SPREAD_BPS)) },
           { key: 'nostro', value: cash(nostro), flag: amount > nostro },
           { key: 'pacs008', value: code('pacs.008.001.08') },
         ],
@@ -697,6 +709,20 @@ export function buildTaskCase(role: StaffRoleId, task: StaffTaskNo, seq: number,
 }
 
 /** The head of a task's queue and the cases behind it. */
+/** The first retail case at or after `seq` that plays `focus` (the Task 5 filter): its sequence number. */
+export function nextRetailSeq(role: StaffRoleId, seq: number, focus: RetailScenarioId): number {
+  if (!RETAIL_DESK[role].includes(focus)) return seq;
+  for (let n = seq; n < seq + 500; n++) if (pickOf(`RT-${role.toUpperCase()}-${String(n + 1).padStart(3, '0')}`, 'scenario', RETAIL_DESK[role]) === focus) return n;
+  return seq;
+}
+
+/** The next `size` retail cases of one scenario from `seq` (the filtered queue). */
+export function retailDeck(role: StaffRoleId, seq: number, size: number, focus: RetailScenarioId): StaffCase[] {
+  const out: StaffCase[] = [];
+  for (let n = nextRetailSeq(role, seq, focus); out.length < size; n = nextRetailSeq(role, n + 1, focus)) out.push(buildRetailCase(role, n));
+  return out;
+}
+
 export function taskDeck(role: StaffRoleId, task: StaffTaskNo, seq: number, size = 4, incident: IncidentId | null = null): StaffCase[] {
   return Array.from({ length: size }, (_, i) => buildTaskCase(role, task, seq + i, incident));
 }
@@ -1008,10 +1034,12 @@ export function recordCareerDecision(c: CareerProgress, d: CareerDecision): { ca
 
 /** The core ledger's chart of accounts. Balances are kept debit-positive: assets and expenses carry a positive balance, the rest a negative one. */
 export const GL_ACCOUNTS = [
+  { id: 'VAULT_CASH', code: '1010', side: 'asset' },
   { id: 'ATM_CASH', code: '1011', side: 'asset' },
   { id: 'TILL_CASH', code: '1012', side: 'asset' },
   { id: 'OVERDRAFT_RECV', code: '1310', side: 'asset' },
   { id: 'LOAN_PRINCIPAL', code: '1320', side: 'asset' },
+  { id: 'LOAN_LOSS_ALLOWANCE', code: '1290', side: 'asset' },
   { id: 'INTERBANK_SETTLEMENT', code: '1510', side: 'asset' },
   { id: 'NOSTRO', code: '1520', side: 'asset' },
   { id: 'ATM_SUSPENSE', code: '1910', side: 'asset' },
@@ -1024,6 +1052,7 @@ export const GL_ACCOUNTS = [
   { id: 'BILLER_PAYABLE', code: '2460', side: 'liability' },
   { id: 'CLEARING_SUSPENSE', code: '2912', side: 'liability' },
   { id: 'FROZEN_ASSETS', code: '2930', side: 'liability' },
+  { id: 'GOV_ASSET_RECOVERY', code: '2110', side: 'liability' },
   { id: 'EQUITY', code: '3010', side: 'equity' },
   { id: 'INTEREST_INCOME', code: '4110', side: 'income' },
   { id: 'FEE_INCOME', code: '4510', side: 'income' },
@@ -1033,6 +1062,8 @@ export const GL_ACCOUNTS = [
   { id: 'INTEREST_EXPENSE', code: '5110', side: 'expense' },
   { id: 'REWARDS_EXPENSE', code: '5410', side: 'expense' },
   { id: 'SWITCH_FEE_EXPENSE', code: '5420', side: 'expense' },
+  { id: 'REGULATORY_PENALTY_EXPENSE', code: '5510', side: 'expense' },
+  { id: 'PROVISION_EXPENSE', code: '5610', side: 'expense' },
 ] as const satisfies readonly { id: string; code: string; side: 'asset' | 'liability' | 'equity' | 'income' | 'expense' }[];
 
 export type GlAccount = (typeof GL_ACCOUNTS)[number]['id'];
@@ -1075,9 +1106,17 @@ export interface RetailLedger {
 
 export const RETAIL_JOURNAL_CAP = 25;
 
+/** The teller's till float, its floor and its ceiling: below the floor the vault tops it up to the float; above the ceiling the surplus goes back to the vault. */
+export const TILL_FLOAT_CENTS = 2_500_000;
+export const TILL_FLOOR_CENTS = 1_000_000;
+export const TILL_CEILING_CENTS = 4_000_000;
+/** The branch vault's opening cash ($50,000). */
+export const VAULT_OPENING_CENTS = 5_000_000;
+
 const OPENING_POSITIONS: Partial<Record<GlAccount, number>> = {
+  VAULT_CASH: VAULT_OPENING_CENTS,
   ATM_CASH: 1_800_000,
-  TILL_CASH: 2_500_000,
+  TILL_CASH: TILL_FLOAT_CENTS,
   OVERDRAFT_RECV: 4_000_000,
   LOAN_PRINCIPAL: 60_000_000,
   INTERBANK_SETTLEMENT: 40_000_000,
@@ -1178,11 +1217,31 @@ export function retailKpis(l: RetailLedger): RetailKpis {
 /** Wire fee the cross-border desk charges on an outward remittance. */
 export const WIRE_FEE_CENTS = 2_500;
 
+/** The FX markup on a remittance: the bank's spread over mid-market (the case's fxSpread, in basis points; 40 when it has none). */
+export const DEFAULT_FX_SPREAD_BPS = 40;
+export const fxSpreadBps = (c: Pick<StaffCase, 'fields'>): number => {
+  const f = c.fields.find((x) => x.key === 'fxSpread');
+  const bps = f && f.value.t === 'code' ? Number.parseInt(f.value.v, 10) : NaN;
+  return Number.isFinite(bps) ? bps : DEFAULT_FX_SPREAD_BPS;
+};
+export const fxMarkupCents = (amountCents: number, bps: number): number => Math.round((amountCents * bps) / 10_000);
+
+/** What a remittance costs the customer: the principal, the wire fee and the FX markup (both of the bank's take go to 4540). */
+export const remittanceBreakdown = (c: Pick<StaffCase, 'fields' | 'amountCents'>): { principal: number; wireFee: number; markup: number; total: number } => {
+  const markup = fxMarkupCents(c.amountCents, fxSpreadBps(c));
+  return { principal: c.amountCents, wireFee: WIRE_FEE_CENTS, markup, total: c.amountCents + WIRE_FEE_CENTS + markup };
+};
+
+/** The instant virtual prepaid card a verified eKYC onboarding issues: its first load, onto the e-wallet / prepaid settlement account (2410). */
+export const PREPAID_CARD_LOAD_CENTS = 5_000;
+
 /** AML holds that freeze the funds (sanctions matches and funnel accounts) rather than just returning the payment. */
 const amlFreezes = (c: StaffCase): boolean => c.drill === 1 || c.drill === 3 || c.scene === 'aml_OFAC';
 
 /** The journal a 28-task-matrix or live-queue decision posts. */
 export function caseJournalLines(c: StaffCase, decision: StaffDecision): LedgerLine[] {
+  // eKYC verified: an instant virtual prepaid card, funded by the customer's transfer in (Dr 1510 / Cr 2410). Refused: nothing moves.
+  if (c.role === 'ekyc') return decision === 'APPROVE' ? journal([['INTERBANK_SETTLEMENT', PREPAID_CARD_LOAD_CENTS]], [['WALLET_SETTLEMENT', PREPAID_CARD_LOAD_CENTS]]) : [];
   const a = c.amountCents;
   if (a <= 0) return [];
   if (decision === 'REJECT') return c.role === 'aml' && amlFreezes(c) ? journal([['CASA', a]], [['FROZEN_ASSETS', a]]) : [];
@@ -1191,14 +1250,17 @@ export function caseJournalLines(c: StaffCase, decision: StaffDecision): LedgerL
       const cashIn = c.fields.some((f) => f.key === 'direction' && f.value.t === 'msg' && f.value.key === 'cashIn');
       return cashIn ? journal([['TILL_CASH', a]], [['CASA', a]]) : journal([['CASA', a]], [['TILL_CASH', a]]);
     }
-    case 'swift':
+    case 'swift': {
+      // The customer pays the principal, the wire fee and the FX markup; the principal leaves through the Nostro, the bank keeps the rest (4540).
+      const fx = remittanceBreakdown(c);
       return journal(
-        [['CASA', a + WIRE_FEE_CENTS]],
+        [['CASA', fx.total]],
         [
-          ['NOSTRO', a],
-          ['WIRE_FEE_INCOME', WIRE_FEE_CENTS],
+          ['NOSTRO', fx.principal],
+          ['WIRE_FEE_INCOME', fx.wireFee + fx.markup],
         ],
       );
+    }
     case 'dispute':
       return journal([['DISPUTE_ACCOUNT', a]], [['CASA', a]]);
     case 'aml':
@@ -1206,9 +1268,22 @@ export function caseJournalLines(c: StaffCase, decision: StaffDecision): LedgerL
       return journal([['CASA', a]], [['INTERBANK_SETTLEMENT', a]]);
     case 'bnpl':
       return journal([['LOAN_PRINCIPAL', a]], [['INTERBANK_SETTLEMENT', a]]);
-    case 'ekyc':
-      return [];
   }
+}
+
+/** The cash movement between the branch vault (1010) and the teller's till (1012) the till's balance calls for now, or null: a top-up when it has run low, a sweep when it holds too much. */
+export function vaultReplenishment(l: RetailLedger, at?: string): JournalEntry | null {
+  const till = l.balances.TILL_CASH;
+  if (till < TILL_FLOOR_CENTS) {
+    const amount = Math.min(TILL_FLOAT_CENTS - till, Math.max(0, l.balances.VAULT_CASH));
+    if (amount <= 0) return null;
+    return { caseId: `VAULT-${l.posted + 1}`, role: 'cashier', scene: 'cashier_OUT', decision: 'APPROVE', statusCode: 'VAULT_TO_TILL', lines: journal([['TILL_CASH', amount]], [['VAULT_CASH', amount]]), station: 'TELLER_CASH', ...(at ? { at } : {}) };
+  }
+  if (till > TILL_CEILING_CENTS) {
+    const amount = till - TILL_FLOAT_CENTS;
+    return { caseId: `VAULT-${l.posted + 1}`, role: 'cashier', scene: 'cashier_IN', decision: 'APPROVE', statusCode: 'TILL_TO_VAULT', lines: journal([['VAULT_CASH', amount]], [['TILL_CASH', amount]]), station: 'TELLER_CASH', ...(at ? { at } : {}) };
+  }
+  return null;
 }
 
 /** The journal entry of a decided case outside the retail queue. */
@@ -1231,18 +1306,21 @@ export const RETAIL_SCENARIOS = [
   'WALLET',
   'RTP_QR',
   'CLEARING_BREAK',
+  'NPL_PROVISION',
+  'FX_VOLATILITY',
+  'EKYC_RISK',
 ] as const;
 export type RetailScenarioId = (typeof RETAIL_SCENARIOS)[number];
 export type RetailScene = `retail_${RetailScenarioId}`;
 export const RETAIL_SCENES: readonly RetailScene[] = RETAIL_SCENARIOS.map((id) => `retail_${id}` as RetailScene);
 
 export const RETAIL_DESK: Readonly<Record<StaffRoleId, readonly RetailScenarioId[]>> = {
-  ekyc: ['ANNUAL_FEE', 'AUTO_PAY'],
+  ekyc: ['ANNUAL_FEE', 'AUTO_PAY', 'EKYC_RISK'],
   fds: ['CASHBACK', 'POINTS_WAIVER'],
   cashier: ['ATM_LOW_CASH', 'TD_EARLY_BREAK'],
   dispute: ['ATM_JAM', 'CARD_CAPTURED'],
-  swift: ['ATM_INTERBANK', 'CLEARING_BREAK'],
-  bnpl: ['DEBT_WATERFALL', 'TD_PLEDGE', 'TD_LIQUIDATION'],
+  swift: ['ATM_INTERBANK', 'CLEARING_BREAK', 'FX_VOLATILITY'],
+  bnpl: ['DEBT_WATERFALL', 'TD_PLEDGE', 'TD_LIQUIDATION', 'NPL_PROVISION'],
   aml: ['WALLET', 'RTP_QR'],
 };
 
@@ -1267,7 +1345,25 @@ export const RETAIL_SOP = {
   defaultDpd: 90,
   walletDailyCapCents: 500_000,
   rtpLimitCents: 500_000,
+  /** A SWIFT message is held for a re-quote when the live rate has moved more than this from the booked one (±%). */
+  fxVolatilityPct: 2,
+  /** eKYC risk profiling: a score at or above this is high risk (EDD), as is any PEP match or high-risk country. */
+  highRiskScore: 70,
 } as const;
+
+/** The SBV's five debt groups (Circular 11/2021/TT-NHNN): from days past due, and the specific provision rate of each. */
+export const NPL_GROUPS = [
+  { group: 1, minDpd: 0, ratePct: 0 },
+  { group: 2, minDpd: 10, ratePct: 5 },
+  { group: 3, minDpd: 90, ratePct: 20 },
+  { group: 4, minDpd: 180, ratePct: 50 },
+  { group: 5, minDpd: 360, ratePct: 100 },
+] as const;
+export type NplGroup = (typeof NPL_GROUPS)[number];
+/** The debt group of a loan `dpd` days past due. */
+export const nplGroupOf = (dpd: number): NplGroup => [...NPL_GROUPS].reverse().find((g) => dpd >= g.minDpd)!;
+/** The specific provision on a loan in a group (no eligible collateral deducted). */
+export const provisionCents = (outstanding: number, g: NplGroup): number => Math.round((outstanding * g.ratePct) / 100);
 
 /** Share of retail cases that breach their scenario's SOP. */
 export const RETAIL_HIT_RATE = 0.5;
@@ -1597,6 +1693,67 @@ function retailDrill(scenario: RetailScenarioId, id: string, hit: boolean): Reta
           { key: 'instantLimit', value: cash(S.rtpLimitCents), flag: overLimit },
         ],
         data: { codes: ['RTP_ACSC', 'RTP_REJECTED'], approve: journal([['CASA', amount]], [['INTERBANK_SETTLEMENT', amount]]), reject: [] },
+      };
+    }
+    case 'NPL_PROVISION': {
+      const outstanding = b('o', 500, 20_000) * 100;
+      // Group 1 to 5 by days past due; a breach understates the group by one (an under-provisioned NPL).
+      const dpd = pickOf(id, 'grp', hit ? [b('d2', 10, 89), b('d3', 90, 179), b('d4', 180, 359), b('d5', 360, 540)] : [b('d1', 0, 9), b('d2', 10, 89), b('d3', 90, 179), b('d4', 180, 359), b('d5', 360, 540)]);
+      const right = nplGroupOf(dpd);
+      const proposed = hit ? NPL_GROUPS[right.group - 2]! : right;
+      const post = (g: NplGroup): LedgerLine[] => journal([['PROVISION_EXPENSE', provisionCents(outstanding, g)]], [['LOAN_LOSS_ALLOWANCE', provisionCents(outstanding, g)]]);
+      return {
+        amountCents: outstanding,
+        expected,
+        fields: [
+          { key: 'loanOutstanding', value: cash(outstanding) },
+          { key: 'daysPastDue', value: num(dpd) },
+          { key: 'debtGroup', value: msg(`nplGroup${proposed.group}`), flag: hit },
+          { key: 'provisionRate', value: pct(proposed.ratePct), flag: hit },
+          { key: 'proposedProvision', value: cash(provisionCents(outstanding, proposed)), flag: hit },
+        ],
+        data: { codes: ['NPL_PROVISION_BOOKED', 'NPL_RECLASSIFIED'], approve: post(proposed), reject: post(right) },
+      };
+    }
+    case 'FX_VOLATILITY': {
+      const amount = b('amt', 50, 1_500) * 1_000;
+      const booked = b('rate', 25_200, 25_600);
+      // Basis points of movement since the rate was booked: over ±2% the message is held for a re-quote.
+      const moveBp = (unit(id, 'sign') < 0.5 ? -1 : 1) * (hit ? b('mv', 210, 450) : b('mv', 0, 190));
+      const live = Math.round(booked * (1 + moveBp / 10_000));
+      return {
+        amountCents: amount,
+        expected,
+        fields: [
+          { key: 'currencyPair', value: code('USD/VND') },
+          { key: 'bookedRate', value: num(booked) },
+          { key: 'liveRate', value: num(live) },
+          { key: 'rateMove', value: pct(moveBp / 100), flag: hit },
+          { key: 'remitAmount', value: cash(amount) },
+        ],
+        data: { codes: ['FX_SWIFT_RELEASED', 'FX_HELD_VOLATILITY'], approve: journal([['CASA', amount]], [['NOSTRO', amount]]), reject: [] },
+      };
+    }
+    case 'EKYC_RISK': {
+      // High risk if a PEP, a high-risk country or a score of 70+; a breach proposes a lower tier anyway.
+      const why = unit(id, 'why');
+      const pep = hit ? why < 0.35 : false;
+      const country = hit ? why >= 0.35 && why < 0.65 : false;
+      const score = hit && !pep && !country ? b('s', S.highRiskScore, 95) : b('s', 10, S.highRiskScore - 1);
+      const high = pep || country || score >= S.highRiskScore;
+      const proposed = hit ? pickOf(id, 'tier', ['tierLow', 'tierMedium']) : score >= 40 ? 'tierMedium' : 'tierLow';
+      return {
+        amountCents: b('vol', 5, 400) * 10_000,
+        expected,
+        fields: [
+          { key: 'occupation', value: msg(pickOf(id, 'occ', ['occStudent', 'occOffice', 'occTrader', 'occCivil'])) },
+          { key: 'pepScreening', value: msg(pep ? 'pepMatch' : 'pepNone'), flag: pep },
+          { key: 'countryRisk', value: msg(country ? 'countryHigh' : 'countryStandard'), flag: country },
+          { key: 'riskScore', value: num(score), flag: high && !pep && !country },
+          { key: 'proposedTier', value: msg(proposed), flag: hit },
+        ],
+        // Risk profiling moves no money: the decision is logged as a memo.
+        data: { codes: ['RISK_TIER_ACCEPTED', 'RISK_TIER_ESCALATED_EDD'], approve: [], reject: [] },
       };
     }
     case 'CLEARING_BREAK': {

@@ -84,6 +84,12 @@ export const codeGlossaryMessages = defineMessages('codeGlossary', {
   status_TD_LIEN_MARKED: { en: 'Savings locked as loan security', vi: 'Đã phong tỏa sổ tiết kiệm làm tài sản bảo đảm' },
   status_TD_LTV_EXCEEDED: { en: 'Loan refused: too large for the savings pledged', vi: 'Từ chối vay: vượt tỷ lệ cho vay trên tài sản bảo đảm' },
   status_COLLATERAL_LIQUIDATED: { en: 'Pledged savings used to repay the loan', vi: 'Đã xử lý tài sản bảo đảm để thu nợ' },
+  status_NPL_PROVISION_BOOKED: { en: 'Debt group and provision confirmed', vi: 'Đã xác nhận nhóm nợ và trích lập dự phòng' },
+  status_NPL_RECLASSIFIED: { en: 'Loan moved to the right debt group, provision topped up', vi: 'Đã chuyển đúng nhóm nợ và trích lập bổ sung' },
+  status_FX_SWIFT_RELEASED: { en: 'SWIFT message released at the booked rate', vi: 'Đã giải phóng điện SWIFT theo tỷ giá đã chốt' },
+  status_FX_HELD_VOLATILITY: { en: 'Held for a re-quote: the rate moved over 2%', vi: 'Tạm giữ để báo giá lại: tỷ giá biến động trên 2%' },
+  status_RISK_TIER_ACCEPTED: { en: 'Customer risk tier accepted', vi: 'Chấp nhận mức rủi ro khách hàng' },
+  status_RISK_TIER_ESCALATED_EDD: { en: 'Re-rated high risk and sent to EDD', vi: 'Xếp lại rủi ro cao và chuyển EDD' },
   status_LIEN_RETAINED: { en: 'Savings stay locked as security', vi: 'Tiếp tục phong tỏa tài sản bảo đảm' },
   status_WALLET_SETTLED: { en: 'E-wallet top-up settled', vi: 'Đã quyết toán nạp ví điện tử' },
   status_WALLET_BLOCKED: { en: 'E-wallet top-up blocked', vi: 'Đã chặn nạp ví điện tử' },
@@ -109,7 +115,8 @@ export const codeGlossaryMessages = defineMessages('codeGlossary', {
 
   // ── GL accounts in plain words ─────────────────────────────────────────────
   glPlain_ATM_CASH: { en: 'Cash inside the ATMs', vi: 'Tiền mặt trong máy ATM' },
-  glPlain_TILL_CASH: { en: 'Cash at the counter and in the vault', vi: 'Tiền mặt tại quầy và kho quỹ' },
+  glPlain_VAULT_CASH: { en: 'Cash kept in the branch vault', vi: 'Tiền mặt cất trong kho quỹ chi nhánh' },
+  glPlain_TILL_CASH: { en: 'Cash in the teller’s drawer', vi: 'Tiền mặt trong ngăn kéo giao dịch viên' },
   glPlain_OVERDRAFT_RECV: { en: 'Money customers owe on overdrafts', vi: 'Tiền khách nợ do chi vượt số dư' },
   glPlain_LOAN_PRINCIPAL: { en: 'Money lent to customers', vi: 'Tiền đã cho khách vay' },
   glPlain_INTERBANK_SETTLEMENT: { en: 'Money owed between banks', vi: 'Tiền thanh toán giữa các ngân hàng' },
@@ -133,6 +140,10 @@ export const codeGlossaryMessages = defineMessages('codeGlossary', {
   glPlain_INTEREST_EXPENSE: { en: 'Interest the bank paid on deposits', vi: 'Tiền lãi ngân hàng trả cho người gửi' },
   glPlain_REWARDS_EXPENSE: { en: 'Rewards the bank paid out', vi: 'Tiền thưởng ngân hàng đã chi' },
   glPlain_SWITCH_FEE_EXPENSE: { en: 'Card network fees the bank paid', vi: 'Phí mạng lưới thẻ ngân hàng đã trả' },
+  glPlain_LOAN_LOSS_ALLOWANCE: { en: 'The part of the loans the bank expects to lose, set aside against them', vi: 'Phần dư nợ ngân hàng dự kiến mất, trích lập để bù trừ vào khoản cho vay' },
+  glPlain_PROVISION_EXPENSE: { en: 'What setting aside for bad loans costs this year', vi: 'Chi phí trích lập cho các khoản nợ xấu trong kỳ' },
+  glPlain_GOV_ASSET_RECOVERY: { en: 'Criminal money the FIU ordered seized, owed to the state', vi: 'Tiền phạm tội FIU ra lệnh tịch thu, phải nộp cho Nhà nước' },
+  glPlain_REGULATORY_PENALTY_EXPENSE: { en: 'Fines the regulator charged the bank', vi: 'Tiền phạt cơ quan quản lý áp cho ngân hàng' },
 
   // ── Banking acronyms and terms ─────────────────────────────────────────────
   term_CTR: { en: 'Cash Transaction Report: large cash transaction (> $10,000) reported to the regulator', vi: 'Báo cáo giao dịch tiền mặt giá trị lớn (> $10,000)' },

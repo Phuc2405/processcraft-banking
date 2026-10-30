@@ -10,6 +10,8 @@ import type { TermMode } from '../sim/terms';
 import type { AccountId } from '../types/processLearning';
 import { useBankStore } from '../store/bankStore';
 import { CORE_LEDGER_ARTICLE, isIntermediate } from '../data/knowledgeBase';
+import { AML_ARTICLE } from '../data/amlKnowledge';
+import { RETAIL_GUIDES } from '../data/retailKnowledge';
 import { pick } from '../i18n/locale';
 import { GL_ACCOUNTS } from '../sim/staffRoleplay';
 import { message } from '../utils/i18nHelper';
@@ -166,8 +168,9 @@ export function citEntry(locale: Locale): SearchEntry {
 }
 
 /**
- * The Knowledge Base in the search: the core ledger article's sections, every account the workspace ledger posts to (by GL
- * number and by name in both languages), and every acronym of the code glossary. Each one opens the article at its anchor.
+ * The Knowledge Base in the search: the core ledger article's sections, the AML article's sections, the 11 retail guides and
+ * every retail scenario's SOP, every account the workspace ledger posts to (by GL number and by name in both languages), and
+ * every acronym of the code glossary. Each one opens the Knowledge Base on its tab, at its anchor.
  */
 export function knowledgeEntries(locale: Locale): SearchEntry[] {
   const out: SearchEntry[] = [];
@@ -181,6 +184,40 @@ export function knowledgeEntries(locale: Locale): SearchEntry[] {
       keys: fold([...LOCALES_BOTH.map((l) => pick(sec.title, l)), ...sec.keywords].join(' | ')),
       action: { kind: 'knowledge', anchor: sec.id },
     });
+  }
+  const aml = pick(AML_ARTICLE.title, locale);
+  for (const sec of AML_ARTICLE.sections) {
+    out.push({
+      id: `kb:section:${sec.id}`,
+      category: 'kb',
+      label: pick(sec.title, locale),
+      detail: aml,
+      keys: fold([...LOCALES_BOTH.flatMap((l) => [pick(sec.title, l), sec.rule ? pick(sec.rule, l) : '']), ...sec.keywords].join(' | ')),
+      action: { kind: 'knowledge', anchor: sec.id },
+    });
+  }
+  const aw = (key: string, l: Locale): string => message(analystWorkspaceMessages, key as AnalystWorkspaceKey, undefined, l);
+  for (const g of RETAIL_GUIDES) {
+    out.push({
+      id: `kb:section:${g.id}`,
+      category: 'kb',
+      label: pick(g.title, locale),
+      detail: pick(g.intro, locale),
+      keys: fold([...LOCALES_BOTH.map((l) => pick(g.title, l)), ...g.keywords].join(' | ')),
+      action: { kind: 'knowledge', anchor: g.id },
+    });
+    // Each scenario's SOP: found by its title or by any of its steps, in either language.
+    for (const id of g.scenarios) {
+      const sop = LOCALES_BOTH.flatMap((l) => [aw(`retail_${id}_title`, l), ...[1, 2, 3].flatMap((n) => [aw(`retail_${id}_sopStd_${n}`, l), aw(`retail_${id}_sopExp_${n}`, l)])]);
+      out.push({
+        id: `kb:sop:${id}`,
+        category: 'kb',
+        label: `SOP · ${aw(`retail_${id}_title`, locale)}`,
+        detail: pick(g.title, locale),
+        keys: fold([id.replace(/_/g, ' '), ...sop].join(' | ')),
+        action: { kind: 'knowledge', anchor: g.id },
+      });
+    }
   }
   for (const acc of GL_ACCOUNTS) {
     const names = LOCALES_BOTH.flatMap((l) => [message(analystWorkspaceMessages, `gl_${acc.id}` as AnalystWorkspaceKey, undefined, l), glPlain(acc.id, l)]);

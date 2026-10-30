@@ -29,6 +29,10 @@ import { relocalizeWorkflow, useWorkflowStore, workflowStore } from './store/wor
 type View = 'bank' | 'lab';
 
 /** The ops overlays are loaded the first time one is opened: they are not needed to run the bank. */
+import { NotificationCenter } from './components/shell/NotificationCenter';
+import { KnowledgeShortcuts } from './components/nav/KnowledgeShortcuts';
+import { AppFooter } from './components/shell/AuthorLink';
+
 const AmlPanel = lazy(() => import('./components/ops/AmlPanel').then((m) => ({ default: m.AmlPanel })));
 const PaymentBenchmarkModal = lazy(() => import('./components/ops/PaymentBenchmarkModal').then((m) => ({ default: m.PaymentBenchmarkModal })));
 const ChaosPanel = lazy(() => import('./components/ops/ChaosPanel').then((m) => ({ default: m.ChaosPanel })));
@@ -117,6 +121,7 @@ function TopBar({ view, onView }: { view: View; onView: (v: View) => void }) {
       </nav>
       <SwitchModeButton />
       <SearchBar onBeforeGo={() => view !== 'bank' && onView('bank')} />
+      <KnowledgeShortcuts />
       <div className="flex-1" />
       <div className="flex items-center gap-2">
         {view === 'bank' && <AcademySplitToggle />}
@@ -257,7 +262,9 @@ export default function App() {
           bankStore.getState().openAcademy();
         }}
       />
+      <AppFooter />
       <Overlays />
+      <NotificationCenter />
     </div>
   );
 }
