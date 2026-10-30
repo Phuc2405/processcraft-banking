@@ -2,7 +2,7 @@ import { t } from '../../../i18n/t';
 import { Canvas } from '@react-three/fiber';
 import { Component, memo, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
 import { useAcademyStore } from '../../../store/academyStore';
-import { activeFlowOf, kickoffOpenOf, useBankStore } from '../../../store/bankStore';
+import { activeFlowOf, floatingBarsHiddenOf, useBankStore } from '../../../store/bankStore';
 import { OfficeScene } from './OfficeScene';
 import { TourLayer3D } from './TourLayer3D';
 import { CAMERA_DIRECTION, CAMERA_DISTANCE } from '../../../engine/plan/layout3d';
@@ -184,8 +184,8 @@ function useTopBandLayout(): { toolbarTop: number; weatherTop: number } {
 function WeatherBar({ compact, top }: { compact: boolean; top: number }) {
   const left = useMapCentre();
   const box = useRef<HTMLDivElement>(null);
-  // Like the dock, it stands aside while a tour's kickoff card is open.
-  const kickoff = useBankStore(kickoffOpenOf);
+  // Like the dock, it stands aside while a tour's kickoff card or the day's report is open.
+  const kickoff = useBankStore(floatingBarsHiddenOf);
   useMeasuredBox(box, (b) => topBand.setState({ weather: b }), [left, top, compact, kickoff]);
   useEffect(() => {
     if (kickoff) topBand.setState({ weather: null });

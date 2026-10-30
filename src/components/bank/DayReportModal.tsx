@@ -412,7 +412,7 @@ export function DayReportModal() {
   const txAvailable = dayOver && simDay === report.day && sim.transactionLog().length > 0;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 p-2 sm:p-4" data-testid="day-report-backdrop" onMouseDown={(e) => e.target === e.currentTarget && dismiss()}>
+    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/80 p-2 sm:p-4" data-testid="day-report-backdrop" onMouseDown={(e) => e.target === e.currentTarget && dismiss()}>
       <div ref={ref} role="dialog" aria-modal="true" aria-label={tr({ en: `Day ${report.day} report`, vi: `Báo cáo ngày ${report.day}` })} tabIndex={-1} onKeyDown={(e) => e.key === 'Escape' && dismiss()} className="flex max-h-[min(900px,calc(100vh-16px))] w-[min(1020px,100%)] flex-col overflow-hidden rounded-3xl border border-slate-700 bg-[#070b14] shadow-2xl outline-none" data-testid="day-report" data-day={report.day} data-view={view}>
         <header className="flex shrink-0 flex-wrap items-start gap-x-4 gap-y-3 border-b border-slate-800 bg-gradient-to-b from-amber-400/10 to-transparent px-4 py-4 sm:px-6">
           <div className="min-w-0 flex-1 basis-[320px]">

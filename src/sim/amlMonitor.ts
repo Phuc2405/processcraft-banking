@@ -10,7 +10,6 @@ export const VELOCITY_MIN_COUNT = 8;
 export const VELOCITY_MAX_CENTS = 500;
 
 export type AmlAlertKind = 'LARGE_VALUE' | 'VELOCITY_BURST';
-export type AmlAlertStatus = 'OPEN' | 'SAR_FILED' | 'CLOSED_FALSE_POSITIVE';
 
 export interface AmlAlert {
   /** Stable for the same payments: "LV-d1-5003" or "VB-d3-0915". */

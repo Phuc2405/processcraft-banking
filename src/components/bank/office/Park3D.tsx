@@ -18,7 +18,6 @@ import { useWeather } from './useWeather';
 import { atmosphereAt } from '../../../engine/world/atmosphere';
 import { useGlowTexture } from './Street';
 
-export { FOUNTAIN, LOOP, PARK, PARK_BENCHES, PICNIC, PLAYGROUND, strollerAt } from '../../../engine/world/parkPlan';
 
 /** The public park on the right of the branch, between it and the houses. */
 
@@ -414,9 +413,6 @@ function Chatter({ crowd }: { crowd: ParkCrowd }) {
     </>
   );
 }
-
-/** Whether the bank has closed its doors to customers for the day (17:00 on). */
-export const afterHours = (minute: number): boolean => minute >= 17 * 60;
 
 export const Park3D = memo(function Park3D() {
   const parts = useMemo(parkParts, []);

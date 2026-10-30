@@ -26,11 +26,6 @@ const useDock = (): DockState => useSyncExternalStore(subscribe, () => state, ()
 
 export const WALK_DOCK_WIDTH = 360;
 
-/** True while the docked step column is on screen. */
-export function useWalkDockOpen(): boolean {
-  return useWalkthroughDock().open;
-}
-
 /** Left column beside the map holding the current step (What / Takeaway / What can go wrong). */
 export function WalkDock() {
   const m = useMessages(walkMessages);

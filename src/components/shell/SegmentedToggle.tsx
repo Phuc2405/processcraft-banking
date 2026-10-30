@@ -29,6 +29,7 @@ export function SegmentedToggle<T extends string>({
   testId,
   stateKey = 'view',
   title,
+  size = 'md',
 }: {
   /** The group's accessible name. */
   label: string;
@@ -38,6 +39,8 @@ export function SegmentedToggle<T extends string>({
   testId: string;
   stateKey?: string;
   title?: string;
+  /** 'sm': a compact toggle for dense toolbars (dialog headers). */
+  size?: 'md' | 'sm';
 }) {
   return (
     <div role="radiogroup" aria-label={label} className="flex w-fit shrink-0 rounded-lg border border-slate-700 bg-slate-900 p-0.5" data-testid={testId} {...{ [`data-${stateKey}`]: value }} title={title}>
@@ -52,10 +55,10 @@ export function SegmentedToggle<T extends string>({
             onClick={() => onChange(o.value)}
             title={o.hint}
             data-testid={`${testId}-${o.value}`}
-            className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1 text-[13.5px] font-semibold transition ${on ? TONE[o.tone ?? 'sky'] : 'text-slate-300 hover:bg-slate-800'}`}
+            className={`flex items-center gap-1.5 whitespace-nowrap rounded-md font-semibold transition ${size === 'sm' ? 'px-2 py-0.5 text-[12px]' : 'px-2.5 py-1 text-[13.5px]'} ${on ? TONE[o.tone ?? 'sky'] : 'text-slate-300 hover:bg-slate-800'}`}
           >
             {o.label}
-            {o.badge !== undefined && <span className={`rounded-full px-1.5 text-[12px] font-bold tabular-nums ${on ? 'bg-slate-950/20' : 'bg-slate-700 text-slate-200'}`}>{o.badge}</span>}
+            {o.badge !== undefined && <span className={`rounded-full font-bold tabular-nums ${size === 'sm' ? 'px-1 text-[11px]' : 'px-1.5 text-[12px]'} ${on ? 'bg-slate-950/20' : 'bg-slate-700 text-slate-200'}`}>{o.badge}</span>}
           </button>
         );
       })}
@@ -111,16 +114,17 @@ export function DepthToggle({ value, onChange, testId, stateKey = 'depth', capti
 export type ViewMode = 'basic' | 'advanced';
 
 /** [🔰 Basic | 🔬 Advanced]: plain words for a beginner, or the exact codes and the deeper detail. */
-export function ViewModeToggle({ view, onChange, testId, caption = false, hints }: { view: ViewMode; onChange: (view: ViewMode) => void; testId: string; caption?: boolean; hints?: Partial<Record<ViewMode, string>> }) {
+export function ViewModeToggle({ view, onChange, testId, caption = false, hints, size = 'md' }: { view: ViewMode; onChange: (view: ViewMode) => void; testId: string; caption?: boolean; hints?: Partial<Record<ViewMode, string>>; size?: 'md' | 'sm' }) {
   const m = useMessages(viewModeMessages);
   return (
     <div className="flex shrink-0 items-center gap-1.5" data-testid={`${testId}-group`}>
-      {caption && <span className="whitespace-nowrap text-[13px] font-semibold text-slate-400">{m('label')}:</span>}
+      {caption && <span className={`whitespace-nowrap font-semibold text-slate-400 ${size === 'sm' ? 'text-[12px]' : 'text-[13px]'}`}>{m('label')}:</span>}
       <SegmentedToggle<ViewMode>
         label={m('label')}
         value={view}
         onChange={onChange}
         testId={testId}
+        size={size}
         options={[
           { value: 'basic', label: m('basic'), hint: hints?.basic ?? m('basicHint'), tone: 'sky' },
           { value: 'advanced', label: m('advanced'), hint: hints?.advanced ?? m('advancedHint'), tone: 'violet' },

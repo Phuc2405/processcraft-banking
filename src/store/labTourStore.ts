@@ -5,6 +5,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla';
 import { LEVELS, REFERENCE_SOLUTIONS } from '../data/seedChallenges';
 import { featuredTest, buildLabTour, playableTests, quizzesOf, spotlightFor, type LabQuiz, type LabTour, type TourSource } from '../sim/labTour';
 import type { Id, ProcessGraph } from '../types/processLearning';
+import type { QuizAnswer } from '../types/tour';
 import { createWorkflowStore, type WorkflowStore } from './workflowStore';
 
 /** One quarter of the normal 900 ms tick, as the brief asks. */
@@ -12,10 +13,6 @@ export const LAB_TOUR_PLAYBACK_MS = 3600;
 
 export type TourPhase = 'closed' | 'intro' | 'touring';
 
-export interface QuizAnswer {
-  picked: number;
-  correct: boolean;
-}
 
 /** What the tour needs to know about the Build Lab it was opened from. */
 export interface LabTourHost {

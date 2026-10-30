@@ -5,7 +5,7 @@ import { CLOSING, CUSTOMER_DESKS, deskSpans, evacuationRoute, evacuees, isClosed
 import { badgeRect, tipRect3d, tipSide3d, TIP_SIDES_3D } from '../focus3d';
 import { atmBooth, CUSTOMER_DOOR, ENTRANCES, FLOOR_SLAB, KERB_Z, MAIN_GATE, ROAD_END, SERVER_ROOM, SIDE_DOOR_W, SIDE_DOORS_RIGHT, STREET, WALL_WINDOWS } from '../../../../engine/plan/layout3d';
 import { advanceMotion, motion, motionScale, substeps } from '../../../../engine/simulation/motion';
-import { FOUNTAIN, LOOP, PARK, PARK_BENCHES, PICNIC, PLAYGROUND, strollerAt } from '../Park3D';
+import { FOUNTAIN, LOOP, PARK, PARK_BENCHES, PICNIC, PLAYGROUND, strollerAt } from '../../../../engine/world/parkPlan';
 import { AISLE, BACK_LANE, CIT_MOVER, counterSpot, FOOTWAY, GUARD_POST, guardPatrol, handoverAt, HANDOVER_S, LOT, LOT_SIDE, ParkingLot, PATROL, ROWS, shiftOf, SIDE_DOORS_LEFT, SIZE, slotsOf, TREE_STRIP, walkPath } from '../../../../engine/world/parking';
 import { cloudCover, cloudDark, CLOUDS, cloudsFor, sunPlace } from '../Sky3D';
 import { homeLane, LANE_W, LANE_Z, LENGTH, MIN_GAP, OVERTAKE, riderAt, ROAD, SPAN, taxiAction, TrafficSim, VEHICLES, WIDTH, type VehicleState } from '../../../../engine/world/vehicles';

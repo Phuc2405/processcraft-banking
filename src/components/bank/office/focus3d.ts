@@ -2,7 +2,7 @@ import { flowPlaces, flowScope } from '../../../sim/guidedFlows';
 import type { PlaceId } from '../../../sim/topology';
 import type { FlowId } from '../../../types/viewport';
 import { LANES, type V2 } from '../../../engine/plan/layout3d';
-import { pathLength, pointAlongPath } from './tour3d';
+import { pathLength, pointAlongPath } from '../../../engine/plan/path';
 
 /** What the 3D office brings forward and what it lets fade, and the staff walking home. */
 
@@ -78,7 +78,6 @@ export const pulseDistance = (len: number, k: number, t: number): number => (len
 
 // Staff coming and going: the engine's (engine/staff.ts), re-exported for the views that draw them
 
-export { ARRIVE_SPEED, arriveRoute, arrivalMinute, arrivalState, isOffShift, LEAVE_SPEED, leaveAt, leaveRoute, STAFF_ARRIVAL } from '../../../engine/simulation/staff';
 
 // Where a desk's description opens, clear of its own badges
 
@@ -86,7 +85,7 @@ export type TipSide3d = 'above' | 'below' | 'right' | 'left';
 export const TIP_SIDES_3D: readonly TipSide3d[] = ['above', 'below', 'right', 'left'];
 
 /** A box on the screen, in CSS pixels. */
-export interface ScreenRect {
+export interface ScreenBounds {
   x0: number;
   y0: number;
   x1: number;
@@ -97,7 +96,7 @@ export interface ScreenRect {
 export const TIP_GAP_3D = 10;
 
 /** The description's box when it opens on `side` of its anchor point there (anchors differ per side: top, front, flanks). */
-export function tipRect3d(side: TipSide3d, at: { x: number; y: number }, tip: { w: number; h: number }): ScreenRect {
+export function tipRect3d(side: TipSide3d, at: { x: number; y: number }, tip: { w: number; h: number }): ScreenBounds {
   switch (side) {
     case 'above':
       return { x0: at.x - tip.w / 2, y0: at.y - TIP_GAP_3D - tip.h, x1: at.x + tip.w / 2, y1: at.y - TIP_GAP_3D };
@@ -110,10 +109,10 @@ export function tipRect3d(side: TipSide3d, at: { x: number; y: number }, tip: { 
   }
 }
 
-const overlaps = (a: ScreenRect, b: ScreenRect): boolean => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
+const overlaps = (a: ScreenBounds, b: ScreenBounds): boolean => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
 
 /** The side a pointed-at desk's description opens on in 3D. */
-export function tipSide3d(anchors: Readonly<Record<TipSide3d, { x: number; y: number }>>, tip: { w: number; h: number }, badges: readonly ScreenRect[], view: { w: number; h: number }): TipSide3d {
+export function tipSide3d(anchors: Readonly<Record<TipSide3d, { x: number; y: number }>>, tip: { w: number; h: number }, badges: readonly ScreenBounds[], view: { w: number; h: number }): TipSide3d {
   const rect = (s: TipSide3d) => tipRect3d(s, anchors[s], tip);
   const onScreen = (s: TipSide3d) => {
     const r = rect(s);
@@ -124,7 +123,7 @@ export function tipSide3d(anchors: Readonly<Record<TipSide3d, { x: number; y: nu
 }
 
 /** A badge's box on the screen: BADGE_H world units tall, as wide as its words, at `px` CSS pixels to a world unit. */
-export const badgeRect = (at: { x: number; y: number }, chars: number, px: number, h = 0.34): ScreenRect => {
+export const badgeRect = (at: { x: number; y: number }, chars: number, px: number, h = 0.34): ScreenBounds => {
   const hh = h * px;
   const w = hh * (0.47 * chars + 1.15);
   return { x0: at.x - w / 2, y0: at.y - hh / 2, x1: at.x + w / 2, y1: at.y + hh / 2 };

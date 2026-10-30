@@ -191,10 +191,11 @@ describe('resetting the core ledger', () => {
     const out = sheet(true);
     expect(out).toContain('role="alertdialog"');
     expect(out).toContain(esc(msgs.ledgerResetWarning.en));
-    expect(out).toContain(esc(en('ledgerResetCounts', { journals: 0, audit: 12 })));
+    expect(out).toContain(esc(en('ledgerResetCounts', { journals: 0, audit: 12, system: 0 })));
     expect(out).toContain('data-testid="workspace-ledger-reset-ok"');
     expect(out).toContain('data-testid="workspace-ledger-reset-cancel"');
-    expect(msgs.ledgerResetWarning.vi).toContain('Việc đặt lại số dư đầu kỳ sẽ xóa sạch toàn bộ lịch sử hạch toán.');
+    // It wipes only what the player posted by hand, never the system's own simulation ledger.
+    expect(msgs.ledgerResetWarning.vi).toBe('Hành động này chỉ xóa các bút toán do bạn thực hiện thủ công (Roleplay / Nhiệm vụ 5) và không làm ảnh hưởng đến dữ liệu sổ cái giả lập tự động của hệ thống tại thời điểm hiện tại.');
     expect(msgs.ledgerResetTitle.vi).toBe('⚠️ BÁO ĐỘNG XÓA DỮ LIỆU');
   });
 

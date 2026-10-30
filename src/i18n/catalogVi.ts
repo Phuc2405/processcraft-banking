@@ -155,8 +155,5 @@ export const configLabel = (key: string, en: string): string => (vi() ? (CONFIG_
 /** A setting's description. */
 export const configDescription = (key: string, en: string): string => (vi() ? (CONFIG_VI[key]?.description ?? en) : en);
 
-/** A setting's label found by its English text (inside a message). */
-export const configLabelText = (en: string): string => (vi() ? (CONFIG_LABEL_VI[en] ?? en) : en);
-
 /** What a condition variable means. */
 export const variableDescription = (name: string, en: string): string => (vi() ? (VARIABLE_VI[name] ?? en) : en);

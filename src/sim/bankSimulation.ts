@@ -1849,6 +1849,24 @@ export class BankSimulation {
 
   // Reading the bank
 
+  /**
+   * Customers who have come in today and are not yet answered: in a desk's queue or away on their phone for a code. An ATM
+   * refund parked in suspense is not one of them (the customer was answered; the cash count is the bank's own business), and
+   * neither is a settlement record. So at every beat, arrivals = finished + customersInFlight().
+   */
+  customersInFlight(): number {
+    let n = this.otpWaiting.length;
+    for (const st of Object.values(this.stations)) for (const p of st.queue) if (p.kind !== 'SETTLEMENT' && !(st.id === 'SUSPENSE' && p.kind === 'ATM')) n++;
+    return n;
+  }
+
+  /** Every payment and settlement record in the bank now, and where it is (a desk's queue, or away on the customer's phone): each is in one place only. */
+  packetsInFlight(): ReadonlyArray<{ id: string; kind: string; at: string }> {
+    const out = this.otpWaiting.map((p) => ({ id: p.id, kind: p.kind, at: 'CUSTOMER_OTP' }));
+    for (const st of Object.values(this.stations)) for (const p of st.queue) out.push({ id: p.id, kind: p.kind, at: st.id });
+    return out;
+  }
+
   private inFlight(): number {
     let n = this.otpWaiting.length;
     for (const st of Object.values(this.stations)) n += st.queue.length;

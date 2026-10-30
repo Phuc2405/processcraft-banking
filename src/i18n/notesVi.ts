@@ -2,7 +2,8 @@
 
 import { activeLocale } from './localeCore';
 
-type Rule = readonly [RegExp, (m: RegExpExecArray) => string];
+/** A pattern and how to say what it matched in Vietnamese. */
+export type Rule = readonly [RegExp, (m: RegExpExecArray) => string];
 
 const EXACT: Readonly<Record<string, string>> = {
   // Walkthrough: how the last box of a diagram reads

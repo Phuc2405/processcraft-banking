@@ -3,23 +3,8 @@ import { LESSON_LIST } from '../../../../sim/learning';
 import { spotPlan, spotScope } from '../../../../sim/spotlightPlan';
 import { STATIONS, type PlaceId } from '../../../../sim/topology';
 import { fitZoom, ISO_AZIMUTH, ORBIT_RANGE, SCENE, ZOOM_LIMITS } from '../../../../engine/plan/layout3d';
-import {
-  azimuthReachable,
-  frameFocus,
-  framedPlaces,
-  groundToScreen,
-  MAX_POOLS,
-  pathLength,
-  placeFootprint,
-  placeXZ,
-  pointAlongPath,
-  poolPlaces,
-  TOGETHER,
-  TOUR_CLOSE,
-  TOUR_GLIDE_MS,
-  tourPath,
-  tourTravelMs,
-} from '../tour3d';
+import { azimuthReachable, frameFocus, framedPlaces, groundToScreen, MAX_POOLS, placeFootprint, placeXZ, poolPlaces, TOGETHER, TOUR_CLOSE, TOUR_GLIDE_MS, tourPath, tourTravelMs } from '../tour3d';
+import { pathLength, pointAlongPath } from '../../../../engine/plan/path';
 
 const VIEW = { w: 1100, h: 700 };
 

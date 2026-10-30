@@ -251,4 +251,3 @@ export const Arrivals = memo(function Arrivals() {
   );
 });
 
-export { ARRIVAL_PACE, ATM_TURN_S } from '../../../engine/simulation/people';

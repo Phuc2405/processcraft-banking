@@ -4,8 +4,8 @@ import type { FrontGuard, GuardPostPlan } from '../world/guardCabin';
 import { advanceMotion, motion, substeps } from './motion';
 import type { ParkingLot } from '../world/parking';
 import { wantsPark, type ParkCrowd, type ParkSky } from '../world/parkLife';
-import { queueHandoff, type QueueHandoff } from './queueHandoff';
-import { sidewalk, type SidewalkCrowd } from '../world/sidewalk';
+import { QueueHandoff } from './queueHandoff';
+import { SidewalkCrowd } from '../world/sidewalk';
 import type { TrafficSim, VehicleState } from '../world/vehicles';
 import { liveMix, newPavementClock, stepPavementClock, type PavementClock } from '../world/weather';
 import { isAutomatedNode } from '../../sim/nodeKind';
@@ -40,6 +40,24 @@ export interface WorldTickResult {
   mixChanged: boolean;
 }
 
+/** What every system of the world is handed each frame. */
+export interface WorldFrame {
+  input: WorldInputs;
+  /** The bank's clock, and whether the branch has closed its doors (17:00 on). */
+  minute: number;
+  closed: boolean;
+  /** This frame's step of the motion clock, cut into small substeps (substeps), and the clock after it. */
+  steps: readonly number[];
+  dt: number;
+  t: number;
+}
+
+/** One of the world's systems, stepped once a frame in the world's fixed order (Update Method): see WorldEngine.systems. */
+export interface WorldSystem {
+  readonly name: string;
+  step(frame: WorldFrame): void;
+}
+
 /** The weathers in which a guard keeps to the cabin. */
 const GUARD_WET: readonly Weather[] = ['rain', 'storm', 'hail', 'snow'];
 
@@ -50,8 +68,9 @@ export class WorldEngine {
   readonly lot: ParkingLot;
   readonly park: ParkCrowd;
   readonly pavement: PavementClock = newPavementClock();
-  readonly sidewalk: SidewalkCrowd = sidewalk;
-  readonly handoff: QueueHandoff = queueHandoff;
+  /** The world's own crowd on the pavement and hand-off of walkers to the lines: a new world (the 3D view opened again) starts with nobody left over from the last. */
+  readonly sidewalk: SidewalkCrowd = new SidewalkCrowd();
+  readonly handoff: QueueHandoff = new QueueHandoff();
   /** Closing time's walk-out of the counters' lines; `walkoutVersion` moves on whenever who is walking out changes. */
   readonly walkout: ClosingWalkout;
   walkoutVersion = 0;
@@ -70,6 +89,71 @@ export class WorldEngine {
   private weather: Weather;
   /** Seconds since the page's copy of the sky's blend was last refreshed. */
   private mixSince = 0;
+
+  /**
+   * The world's systems in the order they step each frame. The order matters: the traffic before the street (whose
+   * passengers get off the vehicles where they now are), the car park before the walkers (who stop for the cash van where
+   * it now is), the walkers to the lines before the lines (they hand over to them), and the walk-out last.
+   */
+  readonly systems: readonly WorldSystem[] = [
+    {
+      name: 'guards',
+      step: (f) => {
+        const wet = GUARD_WET.includes(f.input.weather);
+        for (const g of this.guards.values()) for (const h of f.steps) g.step(h, f.minute, wet);
+      },
+    },
+    {
+      name: 'traffic',
+      step: (f) => {
+        for (const h of f.steps) this.traffic.step(h);
+        this.trafficView.states = this.traffic.states();
+        this.trafficView.t = this.traffic.t;
+      },
+    },
+    {
+      name: 'park',
+      step: (f) => {
+        const sky = parkSky(f.input.weather);
+        for (const h of f.steps) this.park.step(h, (m) => wantsPark(m, f.minute), sky, f.minute);
+      },
+    },
+    {
+      name: 'car park',
+      step: (f) => {
+        // At closing time the drivers in the branch walk back to their cars and drive off; nobody parks again until it opens.
+        this.lot.setClosed(f.closed);
+        // Customers walking in from the car park are in the cash van's way as much as the drivers are.
+        const onFoot = this.arrivals.poses.filter((p) => p.visible).map((p): [number, number] => [p.x, p.z]);
+        for (const h of f.steps) this.lot.step(h, onFoot);
+      },
+    },
+    {
+      name: 'street',
+      step: (f) => {
+        stepPavementClock(this.pavement, f.dt, f.input.weather);
+        this.street.step(this.pavement, this.trafficView.states, f.closed, f.dt, f.minute);
+      },
+    },
+    {
+      name: 'people of the desks',
+      step: (f) => {
+        // Walkers to the lines first (they hand over to the lines), then the lines, then the staff.
+        this.arrivals.step(f.t, f.dt, (at) => this.lot.cit.makesWait(at));
+        for (const line of this.lines.values()) line.step(f.t, f.dt);
+        for (const staff of this.staffWalks.values()) staff.step(f.dt);
+        this.publishPeople();
+      },
+    },
+    {
+      name: 'walk-out',
+      step: (f) => {
+        // Closing time: everyone in the counters' lines walks out (pausing never sets anyone walking; the clock reaching 17:00 does).
+        if (this.walkout.update(f.closed, f.input.queueLength ?? (() => 0))) this.walkoutVersion++;
+        if (this.walkout.step(f.dt)) this.walkoutVersion++;
+      },
+    },
+  ];
 
   constructor(start: { minute: number; weather: Weather }, readonly factory: EntityFactory = new EntityFactory()) {
     this.minute = start.minute;
@@ -95,43 +179,13 @@ export class WorldEngine {
     return g;
   }
 
-  /** One frame: the motion clock moves on (frozen on pause, at the bank's speed in play), then every system steps by it in small substeps, in the order they always have. */
+  /** One frame (Game Loop): the motion clock moves on (frozen on pause, at the bank's speed in play), then every system steps by it, in small substeps, in the world's order (systems); last the sky's blend eases on real time. */
   tick(input: WorldInputs): WorldTickResult {
     advanceMotion(input.realDt, input.playing, input.speed);
     this.minute = input.minute;
     this.weather = input.weather;
-    const steps = substeps(motion.dt);
-    const minute = input.minute;
-
-    const guardWet = GUARD_WET.includes(input.weather);
-    for (const g of this.guards.values()) for (const h of steps) g.step(h, minute, guardWet);
-
-    for (const h of steps) this.traffic.step(h);
-    this.trafficView.states = this.traffic.states();
-    this.trafficView.t = this.traffic.t;
-
-    const sky = parkSky(input.weather);
-    for (const h of steps) this.park.step(h, (m) => wantsPark(m, minute), sky, minute);
-
-    // At closing time the drivers in the branch walk back to their cars and drive off; nobody parks again until it opens.
-    this.lot.setClosed(isClosed(minute));
-    // Customers walking in from the car park are in the cash van's way as much as the drivers are.
-    const onFoot = this.arrivals.poses.filter((p) => p.visible).map((p): [number, number] => [p.x, p.z]);
-    for (const h of steps) this.lot.step(h, onFoot);
-
-    stepPavementClock(this.pavement, motion.dt, input.weather);
-    this.street.step(this.pavement, this.trafficView.states, isClosed(minute), motion.dt);
-
-    // The people of the desks: walkers to the lines first (they hand over to the lines), then the lines, then the staff.
-    this.arrivals.step(motion.t, motion.dt, (at) => this.lot.cit.makesWait(at));
-    for (const line of this.lines.values()) line.step(motion.t, motion.dt);
-    for (const staff of this.staffWalks.values()) staff.step(motion.dt);
-    this.publishPeople();
-
-    // Closing time: everyone in the counters' lines walks out (pausing never sets anyone walking; the clock reaching 17:00 does).
-    if (this.walkout.update(isClosed(minute), input.queueLength ?? (() => 0))) this.walkoutVersion++;
-    if (this.walkout.step(motion.dt)) this.walkoutVersion++;
-
+    const frame: WorldFrame = { input, minute: input.minute, closed: isClosed(input.minute), steps: substeps(motion.dt), dt: motion.dt, t: motion.t };
+    for (const system of this.systems) system.step(frame);
     return { mixChanged: this.stepSky(input.realDt, input.weather) };
   }
 

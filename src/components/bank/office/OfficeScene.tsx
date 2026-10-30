@@ -21,7 +21,7 @@ import { Parking3D } from './Parking3D';
 import { Vehicles3D } from './Vehicles3D';
 import { liveMix, weatherStore } from '../../../engine/world/weather';
 import { badgeFocus, badgeOpacity, dashLane, litLanes, PULSE, pulseDistance, type BadgeFocus } from './focus3d';
-import { pathLength, pointAlongPath } from './tour3d';
+import { pathLength, pointAlongPath } from '../../../engine/plan/path';
 import { customerShirt, type V2 } from '../../../engine/plan/layout3d';
 import { ribbonGeometry, roundedRect, roundedRectPath, shade, tint } from './kit';
 import {

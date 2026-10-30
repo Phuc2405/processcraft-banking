@@ -34,7 +34,7 @@ import { glow, pane, solid } from './materials';
 import { CustomerFigure, type Wear } from './Avatars';
 import { Bubble } from './Bubble3D';
 import { LOT, LOT_SIDE, TREE_STRIP } from '../../../engine/world/parking';
-import { FOUNTAIN, LOOP, PARK } from './Park3D';
+import { FOUNTAIN, LOOP, PARK } from '../../../engine/world/parkPlan';
 import { Sky3D } from './Sky3D';
 import {
   BUS_STOP,
@@ -968,7 +968,6 @@ const UMBRELLA_TONES = ['#1d4ed8', '#e11d48', '#0f766e', '#7c3aed', '#ea580c', '
 
 const WEAR: Readonly<Record<Outfit, Wear>> = { everyday: 'none', summer: 'summer', winter: 'winter', rain: 'rain', mask: 'mask', jacket: 'none' };
 
-export { downpourOf } from '../../../engine/world/weather';
 
 /** Where the hand holding an umbrella is (figure scale 0.7): low by the side, then raised overhead and a little forward. */
 const HAND = { down: [0.19, 0.36, 0], up: [0.19, 0.95, 0.13] } as const;

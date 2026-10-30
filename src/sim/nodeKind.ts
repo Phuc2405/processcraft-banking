@@ -76,9 +76,6 @@ export const NODE_FAMILY: Readonly<Record<StationId, NodeFamily>> = {
   GATE_SWIFT: 'swift',
 };
 
-/** Every family, in display order (the inspector's tips must cover each one). */
-export const NODE_FAMILIES: readonly NodeFamily[] = ['gateway', 'token', 'risk', 'casa', 'credit', 'atm', 'bnpl', 'clearing', 'suspense', 'ekyc', 'qr', 'teller', 'biometric', 'fds', 'aml', 'dispute', 'swift'];
-
 const GREEK = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot', 'Golf', 'Hotel'] as const;
 
 /** The AI engines that stand in for a worker at the identity, biometric and fraud nodes. */

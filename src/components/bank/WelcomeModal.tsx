@@ -13,7 +13,6 @@ const ROLE_PICKS: readonly StaffRoleId[] = ['aml', 'ekyc', 'fds', 'dispute', 'bn
 
 /** "Choose Your Experience Mode": one question, three answers. */
 
-export { ONBOARDED_KEY } from '../../store/uiStore';
 
 type Messages = Translate<keyof typeof welcomeMessages.messages>;
 

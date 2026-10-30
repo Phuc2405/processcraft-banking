@@ -58,8 +58,6 @@ export const SANCTIONS_LIST: readonly WatchlistEntry[] = [
 
 // eKYC
 
-export type EkycVerdict = Extract<Checkpoint, { at: 'EKYC' }>['verdict'];
-
 /** The first failed check names the verdict: a fake card, then liveness, then the face, then the citizen database. */
 export function checkEkyc(id: IdentityContext): Extract<Checkpoint, { at: 'EKYC' }> {
   const base = { at: 'EKYC' as const, ocrMatchPct: id.ocrMatchPct, livenessScore: id.livenessScore, faceMatchPct: id.faceMatchPct };

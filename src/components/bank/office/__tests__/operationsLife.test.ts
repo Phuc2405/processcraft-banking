@@ -13,7 +13,7 @@ import { atmBooth, atmExitPath, atmQueueMarks, ATM_KIOSK, ATM_STATIONS, arrivalP
 import { ParkingLot, walkPath } from '../../../../engine/world/parking';
 import { CELL_TOWER, DIGITAL_GATES, SIGNAL_KIND, signalPoint, signalTarget } from '../../../../engine/world/signals';
 import { SIDEWALK, SidewalkCrowd } from '../../../../engine/world/sidewalk';
-import { pathLength, pointAlongPath } from '../tour3d';
+import { pathLength, pointAlongPath } from '../../../../engine/plan/path';
 import { busRiders, riderAt, taxiAction, TrafficSim, VEHICLES } from '../../../../engine/world/vehicles';
 import { pedestrianAt, PEDESTRIANS } from '../../../../engine/world/weather';
 

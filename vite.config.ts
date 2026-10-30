@@ -28,7 +28,11 @@ export default defineConfig({
     // The store, engine and conversion tests need no browser.
     environment: 'node',
     include: ['src/**/*.test.ts'],
-    // The month-long simulation tests take well under a second alone, but several seconds when every file runs in parallel.
-    testTimeout: 20_000,
+    // Quiet runs: a dot a test and the summary, with full diffs only for failures; no console output from the tests.
+    reporters: ['dot'],
+    silent: true,
+    // The month-long and frame-by-frame simulation tests take a second or two alone, but can take over 20 seconds when every
+    // file runs in parallel on a many-core machine; the limit only decides how long a stuck test takes to fail.
+    testTimeout: 60_000,
   },
 });

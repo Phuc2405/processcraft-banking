@@ -565,8 +565,6 @@ export function stationTip(id: StationId, mode: TermMode): string {
 /** The brand caption under a market-branded desk's name, or null. */
 export const stationCaption = (id: StationId): string | null => brand(id, 'caption');
 
-export const stationBlurb = stationTip;
-
 export function departmentName(id: DepartmentId, mode: TermMode): string {
   return mode === 'beginner' ? book().departments[id].short : vi() ? EXPERT_DEPARTMENT_VI[id].name : DEPARTMENTS[id].name;
 }

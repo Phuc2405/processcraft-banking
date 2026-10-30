@@ -43,9 +43,6 @@ export const LANE_STYLE: Readonly<Record<LaneKind, { tape: string; glow: string;
   otp: { tape: '#c4b5fd', glow: '#a78bfa', dash: [0.13, 0.15] },
 };
 
-/** The colour of a wire's painted lane: pastel tape on the warm floor, matching the 2D map's meaning. */
-export const laneHex = (to: string, from: string): string => LANE_STYLE[laneKind(to, from)].tape;
-
 export const KIOSK_HEX = {
   OUT_APPROVED: '#22c55e',
   OUT_DECLINED: '#f43f5e',

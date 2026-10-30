@@ -2,7 +2,6 @@
 
 import { edgeId, isStation, type PlaceId } from '../../../sim/topology';
 import { pathLength } from '../../../engine/plan/path';
-export { pathLength, pointAlongPath } from '../../../engine/plan/path';
 import { COUNTER, clampTarget, fitZoom, HOME_TARGET, ISO_AZIMUTH, kioskPose, deskPose, ORBIT_RANGE, packetLane, SCENE, ZOOM_LIMITS, type V2 } from '../../../engine/plan/layout3d';
 
 /** The most the camera turns away from the home azimuth for a tour step. Well inside the learner's own ORBIT_RANGE. */

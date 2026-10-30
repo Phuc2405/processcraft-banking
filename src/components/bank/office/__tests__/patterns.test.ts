@@ -5,7 +5,7 @@ import { EntityFactory } from '../../../../engine/simulation/EntityFactory';
 import { routesFor, MAIN_GATE_STAFF_ROUTE } from '../../../../engine/simulation/routes';
 import { MORNING_SHIFT_SCHEDULE, NIGHT_SHIFT_SCHEDULE, StaffEntity } from '../../../../engine/simulation/staff';
 import { evacuationRoute, servedExit } from '../../../../engine/world/evacuation';
-import { arriveRoute, leaveRoute } from '../focus3d';
+import { arriveRoute, leaveRoute } from '../../../../engine/simulation/staff';
 import { arrivalPath, atmExitPath, deskPose, laneLength, queueSlots, WALKER_STATIONS, type V2 } from '../../../../engine/plan/layout3d';
 import { DAY_SHIFT, NIGHT_SHIFT } from '../../../../sim/roster';
 import { drivingStateOf, KerbsideDropOff, TrafficSim, VEHICLES, type DropOffStrategy } from '../../../../engine/world/vehicles';

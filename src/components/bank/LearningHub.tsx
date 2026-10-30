@@ -8,7 +8,8 @@ import { LESSON_LIST, type Lesson, type LessonExample, type ProcessId } from '..
 import { lessonOf, processShort } from '../../sim/learningVi';
 import { eventText } from '../../sim/traffic';
 import { formatRule, RULE_KEYS, RULE_META, rulesEqual, type BankRules } from '../../sim/rules';
-import { buildWalkthrough, type StepTone, type WalkFact } from '../../sim/walkthrough';
+import { buildWalkthrough, type WalkFact } from '../../sim/walkthrough';
+import type { StepTone } from '../../types/tour';
 import { useBankStore } from '../../store/bankStore';
 import type { TokenLook } from '../../store/liveSimulation';
 import { modelsForProcess } from '../../data/mentalModels';
