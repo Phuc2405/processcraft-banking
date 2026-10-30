@@ -64,7 +64,7 @@ describe('Phase 10 retail operations: scenario catalogue', () => {
   it('keeps the 28-task matrix and adds one retail task per desk', () => {
     expect(STAFF_TASKS).toEqual([1, 2, 3, 4]);
     expect(WORKSPACE_TASKS).toEqual([1, 2, 3, 4, RETAIL_TASK]);
-    expect(RETAIL_SCENARIOS).toHaveLength(15);
+    expect(RETAIL_SCENARIOS).toHaveLength(18);
     const homed = STAFF_ROLES.flatMap((r) => RETAIL_DESK[r]);
     expect(new Set(homed)).toEqual(new Set(RETAIL_SCENARIOS));
     expect(homed).toHaveLength(RETAIL_SCENARIOS.length);

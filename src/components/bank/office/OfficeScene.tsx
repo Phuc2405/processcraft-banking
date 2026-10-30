@@ -8,6 +8,8 @@ import { AdditiveBlending, CanvasTexture, Color, ExtrudeGeometry, MeshBasicMater
 import { DEPARTMENTS, STATION_IDS, type DepartmentId } from '../../../sim/topology';
 import { prefersReducedMotion } from '../../canvas/timing';
 import { activeFlowOf, bankStore, useBankStore } from '../../../store/bankStore';
+import { uiStore } from '../../../store/uiStore';
+import { sceneCovered } from './sceneCover';
 import { FlowStage3D, useAcademyCamera } from './FlowStage3D';
 import { useTerms } from '../useTerms';
 import { Desk3D } from './Desk3D';
@@ -961,6 +963,12 @@ function FrameDriver() {
     };
     const loop = (): void => {
       const s = bankStore.getState();
+      const ui = uiStore.getState();
+      // Hidden behind a full-screen window: draw nothing, so the window on top scrolls smoothly (closing it wakes the office).
+      if (sceneCovered({ overlay: ui.overlay, welcomeOpen: ui.welcomeOpen, staffDesk: s.staffDesk, reportOpen: s.reportOpen })) {
+        frame = requestAnimationFrame(loop);
+        return;
+      }
       // Weather keeps moving (rain, swaying trees, a sky still blending), so it keeps the canvas drawing while it lasts.
       const weather = weatherStore.getState().weather !== 'clear' || !sameMix(liveMix, CLEAR);
       if (s.playing || s.spotlight !== null || weather || performance.now() < awakeUntil) invalidate();
@@ -968,6 +976,7 @@ function FrameDriver() {
     };
     const unsubscribe = bankStore.subscribe(wake);
     const unsubscribeWeather = weatherStore.subscribe(wake);
+    const unsubscribeUi = uiStore.subscribe(wake);
     const el = gl.domElement;
     el.addEventListener('pointermove', wake);
     el.addEventListener('wheel', wake, { passive: true });
@@ -978,6 +987,7 @@ function FrameDriver() {
       cancelAnimationFrame(frame);
       unsubscribe();
       unsubscribeWeather();
+      unsubscribeUi();
       el.removeEventListener('pointermove', wake);
       el.removeEventListener('wheel', wake);
       el.removeEventListener('pointerdown', wake);

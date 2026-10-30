@@ -9,12 +9,27 @@ export const SOUND_KEY = 'processcraft:v1:sound';
 
 export type Overlay = 'none' | 'aml' | 'benchmark' | 'chaos' | 'audit' | 'knowledge';
 
+/** The Knowledge Base's tabs: the core ledger, AML compliance, and the retail scenarios. */
+export type KnowledgeTab = 'core' | 'aml' | 'retail';
+
+/** The tab an anchor lives on: AML anchors start with `aml`, retail guides with `retail`, everything else is the core ledger's. */
+export const knowledgeTabOf = (anchor: string | null): KnowledgeTab => (anchor?.startsWith('aml') ? 'aml' : anchor?.startsWith('retail') ? 'retail' : 'core');
+
 export interface UiState {
   /** The "Choose Your Experience Mode" chooser. */
   welcomeOpen: boolean;
   overlay: Overlay;
   /** The Knowledge Base section to scroll to when the article opens (a section, an account `gl-<ID>` or a term `term-<KEY>`). */
   knowledgeAnchor: string | null;
+  /** The tab the Knowledge Base opens on: where it was opened from (the ledger, the AML desk), or the anchor's. */
+  knowledgeTab: KnowledgeTab;
+  /** The overlay the Knowledge Base was opened over, which closing it returns to. */
+  knowledgeReturn: Overlay;
+  /** The AML case the desk should open on (a toast's click), until the desk has. */
+  amlFocus: string | null;
+  /** Opens the AML desk on one case. */
+  openAmlCase(caseId: string): void;
+  clearAmlFocus(): void;
   /** Sound effects are on. */
   soundOn: boolean;
   openWelcome(): void;
@@ -24,8 +39,11 @@ export interface UiState {
   close(): void;
   toggle(overlay: Exclude<Overlay, 'none'>): void;
   setSoundOn(on: boolean): void;
-  /** Opens the Knowledge Base, optionally at an anchor. */
-  openKnowledge(anchor?: string | null): void;
+  /** Opens the Knowledge Base, optionally at an anchor, on the tab given (or the anchor's). */
+  openKnowledge(anchor?: string | null, tab?: KnowledgeTab): void;
+  setKnowledgeTab(tab: KnowledgeTab): void;
+  /** Closes the Knowledge Base, back to the overlay it was opened over. */
+  closeKnowledge(): void;
 }
 
 function readOnboarded(storage: KeyValueStorage | null): boolean {
@@ -60,6 +78,13 @@ export function createUiStore(options: { storage?: KeyValueStorage | null } = {}
     welcomeOpen: !readOnboarded(storage),
     overlay: 'none',
     knowledgeAnchor: null,
+    knowledgeTab: 'core',
+    knowledgeReturn: 'none',
+    amlFocus: null,
+    openAmlCase: (caseId) => set({ overlay: 'aml', amlFocus: caseId }),
+    clearAmlFocus: () => {
+      if (get().amlFocus !== null) set({ amlFocus: null });
+    },
     soundOn: readSound(storage),
     openWelcome: () => set({ welcomeOpen: true, overlay: 'none' }),
     closeWelcome: () => {
@@ -67,7 +92,12 @@ export function createUiStore(options: { storage?: KeyValueStorage | null } = {}
       if (get().welcomeOpen) set({ welcomeOpen: false });
     },
     open: (overlay) => set({ overlay }),
-    openKnowledge: (anchor = null) => set({ overlay: 'knowledge', knowledgeAnchor: anchor }),
+    openKnowledge: (anchor = null, tab) => {
+      const from = get().overlay;
+      set({ overlay: 'knowledge', knowledgeAnchor: anchor, knowledgeTab: tab ?? knowledgeTabOf(anchor), knowledgeReturn: from === 'knowledge' ? get().knowledgeReturn : from });
+    },
+    setKnowledgeTab: (tab) => set({ knowledgeTab: tab, knowledgeAnchor: null }),
+    closeKnowledge: () => set({ overlay: get().knowledgeReturn, knowledgeReturn: 'none', knowledgeAnchor: null }),
     close: () => {
       if (get().overlay !== 'none') set({ overlay: 'none' });
     },

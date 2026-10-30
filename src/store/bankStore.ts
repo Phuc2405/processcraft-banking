@@ -14,7 +14,7 @@ import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
 import type { BankView, Customer, PacketTrace } from '../sim/types';
 import type { QuizAnswer } from '../types/tour';
-import { addToTally, advanceIncident, buildTaskCase, caseJournal, CHALLENGE, clampCrisisBatch, CRISIS_BATCH, crisisJournalLines, crisisOver, comboXp, STAFF_XP_PER_CORRECT, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, openingLedger, postJournal, recordCareerDecision, rollCrisis, roleForStation, ROLE_STATION, startIncident, type ActiveIncident, type IncidentId, type BadgeId, type CareerProgress, type ChallengeTally, type LedgerLine, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo, workingTask } from '../sim/staffRoleplay';
+import { addToTally, advanceIncident, buildTaskCase, caseJournal, nextRetailSeq, RETAIL_TASK, type RetailScenarioId, CHALLENGE, clampCrisisBatch, CRISIS_BATCH, crisisJournalLines, crisisOver, comboXp, STAFF_XP_PER_CORRECT, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, openingLedger, postJournal, recordCareerDecision, rollCrisis, roleForStation, ROLE_STATION, startIncident, type ActiveIncident, type IncidentId, type BadgeId, type CareerProgress, type ChallengeTally, type JournalEntry, type LedgerLine, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffScene, type StaffTaskNo, vaultReplenishment, workingTask } from '../sim/staffRoleplay';
 import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
@@ -237,6 +237,9 @@ export interface BankState {
   /** The task of the 28-task matrix the open desk is drilling, and how many of its cases are done. */
   staffTask: StaffTaskNo;
   staffTaskSeq: number;
+  /** Task 5's scenario filter: only this retail scenario's cases come up (null: the whole queue). */
+  retailFocus: RetailScenarioId | null;
+  setRetailFocus(focus: RetailScenarioId | null): void;
   /** Switches task within the same desk, instantly; the shift carries on. */
   setStaffTask(task: StaffTaskNo): void;
   /** Moves to another roleplay desk after the learner confirmed: ends the shift and starts Task 1. */
@@ -253,6 +256,8 @@ export interface BankState {
   retailLedger: RetailLedger;
   /** Back to the opening balances, erasing every posted journal and the whole audit trail. */
   resetRetailLedger(): void;
+  /** Books an AML desk command: its journal to the core ledger and a row to the audit trail, in one step (as `book` does for the roleplay desks). */
+  bookAmlCommand(r: { caseId: string; amountCents: number; scene: StaffScene; statusCode: string; lines: readonly LedgerLine[]; approve: boolean; compliance?: ComplianceStatus }): void;
   /** Every desk decision, oldest first, for the audit export (at most AUDIT_LOG_CAP). Saved, so it survives a reload like the ledger. */
   auditLog: AuditEntry[];
   /** The shift new decisions are recorded under (AuditEntry.shift). */
@@ -493,7 +498,10 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       r: StaffDecisionResult,
     ): Pick<BankState, 'retailLedger' | 'auditLog'> => {
       const at = now().toISOString();
-      const retailLedger = r.journal ? postJournal(s.retailLedger, { ...r.journal, station: d.station, at }) : s.retailLedger;
+      const posted = r.journal ? postJournal(s.retailLedger, { ...r.journal, station: d.station, at }) : s.retailLedger;
+      // Cash at the counter: the vault tops the till up when it runs low, and takes the surplus back when it holds too much.
+      const refill = r.journal?.lines.some((l) => l.gl === 'TILL_CASH') ? vaultReplenishment(posted, at) : null;
+      const retailLedger = refill ? postJournal(posted, refill) : posted;
       const auditLog = audit(s.auditLog, d, r, at);
       if (r.journal) saveRetailLedger(storage, retailLedger);
       saveAuditLog(storage, auditLog);
@@ -587,6 +595,12 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
 
       staffTask: 1,
       staffTaskSeq: 0,
+      retailFocus: null,
+      setRetailFocus: (focus) => {
+        const s = get();
+        const role = s.staffDesk ? roleForStation(s.staffDesk) : null;
+        set({ retailFocus: focus, ...(focus && role ? { staffTaskSeq: nextRetailSeq(role, s.staffTaskSeq, focus) } : {}) });
+      },
       staffChallenge: null,
       staffChallengeResult: null,
       staffIncidentMode: false,
@@ -602,6 +616,36 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       auditLog: openingAuditLog,
       auditShift: openingShift,
       // The audit trail goes with the ledger: its rows are the history of the journals being erased.
+      bookAmlCommand: (r) => {
+        const s = get();
+        const at = now().toISOString();
+        const decision: StaffDecision = r.approve ? 'APPROVE' : 'REJECT';
+        const journal: JournalEntry = { caseId: r.caseId, role: 'aml', scene: r.scene, decision, statusCode: r.statusCode, lines: [...r.lines], station: 'AML_DESK', at };
+        const retailLedger = journal.lines.length ? postJournal(s.retailLedger, journal) : s.retailLedger;
+        const entry: AuditEntry = {
+          seq: (s.auditLog[s.auditLog.length - 1]?.seq ?? 0) + 1,
+          shift: s.auditShift,
+          at,
+          station: 'AML_DESK',
+          role: 'aml',
+          caseId: r.caseId,
+          action: auditActionOf({ decision, journal }),
+          expected: null,
+          amountCents: r.amountCents,
+          latencySec: 0,
+          slaSec: 0,
+          statusCode: r.statusCode,
+          lines: journal.lines,
+          compliance: r.compliance ?? 'UNVERIFIED',
+          expert: false,
+          assisted: false,
+        };
+        const auditLog = [...s.auditLog, entry].slice(-AUDIT_LOG_CAP);
+        if (journal.lines.length) saveRetailLedger(storage, retailLedger);
+        saveAuditLog(storage, auditLog);
+        set({ retailLedger, auditLog });
+      },
+
       resetRetailLedger: () => {
         const retailLedger = openingLedger();
         saveRetailLedger(storage, retailLedger);
@@ -629,19 +673,19 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         if (!roleForStation(id)) return;
         const s = get();
         if (s.staffDesk === null) staffResume = s.playing;
-        set({ playing: false, ...(s.staffDesk !== id ? { staffTask: 1 as StaffTaskNo, staffTaskSeq: 0, staffIncident: rollFor(id) } : {}) });
+        set({ playing: false, ...(s.staffDesk !== id ? { staffTask: 1 as StaffTaskNo, staffTaskSeq: 0, retailFocus: null, staffIncident: rollFor(id) } : {}) });
         refresh({ staffDesk: id });
       },
 
       setStaffTask: (task) => {
         if (get().staffTask === task) return;
-        set({ staffTask: task, staffTaskSeq: 0 });
+        set({ staffTask: task, staffTaskSeq: 0, retailFocus: null });
       },
 
       switchStaffDesk: (id) => {
         const s = get();
         if (!roleForStation(id) || !s.staffDesk || s.staffDesk === id) return;
-        set({ staffShift: {}, staffTask: 1, staffTaskSeq: 0, staffChallenge: null, staffChallengeResult: null, staffIncident: rollFor(id), career: { ...s.career, shift: EMPTY_SHIFT_LOG }, auditShift: s.auditShift + 1 });
+        set({ staffShift: {}, staffTask: 1, staffTaskSeq: 0, retailFocus: null, staffChallenge: null, staffChallengeResult: null, staffIncident: rollFor(id), career: { ...s.career, shift: EMPTY_SHIFT_LOG }, auditShift: s.auditShift + 1 });
         refresh({ staffDesk: id });
       },
 
@@ -672,7 +716,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         const { career, unlocked } = recordCareerDecision(s.career, { role, drill: head.drill, expected: result.expected, decision, correct: result.correct, latencySec, expert, xp: next.xp - prev.xp });
         saveCareer(storage, career);
         const { retailLedger, auditLog } = book(s, { station: head.station, role, caseId, amountCents: head.amountCents, latencySec, slaSec, expert, assisted }, result);
-        set({ staffShift: { ...s.staffShift, [role]: next }, staffTaskSeq: s.staffTaskSeq + 1, staffIncident, career, retailLedger, auditLog, ...(unlocked.length ? { badgeUnlocks: [...s.badgeUnlocks, ...unlocked] } : {}) });
+        set({ staffShift: { ...s.staffShift, [role]: next }, staffTaskSeq: s.retailFocus && s.staffTask === RETAIL_TASK && !crisis ? nextRetailSeq(role, s.staffTaskSeq + 1, s.retailFocus) : s.staffTaskSeq + 1, staffIncident, career, retailLedger, auditLog, ...(unlocked.length ? { badgeUnlocks: [...s.badgeUnlocks, ...unlocked] } : {}) });
         return result;
       },
 

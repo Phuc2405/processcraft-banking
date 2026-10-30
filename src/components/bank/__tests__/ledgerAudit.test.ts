@@ -23,6 +23,10 @@ import {
   STAFF_TASKS,
   taskDeck,
   WIRE_FEE_CENTS,
+  remittanceBreakdown,
+  fxMarkupCents,
+  fxSpreadBps,
+  PREPAID_CARD_LOAD_CENTS,
   type GlAccount,
   type RetailLedger,
   type StaffCase,
@@ -82,11 +86,16 @@ describe('Phase 11 core ledger: postings on every desk', () => {
     expect(caseJournalLines(cashOut, 'REJECT')).toEqual([]);
   });
 
-  it('pays a wire out of the nostro and books the wire fee as revenue', () => {
+  it('pays a wire out of the nostro and books the wire fee and the FX markup as revenue (2011 / 1520 / 4540)', () => {
     const wire = firstOf('swift', 2, () => true);
-    expect(legOf(wire, 'APPROVE', 'CASA')?.dr).toBe(wire.amountCents + WIRE_FEE_CENTS);
+    const fx = remittanceBreakdown(wire);
+    expect(fx.markup).toBe(fxMarkupCents(wire.amountCents, fxSpreadBps(wire)));
+    expect(fx.markup).toBeGreaterThan(0);
+    expect(legOf(wire, 'APPROVE', 'CASA')?.dr).toBe(wire.amountCents + WIRE_FEE_CENTS + fx.markup);
     expect(legOf(wire, 'APPROVE', 'NOSTRO')?.cr).toBe(wire.amountCents);
-    expect(legOf(wire, 'APPROVE', 'WIRE_FEE_INCOME')?.cr).toBe(WIRE_FEE_CENTS);
+    expect(legOf(wire, 'APPROVE', 'WIRE_FEE_INCOME')?.cr).toBe(WIRE_FEE_CENTS + fx.markup);
+    // The inspector shows the breakdown: rate, spread, gross in the foreign currency, and the markup fee.
+    for (const key of ['fxRate', 'fxSpread', 'fxGross', 'fxMarkup']) expect(wire.fields.some((f) => f.key === key), key).toBe(true);
   });
 
   it('routes dispute refunds into the dispute account and AML freezes into frozen assets', () => {
@@ -97,7 +106,10 @@ describe('Phase 11 core ledger: postings on every desk', () => {
       expect(legOf(hit, 'REJECT', 'FROZEN_ASSETS')?.cr, `aml ${drill}`).toBe(hit.amountCents);
     }
     expect(caseJournalLines(firstOf('aml', 2, (c) => c.expected === 'REJECT'), 'REJECT')).toEqual([]);
-    expect(caseJournalLines(firstOf('ekyc', 1, () => true), 'APPROVE')).toEqual([]);
+    // eKYC verified: an instant virtual prepaid card (Dr 1510 / Cr 2410); refused: nothing moves.
+    const kyc = firstOf('ekyc', 1, () => true);
+    expect(caseJournalLines(kyc, 'APPROVE')).toEqual([{ gl: 'INTERBANK_SETTLEMENT', dr: PREPAID_CARD_LOAD_CENTS, cr: 0 }, { gl: 'WALLET_SETTLEMENT', dr: 0, cr: PREPAID_CARD_LOAD_CENTS }]);
+    expect(caseJournalLines(kyc, 'REJECT')).toEqual([]);
   });
 
   it('credits late penalty and interest revenue, then loan receivables, on a waterfall repayment', () => {
@@ -121,7 +133,8 @@ describe('Phase 11 core ledger: the header metrics', () => {
     let l = openingLedger();
     const wire = firstOf('swift', 1, () => true);
     l = post(l, wire, 'APPROVE');
-    expect(retailKpis(l)).toMatchObject({ settledVolume: wire.amountCents + WIRE_FEE_CENTS, netRevenue: WIRE_FEE_CENTS, suspense: 0, frozenCollateral: -OPENING_BALANCES.TD_PLEDGED });
+    const fx = remittanceBreakdown(wire);
+    expect(retailKpis(l)).toMatchObject({ settledVolume: fx.total, netRevenue: WIRE_FEE_CENTS + fx.markup, suspense: 0, frozenCollateral: -OPENING_BALANCES.TD_PLEDGED });
 
     const sanction = firstOf('aml', 1, (c) => c.expected === 'REJECT');
     l = post(l, sanction, 'REJECT');
@@ -135,7 +148,7 @@ describe('Phase 11 core ledger: the header metrics', () => {
     l = post(post(l, jam, 'APPROVE'), brk, 'APPROVE');
     const k = retailKpis(l);
     expect(k.suspense).toBe(jam.amountCents + brk.amountCents);
-    expect(k.settledVolume).toBe(wire.amountCents + WIRE_FEE_CENTS);
+    expect(k.settledVolume).toBe(fx.total);
     expect(k.netRevenue).toBe(ledgerSummary(l).net);
     expect(ledgerSummary(l).balanced).toBe(true);
   });

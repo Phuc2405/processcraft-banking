@@ -346,6 +346,104 @@ The bank is saved in this browser at the start of each day. Keys: `processcraft:
 Concept Explorer, 2D/3D), `processcraft:v1:ui` (3D label mode, inspector width) and `processcraft:v1:view` (which half you were on). **Start over** in the clock bar asks twice. A damaged or outdated
 save is validated and ignored, never trusted.
 
+### The AML desk: what-if decisions
+
+The AML desk (`🛡️ AML`) has three tabs. **Monitoring alerts** are the rules' alerts (over $10,000, velocity bursts);
+**Typology review** brings three money-laundering patterns each day: *structuring / smurfing* (five $2,100 deposits at the
+CDM and ATM within 15 minutes), a *money mule* account (many senders in, one transfer out within the hour) and a *synthetic
+identity / rapid in-out* (a day-old account, a mismatched identity score, drained within minutes). Each case may be laundering
+or a legitimate customer who only looks like it. Every alert and case offers four paths, each with consequences:
+
+| Path | Ledger | What follows |
+| --- | --- | --- |
+| 1. False positive | Dr 2011 / Cr 1510: released | Laundered money let through is always found by the audit: a red toast at once, the $50,000 fine posted to 5510 (Dr 5510 / Cr 1510) and −10 points |
+| 2. Freeze CASA | Dr 2011 / Cr 2930 frozen funds | Ten seconds later the customer is at Branch #01: keep the freeze, or release in an emergency. A legitimate customer frozen: a $20,000 fine at once (Dr 5510 / Cr 1510), −15 points |
+| 3. Request EDD | Dr 2011 / Cr 2912 (`PENDING_EDD`) | 24 of the bank's hours for proof of funds (a VAT invoice or income statement), counted across the night; inspect it, approve or reject; out of time (`EDD_EXPIRED`), refused and frozen silently (Dr 2912 / Cr 2930) with an alert |
+| 4. File SAR | Dr 2011 / Cr 2930, silently | Blacklisted, sent to the FIU (`📨 Đã gửi SAR (Chờ FIU)`); nothing granted or charged at filing. 1–2 bank days later the FIU answers: real laundering, seized (Dr 2930 / Cr **2110**) with a green banner and +15; a legitimate customer, the report is rejected, the money returned (Dr 2930 / Cr 2011), $30,000 and −20. Telling the customer is a tipping-off violation |
+
+Above the risk factors, a **Customer KYC Context** card gives the baseline to judge against: account type and tenure
+(a student's account opened 5 days ago vs an import-export firm active 4 years), average monthly volume (flagged as an
+**extreme red flag** when the case moves more than 5× a normal month), KYC level (basic eKYC vs face and chip-ID
+verified, or full CDD) and history (unknown senders vs fixed partners).
+
+Each decision is booked to the core ledger and the audit trail (station `AML_DESK`). **After-action review** scores the
+session: the false positive rate (legitimate customers frozen, reported or refused), the customer friction index (branch
+escalations), the regulatory penalties, and an overall rating from **A+** (Compliance Master) to **F** (Bank License
+Suspended); the score starts at 85 (B) so a valid SAR can lift it, and a tipping-off caps it at D.
+
+**Feedback toasts (Location B).** Every penalty, reward and follow-up is raised at once by a notification manager
+(`store/notificationStore.ts`, Observer) in its own zone directly under the start-of-day banner (Location A), never over
+it. Toasts come in one at a time, a beat apart (three at most), fade out after 5 seconds or on ×; the ones that arrive on
+their own (the FIU's directive, an EDD timeout during the rollover) wait until the start-of-day banner has gone.
+
+**Across the night.** Nothing on the desk is wiped at the day's rollover: undecided cases and alerts stay in the queue
+with their own day and time (`↩ D1 14:05`), a pending EDD keeps its SLA, a freeze stays frozen, and a SAR stays on the
+blacklist. The day's alerts are kept with their payments when the day ends, whether or not the desk was open.
+
+**Freeze / release matrix.** Every settled hold or release lands in one of four quadrants, shown on the case: freeze +
+real laundering (held in 2930, no penalty), freeze + legitimate ($20,000, −15, friction +1), release + legitimate (no
+penalty), release + real laundering (the audit leak: $50,000, −10). An approved EDD lifts the hold back to CASA
+(Dr 2912 / Cr 2011); approving or rejecting it raises its toast and returns the desk to the case list, so no step is left
+blank. When a customer's proof of funds arrives, a **📄 CHỨNG TỪ MỚI** toast opens the AML desk on that case.
+
+**EDD timeline matrix.** An EDD case runs on one of three timelines. *On time* (proof inside the 24h SLA) and *late*
+(proof after it: a "📄 CHỨNG TỪ NỘP TRỄ HẠN" toast and the badge "Quá hạn EDD - Đã có chứng từ trễ") offer Release, SAR or
+Refuse: a valid release earns +5 (Dr 2912 / Cr 2011), a forged release is the $50,000 leak (−10), a SAR on forged proof
+freezes to 2930 and earns +15 at the FIU's seizure, and a SAR on valid proof is a false filing at once ($30,000, −15,
+friction +1). *Stalling* (no proof ever: "Quá hạn EDD - Chưa có chứng từ") stays on the desk indefinitely, with two
+choices: a SAR for withheld proof (+10 at the FIU's seizure) or unlocking with no documents ($50,000, −20). When the SLA
+runs out the hold simply continues in 2912 (an `EDD_SLA_EXPIRED` memo in the audit trail).
+
+**Desk badges, filters and history.** Every AML case shows where it truly stands: ⏳ Chờ chứng từ (SLA 24h), 📄 Đã có
+chứng từ (Chờ thẩm định), 📄 Đã có chứng từ (Nộp trễ), ⌛ Quá hạn EDD - Chưa có chứng từ, 🏛️ Đã gửi SAR (Chờ FIU), 🏛️ Đã
+tịch thu (FIU), ✅ Đã giải phóng / Hoàn tất. Both AML lists open on **⚡ Cần xử lý** (newest first) with chips for documents
+in, awaiting documents, overdue, SAR sent and the resolved history (10 per page). The resolved history is capped at 200
+cases: above it the oldest resolved cases are pruned (active work never is), and a pruned case never comes back.
+
+**Rewards, penalties and the debuff.** Correct cases earn a bonus of $1 to $5 (by the money moved) and +1 or +2 KPI points
+(`engine/rewardEngine.ts`); each is judged when its truth comes out (a SAR's at the FIU's answer). A tipping-off, or a third
+error, debuffs the desk (`engine/penaltyEngine.ts`, State pattern): the rating is capped at D, rewards are $0, and fines and
+point deductions are doubled until 20 true positives in a row (correct freeze, SAR or EDD holds on real laundering) lift it;
+any error resets the streak. A correct freeze on real laundering raises no customer complaint. The scorecard is a 2x3 grid
+(false positives, complaints, fines, rating, correct cases, bonus) scored out of 10,000 at face value: it starts at 8,500,
+a KPI point adds 1, a −15 penalty subtracts 15 (−30 while debuffed). The SOP lesson is always shown; the red-flag analysis
+(the case against a normal month) is the hint, under the paths' heading once **💡 Xem gợi ý (-50% thưởng)** is opened, which
+halves that case's reward.
+
+**Credits and feedback.** The footer and the Knowledge Base credit the author with a LinkedIn link, in the current
+language, and **💬 Góp ý** in the header opens a feedback form that drafts an email to the author.
+
+**SWIFT FX hold.** Task 5 has a scenario filter (the SWIFT desk's "🚨 TẠM GIỮ ĐIỆN SWIFT (FX Volatility > ±2%)" chip first),
+and an FX case offers a Treasury rate confirmation before release: the live rate, whether the move breaks ±2%, and the
+spread at stake.
+
+**Retail scenarios.** The retail queues add NPL debt grouping and provisioning (SBV 5 groups by days past due; Dr 5610
+Provisioning expense / Cr **1290** Credit loss allowance), FX volatility holds (a SWIFT message held beyond ±2%) and eKYC
+risk profiling (PEP, high-risk country or a 70+ score is high risk), for 18 scenarios in all.
+
+**System ledger in Vietnamese.** The system ledger's memos are rebuilt in Vietnamese banking terms from each line's
+posting kind (`sim/memoVi.ts`, one template per kind, checked by the compiler).
+
+**Knowledge Base tabs.** The Knowledge Base has a category tab bar, **📒 Sổ cái lõi** and **🛡️ Tuân thủ AML**. It opens on
+the tab of wherever it was opened from (the ledger legend, or **📖 Kiến thức AML** on the AML desk) and closing it returns
+there. The AML article covers the 3 stages of laundering, the 3 fraud patterns against their legitimate lookalikes, the legal
+rules (no tipping-off, the EDD SLA, the SAR to the FIU, with the desk's penalty and reward matrix), CDD/EDD/PEPs and CFT,
+each with a golden rule, comparison tables and Advanced notes. Basic covers AML/CFT with real examples, the stages, the
+patterns and the red flags with an SOP flow; Advanced adds the Vietnamese legal foundations (Law 14/2022/QH15, Decree
+19/2023, Circular 09/2023, the VND 400 million CTR, tipping-off liability, sanctions and PEPs, the SAR → FIU flow). A third
+tab, **🏦 Nghiệp vụ bán lẻ**, holds 11 retail guides, each drawn from the queue's own SOP copy as an SOP flow diagram and a
+decision tree, on both levels. Ctrl+K finds every AML section, retail guide and retail SOP and opens it on its tab. The header has a **📖 Thư viện kiến thức** shortcut (the retail guides are its third tab), and the
+start-of-day banner (Location A) is centred on the viewport, with the toasts of Location B directly under it.
+
+The engine is `sim/amlReview.ts` (a Factory per typology, a Strategy per path, a State
+per case, a Command per journal), with no React.
+
+**Cash, FX and eKYC in the workspace's ledger.** The branch vault (**1010**, $50,000) is apart from the teller's till
+(**1012**, a $25,000 float): when the till drops below $10,000 the vault tops it up, and above $40,000 the surplus goes back.
+A SWIFT remittance shows its rate, spread, gross amount in the foreign currency and FX markup fee, and posts Dr 2011 (principal,
+wire fee and markup) / Cr 1520 (principal) / Cr 4540 (fee and markup). eKYC names its outcome (liveness fail, document
+mismatch, face mismatch, verified); a verified customer gets an instant virtual prepaid card (Dr 1510 / Cr 2410).
+
 ### The workspace's ledger and audit trail: two streams
 
 The Staff Roleplay Workspace's **Core ledger** and **Audit trail export** each have a filter: **All** (both side by side),

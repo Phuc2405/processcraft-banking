@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { buildTaskCase, EMPTY_TALLY, RETAIL_TASK, ROLE_STATION, taskDeck, WIRE_FEE_CENTS } from '../../../sim/staffRoleplay';
+import { buildTaskCase, EMPTY_TALLY, remittanceBreakdown, RETAIL_TASK, ROLE_STATION, taskDeck } from '../../../sim/staffRoleplay';
 import { AUDIT_LOG_CAP, auditActionOf, complianceOf, createBankStore, EMPTY_SHIFT, type AuditEntry } from '../../../store/bankStore';
 import { analystWorkspaceMessages } from '../analystWorkspace.messages';
 import {
@@ -56,7 +56,8 @@ describe('the audit trail in the store', () => {
     const first = log[0]!;
     const head = buildTaskCase('swift', 2, 0);
     expect(first).toMatchObject({ at: AT.toISOString(), station: 'GATE_SWIFT', role: 'swift', caseId: head.id, amountCents: head.amountCents, latencySec: 4, slaSec: 30, compliance: 'COMPLIANT', expert: false, assisted: false });
-    if (first.action === 'APPROVE') expect(first.lines.find((l) => l.gl === 'WIRE_FEE_INCOME')?.cr).toBe(WIRE_FEE_CENTS);
+    // The bank's take on a wire: the fee and the FX markup, both to 4540.
+    if (first.action === 'APPROVE') expect(first.lines.find((l) => l.gl === 'WIRE_FEE_INCOME')?.cr).toBe(remittanceBreakdown(head).wireFee + remittanceBreakdown(head).markup);
   });
 
   it('marks freezes, SOP breaches and SLA breaches', () => {
@@ -181,12 +182,15 @@ describe('the export actions', () => {
     onSwitchRole: () => undefined,
   };
 
-  it('puts Export audit log in the workspace header with the row count', () => {
+  it('puts Export audit log in the workspace header, clean: the icon and the words, no counter badge', () => {
     const auditLog = worked('ekyc', 1, 3).getState().auditLog;
     const out = renderToStaticMarkup(createElement(AnalystWorkspaceView, { desk: ROLE_STATION.ekyc, cases: taskDeck('ekyc', 1, 3, 4), shift: EMPTY_SHIFT, initialMode: 'standard', task: 1, canAdvance: true, auditLog, ...handlers }));
     const header = out.slice(out.indexOf('<header'), out.indexOf('</header>'));
     expect(header).toContain('data-testid="workspace-audit-open"');
     expect(header).toContain(esc(msgs.auditExport.en));
+    const button = header.slice(header.indexOf('data-testid="workspace-audit-open"'), header.indexOf('</button>', header.indexOf('data-testid="workspace-audit-open"')));
+    expect(button).not.toContain('rounded-full');
+    expect(button).not.toMatch(/>\d+</);
   });
 
   it('offers it on the shift completion scorecard', () => {

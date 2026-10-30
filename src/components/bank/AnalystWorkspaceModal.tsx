@@ -33,6 +33,10 @@ import {
   isCrisisStream,
   RANDOM_TASK,
   RETAIL_DESK,
+  DEFAULT_FX_SPREAD_BPS,
+  fxMarkupCents,
+  retailDeck,
+  RETAIL_SOP,
   RETAIL_TASK,
   WORKSPACE_TASKS,
   GL_ACCOUNTS,
@@ -74,6 +78,7 @@ import { DEPARTMENTS, STATIONS, type StationId } from '../../sim/topology';
 import { showsPlayer, showsSystem, simStamp, STREAM_FILTERS, streamCounts, systemAuditTrail, type StreamFilter, type SystemAuditEntry } from '../../sim/ledgerStreams';
 import { CHART_OF_ACCOUNTS } from '../../engine/ledger';
 import { accountName } from '../../sim/plainLanguage';
+import { memoVi } from '../../sim/memoVi';
 import type { GLEntry } from '../../types/processLearning';
 import { bankStore, EMPTY_SHIFT, useBankStore, type AuditEntry, type ShiftProgress } from '../../store/bankStore';
 import { uiStore, useUiStore } from '../../store/uiStore';
@@ -351,6 +356,7 @@ function MissionPanel({ role, task, mode, m, deskName, sla = STAFF_SLA_SECONDS, 
           <div className="mt-0.5 text-[15px] font-semibold text-sky-100">{m('taskOption', { n: task, title: m(taskTitleKey(role, task)) })}</div>
           {task === RANDOM_TASK && <p className="mt-1 text-[13px] leading-normal text-slate-400">{m('taskRandomNote')}</p>}
           {task === RETAIL_TASK && <p className="mt-1 text-[13px] leading-normal text-slate-400">{m('taskRetailNote')}</p>}
+          {task === RETAIL_TASK && <RetailFocusChips role={role} m={m} />}
         </div>
       )}
       <div>
@@ -743,6 +749,8 @@ function ScenarioCard({
         </div>
       </div>
 
+      {current.retail?.id === 'FX_VOLATILITY' && <TreasuryCheck key={current.id} current={current} m={m} />}
+
       {/* Decision Support Engine / Risk Advisory */}
       <AdvisoryCard current={current} masked={masked} mode={mode} revealed={adviceRevealed} onReveal={onRevealAdvice} onHide={onHideAdvice} m={m} />
 
@@ -756,6 +764,66 @@ function ScenarioCard({
         </div>
       </div>
     </section>
+  );
+}
+
+/** The SWIFT desk's FX check before release: Treasury confirms the live rate, says whether the move breaks ±2%, and what the spread is. */
+export function TreasuryCheck({ current, m, initiallyConfirmed = false }: { current: StaffCase; m: M; initiallyConfirmed?: boolean }) {
+  const [confirmed, setConfirmed] = useState(initiallyConfirmed);
+  const num = (key: string): number => {
+    const v = current.fields.find((f) => f.key === key)?.value;
+    return v && (v.t === 'num' || v.t === 'pct') ? v.v : 0;
+  };
+  const move = num('rateMove');
+  const beyond = Math.abs(move) > RETAIL_SOP.fxVolatilityPct;
+  return (
+    <div className="rounded-lg border border-sky-400/40 bg-sky-500/[0.07] px-2.5 py-2" data-testid="workspace-treasury" data-confirmed={confirmed} data-beyond={beyond}>
+      <Kicker>{m('treasuryTitle')}</Kicker>
+      {!confirmed ? (
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => setConfirmed(true)} data-testid="workspace-treasury-call" className="rounded-lg bg-sky-500 px-3 py-1.5 text-[13.5px] font-bold text-sky-950 hover:bg-sky-400">
+            {m('treasuryCall')}
+          </button>
+          <span className="text-[13px] text-slate-400">{m('treasuryHint')}</span>
+        </div>
+      ) : (
+        <div className="mt-1 space-y-1 text-[13.5px]">
+          <p className="tabular-nums text-slate-200">{m('treasuryQuote', { live: num('liveRate').toLocaleString('en-US'), booked: num('bookedRate').toLocaleString('en-US'), move: move > 0 ? `+${move}` : String(move) })}</p>
+          <p className={`font-semibold ${beyond ? 'text-rose-200' : 'text-lime-200'}`} data-testid="workspace-treasury-verdict">
+            {m(beyond ? 'treasuryHold' : 'treasuryOk')}
+          </p>
+          <p className="text-[12.5px] text-slate-400">{m('treasurySpread', { bps: DEFAULT_FX_SPREAD_BPS, cost: money(fxMarkupCents(current.amountCents, DEFAULT_FX_SPREAD_BPS)) })}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Task 5's scenario filter: one chip per retail scenario of the desk (the SWIFT hold first), or the whole queue. */
+export function RetailFocusChips({ role, m }: { role: StaffRoleId; m: M }) {
+  const focus = useBankStore((s) => s.retailFocus);
+  const setFocus = useBankStore((s) => s.setRetailFocus);
+  const list = [...RETAIL_DESK[role]].sort((a, b) => Number(b === 'FX_VOLATILITY') - Number(a === 'FX_VOLATILITY'));
+  const chip = (id: RetailScenarioId | null, label: string) => (
+    <button
+      key={id ?? 'all'}
+      type="button"
+      aria-pressed={focus === id}
+      data-testid={`retail-focus-${id ?? 'all'}`}
+      onClick={() => setFocus(id)}
+      className={`rounded-full border px-2 py-0.5 text-left text-[12.5px] font-semibold transition ${focus === id ? 'border-emerald-300 bg-emerald-400/20 text-emerald-50' : id === 'FX_VOLATILITY' ? 'border-rose-400/60 text-rose-100 hover:bg-rose-500/10' : 'border-slate-600 text-slate-300 hover:bg-slate-800'}`}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className="mt-1.5" data-testid="retail-focus" title={m('retailFocusHint')}>
+      <div className="text-[11.5px] font-bold uppercase tracking-wider text-slate-500">{m('retailFocusLabel')}</div>
+      <div className="mt-1 flex flex-wrap gap-1">
+        {chip(null, m('retailFocusAll'))}
+        {list.map((id) => chip(id, m(k(`retail_${id}_title`))))}
+      </div>
+    </div>
   );
 }
 
@@ -1193,7 +1261,10 @@ export interface SystemLedger {
 }
 
 function SystemLedgerPanel({ system, m, basic }: { system: SystemLedger; m: M; basic: boolean }) {
-  const name = (id: GLEntry['debitAccount']): string => `${CHART_OF_ACCOUNTS[id].code} ${accountName(id)}`;
+  const locale = useLocale();
+  const name = (id: GLEntry['debitAccount']): string => `${CHART_OF_ACCOUNTS[id].code} ${accountName(id, locale)}`;
+  // The engine writes its memos in English; in Vietnamese each one is rebuilt in banking terms.
+  const memo = (e: GLEntry): string => (locale === 'vi' ? memoVi(e) : e.memo);
   return (
     <section className="min-w-0" data-testid="ledger-system">
       <Kicker>{m('ledgerSystemTitle', { at: system.at })}</Kicker>
@@ -1207,8 +1278,8 @@ function SystemLedgerPanel({ system, m, basic }: { system: SystemLedger; m: M; b
           {system.recent.map((e) => (
             <li key={e.id} className="rounded-lg border border-sky-400/20 bg-sky-950/20 px-2.5 py-1.5 text-[13px]" data-source="system">
               <div className="flex min-w-0 items-baseline justify-between gap-2">
-                <span className="min-w-0 truncate text-slate-200" title={e.memo}>
-                  {e.memo}
+                <span className="min-w-0 truncate text-slate-200" title={memo(e)} data-testid="ledger-system-memo">
+                  {memo(e)}
                 </span>
                 <span className="shrink-0 font-semibold tabular-nums text-slate-50">{money(e.amount)}</span>
               </div>
@@ -1879,13 +1950,11 @@ export function AuditExportDialog({
   );
 }
 
-function AuditButton({ count, onOpen, m }: { count: number; onOpen: () => void; m: M }) {
+/** "⬇ Export audit log": the icon and the words only, no counter (the report itself says how many rows it holds). */
+function AuditButton({ onOpen, m }: { onOpen: () => void; m: M }) {
   return (
-    <button type="button" onClick={onOpen} title={m('auditButtonHint')} data-testid="workspace-audit-open" className="flex items-center gap-1.5 rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-[14px] font-semibold text-slate-100 transition hover:bg-slate-800">
+    <button type="button" onClick={onOpen} title={m('auditButtonHint')} data-testid="workspace-audit-open" className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-[14px] font-semibold text-slate-100 transition hover:bg-slate-800">
       {m('auditExport')}
-      <span className="rounded-full bg-slate-700 px-1.5 text-[12.5px] font-bold tabular-nums text-slate-200" title={m('auditSubtitle', { n: count })}>
-        {count}
-      </span>
     </button>
   );
 }
@@ -2769,7 +2838,7 @@ export function AnalystWorkspaceView({
           <div className="bk-scroll flex flex-nowrap items-center gap-3 overflow-x-auto pb-0.5" data-testid="workspace-subheader">
             <BadgesButton unlocked={career.badges.length} onOpen={() => setBadgesOpen(true)} m={m} />
             <CoreLedgerCard kpis={retailKpis(ledger)} onOpen={() => setLedgerOpen(true)} m={m} />
-            <AuditButton count={auditLog.length} onOpen={() => setAuditOpen(true)} m={m} />
+            <AuditButton onOpen={() => setAuditOpen(true)} m={m} />
           </div>
         </header>
         {incident ? <IncidentBanner incident={incident} batch={crisisBatch} stream={crisisStream} sla={sla} m={m} alarm={crisis !== null} /> : <IncidentIdle m={m} />}
@@ -2859,7 +2928,13 @@ export function AnalystWorkspaceModal() {
   const setCrisisBatch = useBankStore((s) => s.setCrisisBatch);
   const setCrisisStream = useBankStore((s) => s.setCrisisStream);
   const incidentId = incident?.id ?? null;
-  const cases = useMemo(() => (role ? taskDeck(role, workingTask(task, incidentMode, incidentId), seq, 4, incidentId) : []), [role, task, seq, incidentId, incidentMode]);
+  const retailFocus = useBankStore((s) => s.retailFocus);
+  const cases = useMemo(() => {
+    if (!role) return [];
+    const working = workingTask(task, incidentMode, incidentId);
+    // Task 5 filtered to one scenario: the queue shows only its cases.
+    return working === RETAIL_TASK && retailFocus && RETAIL_DESK[role].includes(retailFocus) ? retailDeck(role, seq, 4, retailFocus) : taskDeck(role, working, seq, 4, incidentId);
+  }, [role, task, seq, incidentId, incidentMode, retailFocus]);
   const run = useBankStore((s) => s.staffChallenge);
   const finished = useBankStore((s) => s.staffChallengeResult);
   const challenge = useMemo<ChallengeState>(() => ({ run, finished }), [run, finished]);
