@@ -123,12 +123,12 @@ describe('the author’s credit and the feedback form', () => {
   it('credits the author in the footer and the Knowledge Base, by language, linked to LinkedIn', () => {
     expect(AUTHOR_URL).toBe('https://www.linkedin.com/in/pnthienphuc2405/');
     const en = renderToStaticMarkup(createElement(AppFooter));
-    expect(en).toContain('ProcessCraft Banking • Built by');
+    expect(en).toContain('ProcessCraft Banking • Concept and Design by');
     expect(en).toContain('Felix Pham');
     expect(en).toContain(`href="${AUTHOR_URL}"`);
     expect(en).toContain('target="_blank"');
     setActiveLocale('vi');
-    expect(renderToStaticMarkup(createElement(AppFooter))).toContain('Xây dựng bởi');
+    expect(renderToStaticMarkup(createElement(AppFooter))).toContain('Ý tưởng và thiết kế bởi');
     expect(renderToStaticMarkup(createElement(AppFooter))).toContain('Phúc Phạm');
     const kb = renderToStaticMarkup(createElement(KnowledgeDisclaimer));
     expect(kb).toContain('Kiến thức mô phỏng phục vụ học tập và có thể không hoàn toàn phản ánh chính xác theo thời gian thực. Nếu có điểm cần điều chỉnh, ');
