@@ -4,7 +4,7 @@ import type { PlaceId } from '../../sim/topology';
 import { edgeId } from '../../sim/topology';
 import { CARD, PLACE_BOX, wireById } from '../../engine/plan/layout';
 
-export type Pt = readonly [number, number];
+import type { Pt } from '../../types/geometry';
 
 /** Where the token sits at a desk: on the right edge of the card's picture, clear of the name and the queue number. */
 export function restPoint(place: PlaceId): Pt {

@@ -2,6 +2,7 @@
 
 import { VI_DICTIONARY } from '../../i18n/viDictionary';
 import { edgeId, WIRES, type DepartmentId, type PlaceId } from '../../sim/topology';
+import type { BoxSide, Pt } from '../../types/geometry';
 
 /** The branch itself is the BUILDING (the old stage). */
 export const BUILDING = { width: 1080, height: 1180 } as const;
@@ -108,9 +109,7 @@ export const DEPT_BOX: Record<DepartmentId, DeptBox> = {
 
 // Wires
 
-type Side = 'l' | 'r' | 't' | 'b';
-type Port = readonly [Side, number?];
-type Pt = readonly [number, number];
+type Port = readonly [BoxSide, number?];
 
 export interface RouteSpec {
   from: Port;
@@ -689,17 +688,11 @@ export const HOVER_TIP = { w: 236, h: 84, gap: 6 } as const;
 
 export type TipSide = 'below' | 'above' | 'right' | 'left';
 
-interface Rect {
-  x0: number;
-  y0: number;
-  x1: number;
-  y1: number;
-}
 
-const rectOf = (b: PlaceBox): Rect => ({ x0: b.cx - b.w / 2, y0: b.cy - b.h / 2, x1: b.cx + b.w / 2, y1: b.cy + b.h / 2 });
+const rectOf = (b: PlaceBox): Box => ({ x0: b.cx - b.w / 2, y0: b.cy - b.h / 2, x1: b.cx + b.w / 2, y1: b.cy + b.h / 2 });
 
 /** The rectangle a description would cover on each side of a desk. */
-export function tipRect(place: PlaceId, side: TipSide): Rect {
+export function tipRect(place: PlaceId, side: TipSide): Box {
   const b = rectOf(PLACE_BOX[place]);
   const cx = (b.x0 + b.x1) / 2;
   const cy = (b.y0 + b.y1) / 2;

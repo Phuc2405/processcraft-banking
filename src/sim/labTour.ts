@@ -9,6 +9,7 @@ import { noteText } from '../i18n/notesVi';
 import { pacs008From, pacs008Xml, type Rail } from '../engine/iso20022';
 import { postTestResult } from '../engine/postings';
 import { ProcessRunner, type RunResult } from '../engine/processRunner';
+import type { StepTone } from '../types/tour';
 import type {
   BankingCapability,
   BankingPayload,
@@ -25,7 +26,6 @@ import type {
 } from '../types/processLearning';
 import type { GraphSpotlight, SpotState } from '../store/workflowStore';
 
-export type StepTone = 'neutral' | 'good' | 'bad' | 'warn';
 export type StepKind = 'start' | 'task' | 'gateway' | 'end';
 export type TourSource = 'example' | 'mine';
 

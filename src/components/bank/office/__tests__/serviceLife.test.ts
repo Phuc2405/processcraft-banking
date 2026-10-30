@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { atmosphereAt, GROUND_FOG, WEATHER_MIX } from '../../../../engine/world/atmosphere';
 import { CARRY_PATH, CIT_RUN, LOADING_BAY, LOADING_DOOR, LOADS, VAN_REAR, type CitPhase } from '../../../../engine/world/citRun';
-import { pathLength } from '../tour3d';
+import { pathLength } from '../../../../engine/plan/path';
 import { chatPhase, MIST_BANKS, MIST_CLIP, MIST_LAYERS } from '../Environment3D';
 import { evacuationRoute, servedExit } from '../../../../engine/world/evacuation';
 import { FrontGuard, PARKING_CABIN, PARKING_PLAN } from '../../../../engine/world/guardCabin';
@@ -205,7 +205,8 @@ describe('the ATM queues, from the street to the machine and away', () => {
   });
 
   it('turns the customer round at the machine before they walk off down the street', () => {
-    expect(read('../../../../engine/simulation/people.ts')).toContain('export const ATM_TURN_S = 0.8;');
+    // The turn at the machine is the served customer's own (SERVED.turn), eased: never a snap.
+    expect(read('../../../../engine/simulation/people.ts')).toContain('turn: 0.45');
     // From the machine, along the inside of the booth, out by the rope's gap and off down the street.
     for (const id of ATM_STATIONS) {
       const out = servedExit(id);

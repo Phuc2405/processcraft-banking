@@ -5,8 +5,9 @@ import { labScene, labUi } from '../../data/labTourCopy';
 import { curriculumPosition, LEVELS } from '../../data/seedChallenges';
 import { batchesFrom, LedgerView } from '../ledger/LedgerView';
 import { ledgerUi } from '../../data/ledgerCopy';
-import { playableTests, type LabQuiz, type LabStep, type LabTour, type StepTone } from '../../sim/labTour';
-import { isBlocked, quizAt, useLabTour, type QuizAnswer } from '../../store/labTourStore';
+import { playableTests, type LabQuiz, type LabStep, type LabTour } from '../../sim/labTour';
+import { isBlocked, quizAt, useLabTour } from '../../store/labTourStore';
+import type { QuizAnswer, StepTone } from '../../types/tour';
 import { useTerms } from '../bank/useTerms';
 import { MessagePreview } from '../inspector/MessagePreview';
 

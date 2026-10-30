@@ -190,9 +190,6 @@ export const SCENARIO_TITLE_VI: Readonly<Record<string, string>> = {
   'Friendly-Fraud Chargeback': 'Tra soát gian lận "thân thiện"',
 };
 
-/** A scenario's title in English: the canonical text the simulation, the exports and the stores keep. Never depends on the language. */
-export const scenarioTitleEn = (x: Scenario): string => x.title;
-
 /** "☕ Corner Cafe Tap ($4.50)" in English, whatever language is on screen. Simulation and export code writes this and nothing else. */
 export function scenarioLabelEn(scenario: Scenario | string | null | undefined): string {
   const x = typeof scenario === 'string' ? scenarioById(scenario) : scenario;
@@ -224,9 +221,6 @@ export function localizeScenarioText(text: string, locale: Locale = activeLocale
   if (!text) return text;
   return locale === 'vi' ? swapToVi(text) : swapToEn(text);
 }
-
-/** A scenario's title in the active language. */
-export const scenarioTitle = (x: Scenario): string => localizeScenarioText(x.title);
 
 /** "☕ Corner Cafe Tap ($4.50)": the one-line form used in badges, logs and ledger titles, in the active language. */
 export const scenarioLabel = (scenario: Scenario | string | null | undefined): string => localizeScenarioText(scenarioLabelEn(scenario));

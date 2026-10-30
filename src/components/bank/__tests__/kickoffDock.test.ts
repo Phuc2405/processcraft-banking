@@ -1,7 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { createBankStore, kickoffOpenOf } from '../../../store/bankStore';
+import { createBankStore, floatingBarsHiddenOf, kickoffOpenOf } from '../../../store/bankStore';
 
-const dock = import.meta.glob(['../ViewportControls.tsx', '../office/Office3D.tsx'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+const dock = import.meta.glob(['../ViewportControls.tsx', '../office/Office3D.tsx', '../DayReportModal.tsx'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+
+describe('the floating dock and the weather bar stand aside for the day’s report', () => {
+  it('is hidden while the report is open, back when it closes, and the report sits above the map’s bars', () => {
+    const store = createBankStore();
+    expect(floatingBarsHiddenOf(store.getState())).toBe(false);
+    store.setState({ reportOpen: true });
+    expect(floatingBarsHiddenOf(store.getState())).toBe(true);
+    store.setState({ reportOpen: false });
+    expect(floatingBarsHiddenOf(store.getState())).toBe(false);
+    // Over the weather bar (z-45) and the dock (z-40), under the language switch (z-60) and the workspace (z-70).
+    expect(dock['../DayReportModal.tsx']).toContain('fixed inset-0 z-[55]');
+  });
+});
 
 describe('the floating dock and the weather bar stand aside for a tour’s kickoff card', () => {
   it('is hidden while the kickoff card is open', () => {
@@ -35,7 +48,7 @@ describe('the floating dock and the weather bar stand aside for a tour’s kicko
 
   it('wires the rule into the dock and the weather bar, and lets go of their measured places while hidden', () => {
     const controls = dock['../ViewportControls.tsx']!;
-    expect(controls).toContain('const kickoff = useBankStore(kickoffOpenOf);');
+    expect(controls).toContain('const kickoff = useBankStore(floatingBarsHiddenOf);');
     expect(controls).toContain('if (kickoff) topBand.setState({ dock: null });');
     expect(controls).toContain('if (kickoff) return null;');
     const office = dock['../office/Office3D.tsx']!;

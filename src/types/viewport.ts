@@ -5,9 +5,6 @@ export type Dimension = '2d' | '3d';
 export type DataDepth = 'standard' | 'expert';
 export type FlowId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
-export const SCOPES: readonly Scope[] = ['beginner', 'advanced'];
-export const DIMENSIONS: readonly Dimension[] = ['2d', '3d'];
-export const DATA_DEPTHS: readonly DataDepth[] = ['standard', 'expert'];
 export const FLOW_IDS: readonly FlowId[] = [1, 2, 3, 4, 5, 6, 7, 8];
 
 export interface ViewportSettings {

@@ -3,7 +3,8 @@ import { LESSONS } from '../../sim/learning';
 import { spotPlan, spotScope, trailUpTo, type SpotPlan, type SpotScope, type SpotStep } from '../../sim/spotlightPlan';
 import type { PlaceId } from '../../sim/topology';
 import { quizFor, type WalkQuiz } from '../../sim/walkQuiz';
-import { useBankStore, type QuizAnswer, type SpotlightState } from '../../store/bankStore';
+import { useBankStore, type SpotlightState } from '../../store/bankStore';
+import type { QuizAnswer } from '../../types/tour';
 import { dwellMs } from './tokenPath';
 
 /** Everything the map and the explanation card need to know about the tour in progress. */

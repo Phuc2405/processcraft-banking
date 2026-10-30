@@ -10,7 +10,7 @@ import { ATM_STATIONS, arrivalPath, atmBooth, atmExitPath, GUARD_CABIN, KERB_Z, 
 import { exitRoute, PARK_GATE, PARK_MEMBERS, ParkCrowd, wantsPark } from '../../../../engine/world/parkLife';
 import { FLOWERBEDS, FOUNTAIN, HEDGES, LOOP, PICNIC } from '../../../../engine/world/parkPlan';
 import { swingAmp, SWING } from '../Park3D';
-import { pathLength, pointAlongPath } from '../tour3d';
+import { pathLength, pointAlongPath } from '../../../../engine/plan/path';
 import { BUS_X, busRiders, kerbZ, LENGTH, MIN_GAP, TAXI_X, TrafficSim, VEHICLES, WIDTH } from '../../../../engine/world/vehicles';
 import { DAY_EVENTS } from '../../../../sim/traffic';
 import { dayIntroCopy, dayLabel, introDue } from '../../dayIntro';

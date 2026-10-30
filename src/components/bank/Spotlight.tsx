@@ -5,7 +5,8 @@ import { prefersReducedMotion } from '../canvas/timing';
 import { TokenShape } from '../canvas/tokens/TokenGlyph';
 import { Kickoff } from '../education/GuidedWalkthrough';
 import { DockedStepCard } from '../education/WalkDock';
-import { pointAlong, polylineLength, restPoint, tokenPolyline, travelMs, type Pt } from './tokenPath';
+import { pointAlong, polylineLength, restPoint, tokenPolyline, travelMs } from './tokenPath';
+import type { Pt, ScreenRect } from '../../types/geometry';
 import { lookOfKind } from './ui';
 import { useSpotlightFocus, useTourPlayback, type Focus } from './useSpotlight';
 import { useBankStore } from '../../store/bankStore';
@@ -75,22 +76,16 @@ export function SpotlightToken({ focus }: { focus: Focus }) {
 
 // Where the explanation goes
 
-interface Rect {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-}
 
-const overlap = (a: Rect, b: Rect): number => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+const overlap = (a: ScreenRect, b: ScreenRect): number => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
 
 export interface PlaceOptions {
   /** Space kept between the desk and the card. */
   gap?: number;
   /** The desk the token goes to next: the card should not hide where the story is heading. */
-  next?: Rect | null;
+  next?: ScreenRect | null;
   /** Every other desk the process uses, which stay lit. Hiding them costs a little. */
-  lit?: readonly Rect[];
+  lit?: readonly ScreenRect[];
   /** The card never goes higher than this (the viewport dock sits above it). */
   minTop?: number;
 }
@@ -98,7 +93,7 @@ export interface PlaceOptions {
 export type CalloutSide = 'right' | 'left' | 'below' | 'above' | 'far';
 
 /** Puts the card where it hides the least of the story. */
-export function placeCallout(desk: Rect, card: { w: number; h: number }, bounds: { w: number; h: number }, opts: PlaceOptions = {}): { left: number; top: number; side: CalloutSide } {
+export function placeCallout(desk: ScreenRect, card: { w: number; h: number }, bounds: { w: number; h: number }, opts: PlaceOptions = {}): { left: number; top: number; side: CalloutSide } {
   const gap = opts.gap ?? 16;
   const margin = 8;
   const cx = (desk.left + desk.right) / 2;
@@ -123,7 +118,7 @@ export function placeCallout(desk: Rect, card: { w: number; h: number }, bounds:
   let best = candidates[0] as (typeof candidates)[number];
   let bestCost = Infinity;
   for (const c of candidates) {
-    const rect: Rect = { left: c.left, top: c.top, right: c.left + card.w, bottom: c.top + card.h };
+    const rect: ScreenRect = { left: c.left, top: c.top, right: c.left + card.w, bottom: c.top + card.h };
     let cost = overlap(rect, desk) * 12;
     if (opts.next) cost += overlap(rect, opts.next) * 5;
     for (const l of lit) cost += overlap(rect, l) * 1.5;

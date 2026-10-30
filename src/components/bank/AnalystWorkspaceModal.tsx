@@ -71,6 +71,10 @@ import {
   type StaffTaskNo,
 } from '../../sim/staffRoleplay';
 import { DEPARTMENTS, STATIONS, type StationId } from '../../sim/topology';
+import { showsPlayer, showsSystem, simStamp, STREAM_FILTERS, streamCounts, systemAuditTrail, type StreamFilter, type SystemAuditEntry } from '../../sim/ledgerStreams';
+import { CHART_OF_ACCOUNTS } from '../../engine/ledger';
+import { accountName } from '../../sim/plainLanguage';
+import type { GLEntry } from '../../types/processLearning';
 import { bankStore, EMPTY_SHIFT, useBankStore, type AuditEntry, type ShiftProgress } from '../../store/bankStore';
 import { uiStore, useUiStore } from '../../store/uiStore';
 import { play, reviewSound } from '../../utils/audioFX';
@@ -197,15 +201,15 @@ export const nextZoom = (z: number, dir: 1 | -1): number => {
   return PREVIEW_ZOOMS[Math.min(PREVIEW_ZOOMS.length - 1, Math.max(0, (i < 0 ? 2 : i) + dir))]!;
 };
 
-function ZoomBar({ zoom, onZoom, testId }: { zoom: number; onZoom: (z: number) => void; testId: string }) {
+function ZoomBar({ zoom, onZoom, testId, size = 'md' }: { zoom: number; onZoom: (z: number) => void; testId: string; size?: 'md' | 'sm' }) {
   const { g } = useGlossary();
-  const btn = 'whitespace-nowrap rounded-md border border-slate-600 bg-slate-900 px-2.5 py-1 text-[13.5px] font-semibold text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40';
+  const btn = `whitespace-nowrap rounded-md border border-slate-600 bg-slate-900 font-semibold text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 ${size === 'sm' ? 'px-2 py-0.5 text-[12px]' : 'px-2.5 py-1 text-[13.5px]'}`;
   return (
-    <div role="toolbar" aria-label={g('zoomLabel')} className="flex shrink-0 items-center gap-1.5" data-testid={testId} data-zoom={zoom}>
+    <div role="toolbar" aria-label={g('zoomLabel')} className={`flex shrink-0 items-center ${size === 'sm' ? 'gap-1' : 'gap-1.5'}`} data-testid={testId} data-zoom={zoom}>
       <button type="button" onClick={() => onZoom(nextZoom(zoom, -1))} disabled={zoom <= PREVIEW_ZOOMS[0]} data-testid={`${testId}-out`} className={btn}>
         {g('zoomOut')}
       </button>
-      <button type="button" onClick={() => onZoom(1)} title={g('zoomResetHint')} aria-live="polite" data-testid={`${testId}-reset`} className={`${btn} min-w-[4.5rem] tabular-nums`}>
+      <button type="button" onClick={() => onZoom(1)} title={g('zoomResetHint')} aria-live="polite" data-testid={`${testId}-reset`} className={`${btn} ${size === 'sm' ? 'min-w-[3.75rem]' : 'min-w-[4.5rem]'} tabular-nums`}>
         🔍 {Math.round(zoom * 100)}%
       </button>
       <button type="button" onClick={() => onZoom(nextZoom(zoom, 1))} disabled={zoom >= PREVIEW_ZOOMS[PREVIEW_ZOOMS.length - 1]!} data-testid={`${testId}-in`} className={btn}>
@@ -218,7 +222,7 @@ function ZoomBar({ zoom, onZoom, testId }: { zoom: number; onZoom: (z: number) =
 /** Select: the preview's text can be highlighted and copied. Pan: a left-button drag scrolls the preview instead. */
 export type PointerMode = 'select' | 'pan';
 
-function PointerModeToggle({ mode, onChange, testId }: { mode: PointerMode; onChange: (mode: PointerMode) => void; testId: string }) {
+function PointerModeToggle({ mode, onChange, testId, size = 'md' }: { mode: PointerMode; onChange: (mode: PointerMode) => void; testId: string; size?: 'md' | 'sm' }) {
   const { g } = useGlossary();
   return (
     <SegmentedToggle<PointerMode>
@@ -226,6 +230,7 @@ function PointerModeToggle({ mode, onChange, testId }: { mode: PointerMode; onCh
       value={mode}
       onChange={onChange}
       testId={testId}
+      size={size}
       stateKey="mode"
       options={[
         { value: 'select', label: g('pointerSelect'), hint: g('pointerSelectHint') },
@@ -1123,7 +1128,7 @@ const SHEET_SIDES: readonly { side: GlSide; title: AnalystWorkspaceKey }[] = [
 ];
 
 /** The confirmation a reset needs: it erases every posted journal and the whole audit trail, and nothing brings them back. */
-export function LedgerResetConfirm({ journals, audit, m, onCancel, onConfirm }: { journals: number; audit: number; m: M; onCancel: () => void; onConfirm: () => void }) {
+export function LedgerResetConfirm({ journals, audit, system = 0, m, onCancel, onConfirm }: { journals: number; audit: number; /** The system ledger's lines, which the reset keeps. */ system?: number; m: M; onCancel: () => void; onConfirm: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key !== 'Escape') return;
@@ -1145,7 +1150,7 @@ export function LedgerResetConfirm({ journals, audit, m, onCancel, onConfirm }: 
           {m('ledgerResetWarning')}
         </p>
         <p className="mt-1 text-[13.5px] font-semibold tabular-nums text-rose-200/90" data-testid="workspace-ledger-reset-counts">
-          {m('ledgerResetCounts', { journals, audit })}
+          {m('ledgerResetCounts', { journals, audit, system })}
         </p>
         <div className="mt-2.5 flex flex-wrap gap-2">
           <button type="button" autoFocus onClick={onCancel} data-testid="workspace-ledger-reset-cancel" className="rounded-lg border border-slate-500 bg-slate-800 px-3 py-1.5 text-[14px] font-bold text-slate-100 transition hover:bg-slate-700">
@@ -1160,6 +1165,70 @@ export function LedgerResetConfirm({ journals, audit, m, onCancel, onConfirm }: 
   );
 }
 
+const STREAM_KEY: Readonly<Record<StreamFilter, AnalystWorkspaceKey>> = { all: 'streamAll', system: 'streamSystem', player: 'streamPlayer' };
+
+/** All / Automated / Player only: which of the two streams (the bank's own background traffic, the player's postings by hand) a view shows. */
+export function StreamToggle({ value, onChange, counts, m, testId, size = 'sm' }: { value: StreamFilter; onChange: (f: StreamFilter) => void; counts: Readonly<Record<StreamFilter, number>>; m: M; testId: string; size?: 'md' | 'sm' }) {
+  return (
+    <SegmentedToggle<StreamFilter>
+      size={size}
+      label={m('streamLabel')}
+      value={value}
+      options={STREAM_FILTERS.map((f) => ({ value: f, label: m(STREAM_KEY[f]), hint: m(k(`streamHint_${f}`)), badge: counts[f] }))}
+      onChange={onChange}
+      testId={testId}
+      stateKey="stream"
+    />
+  );
+}
+
+/** The system's own ledger as the bank's clock has it now: what its background traffic posted today (the latest lines). */
+export interface SystemLedger {
+  recent: readonly GLEntry[];
+  lines: number;
+  totalDebits: number;
+  totalCredits: number;
+  /** The bank's time it is as of: "D3 14:05:00". */
+  at: string;
+}
+
+function SystemLedgerPanel({ system, m, basic }: { system: SystemLedger; m: M; basic: boolean }) {
+  const name = (id: GLEntry['debitAccount']): string => `${CHART_OF_ACCOUNTS[id].code} ${accountName(id)}`;
+  return (
+    <section className="min-w-0" data-testid="ledger-system">
+      <Kicker>{m('ledgerSystemTitle', { at: system.at })}</Kicker>
+      <p className="mt-0.5 text-[13px] text-slate-400" data-testid="ledger-system-sub">
+        {m('ledgerSystemSub', { lines: system.lines, n: system.recent.length, dr: money(system.totalDebits), cr: money(system.totalCredits) })}
+      </p>
+      {system.recent.length === 0 ? (
+        <p className="mt-1 text-[14px] text-slate-400">{m('ledgerSystemEmpty')}</p>
+      ) : (
+        <ol className="mt-1 space-y-1.5" data-testid="ledger-system-journal">
+          {system.recent.map((e) => (
+            <li key={e.id} className="rounded-lg border border-sky-400/20 bg-sky-950/20 px-2.5 py-1.5 text-[13px]" data-source="system">
+              <div className="flex min-w-0 items-baseline justify-between gap-2">
+                <span className="min-w-0 truncate text-slate-200" title={e.memo}>
+                  {e.memo}
+                </span>
+                <span className="shrink-0 font-semibold tabular-nums text-slate-50">{money(e.amount)}</span>
+              </div>
+              <div className="mt-0.5 flex min-w-0 gap-2 font-mono text-[12px] text-slate-400">
+                <span className="truncate" title={name(e.debitAccount)}>
+                  Dr {basic ? accountName(e.debitAccount) : CHART_OF_ACCOUNTS[e.debitAccount].code}
+                </span>
+                <span className="truncate" title={name(e.creditAccount)}>
+                  Cr {basic ? accountName(e.creditAccount) : CHART_OF_ACCOUNTS[e.creditAccount].code}
+                </span>
+                <span className="ml-auto shrink-0">{e.txId}</span>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  );
+}
+
 /** The workspace's core ledger: the four KPIs, the balance sheet and P&L by account, the balance check and the latest journals. */
 export function CoreLedgerSheet({
   ledger,
@@ -1170,6 +1239,8 @@ export function CoreLedgerSheet({
   legendOpen: legendInitially = false,
   auditCount = 0,
   confirmOpen: confirmInitially = false,
+  system = null,
+  initialStream = 'all',
 }: {
   ledger: RetailLedger;
   m: M;
@@ -1181,8 +1252,12 @@ export function CoreLedgerSheet({
   /** Audit trail entries the reset would erase too. */
   auditCount?: number;
   confirmOpen?: boolean;
+  /** The system's own ledger as of the bank's clock now (null: only the player's stream is shown). */
+  system?: SystemLedger | null;
+  initialStream?: StreamFilter;
 }) {
   const [view, setView] = useState<ViewMode>(initialView);
+  const [stream, setStream] = useState<StreamFilter>(system ? initialStream : 'player');
   const [legend, setLegend] = useState(legendInitially);
   const [confirming, setConfirming] = useState(confirmInitially);
   const basic = view === 'basic';
@@ -1193,45 +1268,55 @@ export function CoreLedgerSheet({
   return (
     <div className="absolute inset-0 z-30 grid place-items-center bg-slate-950/80 p-4 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()} data-testid="workspace-ledger-backdrop">
       <div role="dialog" aria-modal="true" aria-labelledby="workspace-ledger-title" data-testid="workspace-ledger" className="relative flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-emerald-400/40 bg-slate-900 shadow-2xl">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800 px-5 py-3">
-          <div className="min-w-0">
-            <h3 id="workspace-ledger-title" className="text-[19px] font-extrabold text-emerald-100">
-              {m('ledgerTitle')}
-            </h3>
-            <p className="mt-0.5 text-[14px] text-slate-400">
-              {m('ledgerSubtitle')} · {m('ledgerPosted', { n: ledger.posted })}
-            </p>
+        {/* The header: one compact block. Title and subtitle on the left (they wrap, never clip); the actions in a tight cluster on the right; the stream filter right under the title. Nothing scrolls sideways. */}
+        <div className="border-b border-slate-800 px-4 py-2" data-testid="workspace-ledger-header">
+          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
+            <div className="min-w-[12rem] flex-1">
+              <h3 id="workspace-ledger-title" className="text-[17px] font-extrabold leading-tight text-emerald-100">
+                {m('ledgerTitle')}
+              </h3>
+              <p className="mt-0.5 text-[12.5px] leading-snug text-slate-400">
+                {m('ledgerSubtitle')} · {m('ledgerPosted', { n: ledger.posted })}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-1.5" data-testid="workspace-ledger-actions">
+              <ViewModeToggle view={view} onChange={setView} testId="workspace-ledger-view" size="sm" />
+              <button
+                type="button"
+                onClick={() => setLegend(!legend)}
+                aria-expanded={legend}
+                data-testid="workspace-ledger-legend-toggle"
+                className={`whitespace-nowrap rounded-md border px-2 py-1 text-xs font-semibold transition ${legend ? 'border-sky-300 bg-sky-400 text-slate-950' : 'border-sky-400/50 bg-sky-500/10 text-sky-100 hover:bg-sky-500/20'}`}
+              >
+                {m('legendButton')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirming(true)}
+                aria-haspopup="dialog"
+                aria-expanded={confirming}
+                title={m('ledgerReset')}
+                data-testid="workspace-ledger-reset"
+                className="whitespace-nowrap rounded-md border border-rose-400/50 px-2 py-1 text-xs font-medium text-rose-200 transition hover:bg-rose-500/15"
+              >
+                {m('ledgerResetShort')}
+              </button>
+              <button type="button" onClick={onClose} autoFocus data-testid="workspace-ledger-close" className="whitespace-nowrap rounded-md border border-emerald-400/60 bg-emerald-400 px-2 py-1 text-xs font-bold text-slate-950 transition hover:bg-emerald-300">
+                {m('ledgerClose')}
+              </button>
+            </div>
           </div>
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setLegend(!legend)}
-              aria-expanded={legend}
-              data-testid="workspace-ledger-legend-toggle"
-              className={`whitespace-nowrap rounded-lg border px-3 py-1.5 text-[14px] font-semibold transition ${legend ? 'border-sky-300 bg-sky-400 text-slate-950' : 'border-sky-400/50 bg-sky-500/10 text-sky-100 hover:bg-sky-500/20'}`}
-            >
-              {m('legendButton')}
-            </button>
-            <ViewModeToggle view={view} onChange={setView} testId="workspace-ledger-view" caption />
-            <button
-              type="button"
-              onClick={() => setConfirming(true)}
-              aria-haspopup="dialog"
-              aria-expanded={confirming}
-              data-testid="workspace-ledger-reset"
-              className="rounded-lg border border-rose-400/50 px-3 py-1.5 text-[14px] font-medium text-rose-200 transition hover:bg-rose-500/15"
-            >
-              {m('ledgerReset')}
-            </button>
-            <button type="button" onClick={onClose} autoFocus data-testid="workspace-ledger-close" className="rounded-lg border border-emerald-400/60 bg-emerald-400 px-3 py-1.5 text-[14px] font-bold text-slate-950 transition hover:bg-emerald-300">
-              {m('ledgerClose')}
-            </button>
-          </div>
+          {system && (
+            <div className="mt-1.5">
+              <StreamToggle value={stream} onChange={setStream} counts={streamCounts(system.lines, ledger.posted)} m={m} testId="workspace-ledger-stream" />
+            </div>
+          )}
         </div>
         {confirming && (
           <LedgerResetConfirm
             journals={ledger.posted}
             audit={auditCount}
+            system={system?.lines ?? 0}
             m={m}
             onCancel={() => setConfirming(false)}
             onConfirm={() => {
@@ -1241,7 +1326,7 @@ export function CoreLedgerSheet({
           />
         )}
         {legend && <LedgerLegend m={m} onReadMore={() => uiStore.getState().openKnowledge('core-ledger')} />}
-        <div className="bk-scroll grid min-h-0 flex-1 gap-4 overflow-y-auto p-5 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]">
+        <div className="bk-scroll grid min-h-0 flex-1 gap-4 overflow-y-auto p-5 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]" data-stream={system ? stream : 'player'}>
           <div className="min-w-0 space-y-3">
             <LedgerMetrics kpis={kpis} m={m} />
             <KpiTiles kpis={kpis} m={m} />
@@ -1302,8 +1387,11 @@ export function CoreLedgerSheet({
               </section>
             </div>
           </div>
-          <div>
-            <Kicker>{m('ledgerJournal')}</Kicker>
+          {/* The entries: the stream filter chooses only these (the balance sheet beside them stays as it is). */}
+          <div className="min-w-0 space-y-4" data-testid="ledger-entries">
+            {showsPlayer(system ? stream : 'player') && (
+              <div data-source="player">
+            <Kicker>{system ? m('ledgerPlayerTitle') : m('ledgerJournal')}</Kicker>
             {ledger.journal.length === 0 ? (
               <p className="mt-1 text-[14px] text-slate-400">{m('ledgerEmpty')}</p>
             ) : (
@@ -1313,6 +1401,9 @@ export function CoreLedgerSheet({
                 ))}
               </ol>
             )}
+              </div>
+            )}
+            {system && showsSystem(stream) && <SystemLedgerPanel system={system} m={m} basic={basic} />}
           </div>
         </div>
       </div>
@@ -1361,10 +1452,10 @@ export const AUDIT_CSV_COLUMNS: readonly AnalystWorkspaceKey[] = [
 export const nfc = (text: string): string => text.normalize('NFC');
 const nfcMessages = (m: M): M => ((key, values) => nfc(m(key, values))) as M;
 
-/** The audit trail as CSV (RFC 4180, CRLF rows), headers and labels in the current language, timestamps in ISO 8601. */
-export function auditCsv(log: readonly AuditEntry[], tm: M): string {
+/** The audit trail as CSV (RFC 4180, CRLF rows), headers and labels in the current language, timestamps in ISO 8601 (the system's rows in the bank's own time). With `system` (the system stream is exported too), a Source column says whose each row is. */
+export function auditCsv(log: readonly AuditEntry[], tm: M, system: readonly SystemAuditEntry[] | null = null): string {
   const m = nfcMessages(tm);
-  const rows = log.map((e) => [
+  const rows: Array<Array<string | number>> = log.map((e) => [
     e.at,
     e.station,
     e.caseId,
@@ -1376,7 +1467,10 @@ export function auditCsv(log: readonly AuditEntry[], tm: M): string {
     e.statusCode,
     complianceLabel(e.compliance, m),
   ]);
-  return [AUDIT_CSV_COLUMNS.map((key) => m(key)), ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');
+  if (system === null) return [AUDIT_CSV_COLUMNS.map((key) => m(key)), ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');
+  const systemRows = system.map((r) => [r.at, r.engine, r.txId, r.code, 'N/A', 'N/A', m('auditMemo'), decimal(r.amountCents), r.responseCode, complianceLabel(r.compliance, m), m('auditSourceSystem')]);
+  const header = [...AUDIT_CSV_COLUMNS.map((key) => m(key)), m('auditColSource')];
+  return [header, ...rows.map((r) => [...r, m('auditSourcePlayer')]), ...systemRows].map((r) => r.map(csvCell).join(',')).join('\r\n');
 }
 
 /** Hands the browser a file to save; the BOM lets spreadsheet apps read the Vietnamese labels as UTF-8. */
@@ -1404,16 +1498,19 @@ export interface AuditSummary {
   avgSlaSec: number;
 }
 
-export function auditSummary(log: readonly AuditEntry[]): AuditSummary {
-  const count = <T extends string>(keys: readonly T[], of: (e: AuditEntry) => T): Record<T, number> => Object.fromEntries(keys.map((key) => [key, log.filter((e) => of(e) === key).length])) as Record<T, number>;
+/** Section II's figures, over the player's decisions and the system engine's (`system`: the stream shown, or none). The average decision time is the player's: the engine decides at once, so it is not timed. */
+export function auditSummary(log: readonly AuditEntry[], system: readonly SystemAuditEntry[] = []): AuditSummary {
+  const rows: ReadonlyArray<{ action: AuditEntry['action']; compliance: AuditEntry['compliance'] }> = [...log, ...system];
+  const count = <T extends string>(keys: readonly T[], of: (e: (typeof rows)[number]) => T): Record<T, number> => Object.fromEntries(keys.map((key) => [key, rows.filter((e) => of(e) === key).length])) as Record<T, number>;
   const compliance = count(['COMPLIANT', 'SLA_BREACH', 'SOP_BREACH', 'UNVERIFIED'] as const, (e) => e.compliance);
-  const graded = log.filter((e) => e.compliance !== 'UNVERIFIED');
+  const graded = rows.filter((e) => e.compliance !== 'UNVERIFIED').length;
+  const timed = log.filter((e) => e.compliance !== 'UNVERIFIED');
   return {
-    total: log.length,
+    total: rows.length,
     actions: count(['APPROVE', 'REJECT', 'FREEZE'] as const, (e) => e.action),
     compliance,
-    ratePct: graded.length ? Math.round((1000 * compliance.COMPLIANT) / graded.length) / 10 : 0,
-    avgSlaSec: graded.length ? Math.round((10 * graded.reduce((s, e) => s + e.latencySec, 0)) / graded.length) / 10 : 0,
+    ratePct: graded ? Math.round((1000 * compliance.COMPLIANT) / graded) / 10 : 0,
+    avgSlaSec: timed.length ? Math.round((10 * timed.reduce((s, e) => s + e.latencySec, 0)) / timed.length) / 10 : 0,
   };
 }
 
@@ -1447,13 +1544,13 @@ const AUDIT_TABLE_COLS: readonly { key: AnalystWorkspaceKey; width: string; nume
 ];
 
 /** The official audit report: national motto header, numbered sections, summary, the detailed log and sign-off blocks. */
-export function AuditReport({ log, m: tm, issued, view = 'advanced' }: { log: readonly AuditEntry[]; m: M; issued: Date; view?: ViewMode }) {
+export function AuditReport({ log, m: tm, issued, view = 'advanced', system = null, systemAt = '', showPlayer = true }: { log: readonly AuditEntry[]; m: M; issued: Date; view?: ViewMode; system?: readonly SystemAuditEntry[] | null; systemAt?: string; /** The player's stream is part of the report (not System only). */ showPlayer?: boolean }) {
   const m = nfcMessages(tm);
   const gl = useGlossary();
   const basic = view === 'basic';
   const plain = (code: string): string => nfc(gl.plain(code));
-  const sum = auditSummary(log);
-  const desks = [...new Set(log.map((e) => e.role))].map((r) => m(k(`role_${r}_title`))).join(', ') || '—';
+  const sum = auditSummary(log, system ?? []);
+  const desks = [...[...new Set(log.map((e) => e.role))].map((r) => m(k(`role_${r}_title`))), ...(system?.length ? [m('rptSystemDesk')] : [])].join(', ') || '—';
   const issues = sum.compliance.SLA_BREACH + sum.compliance.SOP_BREACH;
   const cell = 'border border-black px-2 py-1 align-top';
   const num = `${cell} whitespace-nowrap px-3 text-right tabular-nums`;
@@ -1500,9 +1597,17 @@ export function AuditReport({ log, m: tm, issued, view = 'advanced' }: { log: re
 
       <h2 className="mt-4 font-bold uppercase">{m('rptSec1')}</h2>
       <ul className="ml-4 list-disc">
-        <li>{m('rptPeriod', { from: log.length ? auditTime(log[0]!.at) : '—', to: log.length ? auditTime(log[log.length - 1]!.at) : '—' })}</li>
+        {showPlayer && <li>{m('rptPeriod', { from: log.length ? auditTime(log[0]!.at) : '—', to: log.length ? auditTime(log[log.length - 1]!.at) : '—' })}</li>}
+        {system !== null && <li>{m('rptSystemPeriod', { from: system[0]?.at ?? '—', to: system[system.length - 1]?.at ?? '—' })}</li>}
         <li>{m('rptDesks', { desks })}</li>
-        <li>{m('rptEntries', { n: sum.total })}</li>
+        {/* How many decisions, and whose: the automated engine's, the user's, or both (as the stream shown). */}
+        <li data-testid="audit-entries">
+          {system !== null && showPlayer
+            ? m('rptEntriesAll', { n: sum.total, a: system.length, u: log.length })
+            : system !== null
+              ? m('rptEntriesAuto', { n: sum.total, a: system.length })
+              : m('rptEntriesUser', { n: sum.total, u: log.length })}
+        </li>
       </ul>
 
       <h2 className="mt-3 font-bold uppercase">{m('rptSec2')}</h2>
@@ -1521,7 +1626,7 @@ export function AuditReport({ log, m: tm, issued, view = 'advanced' }: { log: re
       </table>
 
       <h2 className="mt-3 font-bold uppercase">{m('rptSec3')}</h2>
-      {log.length === 0 ? (
+      {!showPlayer ? null : log.length === 0 ? (
         <p className="italic">{m('auditEmpty')}</p>
       ) : (
         <table className="mt-1 w-full min-w-[960px] table-auto border-collapse text-[10.5px]" data-testid="audit-table">
@@ -1595,6 +1700,43 @@ export function AuditReport({ log, m: tm, issued, view = 'advanced' }: { log: re
         </table>
       )}
 
+      {system !== null && (
+        <section data-testid="audit-system">
+          <h3 className="mt-3 font-bold">{m('rptSystemTitle', { at: systemAt })}</h3>
+          {system.length === 0 ? (
+            <p className="italic">{m('rptSystemEmpty')}</p>
+          ) : (
+            <table className="mt-1 w-full table-auto border-collapse text-[10.5px]" data-testid="audit-system-table">
+              <thead>
+                <tr>
+                  {(['rptColNo', 'auditColTime', 'rptColEngine', 'rptColTx', 'rptColActionCode', 'rptColSlaSop', 'auditColAmount', 'rptColResponse'] as const).map((key) => (
+                    <th key={key} className={`${cell} bg-slate-100 text-left`}>
+                      {m(key)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {system.map((r, i) => (
+                  <tr key={r.txId} data-code={r.code}>
+                    <td className={num}>{i + 1}</td>
+                    <td className={`${cell} whitespace-nowrap`}>{r.at}</td>
+                    <td className={`${cell} whitespace-nowrap`} title={STATIONS[r.engine].name}>
+                      {r.engine}
+                    </td>
+                    <td className={`${cell} whitespace-nowrap`}>{r.txId}</td>
+                    <td className={`${cell} whitespace-nowrap font-mono`}>{r.code}</td>
+                    <td className={cell}>{`${m('rptSlaWithin')} · ${complianceLabel(r.compliance, m)}`}</td>
+                    <td className={num}>{money(r.amountCents)}</td>
+                    <td className={cell}>{r.responseCode}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      )}
+
       <h2 className="mt-3 font-bold uppercase">{m('rptSec4')}</h2>
       <p>{issues ? m('rptConclusionIssues', { n: issues }) : m('rptConclusionOk')}</p>
       <div className="mt-6 grid grid-cols-3 gap-4 text-center" style={{ breakInside: 'avoid' }}>
@@ -1616,12 +1758,13 @@ export type AuditScope = 'shift' | 'all';
 /** The rows a report scope covers: the decisions of shift `shift`, or every recorded one. */
 export const auditScopeLog = (log: readonly AuditEntry[], scope: AuditScope, shift: number): readonly AuditEntry[] => (scope === 'all' ? log : log.filter((e) => e.shift === shift));
 
-function AuditScopeToggle({ scope, onChange, counts, m }: { scope: AuditScope; onChange: (scope: AuditScope) => void; counts: Readonly<Record<AuditScope, number>>; m: M }) {
+function AuditScopeToggle({ scope, onChange, counts, m, size = 'md' }: { scope: AuditScope; onChange: (scope: AuditScope) => void; counts: Readonly<Record<AuditScope, number>>; m: M; size?: 'md' | 'sm' }) {
   return (
     <SegmentedToggle<AuditScope>
       label={m('auditScopeLabel')}
       value={scope}
       onChange={onChange}
+      size={size}
       testId="workspace-audit-scope"
       stateKey="scope"
       options={[
@@ -1643,6 +1786,9 @@ export function AuditExportDialog({
   initialView = 'basic',
   shift = null,
   initialScope,
+  system = null,
+  systemAt = '',
+  initialStream = 'all',
 }: {
   log: readonly AuditEntry[];
   m: M;
@@ -1652,53 +1798,65 @@ export function AuditExportDialog({
   /** The shift in progress; without one the report always covers the whole history. */
   shift?: number | null;
   initialScope?: AuditScope;
+  /** The system's payments up to the bank's clock now (null: only the player's stream). */
+  system?: readonly SystemAuditEntry[] | null;
+  /** The bank's time the system's rows are as of. */
+  systemAt?: string;
+  initialStream?: StreamFilter;
 }) {
+  const [stream, setStream] = useState<StreamFilter>(system ? initialStream : 'player');
+  const systemRows = system && showsSystem(stream) ? system : null;
   const shiftCount = shift === null ? 0 : auditScopeLog(fullLog, 'shift', shift).length;
   // Open on the current shift when it has decisions, otherwise on the whole history, so the report is never blank needlessly.
   const [scope, setScope] = useState<AuditScope>(initialScope ?? (shift !== null && shiftCount > 0 ? 'shift' : 'all'));
-  const log = shift === null ? fullLog : auditScopeLog(fullLog, scope, shift);
+  const scoped = shift === null ? fullLog : auditScopeLog(fullLog, scope, shift);
+  const log = showsPlayer(stream) ? scoped : [];
+  const rows = log.length + (systemRows?.length ?? 0);
   const [view, setView] = useState<ViewMode>(initialView);
   const [zoom, setZoom] = useState(1);
   const [pointer, setPointer] = useState<PointerMode>('select');
   const preview = useRef<HTMLDivElement>(null);
   const dragging = useDragScroll(preview, pointer === 'pan');
-  const csv = (): void => downloadFile(`audit-trail-${stamp(issued)}-${pad2(issued.getHours())}${pad2(issued.getMinutes())}.csv`, auditCsv(log, m), 'text/csv;charset=utf-8');
-  const report = <AuditReport log={log} m={m} issued={issued} view={view} />;
+  const csv = (): void => downloadFile(`audit-trail-${stamp(issued)}-${pad2(issued.getHours())}${pad2(issued.getMinutes())}.csv`, auditCsv(log, m, systemRows), 'text/csv;charset=utf-8');
+  const report = <AuditReport log={log} m={m} issued={issued} view={view} system={systemRows} systemAt={systemAt} showPlayer={showsPlayer(stream)} />;
   return (
     <div className="absolute inset-0 z-40 grid place-items-center overflow-hidden bg-slate-950/80 p-4 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()} data-testid="workspace-audit-backdrop">
       <style>{PRINT_CSS}</style>
       {typeof document !== 'undefined' && createPortal(<div className="pc-audit-print">{report}</div>, document.body)}
       <div role="dialog" aria-modal="true" aria-labelledby="workspace-audit-title" data-testid="workspace-audit" className="flex max-h-full w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-600 bg-slate-900 shadow-2xl">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800 px-5 py-3">
-          <div className="min-w-0">
-            <h3 id="workspace-audit-title" className="text-[19px] font-extrabold text-slate-50">
+        {/* Row 1: the title and what it holds, the actions on the right. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-slate-800 px-4 py-2">
+          <div className="min-w-[12rem] flex-1">
+            <h3 id="workspace-audit-title" className="text-[17px] font-extrabold leading-tight text-slate-50">
               {m('auditTitle')}
             </h3>
-            <p className="mt-0.5 text-[14px] text-slate-400">{m('auditSubtitle', { n: log.length })}</p>
+            <p className="mt-0.5 text-[12.5px] leading-snug text-slate-400" data-testid="workspace-audit-subtitle">
+              {system ? m('auditSubtitleStreams', { player: log.length, system: systemRows?.length ?? 0, at: systemAt }) : m('auditSubtitle', { n: log.length })}
+            </p>
           </div>
-          <div className="flex shrink-0 gap-2">
-            <button type="button" onClick={csv} disabled={!log.length} data-testid="workspace-audit-csv" className="rounded-lg border border-emerald-400/60 bg-emerald-500/15 px-3 py-1.5 text-[14px] font-bold text-emerald-100 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-40">
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            <button type="button" onClick={csv} disabled={!rows} data-testid="workspace-audit-csv" className="whitespace-nowrap rounded-md border px-2 py-1 text-xs transition disabled:cursor-not-allowed disabled:opacity-40 border-emerald-400/60 bg-emerald-500/15 font-bold text-emerald-100 hover:bg-emerald-500/25">
               {m('auditCsv')}
             </button>
-            <button type="button" onClick={() => window.print()} disabled={!log.length} data-testid="workspace-audit-print" className="rounded-lg border border-sky-400/60 bg-sky-500/15 px-3 py-1.5 text-[14px] font-bold text-sky-100 transition hover:bg-sky-500/25 disabled:cursor-not-allowed disabled:opacity-40">
+            <button type="button" onClick={() => window.print()} disabled={!rows} data-testid="workspace-audit-print" className="whitespace-nowrap rounded-md border px-2 py-1 text-xs transition disabled:cursor-not-allowed disabled:opacity-40 border-sky-400/60 bg-sky-500/15 font-bold text-sky-100 hover:bg-sky-500/25">
               {m('auditPrint')}
             </button>
-            <button type="button" onClick={onClose} autoFocus data-testid="workspace-audit-close" className="rounded-lg border border-slate-600 px-3 py-1.5 text-[14px] font-medium text-slate-200 transition hover:bg-slate-800">
+            <button type="button" onClick={onClose} autoFocus data-testid="workspace-audit-close" className="whitespace-nowrap rounded-md border px-2 py-1 text-xs transition disabled:cursor-not-allowed disabled:opacity-40 border-slate-600 font-medium text-slate-200 hover:bg-slate-800">
               {m('auditClose')}
             </button>
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900/80 px-5 py-2" data-testid="workspace-audit-controls">
-          <div className="flex flex-wrap items-center gap-2">
-            {shift !== null && <AuditScopeToggle scope={scope} onChange={setScope} counts={{ shift: shiftCount, all: fullLog.length }} m={m} />}
-            <ViewModeToggle view={view} onChange={setView} testId="workspace-audit-view" caption />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <PointerModeToggle mode={pointer} onChange={setPointer} testId="workspace-audit-pointer" />
-            <ZoomBar zoom={zoom} onZoom={setZoom} testId="workspace-audit-zoom" />
+        {/* Row 2: the streams, the shifts and the view on the left; how the pointer works and the zoom on the right. */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-slate-800 bg-slate-900/80 px-4 py-1.5" data-testid="workspace-audit-controls">
+          {system && <StreamToggle value={stream} onChange={setStream} counts={streamCounts(system.length, scoped.length)} m={m} testId="workspace-audit-stream" />}
+          {shift !== null && showsPlayer(stream) && <AuditScopeToggle scope={scope} onChange={setScope} counts={{ shift: shiftCount, all: fullLog.length }} m={m} size="sm" />}
+          <ViewModeToggle view={view} onChange={setView} testId="workspace-audit-view" caption size="sm" />
+          <div className="ml-auto flex items-center gap-2">
+            <PointerModeToggle mode={pointer} onChange={setPointer} testId="workspace-audit-pointer" size="sm" />
+            <ZoomBar zoom={zoom} onZoom={setZoom} testId="workspace-audit-zoom" size="sm" />
           </div>
         </div>
-        {scope === 'shift' && log.length === 0 && fullLog.length > 0 && (
+        {showsPlayer(stream) && scope === 'shift' && scoped.length === 0 && fullLog.length > 0 && (
           <p className="border-b border-amber-400/40 bg-amber-400/10 px-5 py-1.5 text-[14px] font-semibold text-amber-100" data-testid="workspace-audit-shift-empty">
             {m('auditScopeShiftEmpty', { n: fullLog.length })}
           </p>
@@ -1706,7 +1864,7 @@ export function AuditExportDialog({
         {/* The preview scrolls on its own, capped below the viewport, so no section is cut off at any zoom or screen size. */}
         <div
           ref={preview}
-          className={`bk-scroll min-h-0 max-h-[calc(100vh-200px)] flex-1 overflow-x-auto overflow-y-auto bg-slate-700/40 p-4 ${pointer === 'pan' ? `select-none ${dragging ? 'cursor-grabbing' : 'cursor-grab'}` : 'select-text'}`}
+          className={`bk-scroll min-h-0 max-h-[calc(100vh-140px)] flex-1 overflow-x-auto overflow-y-auto bg-slate-700/40 p-3 ${pointer === 'pan' ? `select-none ${dragging ? 'cursor-grabbing' : 'cursor-grab'}` : 'select-text'}`}
           tabIndex={0}
           aria-label={m('auditTitle')}
           data-testid="workspace-audit-preview"
@@ -2423,6 +2581,10 @@ export interface AnalystWorkspaceViewProps {
   auditLog?: readonly AuditEntry[];
   /** The shift new decisions are recorded under, for the audit report's Current Shift scope. */
   auditShift?: number | null;
+  /** The system's stream (the bank's own background traffic) as of its clock now; absent, the ledger and the audit trail show the player's only. */
+  systemLedger?: SystemLedger | null;
+  systemAudit?: (() => readonly SystemAuditEntry[]) | null;
+  systemAt?: string;
 }
 
 const NO_CHALLENGE: ChallengeState = { run: null, finished: null };
@@ -2460,6 +2622,9 @@ export function AnalystWorkspaceView({
   onResetLedger = () => undefined,
   auditLog = NO_AUDIT,
   auditShift = null,
+  systemLedger = null,
+  systemAudit = null,
+  systemAt = '',
 }: AnalystWorkspaceViewProps) {
   const [badgesOpen, setBadgesOpen] = useState(false);
   const [ledgerOpen, setLedgerOpen] = useState(false);
@@ -2646,9 +2811,9 @@ export function AnalystWorkspaceView({
         {incidentId === 'POWER_GRID_FAILOVER' && <PowerFlicker />}
         {consequence && !consequence.result.correct && <SopViolationPulse m={m} />}
         {challenge.finished && <ChallengeScorecard tally={challenge.finished} m={m} onAgain={cc.start} onClose={cc.dismiss} onExport={() => setAuditOpen(true)} />}
-        {auditOpen && <AuditExportDialog log={auditLog} m={m} onClose={() => setAuditOpen(false)} initialView={mode === 'expert' ? 'advanced' : 'basic'} shift={auditShift} />}
+        {auditOpen && <AuditExportDialog log={auditLog} m={m} onClose={() => setAuditOpen(false)} initialView={mode === 'expert' ? 'advanced' : 'basic'} shift={auditShift} system={systemAudit ? systemAudit() : null} systemAt={systemAt} />}
         {badgesOpen && <BadgeDrawer career={career} m={m} onClose={() => setBadgesOpen(false)} />}
-        {ledgerOpen && <CoreLedgerSheet ledger={ledger} m={m} onClose={() => setLedgerOpen(false)} onReset={onResetLedger} initialView={mode === 'expert' ? 'advanced' : 'basic'} auditCount={auditLog.length} />}
+        {ledgerOpen && <CoreLedgerSheet ledger={ledger} m={m} onClose={() => setLedgerOpen(false)} onReset={onResetLedger} initialView={mode === 'expert' ? 'advanced' : 'basic'} auditCount={auditLog.length} system={systemLedger} />}
         {unlock && <BadgeUnlockModal key={unlock} badge={unlock} m={m} onClose={onDismissBadgeUnlock} />}
         {pendingRole && <SwitchDeskDialog target={pendingRole} m={m} onCancel={() => setPendingRole(null)} onConfirm={confirmSwitch} />}
       </div>
@@ -2672,6 +2837,15 @@ export function AnalystWorkspaceModal() {
   const resetLedger = useBankStore((s) => s.resetRetailLedger);
   const auditLog = useBankStore((s) => s.auditLog);
   const auditShift = useBankStore((s) => s.auditShift);
+  // The system's stream, read as of the bank's clock now: it moves on with every beat, with no action of the player's.
+  const bankLedger = useBankStore((s) => s.view.ledger);
+  const bankDay = useBankStore((s) => s.view.day);
+  const bankMinute = useBankStore((s) => s.view.minute);
+  const sim = useBankStore((s) => s.sim);
+  const systemAt = simStamp(bankDay, bankMinute);
+  const systemLedger = useMemo<SystemLedger>(() => ({ recent: bankLedger.recent, lines: bankLedger.lines, totalDebits: bankLedger.trial.totalDebits, totalCredits: bankLedger.trial.totalCredits, at: systemAt }), [bankLedger, systemAt]);
+  // Read when the export opens (the full log of the day is long): as of that moment.
+  const systemAudit = useCallback(() => systemAuditTrail(sim.transactionLog(), bankDay, bankMinute), [sim, bankDay, bankMinute]);
   const setTask = useBankStore((s) => s.setStaffTask);
   const switchDesk = useBankStore((s) => s.switchStaffDesk);
   const step = useBankStore((s) => s.step);
@@ -2741,6 +2915,9 @@ export function AnalystWorkspaceModal() {
       onResetLedger={resetLedger}
       auditLog={auditLog}
       auditShift={auditShift}
+      systemLedger={systemLedger}
+      systemAudit={systemAudit}
+      systemAt={systemAt}
     />
   );
 }

@@ -17,8 +17,6 @@ import { pathLength } from '../plan/path';
 export const ARRIVAL_PACE = { atm: 0.85, gate: 1.0 } as const;
 /** How many customers can be walking to the desks at once. */
 export const MAX_WALKERS = 14;
-/** How long someone finishing at the machine takes to put their card and cash away and turn round. */
-export const ATM_TURN_S = 0.8;
 /** How fast people in a line walk up a place when the one in front is served. */
 export const STEP_UP_PACE = 0.9;
 /** Served customers: time at the counter or machine before leaving (the one at the front finishes their business there: keying in and taking the cash, or a last word with the teller), the turn, the walking pace, and the business of one who walks up late. */

@@ -1,5 +1,5 @@
 import { createStore } from 'zustand/vanilla';
-import { CLEAR, rainOf, WEATHER_MIX, type Weather, type WeatherMix } from './atmosphere';
+import { CLEAR, WEATHER_MIX, type Weather, type WeatherMix } from './atmosphere';
 import { ATM_STATIONS, atmBooth, GUARD_CABIN, KERB_Z, STREET } from '../plan/layout3d';
 
 /** The weather over the 3D office, the shelters on the pavement, and how the people there behave. */
@@ -57,9 +57,6 @@ export function stepPavementClock(clock: PavementClock, step: number, weather: W
     clock.storm = wet;
   }
 }
-
-/** Whether it is raining now (any rain in the blend), or about to (the pick brings rain). */
-export const isRaining = (): boolean => rainOf(liveMix) > 0.02 || WEATHER_MIX[weatherStore.getState().weather].rain > 0;
 
 /** What people on the pavement wear: coats, scarves and hats in snow. */
 export type Outfit = 'everyday' | 'summer' | 'winter' | 'rain' | 'mask' | 'jacket';
@@ -240,7 +237,10 @@ export interface PedestrianState {
 }
 
 const span = PAVEMENT.x1 - PAVEMENT.x0;
-const wrap = (x: number): number => PAVEMENT.x0 + ((((x - PAVEMENT.x0) % span) + span) % span);
+/** A point of the pavement, brought back onto it from either end (people walk off one end and on at the other). */
+export const wrap = (x: number): number => PAVEMENT.x0 + ((((x - PAVEMENT.x0) % span) + span) % span);
+/** The pavement's length, end to end: one lap of a passer-by. */
+export const PAVEMENT_SPAN = span;
 
 /** Where a person walking at `pace` since time 0 is at `t` seconds, wrapping round the street's ends. */
 const strollX = (p: Pedestrian, t: number, pace: number): number => wrap(PAVEMENT.x0 + unit(p.index, 3) * span + p.dir * pace * t);
@@ -248,11 +248,11 @@ const strollX = (p: Pedestrian, t: number, pace: number): number => wrap(PAVEMEN
 /** When a person's umbrella starts to open after the rain begins: one after another, not all at once. */
 export const umbrellaDelay = (p: Pedestrian): number => UMBRELLA.first + (PEDESTRIANS.indexOf(p) % 6) * UMBRELLA.stagger;
 
-/** Where person `p` is at `t` seconds, and what they are doing: a small state machine driven by how long the weather has been wet, or how long ago it dried up. */
-export function pedestrianAt(p: Pedestrian, t: number, rainFor: number | null, storm: Downpour = false, after: AfterRain | null = null): PedestrianState {
+/** Where person `p` is at `t` seconds, and what they are doing: a small state machine driven by how long the weather has been wet, or how long ago it dried up. `outAt`: a chatter who has parted from their talk and is out walking, at this x when the weather turned (StreetPeople), rather than at their chat spot. */
+export function pedestrianAt(p: Pedestrian, t: number, rainFor: number | null, storm: Downpour = false, after: AfterRain | null = null, outAt: number | null = null): PedestrianState {
   const laneZ = PAVEMENT.lanes[p.lane];
   const along = p.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
-  if (rainFor === null && after) return afterRainAt(p, t, after);
+  if (rainFor === null && after) return afterRainAt(p, t, after, outAt);
   if (rainFor === null) {
     if (p.chatX !== null) {
       // The pair face each other, the first of them to the right.
@@ -262,7 +262,7 @@ export function pedestrianAt(p: Pedestrian, t: number, rainFor: number | null, s
     return { x: strollX(p, t, p.pace), z: laneZ, heading: along, pose: 'walk', speed: p.pace, umbrella: 0 };
   }
   const hail = storm === 'hail';
-  const caught: [number, number] = p.chatX !== null ? [p.chatX, laneZ] : [strollX(p, t - rainFor, p.pace), laneZ];
+  const caught: [number, number] = outAt !== null ? [outAt, laneZ] : p.chatX !== null ? [p.chatX, laneZ] : [strollX(p, t - rainFor, p.pace), laneZ];
   if (p.umbrella && p.chatX === null && storm === false) {
     const delay = umbrellaDelay(p);
     // They stop where the first drops caught them and look up.
@@ -287,11 +287,12 @@ export function pedestrianAt(p: Pedestrian, t: number, rainFor: number | null, s
 }
 
 /** Once it dries up: where the person was when it stopped, then folding the umbrella or stepping back out, then on as before. */
-function afterRainAt(p: Pedestrian, t: number, after: AfterRain): PedestrianState {
+function afterRainAt(p: Pedestrian, t: number, after: AfterRain, outAt: number | null): PedestrianState {
   const laneZ = PAVEMENT.lanes[p.lane];
   const along = p.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
   const s = after.since;
-  const at = pedestrianAt(p, t - s, after.lasted, after.was);
+  const at = pedestrianAt(p, t - s, after.lasted, after.was, null, outAt);
+  const talking = p.chatX !== null && outAt === null;
   if (at.umbrella > 0) {
     // Lower and furl it while slowing to a stop, shake the water off, then stroll on.
     const slow = WALK.relaxed[0] * 0.5;
@@ -301,13 +302,13 @@ function afterRainAt(p: Pedestrian, t: number, after: AfterRain): PedestrianStat
     return { x: wrap(stop + p.dir * p.pace * (s - FOLD.lower - FOLD.shake)), z: laneZ, heading: along, pose: 'walk', speed: p.pace, umbrella: 0 };
   }
   // Step back out from the shelter (or from wherever the run had got to) to their lane, or the pair to their spot.
-  const target: [number, number] = p.chatX !== null ? [p.chatX, laneZ] : [at.x, laneZ];
+  const target: [number, number] = talking ? [p.chatX!, laneZ] : [at.x, laneZ];
   const dist = Math.hypot(target[0] - at.x, target[1] - at.z);
   const back = dist / WALK.relaxed[1];
   if (s < back) {
     const k = s / back;
     return { x: at.x + (target[0] - at.x) * k, z: at.z + (target[1] - at.z) * k, heading: Math.atan2(target[0] - at.x, target[1] - at.z), pose: 'walk', speed: WALK.relaxed[1], umbrella: 0 };
   }
-  if (p.chatX !== null) return { x: p.chatX, z: laneZ, heading: p.index % 2 === 0 ? Math.PI / 2 : -Math.PI / 2, pose: 'chat', speed: 0, umbrella: 0 };
+  if (talking) return { x: p.chatX!, z: laneZ, heading: p.index % 2 === 0 ? Math.PI / 2 : -Math.PI / 2, pose: 'chat', speed: 0, umbrella: 0 };
   return { x: wrap(target[0] + p.dir * p.pace * (s - back)), z: laneZ, heading: along, pose: 'walk', speed: p.pace, umbrella: 0 };
 }

@@ -2,8 +2,10 @@ import { labLabel } from '../../i18n/labText';
 import { t } from '../../i18n/t';
 import { tr } from '../../i18n/locale';
 import { memo, useMemo } from 'react';
-import { exampleOf, graphKeyOf, layoutFor, type Lesson, type DiagramKind, type EdgeRoute, type GraphKey, type Side } from '../../sim/learning';
-import { lessonGraph, wireLabel, type StepTone, type Walkthrough } from '../../sim/walkthrough';
+import { exampleOf, graphKeyOf, layoutFor, type Lesson, type DiagramKind, type EdgeRoute, type GraphKey } from '../../sim/learning';
+import type { BoxSide, Pt } from '../../types/geometry';
+import { lessonGraph, wireLabel, type Walkthrough } from '../../sim/walkthrough';
+import type { StepTone } from '../../types/tour';
 import type { TokenLook } from '../../store/liveSimulation';
 import type { Outcome } from '../../types/processLearning';
 import { roundedPath } from '../../engine/plan/layout';
@@ -12,7 +14,6 @@ import { EdgeTraveller } from '../canvas/edges/EdgeTraveller';
 import { TokenShape } from '../canvas/tokens/TokenGlyph';
 import { CATEGORY_THEME, categoryOf, isOutcome, OUTCOME_THEME, WORKER_PROFILE } from '../canvas/nodeTheme';
 
-type Pt = readonly [number, number];
 
 interface Shape {
   id: string;
@@ -76,7 +77,7 @@ function edgesOf(lesson: Lesson, graphKey: GraphKey): DiagramEdge[] {
   return [...real, ...fake];
 }
 
-function portOf(s: Shape, side: Side, dx = 0, dy = 0): Pt {
+function portOf(s: Shape, side: BoxSide, dx = 0, dy = 0): Pt {
   switch (side) {
     case 'l':
       return [s.x - s.hw, s.y + dy];
@@ -89,7 +90,7 @@ function portOf(s: Shape, side: Side, dx = 0, dy = 0): Pt {
   }
 }
 
-const DIR: Record<Side, Pt> = { l: [-1, 0], r: [1, 0], t: [0, -1], b: [0, 1] };
+const DIR: Record<BoxSide, Pt> = { l: [-1, 0], r: [1, 0], t: [0, -1], b: [0, 1] };
 
 interface Drawn {
   d: string;

@@ -12,6 +12,8 @@ import { CIT_YIELD, CitRun, LOADING_BAY } from '../../../../engine/world/citRun'
 import { approachPath, citRoutes, departPath, ParkingLot } from '../../../../engine/world/parking';
 import { LENGTH } from '../../../../engine/world/vehicles';
 import { SIDEWALK, SidewalkCrowd } from '../../../../engine/world/sidewalk';
+import { CHAT_MINUTES, chatMinutes, StreetPeople } from '../../../../engine/world/streetPeople';
+import { newPavementClock, PEDESTRIANS, stepPavementClock } from '../../../../engine/world/weather';
 import { SERVED_KEEP, StaffWalks } from '../../../../engine/simulation/people';
 import { digitalBoost, generateDay } from '../../../../sim/traffic';
 import { topBandLayout, WEATHER_BAR_GAP } from '../../ViewportControls';
@@ -406,5 +408,54 @@ describe('a customer is never whisked away mid-business', () => {
       }
     }, 40);
     expect(seenAt.size).toBeGreaterThan(0);
+  });
+});
+
+describe('the pavement’s chatting pairs', () => {
+  const street = () => new StreetPeople(PEDESTRIANS, [], new SidewalkCrowd());
+  const pairs = PEDESTRIANS.filter((p) => p.chatX !== null);
+
+  it('talk for 30 to 60 of the bank’s minutes, then part and walk off, and meet again once both are back round the street', () => {
+    const s = street();
+    const clock = newPavementClock();
+    let minute = 10 * 60;
+    const talkedFor = new Map<number, number>();
+    const parted = new Set<number>();
+    const metAgain = new Set<number>();
+    for (let f = 0; f < 60 * 400; f++) {
+      stepPavementClock(clock, 1 / 30, 'clear');
+      s.step(clock, new Map(), false, 1 / 30, minute);
+      minute += 0.05;
+      for (const p of pairs) {
+        const st = s.chatState(p.index)!;
+        if (st === 'talking' && !parted.has(p.index)) talkedFor.set(p.index, minute - 10 * 60);
+        if (st === 'walking') {
+          parted.add(p.index);
+          expect(s.passers[PEDESTRIANS.indexOf(p)]!.pose).toBe('walk');
+        }
+        if (st === 'talking' && parted.has(p.index)) metAgain.add(p.index);
+      }
+    }
+    for (const p of pairs) {
+      expect(parted.has(p.index), `${p.index} parts`).toBe(true);
+      expect(talkedFor.get(p.index)!).toBeGreaterThanOrEqual(CHAT_MINUTES[0] - 0.1);
+      expect(talkedFor.get(p.index)!).toBeLessThanOrEqual(CHAT_MINUTES[1] + 0.1);
+      expect(metAgain.has(p.index), `${p.index} meets again`).toBe(true);
+    }
+    for (let m = 0; m < 20; m++) for (const pair of [0, 2]) expect(chatMinutes(pair, m)).toBeGreaterThanOrEqual(30), expect(chatMinutes(pair, m)).toBeLessThanOrEqual(60);
+  });
+
+  it('never stand talking in the rain: they run for cover, and the talk waits until it dries up', () => {
+    const s = street();
+    const clock = newPavementClock();
+    for (let f = 0; f < 120; f++) {
+      stepPavementClock(clock, 1 / 30, 'rain');
+      s.step(clock, new Map(), false, 1 / 30, 10 * 60 + f);
+    }
+    for (const p of pairs) {
+      expect(s.passers[PEDESTRIANS.indexOf(p)]!.pose).not.toBe('chat');
+      // The talk's clock did not run on through the rain.
+      expect(s.chatState(p.index)).toBe('talking');
+    }
   });
 });

@@ -1,6 +1,7 @@
 /** The Learning Hub's four lessons. */
 
 import type { BankingPayload } from '../types/processLearning';
+import type { BoxSide } from '../types/geometry';
 import { LESSON_E, LESSON_F } from './learningAcademy';
 import type { BankRules } from './rules';
 import type { PlaceId, StationId } from './topology';
@@ -25,11 +26,10 @@ export interface SyntheticNode extends DiagramPoint {
   place: PlaceId | null;
 }
 
-export type Side = 'l' | 'r' | 't' | 'b';
 
 export interface EdgeRoute {
-  fromSide?: Side;
-  toSide?: Side;
+  fromSide?: BoxSide;
+  toSide?: BoxSide;
   /** Slides where the wire leaves or arrives along the side. */
   fromDy?: number;
   toDy?: number;

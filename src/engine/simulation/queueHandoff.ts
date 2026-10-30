@@ -55,5 +55,3 @@ export class QueueHandoff {
   }
 }
 
-/** The one handoff the 3D office shares. */
-export const queueHandoff = new QueueHandoff();

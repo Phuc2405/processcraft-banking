@@ -13,11 +13,6 @@ import { liveMix } from '../../../engine/world/weather';
 
 const HW = STREET.halfWidth;
 
-/** 0 in the working day, 1 after dark: the lamps come on from 17:00 and are fully lit by 19:00. */
-export function duskAt(minute: number): number {
-  return Math.max(0, Math.min(1, (minute - 17 * 60) / 120));
-}
-
 // Paving
 
 /** Paving slabs, one world unit square, each a slightly different grey, with a dark joint round it. Four by four to a texture. */

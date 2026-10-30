@@ -18,7 +18,8 @@ import { STATUS_HEX } from './palette';
 import { cursor } from './cursor';
 import { isAutomatedNode } from '../../../sim/nodeKind';
 import { ServerRack3D } from './ServerRack3D';
-import { badgeRect, isOffShift, tipSide3d, type TipSide3d } from './focus3d';
+import { badgeRect, tipSide3d, type TipSide3d } from './focus3d';
+import { isOffShift } from '../../../engine/simulation/staff';
 import { useFocusFade } from './useFocusFade';
 import { t } from '../../../i18n/t';
 import { routingRules } from '../../../engine/plan/routingRules';
@@ -26,9 +27,7 @@ import { motion } from '../../../engine/simulation/motion';
 import { DeskLine, StaffWalks, type Served, type StaffWalk } from '../../../engine/simulation/people';
 import { usePeopleVersion, useWorld } from './WorldProvider';
 import { ACCUMULATING, badgeMode, badgePills, lodShows, useLabelLod, type LabelLod } from './labelLod';
-export { SERVED, STEP_UP_PACE } from '../../../engine/simulation/people';
 
-export { cursor } from './cursor';
 
 /** A glowing outline on the floor around a selected desk: four thin bars. */
 export function SelectionFrame({ w, d }: { w: number; d: number }) {

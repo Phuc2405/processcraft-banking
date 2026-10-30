@@ -125,9 +125,6 @@ export function accountName(id: AccountId, locale: Locale = activeLocale()): str
   return locale === 'vi' ? (GL_NAME_VI[def.code] ?? def.name) : def.name;
 }
 
-/** "1120-Customer Credit Line Hold" or "1120-Tạm khóa hạn mức thẻ tín dụng". */
-export const accountLabel = (id: AccountId, locale: Locale = activeLocale()): string => `${CHART_OF_ACCOUNTS[id].code}-${accountName(id, locale)}`;
-
 /** The name of a GL account for the chosen view. Unknown codes are returned as given. */
 export function glName(code: string, mode: TermMode, locale: Locale = activeLocale()): string {
   if (mode === 'beginner') return pick(GL_PLAIN_BOOK, locale)[code] ?? code;

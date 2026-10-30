@@ -34,8 +34,6 @@ const HOLD_ACCOUNT: Readonly<Record<FundingSource, AccountId>> = { DEBIT: 'CUST_
 /** Where a customer's money really sits once a held purchase is captured. */
 const CUSTOMER_ACCOUNT: Readonly<Record<FundingSource, AccountId>> = { DEBIT: 'CUST_CASA', CREDIT: 'CARD_RECEIVABLE', PREPAID: 'PREPAID_WALLET' };
 
-export const holdAccountFor = (source: FundingSource): AccountId => HOLD_ACCOUNT[source];
-
 /** The funding account behind a card: a virtual card is judged by the account behind it, which defaults to debit. */
 export const fundingOf = (payload: Readonly<BankingPayload>, derived: Readonly<DerivedFacts>): FundingSource =>
   derived.fundingSource ?? (payload.cardType === 'VIRTUAL_DPAN' ? 'DEBIT' : payload.cardType);

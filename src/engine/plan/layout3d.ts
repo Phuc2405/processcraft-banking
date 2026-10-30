@@ -392,18 +392,6 @@ export const customerShirt = (n: number): string => CUSTOMER_SHIRTS[Math.abs(Mat
 
 // Grid
 
-/** The line segments of the floor grid, as x/z pairs ready for a line-segments geometry (y is added by the scene). */
-export function gridSegments(width: number, depth: number, step = 1): Float32Array {
-  const xs: number[] = [];
-  const zs: number[] = [];
-  for (let x = -Math.floor(width / 2 / step) * step; x <= width / 2 + 1e-9; x += step) xs.push(Math.round(x * 1000) / 1000);
-  for (let z = -Math.floor(depth / 2 / step) * step; z <= depth / 2 + 1e-9; z += step) zs.push(Math.round(z * 1000) / 1000);
-  const out: number[] = [];
-  for (const x of xs) out.push(x, -depth / 2, x, depth / 2);
-  for (const z of zs) out.push(-width / 2, z, width / 2, z);
-  return new Float32Array(out);
-}
-
 
 // Furniture shared by the scene and the tests
 

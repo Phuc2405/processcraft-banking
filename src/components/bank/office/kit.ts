@@ -41,12 +41,6 @@ export const ball = (at: V3, r: number, color: string, scale?: V3): Part => ({ g
 /** A ring (a torus) of radius r with a round tube. */
 export const ring = (at: V3, r: number, tube: number, color: string, rot?: V3, seg = 14): Part => ({ geometry: place(new TorusGeometry(r, tube, 6, seg), at, rot), color });
 
-/** A cylinder that is only part of a circle: a rounded corner. `from` and `len` are angles in radians. */
-export const sector = (at: V3, r: number, h: number, from: number, len: number, color: string, seg = 6): Part => ({
-  geometry: place(new CylinderGeometry(r, r, h, seg, 1, false, from, len), at),
-  color,
-});
-
 /** A cord hanging between two points, sagging in the middle: the rope between two stanchions. */
 export function rope(a: V3, b: V3, sag: number, radius: number, color: string, seg = 10): Part {
   const mid = new Vector3((a[0] + b[0]) / 2, (a[1] + b[1]) / 2 - sag, (a[2] + b[2]) / 2);

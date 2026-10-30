@@ -6,7 +6,7 @@ import { tr } from '../../i18n/locale';
 import { lessonOf, processShort } from '../../sim/learningVi';
 import { isStation } from '../../sim/topology';
 import { quizzesOf } from '../../sim/walkQuiz';
-import type { StepTone } from '../../sim/walkthrough';
+import type { StepTone } from '../../types/tour';
 import { bankStore, dataDepthOf, useBankStore } from '../../store/bankStore';
 import { useWalkthroughDock } from '../../hooks/useWalkthroughDock';
 import { useMessages } from '../../utils/i18nHelper';

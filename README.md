@@ -169,7 +169,9 @@ The same bank as a daylight diorama, built from low-poly pieces with one warm pa
   who arrive walk in from the door. The faces in the queue change as people are served, so the line seems to move up. Someone
   served at a quiet counter or machine still walks up, does their business there and leaves, one at a time. On the pavement
   everyone steps round everyone else: passers-by, people getting off the bus and motorbikes, staff walking to work, and those
-  standing in the ATM lines.
+  standing in the ATM lines. The two chatting pairs talk for 30 to 60 of the bank's minutes, then part and walk a lap of the
+  street each their own way, and talk again once both are back; rain catches them wherever they are, and they run for cover
+  instead of standing about talking.
 * **Car park and cash van:** cars and motorbikes come up the lane behind the block, wait at the gate for their turn, park, and
   drive out and away down the lane again; one vehicle at a time moves in the lot itself, and drivers waiting at their cars go
   first when several are ready. The armoured **Cash Transporter (CIT)** gets its turn in and out, stops for anyone on foot in
@@ -344,6 +346,14 @@ The bank is saved in this browser at the start of each day. Keys: `processcraft:
 Concept Explorer, 2D/3D), `processcraft:v1:ui` (3D label mode, inspector width) and `processcraft:v1:view` (which half you were on). **Start over** in the clock bar asks twice. A damaged or outdated
 save is validated and ignored, never trusted.
 
+### The workspace's ledger and audit trail: two streams
+
+The Staff Roleplay Workspace's **Core ledger** and **Audit trail export** each have a filter: **All** (both side by side),
+**System only** (what the bank's own background traffic posted, as of the bank's clock now, moving on with every beat) and
+**Player only** (the journals and decisions you posted by hand, Mission 5). The exported CSV gains a Source column when the
+system's rows are in it. **Reset to opening balances** erases only your own entries: the system's simulation ledger is never
+touched (`sim/ledgerStreams.ts`).
+
 ## The Academy split view (Lessons)
 
 The **Lessons** button in the top bar opens a lesson panel beside the Living Bank (400 px, drag its edge or use the arrow keys to
@@ -467,7 +477,7 @@ Where the code uses a named pattern ([refactoring.guru catalogue](https://refact
 | Pattern | Where | Why |
 | --- | --- | --- |
 | Factory | `engine/simulation/EntityFactory.ts` | Everything that moves in the 3D world is made in one place: the fleet, the car park, the park's people, the guards at a post, the passers-by and the staff at a desk (each on the right shift schedule). `WorldEngine` takes a factory, so a test or a variant scene can hand it another. |
-| Singleton (module instance) | `simulation` (`components/bank/useSimulation.ts`), `sidewalk` (`engine/world/sidewalk.ts`), `queueHandoff`, `liveMix`, the zustand stores | One shared instance where both views must see the same state: one desk-status stream, one crowd on the pavement, one hand-off of walkers to the desks' lines, one sky. |
+| Singleton (module instance) | `simulation` (`components/bank/useSimulation.ts`), `liveMix`, the motion clock, the zustand stores | One shared instance where both views must see the same state: one desk-status stream, one sky, one clock. The pavement crowd (`SidewalkCrowd`) and the hand-off of walkers to the lines (`QueueHandoff`) belong to each `WorldEngine`, so a 3D view opened again starts with nobody left over from the last. |
 
 ### Structural
 
@@ -500,8 +510,9 @@ From Robert Nystrom's *Game Programming Patterns* and from ports-and-adapters ar
 
 | Pattern | Where | Why |
 | --- | --- | --- |
-| Game Loop / Update Method | `WorldEngine.tick` | One loop advances the motion clock (frozen on pause, scaled by speed) and updates every system in a fixed order, in small substeps (`substeps`), so a fast speed never makes anything jump and every frame is reproducible in a test. |
+| Game Loop / Update Method | `WorldEngine.tick`, `WorldEngine.systems` | One loop advances the motion clock (frozen on pause, scaled by speed) and steps every `WorldSystem` (guards, traffic, park, car park, street, people of the desks, walk-out) in that order, each handed the frame's substeps (`substeps`), so a fast speed never makes anything jump and every frame is reproducible in a test. A new system is one more entry in the list. |
 | Object Pool | `ArrivalWalks` (`MAX_WALKERS` figures), payments in flight (`Traffic.tsx` `POOL`), signal pulses | A fixed set of figures is reused, so a busy beat allocates nothing and nobody's figure is taken over mid-walk. |
+| Flyweight | `slotRoutes` (`engine/world/parking.ts`) | A car-park bay's walking and driving paths and their durations are worked out once and shared by every vehicle that uses the bay, instead of being rebuilt every substep. (Measured: the world's frames cause about one minor GC every 5 s at 10x, under 1.2 ms each, so a general object pool for vehicles or customers was not worth adding.) |
 | Dirty Flag | `version` on `ArrivalWalks`, `DeskLine`, `StaffWalks`, `walkoutVersion`; `DeskStatusFeed`'s per-desk `told` | Views redraw their structure only when something they show actually changed; per-frame motion is read straight from the engine. |
 | Event Queue | `QueueHandoff` (`engine/simulation/queueHandoff.ts`) | A walker reaching the end of a desk's line posts their arrival; the line takes them up on its next step, where they stopped (or, if their turn has already come, they walk up and are served). |
 | Service Locator | `useWorld()` (`components/bank/office/WorldProvider.tsx`) | Every view in a 3D scene finds that scene's world engine without it being passed down through every component. |
@@ -573,9 +584,33 @@ src/
   App.tsx  main.tsx  index.css
 ```
 
+## Performance: why the simulation stays on the main thread
+
+The engine was measured before deciding whether to move it into a Web Worker (headless, on the development machine): one bank beat takes about
+0.8 ms (at most 1.7 ms) and comes at most every 150 ms even at 10x; one frame of the 3D world takes 0.04 ms at 1x and 0.12 ms at 10x
+(0.48 ms at the 99th percentile), against 16.7 ms a frame at 60 fps. The simulation is well under 3% of a frame; three.js drawing
+is the cost. A worker would add more than it saves: the bank's view (about 160 KB) would be copied across every beat (0.7 ms, as
+long as the beat itself), and the scene's many `useFrame` readers, which read the engine's state synchronously, would draw from a
+copy a frame behind. Going back on the time bar replays the day (100-150 ms), but only on release or a key press, never while
+dragging. So the engine stays on the main thread, stepped once a frame by `WorldTicker`, on a canvas drawn on demand.
+
 ## Tests
 
-`npm test` runs 92 files with 1774 tests. The table below lists the original suites; the 3D office, the engine and its
+`npm test` runs 94 files with 1801 tests, quietly (a dot a test, full diffs only for failures). The engine's invariants are
+property-based (`src/engine/__tests__/properties.test.ts`, fast-check), checked over any seed, day, time of day, speed and
+frame timing rather than a few hand-picked cases:
+
+* **Conservation:** customers (entered = served + still in the bank, `customersInFlight()`; everyone served was approved or
+  declined), payment tokens (each payment and record in one place only, never duplicated or lost: `packetsInFlight()`), money
+  (debits equal credits after every beat, every posting a whole positive amount, the trial balance adding up), car-park bays,
+  and the 3D world's people (each walker on its own figure, each served customer once, the hand-off never below zero).
+* **Bounds:** queues, desk counts, staff, KPIs (all but profit and loss) and the world's counts never go below zero, and the
+  world never shows more people than it has places for.
+* **Timing and motion:** substeps add back up to the frame, the motion clock runs at the speed asked and freezes on pause, no
+  two vehicles touch, the car park moves one vehicle at a time, the cash van and a walker never wait for each other.
+* **Badges:** none ever shows a 0, and one shows on its own exactly when its desk has something active.
+
+The table below lists the original suites; the 3D office, the engine and its
 patterns have their own under `src/components/bank/office/__tests__` (`engine`, `people`, `patterns`, `street3d`, ...).
 
 | Area | Files (tests) | Covers |

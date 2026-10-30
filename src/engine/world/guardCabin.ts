@@ -44,7 +44,6 @@ export const FRONT_POST: V2 = [MAIN_GATE.x - MAIN_GATE.width / 2 - 0.25, STREET.
 export const BEAT_END: V2 = [MAIN_GATE.x + MAIN_GATE.width / 2 + 0.6, STREET.z0 + 1.55];
 const FRONT_CABIN: Cabin = { ...GUARD_CABIN, door: 1 };
 const FRONT_ROUTES = cabinRoutes(FRONT_CABIN, FRONT_POST);
-export const CABIN_IN: V2 = FRONT_ROUTES.inside;
 /** The cabin's door: in the middle of its side towards the entrance. */
 export const CABIN_DOOR: V2 = FRONT_ROUTES.door;
 

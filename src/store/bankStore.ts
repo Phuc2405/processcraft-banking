@@ -13,6 +13,7 @@ import type { TermMode } from '../sim/terms';
 import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
 import type { BankView, Customer, PacketTrace } from '../sim/types';
+import type { QuizAnswer } from '../types/tour';
 import { addToTally, advanceIncident, buildTaskCase, caseJournal, CHALLENGE, clampCrisisBatch, CRISIS_BATCH, crisisJournalLines, crisisOver, comboXp, STAFF_XP_PER_CORRECT, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, openingLedger, postJournal, recordCareerDecision, rollCrisis, roleForStation, ROLE_STATION, startIncident, type ActiveIncident, type IncidentId, type BadgeId, type CareerProgress, type ChallengeTally, type LedgerLine, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffTaskNo, workingTask } from '../sim/staffRoleplay';
 import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
@@ -42,10 +43,6 @@ export interface BankNotice {
 export type ComparisonStatus = 'idle' | 'running' | 'done';
 
 /** What the learner answered at a decision gateway: which option, and whether it was the right one. */
-export interface QuizAnswer {
-  picked: number;
-  correct: boolean;
-}
 
 /** Learn & Explore: a guided tour of one chapter, on the 2D map or in the 3D office (whichever the learner is looking at, and they may switch between the two mid-tour). */
 export interface SpotlightState {
@@ -1186,6 +1183,8 @@ export const dataDepthOf = (s: Pick<BankState, 'termMode'>): DataDepth => (s.ter
 /** The guided flow in focus: only in the Beginner scope, and never while a chapter tour has the map. */
 /** Whether a tour's kickoff card (its briefing, before "Start the tour") is open: the floating dock and the weather bar stand aside for it, and come back the moment the tour starts. */
 export const kickoffOpenOf = (s: Pick<BankState, 'spotlight'>): boolean => s.spotlight?.intro === true;
+/** Whether the floating dock and the weather bar stand aside: for a tour's kickoff card, and for the day's report. */
+export const floatingBarsHiddenOf = (s: Pick<BankState, 'spotlight' | 'reportOpen'>): boolean => kickoffOpenOf(s) || s.reportOpen;
 export const activeFlowOf = (s: Pick<BankState, 'scope' | 'flow' | 'spotlight'>): FlowId | null => (s.scope === 'beginner' && !s.spotlight ? s.flow : null);
 
 /** The node the Academy is teaching, if it should show. */

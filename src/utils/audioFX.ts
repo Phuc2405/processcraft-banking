@@ -46,8 +46,6 @@ export function setAudioEnabled(on: boolean): void {
   if (!on && ctx && ctx.state === 'running') void ctx.suspend().catch(() => undefined);
 }
 
-export const audioEnabled = (): boolean => enabled;
-
 /** One oscillator with an attack-decay envelope, starting `at` seconds from now. */
 function tone(c: AudioContext, opts: { type: OscillatorType; freq: number; at: number; dur: number; gain: number; endFreq?: number }): void {
   const t0 = c.currentTime + opts.at;
@@ -171,10 +169,6 @@ export function play(name: SoundName, nowMs: number = Date.now()): boolean {
   }
   return true;
 }
-
-export const playSuccessSFX = (): boolean => play('comboSuccess');
-export const playComboSFX = (): boolean => play('comboUp');
-export const playErrorSFX = (): boolean => play('sopError');
 
 /** The sound for one review decision given the streak after it. Pure, for tests. */
 export function reviewSound(correct: boolean, comboAfter: number): SoundName {

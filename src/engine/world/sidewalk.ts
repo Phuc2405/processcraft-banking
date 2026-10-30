@@ -105,5 +105,3 @@ export class SidewalkCrowd {
   }
 }
 
-/** The one crowd every walker on the pavement in the 3D office shares. */
-export const sidewalk = new SidewalkCrowd();

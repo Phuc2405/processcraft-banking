@@ -4,9 +4,10 @@ import { useStore } from 'zustand';
 import { createStore } from 'zustand/vanilla';
 import { flowText, GUIDED_FLOWS } from '../../sim/guidedFlows';
 import { FLOW_IDS, type Dimension, type FlowId, type Scope } from '../../types/viewport';
-import { dataDepthOf, kickoffOpenOf, useBankStore } from '../../store/bankStore';
+import { dataDepthOf, floatingBarsHiddenOf, useBankStore } from '../../store/bankStore';
 import { webglAvailable } from './office/webgl';
 import { DepthToggle, SegmentedToggle, type SegmentOption } from '../shell/SegmentedToggle';
+import type { ScreenRect } from '../../types/geometry';
 
 /** The viewport dock, floating at the top centre of the Living Bank (clear of the walkthrough card, which is placed beside the desk it explains). */
 
@@ -69,8 +70,8 @@ function ViewportControlsView() {
   const dimension = useBankStore((s) => s.viewMode);
   const depth = useBankStore(dataDepthOf);
   const touring = useBankStore((s) => s.spotlight !== null);
-  // While a tour's kickoff card is open the dock stands aside; it is back as soon as the tour starts, to switch views during its steps.
-  const kickoff = useBankStore(kickoffOpenOf);
+  // While a tour's kickoff card or the day's report is open the dock stands aside; it is back as soon as the tour starts (to switch views during its steps) or the report closes.
+  const kickoff = useBankStore(floatingBarsHiddenOf);
   const setScope = useBankStore((s) => s.setScope);
   const setDimension = useBankStore((s) => s.setDimension);
   const setDepth = useBankStore((s) => s.setDataDepth);
@@ -129,12 +130,7 @@ export function useMapCentre(): string {
 }
 
 /** A floating panel's box on the map, in pixels from the map's top-left corner. */
-export interface MapBox {
-  left: number;
-  right: number;
-  top: number;
-  bottom: number;
-}
+export type MapBox = ScreenRect;
 
 /** What floats along the top of the map, as measured on screen: the viewport dock (with its flow bar), the 3D office's toolbar and its weather bar. Each panel reports its own box, so the others can keep clear of it whatever its language, the flow bar's rows or the width of the window. */
 export interface TopBand {

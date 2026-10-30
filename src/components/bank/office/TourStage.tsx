@@ -5,8 +5,10 @@ import type { PlaceId } from '../../../sim/topology';
 import { prefersReducedMotion } from '../../canvas/timing';
 import { useSpotlightFocus, type Focus } from '../useSpotlight';
 import { roundedRect, roundedRectPath } from './kit';
-import { publishTourScreen, type ScreenRect } from './tourBridge';
-import { frameFocus, framedPlaces, MAX_POOLS, placeFootprint, placeXZ, pointAlongPath, pathLength, poolPlaces, TOKEN_HEIGHT, tourPath, tourTravelMs, type CamFocus } from './tour3d';
+import { publishTourScreen } from './tourBridge';
+import type { ScreenRect } from '../../../types/geometry';
+import { frameFocus, framedPlaces, MAX_POOLS, placeFootprint, placeXZ, poolPlaces, TOKEN_HEIGHT, tourPath, tourTravelMs, type CamFocus } from './tour3d';
+import { pointAlongPath, pathLength } from '../../../engine/plan/path';
 import type { V2 } from '../../../engine/plan/layout3d';
 
 /** The 3D half of a guided tour (the words are the same StepCard the 2D map uses, laid over the canvas by Office3D). */

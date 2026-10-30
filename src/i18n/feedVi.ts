@@ -1,10 +1,10 @@
 /** The Living Bank's feed, alerts and desk activity lines in Vietnamese. */
 
 import { activeLocale } from './localeCore';
+import type { Rule } from './notesVi';
 import { localizeScenarioText } from '../sim/scenarios';
 import { dayScenarios } from './dayScenarios';
 
-type Rule = readonly [RegExp, (m: RegExpExecArray) => string];
 
 /** "☕ Corner Cafe Tap ($4.50)" → "☕ Chạm thẻ ở quán cà phê ($4.50)". Longest name first, and it never leaves a half-translated name. */
 const scenarios = (text: string): string => localizeScenarioText(text, 'vi');

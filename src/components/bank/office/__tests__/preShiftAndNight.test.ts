@@ -6,12 +6,12 @@ import { STATION_IDS, STATIONS } from '../../../../sim/topology';
 import { isAutomatedNode } from '../../../../sim/nodeKind';
 import { isNightStation } from '../../../../sim/roster';
 import { atmosphereAt } from '../../../../engine/world/atmosphere';
-import { ARRIVE_SPEED, arriveRoute, arrivalMinute, STAFF_ARRIVAL } from '../focus3d';
+import { ARRIVE_SPEED, arriveRoute, arrivalMinute, STAFF_ARRIVAL } from '../../../../engine/simulation/staff';
 import { deskPose, seatOffsets } from '../../../../engine/plan/layout3d';
 import { exitRoute, PARK_MEMBERS, wantsPark } from '../../../../engine/world/parkLife';
 import { PARK_BENCHES, PARK_LAMPS, PICNIC } from '../../../../engine/world/parkPlan';
 import { QueueHandoff } from '../../../../engine/simulation/queueHandoff';
-import { pathLength, pointAlongPath } from '../tour3d';
+import { pathLength, pointAlongPath } from '../../../../engine/plan/path';
 import { BUS_STOP, OVERHANG, PAVEMENT, underCover } from '../../../../engine/world/weather';
 
 const read = (rel: string): string => readFileSync(join(__dirname, rel), 'utf8');

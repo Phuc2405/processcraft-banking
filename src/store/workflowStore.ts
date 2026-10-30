@@ -56,7 +56,6 @@ import {
 } from './graphConversion';
 
 // The animation layer's types live beside the code that derives them. Components import them from here.
-export { deriveActiveTokens, deriveEdgeTraffic, deriveNodeRuntime, IDLE_RUNTIME } from './liveSimulation';
 export type { ActiveToken, EdgeTraffic, NodeAlarm, NodeRunStatus, NodeRuntime, TokenChip, TokenLook } from './liveSimulation';
 
 // Public types

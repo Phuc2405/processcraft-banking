@@ -10,9 +10,9 @@ import { graphKeyOf, layoutFor, LESSONS, stepTextFor, type DiagramKind, type Gra
 import { buildGraphs, decidingPath, planCheckout, planSettlement, runGraph, taskPlace } from './processes';
 import { clampRules, DEFAULT_RULES, type BankRules } from './rules';
 import type { PlaceId } from './topology';
+import type { StepTone } from '../types/tour';
 import type { CheckoutKind, Customer } from './types';
 
-export type StepTone = 'neutral' | 'good' | 'bad' | 'warn';
 
 export interface WalkFact {
   label: string;
