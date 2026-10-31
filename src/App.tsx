@@ -95,12 +95,13 @@ function TopBar({ view, onView }: { view: View; onView: (v: View) => void }) {
     { id: 'lab', label: tr({ en: 'Build Lab', vi: 'Phòng dựng quy trình' }), hint: tr({ en: 'Build each process yourself from the parts and get graded', vi: 'Tự dựng từng quy trình từ các thành phần và được chấm điểm' }) },
   ];
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-slate-800 bg-slate-950 px-4">
+    <header className="flex h-12 w-full shrink-0 flex-row flex-nowrap items-center justify-between gap-1.5 whitespace-nowrap border-b border-slate-800 bg-slate-950 px-3 [&>*]:shrink-0 [&_button]:whitespace-nowrap">
       <div className="flex items-center gap-2">
         <span className="grid h-7 w-7 place-items-center rounded-md bg-gradient-to-br from-lime-300 to-sky-500 text-[13px] font-black text-slate-950" aria-hidden="true">
           P
         </span>
-        <h1 className="text-[14px] font-semibold tracking-tight text-slate-100">
+        {/* Narrower windows keep the logo: the name gives its room to the controls. */}
+        <h1 className="text-[14px] font-semibold tracking-tight text-slate-100 max-[1639px]:sr-only">
           ProcessCraft <span className="font-normal text-slate-400">Banking</span>
         </h1>
       </div>
@@ -113,7 +114,7 @@ function TopBar({ view, onView }: { view: View; onView: (v: View) => void }) {
             aria-current={view === t.id ? 'page' : undefined}
             title={t.hint}
             data-testid={`tab-${t.id}`}
-            className={`rounded-md px-3.5 py-1.5 text-[12.5px] font-semibold transition ${view === t.id ? 'bg-slate-800 text-slate-50' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`}
+            className={`rounded-md px-2 py-1 text-[12.5px] font-semibold transition ${view === t.id ? 'bg-slate-800 text-slate-50' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`}
           >
             {t.label}
           </button>
@@ -122,8 +123,7 @@ function TopBar({ view, onView }: { view: View; onView: (v: View) => void }) {
       <SwitchModeButton />
       <SearchBar onBeforeGo={() => view !== 'bank' && onView('bank')} />
       <KnowledgeShortcuts />
-      <div className="flex-1" />
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         {view === 'bank' && <AcademySplitToggle />}
         {view === 'bank' && <AcademyButton />}
         {view === 'bank' && <AmlButton />}

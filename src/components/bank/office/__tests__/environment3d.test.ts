@@ -423,7 +423,7 @@ describe('the 3D view shares the 2D map’s overlays', () => {
   const src = import.meta.glob(['../Office3D.tsx', '../Desk3D.tsx'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 
   it('puts the shared legend in the top-right corner, and replaces the white backdrop with the sky', () => {
-    expect(src['../Office3D.tsx']).toContain('<MapLegend top={dockInset + 12} right={legendRight} />');
+    expect(src['../Office3D.tsx']).toContain('<MapLegend top={legendTop} right={legendRight} />');
     expect(src['../Office3D.tsx']).toContain('<SkyBackdrop />');
     expect(src['../Office3D.tsx']).not.toContain('#fdf6e8');
   });

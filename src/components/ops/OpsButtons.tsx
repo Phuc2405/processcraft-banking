@@ -12,10 +12,10 @@ export function AmlButton() {
       onClick={() => uiStore.getState().toggle('aml')}
       data-testid="aml-button"
       title={tr({ en: 'AML / SAR compliance desk', vi: 'Bàn tuân thủ AML / SAR' })}
-      className="flex items-center gap-1.5 whitespace-nowrap rounded-md bg-slate-900 px-2.5 py-1.5 text-[12px] font-semibold text-slate-200 ring-1 ring-slate-700 transition hover:bg-slate-800"
+      className="flex items-center gap-1.5 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[12px] font-semibold text-slate-200 ring-1 ring-slate-700 transition hover:bg-slate-800"
     >
       <span aria-hidden="true">🛡️</span>
-      AML
+      <span className="max-[1439px]:sr-only">AML</span>
     </button>
   );
 }
@@ -28,10 +28,10 @@ export function BenchmarkButton() {
       onClick={() => uiStore.getState().toggle('benchmark')}
       data-testid="benchmark-button"
       title={tr({ en: 'Compare card schemes, instant A2A and BNPL', vi: 'So sánh thẻ, A2A tức thì và BNPL' })}
-      className="flex items-center gap-1.5 whitespace-nowrap rounded-md bg-slate-900 px-2.5 py-1.5 text-[12px] font-semibold text-slate-200 ring-1 ring-slate-700 transition hover:bg-slate-800"
+      className="flex items-center gap-1.5 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[12px] font-semibold text-slate-200 ring-1 ring-slate-700 transition hover:bg-slate-800"
     >
       <span aria-hidden="true">📊</span>
-      {tr({ en: 'Rails', vi: 'Kênh TT' })}
+      <span className="max-[1439px]:sr-only">{tr({ en: 'Rails', vi: 'Kênh TT' })}</span>
     </button>
   );
 }
@@ -51,7 +51,7 @@ export function ChaosButton() {
       <span aria-hidden="true" className={active ? 'motion-safe:animate-pulse' : ''}>
         🐒
       </span>
-      {tr({ en: 'Chaos', vi: 'Sự cố' })}
+      <span className="max-[1439px]:sr-only">{tr({ en: 'Chaos', vi: 'Sự cố' })}</span>
     </button>
   );
 }

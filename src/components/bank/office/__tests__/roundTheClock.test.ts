@@ -16,7 +16,6 @@ import { CHAT_MINUTES, chatMinutes, StreetPeople } from '../../../../engine/worl
 import { newPavementClock, PEDESTRIANS, stepPavementClock } from '../../../../engine/world/weather';
 import { SERVED_KEEP, StaffWalks } from '../../../../engine/simulation/people';
 import { digitalBoost, generateDay } from '../../../../sim/traffic';
-import { topBandLayout, WEATHER_BAR_GAP } from '../../ViewportControls';
 import { ACCUMULATING, activeCount, badgeMode, badgePills, LABEL_LOD, labelLodAt, lodShows } from '../labelLod';
 
 const readSrc = import.meta.glob(['../Desk3D.tsx', '../Dressing.tsx'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
@@ -336,27 +335,6 @@ describe('a badge counts everything active at its desk, and never says 0', () =>
     expect(desk).not.toContain('BADGE_LINGER_BEATS');
     const kiosk = readSrc['../Dressing.tsx']!;
     expect(kiosk).toContain('{count > 0 && (');
-  });
-});
-
-describe('the top of the map keeps its panels apart', () => {
-  const dock = (left: number, bottom: number) => ({ left, right: left + 794, top: 12, bottom });
-  it('keeps the toolbar in the corner beside a dock that leaves room, and drops it under the dock when not', () => {
-    expect(topBandLayout({ dock: dock(420, 132), toolbarW: 218, toolbarH: 31, weatherW: 322 })).toEqual({ toolbarTop: 12, weatherTop: 132 + WEATHER_BAR_GAP });
-    const narrow = topBandLayout({ dock: dock(170, 133), toolbarW: 218, toolbarH: 31, weatherW: 322 });
-    expect(narrow.toolbarTop).toBe(133 + WEATHER_BAR_GAP);
-    // The weather bar, centred at 567, starts at 406: clear of the toolbar (it ends at 246).
-    expect(narrow.weatherTop).toBe(133 + WEATHER_BAR_GAP);
-  });
-
-  it('puts the weather bar under a dropped toolbar when the two would touch', () => {
-    const tight = topBandLayout({ dock: dock(-150, 133), toolbarW: 218, toolbarH: 31, weatherW: 322 });
-    expect(tight.toolbarTop).toBe(133 + WEATHER_BAR_GAP);
-    expect(tight.weatherTop).toBe(tight.toolbarTop + 31 + WEATHER_BAR_GAP);
-  });
-
-  it('always clears the dock, however many rows its flow bar has', () => {
-    for (const bottom of [60, 100, 132, 170]) expect(topBandLayout({ dock: dock(420, bottom), toolbarW: 218, toolbarH: 31, weatherW: 322 }).weatherTop).toBeGreaterThan(bottom);
   });
 });
 

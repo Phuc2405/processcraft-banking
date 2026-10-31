@@ -25,7 +25,7 @@ export const VI_DICTIONARY: Readonly<Record<string, string>> = {
   "Advanced": "Nâng cao",
   "Sub-process": "Quy trình con",
   "Full process": "Toàn bộ",
-  "One isolated sub-flow at a time (pick 01-08): only its desks, wires and conditions stay lit, the rest fades back": "Từng phân đoạn quy trình con riêng biệt (chọn 01-08): chỉ quầy, đường nối và điều kiện của nó sáng rõ, phần còn lại mờ đi",
+  "One isolated sub-flow at a time (pick one from the menu): only its desks, wires and conditions stay lit, the rest fades back": "Từng phân đoạn quy trình con riêng biệt (chọn trong menu): chỉ quầy, đường nối và điều kiện của nó sáng rõ, phần còn lại mờ đi",
   "The full end-to-end bank: every desk, wire and condition lit": "Sơ đồ vận hành toàn bộ ngân hàng, từ đầu đến cuối: mọi quầy, đường nối và điều kiện đều sáng",
   "Switch between an isolated sub-process view (Sub-process) and the full end-to-end operating map (Full process)": "Chuyển đổi giữa góc nhìn phân đoạn quy trình con (Sub-process) và sơ đồ vận hành toàn bộ (Full process)",
   "After hours · queues drain": "Ngoài giờ · xử lý nốt hàng chờ",

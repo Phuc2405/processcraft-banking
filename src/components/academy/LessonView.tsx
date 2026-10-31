@@ -1,3 +1,4 @@
+import { ChapterArticles } from './ChapterArticles';
 import { useId, useMemo, useState, type ReactNode } from 'react';
 import { tr, useLocale } from '../../i18n/locale';
 import { chapterById, localChapter, localLevel, nextLevel, type AcademyLevel, type EdgeCase } from '../../sim/academyCatalog';
@@ -250,6 +251,9 @@ export function LessonView({ level: raw, roomy = false, viewLevel }: { level: Ac
               ? tr({ en: 'Complete chapter & continue', vi: 'Hoàn thành chương & tiếp tục' })
               : tr({ en: 'Mark complete & next', vi: 'Hoàn thành & bài tiếp' })}
         </button>
+      </div>
+      <div className="mt-3">
+        <ChapterArticles chapter={level.chapter} />
       </div>
     </article>
   );

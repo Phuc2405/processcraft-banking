@@ -11,17 +11,21 @@ import type { AccountId } from '../types/processLearning';
 import { useBankStore } from '../store/bankStore';
 import { CORE_LEDGER_ARTICLE, isIntermediate } from '../data/knowledgeBase';
 import { AML_ARTICLE } from '../data/amlKnowledge';
-import { RETAIL_GUIDES } from '../data/retailKnowledge';
+import { RETAIL_TOPICS } from '../data/retailKnowledge';
+import { TOPIC_MODULES } from '../data/retailTopicModules';
 import { pick } from '../i18n/locale';
 import { GL_ACCOUNTS } from '../sim/staffRoleplay';
+import { lessonSearchText, opsLessonAnchor, OPS_FLASHCARDS, OPS_LESSONS, OPS_QUIZ } from '../data/retailOpsKnowledge';
+import { coreCodeOf, OPS_ACCOUNTS, OPS_ACTIONS, OPS_SUB_CHAPTER, OPS_SUBPROCESSES, opsFlowOf, opsSubProcess, type OpsActionId, type OpsSubProcessId } from '../sim/retailOps';
+import type { ChapterId } from '../sim/academyCatalog';
 import { message } from '../utils/i18nHelper';
 import { analystWorkspaceMessages, type AnalystWorkspaceKey } from '../components/bank/analystWorkspace.messages';
 import { glossaryTerms, glPlain } from '../components/bank/codeGlossary';
 
-export type SearchCategory = 'station' | 'lesson' | 'gl' | 'kb';
+export type SearchCategory = 'station' | 'lesson' | 'gl' | 'kb' | 'ops';
 
 /** `knowledge` opens the Knowledge Base at an anchor: a section id, `gl-<ID>` for a ledger account or `term-<KEY>` for an acronym. */
-export type SearchAction = { kind: 'place'; place: PlaceId } | { kind: 'lesson'; level: LevelId } | { kind: 'knowledge'; anchor: string };
+export type SearchAction = { kind: 'place'; place: PlaceId } | { kind: 'lesson'; level: LevelId } | { kind: 'knowledge'; anchor: string } | { kind: 'sub'; sub: OpsSubProcessId } | { kind: 'opsAction'; action: OpsActionId } | { kind: 'quiz'; chapter: ChapterId };
 
 export interface SearchEntry {
   id: string;
@@ -36,7 +40,7 @@ export interface SearchEntry {
 
 export type SearchGroups = Record<SearchCategory, SearchEntry[]>;
 
-export const SEARCH_CATEGORIES: readonly SearchCategory[] = ['station', 'lesson', 'gl', 'kb'];
+export const SEARCH_CATEGORIES: readonly SearchCategory[] = ['station', 'lesson', 'gl', 'kb', 'ops'];
 export const SEARCH_LIMIT = 6;
 
 // The desk on the map where each GL account is posted.
@@ -144,7 +148,7 @@ export function buildSearchIndex(mode: TermMode, locale: Locale = activeLocale()
       action: { kind: 'place', place: GL_PLACE[id] },
     });
   }
-  out.push(...knowledgeEntries(locale));
+  out.push(...knowledgeEntries(locale), ...retailOpsEntries(locale));
   return out;
 }
 
@@ -197,13 +201,13 @@ export function knowledgeEntries(locale: Locale): SearchEntry[] {
     });
   }
   const aw = (key: string, l: Locale): string => message(analystWorkspaceMessages, key as AnalystWorkspaceKey, undefined, l);
-  for (const g of RETAIL_GUIDES) {
+  for (const g of RETAIL_TOPICS) {
     out.push({
       id: `kb:section:${g.id}`,
       category: 'kb',
       label: pick(g.title, locale),
       detail: pick(g.intro, locale),
-      keys: fold([...LOCALES_BOTH.map((l) => pick(g.title, l)), ...g.keywords].join(' | ')),
+      keys: fold([...LOCALES_BOTH.map((l) => pick(g.title, l)), ...g.keywords, ...(TOPIC_MODULES[g.id] ?? []).flatMap((mod) => [...mod.keywords, ...mod.iso.map((i) => i.message), ...mod.rules.flatMap((r) => [r.source.en, r.source.vi])])].join(' | ')),
       action: { kind: 'knowledge', anchor: g.id },
     });
     // Each scenario's SOP: found by its title or by any of its steps, in either language.
@@ -244,6 +248,35 @@ export function knowledgeEntries(locale: Locale): SearchEntry[] {
   return out;
 }
 
+/**
+ * The Phase 1/4 retail operations: each sub-process (which lights its guided flow), demo action (which runs it), account of its
+ * book, lesson, flashcard and quiz question.
+ */
+export function retailOpsEntries(locale: Locale): SearchEntry[] {
+  const out: SearchEntry[] = [];
+  const both = (v: { en: string; vi: string }): string => `${v.en} | ${v.vi}`;
+  for (const s of OPS_SUBPROCESSES) {
+    out.push({ id: `ops:sub:${s.id}`, category: 'ops', label: pick(s.title, locale), detail: pick({ en: 'Sub-process: highlight its path', vi: 'Quy trình con: làm nổi đường đi' }, locale), keys: fold(both(s.title)), action: { kind: 'sub', sub: s.id } });
+  }
+  for (const a of OPS_ACTIONS) {
+    out.push({ id: `ops:action:${a.id}`, category: 'ops', label: `${a.icon} ${pick(a.label, locale)}`, detail: pick(a.hint, locale), keys: fold([both(a.label), both(a.hint), `flow ${opsFlowOf(a)}`, both(opsSubProcess(a.sub).title)].join(' | ')), action: { kind: 'opsAction', action: a.id } });
+  }
+  for (const acc of OPS_ACCOUNTS) {
+    out.push({ id: `ops:gl:${acc.id}`, category: 'ops', label: `${acc.code} ${pick(acc.name, locale)}`, detail: pick(acc.plain, locale), keys: fold([acc.code, `tk ${acc.code}`, acc.id.replace(/_/g, ' '), both(acc.name), both(acc.plain), coreCodeOf(acc.id)].join(' | ')), action: { kind: 'knowledge', anchor: `retail-ops-gl-${acc.id}` } });
+  }
+  for (const l of OPS_LESSONS) {
+    const title = opsSubProcess(l.sub).title;
+    out.push({ id: `ops:lesson:${l.sub}`, category: 'ops', label: `📖 ${pick(title, locale)}`, detail: pick(l.summary, locale), keys: fold([both(title), lessonSearchText(l)].join(' | ')), action: { kind: 'knowledge', anchor: opsLessonAnchor(l.sub) } });
+  }
+  for (const c of OPS_FLASHCARDS) {
+    out.push({ id: `ops:flash:${c.id}`, category: 'ops', label: `🃏 ${pick(c.front, locale)}`, detail: pick(c.rule, locale), keys: fold([both(c.front), both(c.rule), both(c.reference), 'flashcard the ghi nho'].join(' | ')), action: { kind: 'knowledge', anchor: `flash-${c.id}` } });
+  }
+  for (const q of OPS_QUIZ) {
+    out.push({ id: `ops:quiz:${q.id}`, category: 'ops', label: `❓ ${pick(q.question, locale)}`, detail: pick(opsSubProcess(q.sub).title, locale), keys: fold([both(q.question), ...q.options.map((o) => both(o.text)), 'quiz trac nghiem'].join(' | ')), action: { kind: 'quiz', chapter: OPS_SUB_CHAPTER[q.sub] } });
+  }
+  return out;
+}
+
 /** 0 = no match; higher is better. */
 export function scoreEntry(e: SearchEntry, q: string): number {
   const label = fold(e.label);
@@ -267,8 +300,8 @@ const GL_PREFIX = /^(?:gl|tk|so tk|tai khoan|so hieu|so hieu tk|account|acct|acc
 export const glCodeQuery = (folded: string): string => GL_PREFIX.exec(folded)?.[1] ?? folded;
 
 export function searchIndex(index: readonly SearchEntry[], query: string, limit: number = SEARCH_LIMIT): SearchResult {
-  const groups: SearchGroups = { station: [], lesson: [], gl: [], kb: [] };
-  const best: Record<SearchCategory, number> = { station: 0, lesson: 0, gl: 0, kb: 0 };
+  const groups: SearchGroups = { station: [], lesson: [], gl: [], kb: [], ops: [] };
+  const best: Record<SearchCategory, number> = { station: 0, lesson: 0, gl: 0, kb: 0, ops: 0 };
   const q = glCodeQuery(fold(query));
   if (!q) return { groups, order: [] };
   const numeric = /^\d+$/.test(q);
@@ -276,7 +309,7 @@ export function searchIndex(index: readonly SearchEntry[], query: string, limit:
     .map((e, i) => {
       const base = scoreEntry(e, q);
       // A bare number is a GL code first: the core ledger's account (Knowledge Base) ahead of the map's posting desk.
-      return { e, i, s: base > 0 && numeric && (e.category === 'gl' || e.category === 'kb') ? base + (e.category === 'kb' ? 6 : 5) : base };
+      return { e, i, s: base > 0 && numeric && (e.category === 'gl' || e.category === 'kb' || e.category === 'ops') ? base + (e.category === 'kb' ? 6 : e.category === 'gl' ? 5 : 4) : base };
     })
     .filter((r) => r.s > 0)
     .sort((a, b) => b.s - a.s || a.i - b.i);

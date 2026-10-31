@@ -533,20 +533,19 @@ describe('a desk’s description keeps clear of its own badges', () => {
 });
 
 describe('the 3D toolbar', () => {
-  it('keeps Reset view and Labels in one row in the top-left corner, whatever panel is open', () => {
+  it('groups the menu with the time, weather and view controls in one centred row', () => {
     const office = src['../Office3D.tsx']!;
-    expect(office).toContain("export const TOOLBAR_CLASS = 'absolute left-4 top-3 z-40 flex flex-row flex-nowrap items-center gap-1.5';");
+    expect(office).toContain("export const TOOLBAR_CLASS = 'pointer-events-none absolute left-0 z-[45] flex w-full flex-row flex-nowrap items-center justify-center gap-3 px-2';");
+    expect(office).not.toContain('ml-auto flex shrink-0 flex-nowrap');
+    expect(office).toContain('<SubProcessMenu />');
+    expect(office).toContain('data-testid="office-toolbar-right"');
+    expect(office).toContain('<WeatherControls compact={tight} />');
     expect(office).not.toContain("top-[108px]");
   });
 
-  it('puts the time and the weather in their own bar under the viewport dock, over the banners and cards of the map but under the modals', () => {
+  it('opens the weather list through the shared popover, and starts the banner under the row', () => {
     const office = src['../Office3D.tsx']!;
-    // Placed from what the top of the map measures (topBandLayout): under the dock, whatever its rows, and under a dropped toolbar.
-    expect(office).toContain('<WeatherBar compact={splitOpen} top={band.weatherTop} />');
-    expect(office).toContain('style={{ top: band.toolbarTop }}');
-    expect(office).toContain('const left = useMapCentre();');
-    // Above the day banner, the walkthrough cards and the inspector (z-40); under every modal (z-50 and up).
-    expect(office).toContain("WEATHER_BAR_CLASS = 'pointer-events-auto absolute z-[45]");
+    expect(office).toContain('<AdaptivePopover anchor={trigger}');
     // The day's banner starts under it in 3D.
     const banner = src['../../DayIntroBanner.tsx']!;
     expect(banner).toContain('const belowDock = useBelowDock();');

@@ -7,6 +7,7 @@ import { everyTransactionBalances } from '../../engine/ledger';
 import { formatClock } from '../../sim/clock';
 import { useBankStore } from '../../store/bankStore';
 import { batchesFrom, LedgerView, type LedgerBatch } from '../ledger/LedgerView';
+import { useBelowDock, useRightInset, useTopBand } from './ViewportControls';
 
 /** The amount a batch owes the merchant side (credits to 2110): what a chargeback would reverse. 0 when it is not a card purchase. */
 export const disputableCents = (batch: LedgerBatch): number =>
@@ -72,12 +73,14 @@ const minuteOf = (timestamp: number): number => Math.round((timestamp % 86_400_0
 export function LedgerDrawer() {
   const open = useBankStore((s) => s.ledgerOpen);
   const touring = useBankStore((s) => s.spotlight !== null);
-  // The inspector floats over the right edge: the ledger keeps clear of it instead of hiding behind it.
-  const inspecting = useBankStore((s) => s.selection.kind !== 'none');
-  const inspectorWidth = useBankStore((s) => s.inspectorWidth);
+  // The inspector and the zoom toolbar float over the right edge: the ledger keeps clear of them instead of hiding behind them.
+  const rightInset = useRightInset();
+  const belowDock = useBelowDock();
   const close = useBankStore((s) => s.closeLedger);
   const ledger = useBankStore((s) => s.view.ledger);
   const ui = ledgerUi().bank;
+  const dockHeight = useTopBand((s) => (s.demoDock ? s.demoDock.bottom - s.demoDock.top : 0));
+  const bottom = dockHeight ? dockHeight + 8 : 12;
 
   const batches = useMemo<LedgerBatch[]>(() => {
     // `recent` is newest first; group it oldest first so each payment's lines read in the order they were posted, then flip the payments.
@@ -97,9 +100,9 @@ export function LedgerDrawer() {
 
   return (
     <aside
-      // Beside the inspector, whatever width the learner has dragged it to.
-      style={{ right: inspecting ? inspectorWidth + 12 : 12 }}
-      className={`absolute bottom-3 left-3 z-20 flex max-h-[62%] min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700 bg-slate-950/95 shadow-2xl`}
+      // Clear of the inspector and the zoom toolbar, whatever width the learner has dragged it to, and on top of the demo bar, whatever height it takes.
+      style={{ right: rightInset + 8, bottom, maxHeight: `min(62%, calc(100% - ${bottom + belowDock}px))` }}
+      className={`absolute left-3 z-[41] flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700 bg-slate-950/95 shadow-2xl`}
       aria-label={ui.title}
       data-testid="bank-ledger"
       data-balanced={ledger.trial.balanced && everyOneBalances}

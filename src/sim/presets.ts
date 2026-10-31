@@ -4,6 +4,7 @@ import type { BankingPayload, CardType } from '../types/processLearning';
 import type { FlowId } from '../types/viewport';
 import type { BankRules } from './rules';
 import type { CheckoutKind, Customer, ExtendedContext } from './types';
+import type { OpsActionId } from './retailOps';
 import { scenarioById } from './scenarios';
 import { audToVnd, buildVietQr } from './amlEngine';
 import { activeLocale } from '../i18n/localeCore';
@@ -50,7 +51,7 @@ export const PRESETS: readonly PresetDef[] = [
   { id: 'ekyc-deepfake', flow: 5, icon: '⚠', label: 'Deepfake Selfie (EKYC_LIVENESS_FAILED)', variant: 'danger', hint: 'A replayed video instead of a live face: the liveness check fails and no account is opened.', scenario: 'preset-ekyc-deepfake' },
   { id: 'teller-12k', flow: 6, icon: '▶', label: 'Withdraw $12,000 Cash (CTR)', variant: 'primary', hint: 'Over the $10,000 line: the teller pays it out and a Cash Transaction Report is filed automatically.', scenario: 'preset-teller-12k' },
   { id: 'teller-smurf', flow: 6, icon: '🔍', label: 'Split Cash Deposit (STR)', variant: 'warning', hint: 'The third deposit just under $10,000 this week: held as STR_PENDING, then an analyst files an STR and releases it.', scenario: 'preset-teller-smurf' },
-  { id: 'qr-780', flow: 7, icon: '▶', label: 'Pay $780 by VietQR (FacePay)', variant: 'success', hint: 'A dynamic VietQR over $400: CRC checks out, the face matches, the device is clean, and Napas247 settles it.', scenario: 'preset-qr-780' },
+  { id: 'qr-780', flow: 7, icon: '▶', label: 'Pay $780 by VietQR (FacePay)', variant: 'success', hint: 'A dynamic VietQR over $400: CRC checks out, the face matches, the device is clean, and the domestic instant switch (Napas247) settles it.', scenario: 'preset-qr-780' },
   { id: 'qr-rooted', flow: 7, icon: '⚠', label: 'Rooted Phone (FDS_HIGH_RISK_DEVICE)', variant: 'danger', hint: 'A jailbroken phone on a foreign VPN: the FDS scores it over 70 and stops the payment.', scenario: 'preset-qr-rooted' },
   { id: 'swift-6800', flow: 8, icon: '▶', label: 'Send $6,800 Tuition (SWIFT)', variant: 'primary', hint: 'A well-formed pacs.008 in USD: FacePay, a clean FDS and sanctions screen, then the correspondent bank pays it.', scenario: 'preset-swift-6800' },
   { id: 'swift-sanction', flow: 8, icon: '🛑', label: 'Sanctioned Name (AML_SANCTION_MATCH)', variant: 'danger', hint: 'The sender matches the OFAC list: the payment is frozen and an analyst confirms the hit.', scenario: 'preset-swift-sanction' },
@@ -155,6 +156,61 @@ export function presetCustomer(id: PresetId, rules: BankRules): Customer | null 
       return make('DISPUTE', payload(amount, { channel: 'IN_APP', availableBalance: 90_000 }), {
         ext: { subject: SUBJECT, dispute: { type: 'PACS004_RETURN', ageDays: 2, merchantEvidence: false, journalShowsDispensed: false, fundsRecoverable: true } },
       });
+  }
+}
+
+/** The scenario each retail demo's payment runs as. */
+const OPS_SCENARIO: Readonly<Partial<Record<OpsActionId, string>>> = {
+  'bill-electric-85': 'preset-bill-electric',
+  'bill-water-250': 'preset-bill-water',
+  'wallet-cashin-100': 'preset-wallet-cashin',
+  'qr-45': 'preset-qr-45',
+  'atm-withdraw-100': 'preset-atm-withdraw',
+  'atm-jam-200': 'preset-atm-jam',
+  'teller-deposit-5000': 'preset-teller-deposit',
+  'teller-exceed-limit': 'preset-teller-over-limit',
+  'fee-annual-45': 'preset-fee-annual',
+  'fee-card-10': 'preset-fee-card',
+};
+
+/**
+ * The scripted customer behind a retail demo: what the Inspector follows through the live bank. Null for the sensor alert,
+ * which is not a payment. The bank has no fee channel, so a card fee runs as an authorisation of the fee's amount on a funded account.
+ */
+export function opsCustomer(id: OpsActionId, postedCents?: number): Customer | null {
+  const scenarioId = OPS_SCENARIO[id];
+  const scenario = scenarioId ? scenarioById(scenarioId) : null;
+  if (!scenario) return null;
+  const amount = postedCents ?? scenario.amountCents;
+  const make = (kind: CheckoutKind, p: BankingPayload, extra: Partial<Customer> = {}): Customer => ({ id: 'preset', kind, scenario: scenario.id, minute: 0, payload: p, otpCompletes: true, ...extra });
+  switch (id) {
+    case 'bill-electric-85':
+      return make('POS', payload(scenario.amountCents, { channel: 'POS', availableBalance: 90_000 }));
+    case 'bill-water-250':
+      return make('POS', payload(scenario.amountCents, { channel: 'POS', availableBalance: 12_000 }));
+    case 'fee-annual-45':
+    case 'fee-card-10':
+      return make('POS', payload(scenario.amountCents, { channel: 'POS', availableBalance: 90_000 }));
+    case 'wallet-cashin-100':
+      return make(
+        'A2A',
+        payload(scenario.amountCents, {
+          channel: 'IN_APP',
+          availableBalance: 60_000,
+          a2a: { endToEndId: 'WALLET-MOMO-000001', debtorAgent: 'NOVAAU2S', creditorAgent: 'HRBRAU3MXXX', interbankSettlementAmount: scenario.amountCents, currency: 'AUD', purposeCode: 'OTHR', queueDepth: 12, liquidityAvailableMinor: 90_000_000 },
+        }),
+      );
+    case 'qr-45':
+      return make('QR', payload(scenario.amountCents, { channel: 'IN_APP', availableBalance: 60_000 }), { ext: { subject: SUBJECT, qr: { payload: buildVietQr({ bin: '970436', account: '10293847', amountVnd: audToVnd(scenario.amountCents) }) }, biometric: { enrolled: true, faceMatchPct: 97, livenessScore: 95 }, device: CLEAN_DEVICE } });
+    case 'atm-withdraw-100':
+      return make('ATM', payload(scenario.amountCents, { channel: 'ATM', availableBalance: 60_000 }), { atm: { wrongPins: 0, knowsPin: true, jams: false, deposit: false } });
+    case 'atm-jam-200':
+      return make('ATM', payload(scenario.amountCents, { channel: 'ATM', availableBalance: 60_000 }), { atm: { wrongPins: 0, knowsPin: true, jams: true, deposit: false } });
+    case 'teller-deposit-5000':
+    case 'teller-exceed-limit':
+      return make('TELLER', payload(amount, { channel: 'POS', availableBalance: 4_000_000 }), { ext: { subject: SUBJECT, cash: { direction: 'IN', suspectSerials: 0, tillCents: 1_500_000, recentCashCents: [] } } });
+    default:
+      return null;
   }
 }
 

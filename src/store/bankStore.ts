@@ -19,6 +19,8 @@ import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../si
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
 import { compareDays, type Comparison } from '../sim/whatIf';
+import { focusScope, type OpsSubProcessId } from '../sim/retailOps';
+import type { FlowScope } from '../sim/guidedFlows';
 import { browserStorage, clampInspectorWidth, clearBank, loadAuditLog, loadBank, loadCareer, loadPrefs, loadRetailLedger, saveAuditLog, saveCareer, saveRetailLedger, loadUiPrefs, saveBank, savePrefs, saveUiPrefs, type BankPrefs, type BankSaveResult, type KeyValueStorage, type LabelMode, type UiPrefs, type ViewMode } from './bankPersistence';
 
 export type { ProcessId };
@@ -248,6 +250,8 @@ export interface BankState {
   staffTrain(caseId: string, decision: StaffDecision, latencySec: number, slaSec: number, expert?: boolean, assisted?: boolean): StaffDecisionResult;
   /** Lifetime XP, badges and badge streaks, kept in storage. */
   career: CareerProgress;
+  /** Adds XP earned outside the desks (the retail quiz) to the career. */
+  awardCareerXp(xp: number): void;
   /** Badges unlocked at the last shift end, waiting for their celebration. */
   badgeUnlocks: BadgeId[];
   /** Closes the celebration for the first waiting badge. */
@@ -329,6 +333,11 @@ export interface BankState {
   clearAcademyFocus(): void;
   /** One click of a preset action: sends the scripted customer into the bank and follows it in the inspector. */
   runPreset(id: PresetId): void;
+  /** Sends any scripted customer into the bank and follows it in the inspector: what every demo button comes down to. */
+  runDemoCustomer(customer: Customer): void;
+  /** The retail sub-process in focus inside the flow, or null for the whole flow. */
+  subProcess: OpsSubProcessId | null;
+  selectSubProcess(sub: OpsSubProcessId, flow: FlowId): void;
   /** Lights a guided flow on the map and plays its main preset payment (the "Simulate this Flow" deep link from the Academy). */
   triggerGuidedFlow(flow: FlowId): void;
 
@@ -610,6 +619,12 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       setCrisisBatch: (n) => set({ staffCrisisBatch: clampCrisisBatch(n) }),
       setCrisisStream: (on) => set({ staffCrisisStream: on }),
       career: loadCareer(storage),
+      awardCareerXp: (xp) => {
+        if (xp <= 0) return;
+        const career = { ...get().career, xp: get().career.xp + xp };
+        saveCareer(storage, career);
+        set({ career });
+      },
       badgeUnlocks: [],
       dismissBadgeUnlock: () => set({ badgeUnlocks: get().badgeUnlocks.slice(1) }),
       retailLedger: openingRetailLedger,
@@ -978,10 +993,15 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       },
       setDimension: (dimension) => get().setViewMode(dimension),
       setDataDepth: (depth) => get().setTermMode(depth === 'expert' ? 'expert' : 'beginner'),
+      subProcess: null,
       setActiveFlow: (flow) => {
         ui = { ...ui, flow, scope: 'beginner' };
         saveUiPrefs(storage, ui);
-        set({ flow, scope: 'beginner' });
+        set({ flow, scope: 'beginner', subProcess: null });
+      },
+      selectSubProcess: (sub, flow) => {
+        get().setActiveFlow(flow);
+        set({ subProcess: sub });
       },
 
       focusAcademyStep: ({ flow, place }) => {
@@ -992,7 +1012,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           ui = { ...ui, scope, flow: next };
           saveUiPrefs(storage, ui);
         }
-        set({ ...endTour(false), scope, flow: next, focusPlace: place });
+        set({ ...endTour(false), scope, flow: next, focusPlace: place, ...(next !== s.flow ? { subProcess: null } : {}) });
       },
       clearAcademyFocus: () => {
         if (get().focusPlace !== null) set({ focusPlace: null });
@@ -1011,7 +1031,11 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           return;
         }
         const customer = presetCustomer(id, s.sim.rules);
-        if (!customer) return;
+        if (customer) s.runDemoCustomer(customer);
+      },
+
+      runDemoCustomer: (customer) => {
+        const s = get();
         const txId = s.sim.inject(customer);
         if (!txId) return;
         // A paused bank plays this one payment on its own (a solo run); a bank that is already live just takes it in.
@@ -1030,7 +1054,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
 
       triggerGuidedFlow: (flow) => {
         get().setActiveFlow(flow);
-        get().runPreset(PRIMARY_PRESET[flow]);
+        if (flow <= 8) get().runPreset(PRIMARY_PRESET[flow]);
       },
 
       setWalkCollapsed: (collapsed) => set({ walkCollapsed: collapsed }),
@@ -1229,6 +1253,11 @@ export const dataDepthOf = (s: Pick<BankState, 'termMode'>): DataDepth => (s.ter
 export const kickoffOpenOf = (s: Pick<BankState, 'spotlight'>): boolean => s.spotlight?.intro === true;
 /** Whether the floating dock and the weather bar stand aside: for a tour's kickoff card, and for the day's report. */
 export const floatingBarsHiddenOf = (s: Pick<BankState, 'spotlight' | 'reportOpen'>): boolean => kickoffOpenOf(s) || s.reportOpen;
+/** What the map lights now: the chosen sub-process's path, else the whole flow's; null with no flow in focus. */
+export const activeScopeOf = (s: Pick<BankState, 'scope' | 'flow' | 'spotlight' | 'subProcess'>): FlowScope | null => {
+  const flow = activeFlowOf(s);
+  return flow ? focusScope(flow, s.subProcess) : null;
+};
 export const activeFlowOf = (s: Pick<BankState, 'scope' | 'flow' | 'spotlight'>): FlowId | null => (s.scope === 'beginner' && !s.spotlight ? s.flow : null);
 
 /** The node the Academy is teaching, if it should show. */

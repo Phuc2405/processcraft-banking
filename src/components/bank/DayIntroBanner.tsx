@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useStore } from 'zustand';
 import { useBankStore } from '../../store/bankStore';
 import { notificationStore } from '../../store/notificationStore';
 import { useMessages } from '../../utils/i18nHelper';
-import { DAY_INTRO_FADE_MS, DAY_INTRO_MS, dayIntroCopy, introDue } from './dayIntro';
+import { DAY_INTRO_FADE_MS, DAY_INTRO_MS, dayIntroCopy, dayIntroStore, introDue } from './dayIntro';
 import { dayIntroMessages } from './dayIntro.messages';
 import { useTerms } from './useTerms';
 import { useBelowDock } from './ViewportControls';
@@ -17,13 +18,15 @@ export function DayIntroBanner() {
   const event = useBankStore((s) => s.view.event);
   const reportOpen = useBankStore((s) => s.reportOpen);
   const viewMode = useBankStore((s) => s.viewMode);
-  // In 3D, under the weather bar, so it never covers it.
+  // Under the dock and its menu (and, in 3D, the weather bar), so it never covers them.
   const belowDock = useBelowDock();
-  const [shownFor, setShownFor] = useState<number | null>(null);
-  const [open, setOpen] = useState(false);
+  // Kept outside the component: a language switch remounts the app, and must not bring the day's banner back.
+  const shownFor = useStore(dayIntroStore, (x) => x.shownFor);
+  const open = useStore(dayIntroStore, (x) => x.open);
+  const setOpen = (o: boolean): void => dayIntroStore.setState({ open: o });
   const [leaving, setLeaving] = useState(false);
   const box = useRef<HTMLElement | null>(null);
-  // Where the banner stands vertically (under the header in 2D, under the weather bar in 3D), read from an anchor in the map;
+  // Where the banner stands vertically (under the dock in 2D, under the weather bar in 3D), read from an anchor in the map;
   // horizontally it is centred on the viewport (left 50%, translateX(-50%)), like the toasts of Location B under it.
   const anchor = useRef<HTMLDivElement | null>(null);
   const [top, setTop] = useState<number | null>(null);
@@ -65,8 +68,7 @@ export function DayIntroBanner() {
 
   useEffect(() => {
     if (!introDue(shownFor, day, reportOpen)) return;
-    setShownFor(day);
-    setOpen(true);
+    dayIntroStore.setState({ shownFor: day, open: true });
     setLeaving(false);
   }, [day, reportOpen, shownFor]);
 
@@ -90,8 +92,8 @@ export function DayIntroBanner() {
     <div
       ref={anchor}
       aria-hidden={top === null ? undefined : true}
-      className={`pointer-events-none absolute inset-x-0 h-0 ${viewMode === '3d' ? '' : 'top-20'}`}
-      style={viewMode === '3d' ? { top: belowDock } : undefined}
+      className="pointer-events-none absolute inset-x-0 h-0"
+      style={{ top: belowDock }}
     >
       {createPortal(
         <div className="pointer-events-none fixed left-1/2 z-40 w-full max-w-[552px] -translate-x-1/2 px-4" style={{ top: top ?? 80 }} data-testid="day-intro-zone" data-zone="A">

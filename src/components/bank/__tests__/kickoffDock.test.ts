@@ -52,9 +52,8 @@ describe('the floating dock and the weather bar stand aside for a tour’s kicko
     expect(controls).toContain('if (kickoff) topBand.setState({ dock: null });');
     expect(controls).toContain('if (kickoff) return null;');
     const office = dock['../office/Office3D.tsx']!;
-    expect(office).toContain('if (kickoff) topBand.setState({ weather: null });');
-    expect(office.match(/if \(kickoff\) return null;/g)).toHaveLength(1);
-    // The random weather goes on changing while its bar is away.
-    expect(office).toMatch(/<RandomWeather \/>\s*<WeatherBar/);
+    expect(office).toContain('{!kickoff && <WeatherControls compact={tight} />}');
+    // The random weather goes on changing while its controls are away.
+    expect(office).toContain('<RandomWeather />');
   });
 });

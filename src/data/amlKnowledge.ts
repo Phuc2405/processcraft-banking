@@ -8,6 +8,7 @@
 import type { Localized } from '../i18n/locale';
 import { EDD_SLA_MIN, LEAK, REWARD, WRONG_FREEZE, WRONG_SAR } from '../sim/amlReview';
 import { formatMoney } from '../sim/kpis';
+import { AML_DEEP_SECTIONS } from './advancedKnowledge';
 
 const L = (en: string, vi: string): Localized<string> => ({ en, vi });
 
@@ -309,5 +310,6 @@ export const AML_ARTICLE = {
       rule: L('Report on suspicion, keep it confidential, keep every record for 5 years.', 'Báo cáo khi có nghi ngờ, giữ bí mật tuyệt đối, lưu hồ sơ tối thiểu 5 năm.'),
       keywords: ['luat phong chong rua tien', '14/2022', '19/2023', '09/2023', 'ctr', '400 trieu', 'tipping off', 'trach nhiem hinh su', 'sanctions', 'pep', 'tich thu', 'phong toa'],
     },
+    ...AML_DEEP_SECTIONS,
   ] satisfies AmlSection[],
 };

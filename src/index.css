@@ -939,3 +939,29 @@ body[data-hover3d] .bk-office-canvas[data-grabbing] {
     animation: none;
   }
 }
+
+/* A two-sided flashcard: the inner card turns on its vertical axis and each face hides its back. */
+.kb-flip {
+  perspective: 1000px;
+}
+.kb-flip-inner {
+  position: relative;
+  display: grid;
+  transform-style: preserve-3d;
+  transition: transform 0.45s ease;
+}
+.kb-flip[data-flipped='true'] .kb-flip-inner {
+  transform: rotateY(180deg);
+}
+.kb-flip-face {
+  grid-area: 1 / 1;
+  backface-visibility: hidden;
+}
+.kb-flip-back {
+  transform: rotateY(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .kb-flip-inner {
+    transition: none;
+  }
+}

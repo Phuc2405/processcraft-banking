@@ -3,7 +3,9 @@ import { useThree } from '@react-three/fiber';
 import { useMemo } from 'react';
 import { flowPlaces, GUIDED_FLOWS } from '../../../sim/guidedFlows';
 import type { PlaceId } from '../../../sim/topology';
-import { academyFocusOf, activeFlowOf, useBankStore } from '../../../store/bankStore';
+import { academyFocusOf, activeFlowOf, activeScopeOf, useBankStore } from '../../../store/bankStore';
+import { cassetteStatus } from '../../../sim/retailOps';
+import { useRetailOpsStore } from '../../../store/retailOpsStore';
 import type { FlowId } from '../../../types/viewport';
 import { StepPreviewBody } from '../StepPreview';
 import { GroundMark, type Role } from './TourStage';
@@ -33,11 +35,12 @@ function Rings({ flow, academy }: { flow: FlowId; academy: PlaceId | null }) {
   const accent = GUIDED_FLOWS[flow].accent;
   // Read only where the payment is, so the rings change when it moves rather than on every beat.
   const key = useBankStore((s) => (s.presetTrace ? `${s.presetTrace.at}|${s.presetTrace.done}|${s.presetTrace.route.join('>')}` : ''));
+  const places = useBankStore((s) => activeScopeOf(s)?.places);
   const [atText, doneText, routeText] = key ? key.split('|') : ['0', 'false', ''];
   const route = routeText ? (routeText.split('>') as PlaceId[]) : null;
   return (
     <>
-      {[...flowPlaces(flow)].map((p) => (
+      {[...(places ?? flowPlaces(flow))].map((p) => (
         <GroundMark key={p} place={p} role={roleOf(p, route, Number(atText), doneText === 'true', academy)} accent={accent} />
       ))}
     </>
@@ -57,12 +60,28 @@ function HoverPreview({ flow }: { flow: FlowId }) {
   );
 }
 
+/** The warning over the ATM while its cassette is under 15%. */
+function CassetteBadge3D() {
+  const pct = useRetailOpsStore((s) => cassetteStatus(s.book).pct);
+  const low = useRetailOpsStore((s) => cassetteStatus(s.book).low);
+  if (!low) return null;
+  const [x, z] = placeXZ('ATM_CASH');
+  return (
+    <Html position={[x, 3.1, z]} center zIndexRange={[30, 0]} style={{ pointerEvents: 'none' }}>
+      <div className="whitespace-nowrap rounded-full border border-amber-300/70 bg-amber-950/95 px-2 py-0.5 text-[11px] font-bold text-amber-100 shadow-lg" role="status" data-testid="atm-low-badge-3d">
+        🔔 {pct}%
+      </div>
+    </Html>
+  );
+}
+
 export function FlowStage3D() {
   const flow = useBankStore(activeFlowOf);
   const academy = useBankStore(academyFocusOf);
-  if (!flow && !academy) return null;
+  if (!flow && !academy) return <CassetteBadge3D />;
   return (
     <group name="flow-stage">
+      <CassetteBadge3D />
       {flow ? <Rings flow={flow} academy={academy} /> : academy && <GroundMark place={academy} role="here" accent={ACADEMY_ACCENT} />}
       {flow && <HoverPreview flow={flow} />}
     </group>

@@ -45,7 +45,7 @@ export function AcademySplitToggle() {
         <path d="M6 1.5v11" />
         <path d={open ? 'M3 5h1.5M3 7h1.5M3 9h1.5' : 'M3 5h1.5M3 7h1.5'} strokeLinecap="round" />
       </svg>
-      {tr({ en: 'Lessons', vi: 'Bài học' })}
+      <span className="max-[1439px]:sr-only">{tr({ en: 'Lessons', vi: 'Bài học' })}</span>
     </button>
   );
 }

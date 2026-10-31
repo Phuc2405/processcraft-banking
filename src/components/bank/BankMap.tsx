@@ -14,11 +14,12 @@ import { wiresOfRoute } from '../../sim/spotlightPlan';
 import { DEPARTMENTS, DEPARTMENT_IDS, STATIONS, type DepartmentId, type ExternalId, type PlaceId, type StationId } from '../../sim/topology';
 import { MapLegend } from './MapLegend';
 import type { Move, StationView } from '../../sim/types';
-import { academyFocusOf, activeFlowOf, useBankStore } from '../../store/bankStore';
-import { flowScope, GUIDED_FLOWS, type FlowScope } from '../../sim/guidedFlows';
+import { academyFocusOf, activeFlowOf, activeScopeOf, useBankStore } from '../../store/bankStore';
+import { AtmCassetteBadge } from './RetailOpsDock';
+import { GUIDED_FLOWS, type FlowScope } from '../../sim/guidedFlows';
 import type { FlowId } from '../../types/viewport';
 import { StepPreviewBody } from './StepPreview';
-import { useDockInset } from './ViewportControls';
+import { useDockInset, ZOOM_TOOLBAR_GUTTER } from './ViewportControls';
 import { PathTraveller } from '../canvas/edges/PathTraveller';
 import { WorkstationGraphic } from '../canvas/nodes/WorkstationGraphic';
 import { BANK_WIRES, CARD, connectedWires, DEPT_BOX, gatewayCarries, GATEWAY_SPOKES, GATEWAYS, pathOfWire, PLACE_BOX, STAGE, TIP_SIDE, type Gateway, type TipSide } from '../../engine/plan/layout';
@@ -666,7 +667,6 @@ const STATION_LIST = Object.values(STATIONS);
 const EXTERNALS: readonly ExternalId[] = ['CUSTOMER_OTP', 'OUT_APPROVED', 'OUT_DECLINED', 'OUT_SETTLED'];
 
 // px reserved on the right for the floating zoom toolbar.
-const ZOOM_TOOLBAR_GUTTER = 64;
 
 /** The 2-second ring around a place reached from the search bar. */
 function SearchGlow() {
@@ -706,7 +706,8 @@ function BankMapView() {
   const activeFlow = useBankStore(activeFlowOf);
   const presetId = useBankStore((s) => s.presetTxId);
   const presetPlace = useBankStore((s) => (s.presetTrace && !s.presetTrace.done ? (s.presetTrace.route[s.presetTrace.at] ?? null) : null));
-  const flow = useMemo<FlowFocus | null>(() => (activeFlow ? { flow: activeFlow, accent: GUIDED_FLOWS[activeFlow].accent, scope: flowScope(activeFlow) } : null), [activeFlow]);
+  const activeScope = useBankStore(activeScopeOf);
+  const flow = useMemo<FlowFocus | null>(() => (activeFlow && activeScope ? { flow: activeFlow, accent: GUIDED_FLOWS[activeFlow].accent, scope: activeScope } : null), [activeFlow, activeScope]);
   const flowHereAt = flow ? presetPlace : null;
   // The node the Academy split view is teaching pulses like the learner's own payment does.
   const academyAt = useBankStore(academyFocusOf);
@@ -757,6 +758,7 @@ function BankMapView() {
                 <MoonIcon /> {t('night cycle running')}
               </div>
             )}
+            {!focus && <AtmCassetteBadge />}
             {focus && <SpotlightToken focus={focus} />}
             <SearchGlow />
           </div>

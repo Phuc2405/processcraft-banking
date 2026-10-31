@@ -40,7 +40,7 @@ export const RETAIL_GUIDES: readonly RetailGuide[] = [
   },
   {
     id: 'retail-autopay',
-    title: L('2. Auto-pay direct debits & NSF penalties', '2. Ủy nhiệm thu tự động & phí không đủ số dư (NSF)'),
+    title: L('2. Utility Bill Pay & Direct Debit: NSF penalties', '2. Ủy nhiệm thu tự động & phí không đủ số dư (NSF)'),
     intro: L(
       'A direct debit pays a bill automatically on its due date. If the account cannot cover the bill, the payment is returned unpaid and a small NSF (non-sufficient funds) fee is charged.',
       'Ủy nhiệm thu tự động thanh toán hóa đơn vào ngày đến hạn. Nếu tài khoản không đủ tiền, lệnh bị trả lại không thanh toán và khách hàng chịu một khoản phí nhỏ do không đủ số dư (NSF).',
@@ -68,7 +68,7 @@ export const RETAIL_GUIDES: readonly RetailGuide[] = [
   },
   {
     id: 'retail-atm',
-    title: L('4. ATM interbank fees, cash jams & low cassettes', '4. Phí ATM liên ngân hàng, kẹt tiền & cảnh báo hết tiền'),
+    title: L('4. ATM domestic interbank fees (NAPAS), cash jams & low cassettes', '4. Phí ATM liên ngân hàng, kẹt tiền & cảnh báo hết tiền'),
     intro: L(
       'Withdrawing at another bank’s ATM costs a network fee on top of the cash. If the machine jams, the money goes to a holding (suspense) account until the cash count shows what happened. When a cassette runs low, the ATM still pays out but raises a refill alert.',
       'Rút tiền tại ATM ngân hàng khác phải trả thêm phí mạng lưới. Nếu máy kẹt tiền, số tiền được chuyển vào tài khoản treo cho đến khi kiểm quỹ xác định sự việc. Khi hộp tiền sắp hết, ATM vẫn chi tiền nhưng phát cảnh báo tiếp quỹ.',
@@ -110,7 +110,7 @@ export const RETAIL_GUIDES: readonly RetailGuide[] = [
   },
   {
     id: 'retail-wallet-qr',
-    title: L('7. E-wallets & instant VietQR payments', '7. Ví điện tử & thanh toán tức thời VietQR'),
+    title: L('7. e-Wallet & Dynamic QR (MoMo / VietQR)', '7. Ví điện tử & thanh toán tức thời VietQR'),
     intro: L(
       'Topping up or cashing out a wallet (MoMo, ZaloPay, Apple Pay) moves money between the bank account and the wallet provider. A dynamic VietQR payment settles in seconds, so the payee name must match before it is sent.',
       'Nạp hoặc rút tiền ví điện tử (MoMo, ZaloPay, Apple Pay) chuyển tiền giữa tài khoản ngân hàng và đơn vị ví. Thanh toán VietQR động được quyết toán trong vài giây, nên tên người nhận phải khớp trước khi chuyển.',
@@ -130,7 +130,7 @@ export const RETAIL_GUIDES: readonly RetailGuide[] = [
       'Mỗi đêm ngân hàng đối chiếu sổ sách với file quyết toán của mạng thanh toán. Khoản ngân hàng đã trừ tiền nhưng mạng chưa quyết toán là một khoản lệch: được treo vào tài khoản chờ và điều tra.',
     ),
     foundation: L(
-      'Match the core postings against pacs.002 and the NAPAS EOD file: only ACSC items listed are settled. A break is Dr 1510 / Cr 2912 Clearing suspense, then refunded or re-sent; 2912 must drain to zero, and ageing items are escalated.',
+      'Match the core postings against pacs.002 and the the domestic switch (NAPAS) EOD file: only ACSC items listed are settled. A break is Dr 1510 / Cr 2912 Clearing suspense, then refunded or re-sent; 2912 must drain to zero, and ageing items are escalated.',
       'Đối chiếu bút toán core với pacs.002 và file quyết toán cuối ngày của NAPAS: chỉ giao dịch ACSC có trong file mới là đã quyết toán. Khoản lệch ghi Nợ 1510 / Có 2912 Treo bù trừ, sau đó hoàn tiền hoặc chuyển lại; TK 2912 phải về 0 và khoản treo lâu ngày phải báo cáo cấp trên.',
     ),
     scenarios: ['CLEARING_BREAK'],
@@ -179,6 +179,25 @@ export const RETAIL_GUIDES: readonly RetailGuide[] = [
     keywords: ['ekyc', 'kyc', 'risk profiling', 'xep hang rui ro', 'pep', 'cccd', 'chip', 'liveness', 'mo tai khoan'],
   },
 ];
+
+/** The teller counter: the twelfth topic of the catalog, with no queue scenario of its own. */
+export const TELLER_GUIDE: RetailGuide = {
+  id: 'retail-teller-vault',
+  title: L('12. OTC teller cash & the $50,000 till limit', '12. Tiền mặt tại quầy & hạn mức ngăn kéo $50,000'),
+  intro: L(
+    'Cash paid in at the counter goes into the teller’s till and credits the customer. Once a till goes over its limit, the surplus goes to the vault before the next customer is served.',
+    'Tiền mặt nộp tại quầy vào ngăn kéo của giao dịch viên và ghi có cho khách. Khi ngăn kéo vượt hạn mức, phần dư được chuyển về kho quỹ trước khi phục vụ khách tiếp theo.',
+  ),
+  foundation: L(
+    'Deposit: Dr 1011 (till) / Cr 2010 on the retail book. The transfer is Dr 1011 (vault) / Cr 1011 (till), so the GL total does not change. Cash is moved under dual control, and the limit is the bank’s own policy rather than a statutory figure.',
+    'Nộp tiền: Nợ 1011 (ngăn kéo) / Có 2010 trên sổ bán lẻ. Chuyển kho: Nợ 1011 (kho) / Có 1011 (ngăn kéo), nên tổng TK không đổi. Tiền được chuyển theo kiểm soát kép, và hạn mức là chính sách của ngân hàng chứ không phải con số luật định.',
+  ),
+  scenarios: [],
+  keywords: ['teller', 'giao dich vien', 'till limit', 'han muc ngan keo', 'vault', 'kho quy', 'dual control', 'kiem soat kep'],
+};
+
+/** The whole catalog the retail tab shows, in order. */
+export const RETAIL_TOPICS: readonly RetailGuide[] = [...RETAIL_GUIDES, TELLER_GUIDE];
 
 /** Every retail queue scenario a guide covers (the guides between them cover them all). */
 export const GUIDED_SCENARIOS: ReadonlySet<RetailScenarioId> = new Set(RETAIL_GUIDES.flatMap((g) => g.scenarios));

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { t } from '../../i18n/t';
 import { useMessages } from '../../utils/i18nHelper';
 import { mapLegendMessages, type MapLegendKey } from './mapLegend.messages';
+import { useTopBand } from './ViewportControls';
 
 /** The legend of the bank map, shared by the 2D blueprint and the 3D office so both explain their lines, gateways, frames and wire words the same way. */
 
@@ -17,8 +18,11 @@ const LEGEND_LABEL: Partial<Record<(typeof LEGEND_TERMS)[number], string>> = { m
 
 /** The map's legend: a button in the top-right corner that opens what each line, diamond, frame and wire word means. */
 export function MapLegend({ top = 12, right = 12, initiallyOpen = false }: { top?: number; right?: number; initiallyOpen?: boolean }) {
+  // Optional reading: on a short map it gives its room to the controls.
+  const short = useTopBand((x) => x.shortMap);
   const m = useMessages(mapLegendMessages);
   const [open, setOpen] = useState(initiallyOpen);
+  if (short) return null;
   return (
     <div className="absolute z-40 flex max-w-[340px] flex-col items-end text-[12px]" style={{ top, right }} data-testid="map-legend" data-open={open || undefined}>
       {open ? (

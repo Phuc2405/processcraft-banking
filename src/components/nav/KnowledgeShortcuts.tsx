@@ -3,7 +3,7 @@ import { FeedbackButton } from '../shell/FeedbackModal';
 import { useMessages } from '../../utils/i18nHelper';
 import { knowledgeShortcutsMessages } from './knowledgeShortcuts.messages';
 
-const BUTTON = 'whitespace-nowrap rounded-lg border px-2.5 py-1 text-[13px] font-semibold transition';
+const BUTTON = 'whitespace-nowrap rounded-lg border px-2 py-1 text-[12.5px] font-semibold transition';
 
 /** The header's way into the Knowledge Base (its tabs reach the retail guides), and the feedback form. */
 export function KnowledgeShortcuts() {
