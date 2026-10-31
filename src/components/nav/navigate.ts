@@ -5,6 +5,8 @@ import { academyStore } from '../../store/academyStore';
 import { bankStore } from '../../store/bankStore';
 import { navStore } from '../../store/navStore';
 import { uiStore } from '../../store/uiStore';
+import { runDemo, selectSubProcess } from '../bank/retailOpsActions';
+import type { ChapterId } from '../../sim/academyCatalog';
 
 /** Fly the 2D map to a place and glow it. */
 export function goToPlace(place: PlaceId): void {
@@ -22,8 +24,19 @@ export function goToLesson(level: LevelId): void {
   if (!academyStore.getState().isSplitScreenOpen) a.setSplitScreen(true);
 }
 
+/** Open the Academy panel on a chapter's quiz. */
+export function goToQuiz(chapter: ChapterId): void {
+  const a = academyStore.getState();
+  a.setStudyTab('quiz');
+  a.setChapter(chapter);
+  if (!academyStore.getState().isSplitScreenOpen) a.setSplitScreen(true);
+}
+
 export function runSearchAction(action: SearchAction): void {
   if (action.kind === 'place') goToPlace(action.place);
   else if (action.kind === 'lesson') goToLesson(action.level);
+  else if (action.kind === 'sub') selectSubProcess(action.sub);
+  else if (action.kind === 'opsAction') runDemo(action.action);
+  else if (action.kind === 'quiz') goToQuiz(action.chapter);
   else uiStore.getState().openKnowledge(action.anchor);
 }

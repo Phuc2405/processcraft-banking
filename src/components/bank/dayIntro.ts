@@ -1,3 +1,4 @@
+import { createStore } from 'zustand/vanilla';
 import { eventText } from '../../sim/traffic';
 import type { DayEvent } from '../../sim/types';
 import { message } from '../../utils/i18nHelper';
@@ -38,6 +39,9 @@ export function dayIntroCopy(day: number, event: DayEvent): DayIntroCopy {
 }
 
 /** Whether the banner should open now: on the first look at the bank, and whenever the day number moves on, but never over the end-of-day report (it waits until that is closed, so the new day's banner follows the old day's report). */
+/** Which day's banner has been shown, and whether it is up: decoupled from the components, so a remount (a language switch) changes neither. */
+export const dayIntroStore = createStore<{ shownFor: number | null; open: boolean }>(() => ({ shownFor: null, open: false }));
+
 export function introDue(shownFor: number | null, day: number, reportOpen: boolean): boolean {
   return !reportOpen && shownFor !== day;
 }

@@ -553,7 +553,8 @@ const Lanes = memo(function Lanes() {
   );
   const hover = useBankStore((s) => (s.spotlight ? null : s.hoverPlace));
   const flow = useBankStore((s) => (s.spotlight ? null : activeFlowOf(s)));
-  const { lanes: lit, dim } = useMemo(() => litLanes(hover, flow), [hover, flow]);
+  const sub = useBankStore((s) => s.subProcess);
+  const { lanes: lit, dim } = useMemo(() => litLanes(hover, flow, sub), [hover, flow, sub]);
   const litLanes3d = useMemo(
     () =>
       LANES.filter((l) => lit.has(l.id)).map((l) => {
@@ -715,12 +716,13 @@ function LaneBadge({ text, at, focus }: { text: string; at: readonly [number, nu
 const LaneLabels = memo(function LaneLabels() {
   useLocale();
   const flow = useBankStore((s) => (s.spotlight ? null : activeFlowOf(s)));
+  const sub = useBankStore((s) => s.subProcess);
   const hover = useBankStore((s) => (s.spotlight ? null : s.hoverPlace));
   const always = useBankStore((s) => s.labelMode === 'always' && s.spotlight === null);
   return (
     <group name="office-lane-labels">
       {LANE_LABELS.filter((l) => hover !== null || flow !== null || laneLabelShown(l, hover, always)).map((l) => (
-        <LaneBadge key={l.id} text={t(l.text)} at={l.at} focus={badgeFocus(l, hover, flow)} />
+        <LaneBadge key={l.id} text={t(l.text)} at={l.at} focus={badgeFocus(l, hover, flow, sub)} />
       ))}
     </group>
   );

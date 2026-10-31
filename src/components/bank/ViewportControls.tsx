@@ -2,10 +2,10 @@ import { t } from '../../i18n/t';
 import { memo, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { useStore } from 'zustand';
 import { createStore } from 'zustand/vanilla';
-import { flowText, GUIDED_FLOWS } from '../../sim/guidedFlows';
-import { FLOW_IDS, type Dimension, type FlowId, type Scope } from '../../types/viewport';
+import type { Dimension, Scope } from '../../types/viewport';
 import { dataDepthOf, floatingBarsHiddenOf, useBankStore } from '../../store/bankStore';
 import { webglAvailable } from './office/webgl';
+import { SubProcessMenu } from './SubProcessMenu';
 import { DepthToggle, SegmentedToggle, type SegmentOption } from '../shell/SegmentedToggle';
 import type { ScreenRect } from '../../types/geometry';
 
@@ -27,7 +27,7 @@ const IsoBoxIcon = () => (
 );
 
 const SCOPE_OPTIONS = (): readonly SegmentOption<Scope>[] => [
-  { value: 'beginner', label: <><span aria-hidden="true">🧩</span>{t('Sub-process')}</>, hint: t('One isolated sub-flow at a time (pick 01-08): only its desks, wires and conditions stay lit, the rest fades back'), tone: 'emerald' },
+  { value: 'beginner', label: <><span aria-hidden="true">🧩</span>{t('Sub-process')}</>, hint: t('One isolated sub-flow at a time (pick one from the menu): only its desks, wires and conditions stay lit, the rest fades back'), tone: 'emerald' },
   { value: 'advanced', label: <><span aria-hidden="true">🔄</span>{t('Full process')}</>, hint: t('The full end-to-end bank: every desk, wire and condition lit'), tone: 'violet' },
 ];
 export const SCOPE_TITLE = 'Switch between an isolated sub-process view (Sub-process) and the full end-to-end operating map (Full process)';
@@ -35,35 +35,6 @@ const DIMENSION_OPTIONS = (): readonly SegmentOption<Dimension>[] => [
   { value: '2d', label: <><SchematicIcon />2D</>, hint: t('The flat blueprint map of departments and wires') },
   { value: '3d', label: <><IsoBoxIcon />3D</>, hint: t('The same bank as an isometric office: desks, staff and customers') },
 ];
-
-/** The guided flows under the dock while the Beginner scope is on: 01-04 on the first row, the Phase 8 flows 05-08 on the second. */
-function FlowBar() {
-  const flow = useBankStore((s) => s.flow);
-  const setFlow = useBankStore((s) => s.setActiveFlow);
-  return (
-    <nav aria-label={t('Guided flows')} className="bk-slide-down mt-1.5 grid grid-cols-4 items-center gap-1 rounded-xl border border-slate-800 bg-slate-950/95 p-1 shadow-xl" data-testid="flow-bar">
-      {FLOW_IDS.map((id: FlowId) => {
-        const f = GUIDED_FLOWS[id];
-        const on = flow === id;
-        return (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setFlow(id)}
-            aria-pressed={on}
-            title={flowText(id).blurb}
-            data-testid={`flow-${id}`}
-            className={`whitespace-nowrap rounded-lg px-2.5 py-1 text-[11.5px] font-semibold transition ${on ? 'text-slate-950' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
-            style={on ? { background: f.accent, boxShadow: `0 0 14px ${f.accent}66` } : undefined}
-          >
-            <span className={`mr-1 font-mono ${on ? 'text-slate-900/70' : 'text-slate-500'}`}>{f.code}.</span>
-            {flowText(id).title}
-          </button>
-        );
-      })}
-    </nav>
-  );
-}
 
 function ViewportControlsView() {
   const scope = useBankStore((s) => s.scope);
@@ -91,16 +62,26 @@ function ViewportControlsView() {
   };
 
   const solid = dimension === '3d';
-  const left = useMapCentre();
+  const rightInset = useRightInset();
   const box = useRef<HTMLDivElement>(null);
-  useMeasuredBox(box, (b) => topBand.setState({ dock: b }), [left, scope, touring, noWebgl, kickoff]);
+  // How tall the map is, so what floats over it can make room on a short window.
+  useEffect(() => {
+    const map = box.current?.parentElement;
+    if (!map || typeof ResizeObserver === 'undefined') return;
+    const measure = (): void => topBand.setState({ shortMap: map.clientHeight < SHORT_MAP_PX, mapW: map.clientWidth });
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(map);
+    return () => ro.disconnect();
+  }, [kickoff]);
+  useMeasuredBox(box, (b) => topBand.setState({ dock: b }), [rightInset, scope, touring, noWebgl, kickoff]);
   useEffect(() => {
     if (kickoff) topBand.setState({ dock: null });
   }, [kickoff]);
   if (kickoff) return null;
   return (
-    <div ref={box} className="pointer-events-none absolute top-3 z-40 flex -translate-x-1/2 flex-col items-center transition-[left] duration-200 ease-out" style={{ left }} data-testid="viewport-controls">
-      <div className={`pointer-events-auto flex items-center gap-3 rounded-2xl border border-slate-800 p-1.5 px-3 shadow-2xl ${solid ? 'bg-slate-900/95' : 'bg-slate-950/90 backdrop-blur-md'}`} role="toolbar" aria-label={t('Viewport')}>
+    <div ref={box} className="pointer-events-none absolute top-3 z-40 flex w-max -translate-x-1/2 flex-col items-center transition-[left] duration-200 ease-out" style={{ left: `calc(50% - ${Math.round(rightInset / 2)}px)`, maxWidth: `calc(100% - ${rightInset + 16}px)` }} data-testid="viewport-controls">
+      <div className={`pointer-events-auto flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-2xl border border-slate-800 p-1.5 px-3 shadow-2xl ${solid ? 'bg-slate-900/95' : 'bg-slate-950/90 backdrop-blur-md'}`} role="toolbar" aria-label={t('Viewport')}>
         <SegmentedToggle<Scope> label={t('Scope')} value={scope} options={SCOPE_OPTIONS()} onChange={setScope} testId="scope" stateKey="scope" title={t(SCOPE_TITLE)} />
         <span className="h-5 w-px bg-slate-800" aria-hidden="true" />
         <SegmentedToggle<Dimension> label={t('Dimension')} value={dimension} options={DIMENSION_OPTIONS()} onChange={chooseDimension} testId="dim" stateKey="dimension" />
@@ -112,9 +93,10 @@ function ViewportControlsView() {
           {t('This browser cannot draw 3D (WebGL is off). The 2D map shows exactly the same bank.')}
         </p>
       )}
-      {scope === 'beginner' && !touring && (
-        <div className="pointer-events-auto">
-          <FlowBar />
+      {/* In 3D the menu stands at the head of the office's toolbar row. */}
+      {scope === 'beginner' && !touring && dimension === '2d' && (
+        <div className="pointer-events-auto mt-1.5 max-w-full">
+          <SubProcessMenu />
         </div>
       )}
     </div>
@@ -129,16 +111,31 @@ export function useMapCentre(): string {
   return shift ? `calc(50% - ${shift}px)` : '50%';
 }
 
+/** The room the zoom toolbar keeps at the map's right edge. */
+export const ZOOM_TOOLBAR_GUTTER = 64;
+
+/** What the inspector and the zoom toolbar take from the map's right edge. */
+export function useRightInset(): number {
+  return useBankStore((s) => ZOOM_TOOLBAR_GUTTER + (s.selection.kind !== 'none' ? s.inspectorWidth : 0));
+}
+
+const SHORT_MAP_PX = 420;
+
 /** A floating panel's box on the map, in pixels from the map's top-left corner. */
 export type MapBox = ScreenRect;
 
-/** What floats along the top of the map, as measured on screen: the viewport dock (with its flow bar), the 3D office's toolbar and its weather bar. Each panel reports its own box, so the others can keep clear of it whatever its language, the flow bar's rows or the width of the window. */
+/** What floats over the map, as measured on screen: the viewport dock, the 3D office's toolbar row and the bottom demo bar. Each panel reports its own box, so the others can keep clear of it whatever its language or the width of the window. */
 export interface TopBand {
   dock: MapBox | null;
   toolbar: MapBox | null;
-  weather: MapBox | null;
+  /** The bottom demo bar. */
+  demoDock: MapBox | null;
+  /** The map is too short for everything that floats over it. */
+  shortMap: boolean;
+  /** The map's width, measured (0 until it has been). */
+  mapW: number;
 }
-export const topBand = createStore<TopBand>(() => ({ dock: null, toolbar: null, weather: null }));
+export const topBand = createStore<TopBand>(() => ({ dock: null, toolbar: null, demoDock: null, shortMap: false, mapW: 0 }));
 export const useTopBand = <T,>(select: (s: TopBand) => T): T => useStore(topBand, select);
 
 const sameBox = (a: MapBox | null, b: MapBox | null): boolean => a === b || (!!a && !!b && a.left === b.left && a.right === b.right && a.top === b.top && a.bottom === b.bottom);
@@ -190,31 +187,10 @@ export function useDockInset(): number {
   return Math.max(beginnerBar ? 100 : 60, measured);
 }
 
-/** The 3D office's weather bar, just under the dock: the gap above it and its height. */
-export const WEATHER_BAR_GAP = 6;
-export const WEATHER_BAR_H = 34;
-
-/** Where the first thing under the dock may start: under the weather bar (and the toolbar, if it had to drop below the dock) in 3D, straight under the dock in 2D. */
+/** Where the first thing under the dock may start: under the 3D office's toolbar row, or straight under the dock in 2D. */
 export function useBelowDock(): number {
   const inset = useDockInset();
   const office = useBankStore((s) => s.viewMode === '3d');
-  const below = useTopBand((s) => Math.max(s.weather?.bottom ?? 0, s.toolbar?.bottom ?? 0));
-  return office ? Math.max(inset + WEATHER_BAR_GAP + WEATHER_BAR_H, below) + 8 : inset;
+  const below = useTopBand((s) => s.toolbar?.bottom ?? 0);
+  return office ? Math.max(inset, below) + 8 : inset;
 }
-
-/** Where the 3D office's top-left toolbar and the weather bar go, from their measured sizes: the toolbar stays in the corner while the dock leaves room beside it, else it drops just under the dock; the weather bar goes centred under the dock, and under the toolbar as well if the two would touch. */
-export function topBandLayout(band: { dock: MapBox | null; toolbarW: number; toolbarH: number; weatherW: number }): { toolbarTop: number; weatherTop: number } {
-  const { dock, toolbarW, toolbarH, weatherW } = band;
-  const corner = 12;
-  if (!dock) return { toolbarTop: corner, weatherTop: 60 + WEATHER_BAR_GAP };
-  const below = dock.bottom + WEATHER_BAR_GAP;
-  const toolbarRight = TOOLBAR_LEFT + toolbarW + 12;
-  const drop = toolbarRight > dock.left && corner < dock.bottom;
-  const toolbarTop = drop ? below : corner;
-  const centre = (dock.left + dock.right) / 2;
-  const touches = centre - weatherW / 2 < toolbarRight && below < toolbarTop + toolbarH;
-  return { toolbarTop, weatherTop: touches ? toolbarTop + toolbarH + WEATHER_BAR_GAP : below };
-}
-
-/** The 3D toolbar's distance from the map's left edge (left-4). */
-export const TOOLBAR_LEFT = 16;

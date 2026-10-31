@@ -1,7 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { tr, useLocale } from '../../i18n/locale';
 import { ACADEMY_CHAPTERS, chapterById, localChapter, type AcademyLevel, type ChapterId } from '../../sim/academyCatalog';
-import { glossaryFor, GLOSSARY, gradeQuiz, localGlossary, localQuestion, quizFor, type GlossaryEntry } from '../../sim/academyKnowledge';
+import { glossaryFor, GLOSSARY, gradeQuiz, isOpsQuestion, localGlossary, localQuestion, quizFor, type GlossaryEntry } from '../../sim/academyKnowledge';
+import { retailOpsStore } from '../../store/retailOpsStore';
+import { useMessages } from '../../utils/i18nHelper';
+import { retailOpsMessages } from '../bank/retailOps.messages';
+import { ChapterArticles } from './ChapterArticles';
 import { sampleForLevel } from '../../sim/academySamples';
 import { formatAud } from '../../engine/money';
 import { GL_PLAIN, rcLabel } from '../../sim/plainLanguage';
@@ -161,9 +165,12 @@ export function FlashcardsView() {
 
 export function QuizView() {
   const locale = useLocale();
-  const [chapter, setChapter] = useState<ChapterId>(1);
+  const rm = useMessages(retailOpsMessages);
+  const focused = useAcademyStore((s) => s.activeChapterId);
+  const [chapter, setChapter] = useState<ChapterId>(focused);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [checked, setChecked] = useState(false);
+  const [earned, setEarned] = useState(0);
   const scores = useAcademyStore((s) => s.quizScores);
   const record = useAcademyStore((s) => s.recordQuiz);
   const questions = useMemo(() => quizFor(chapter).map((q) => localQuestion(q, locale)), [chapter, locale]);
@@ -173,7 +180,13 @@ export function QuizView() {
     setChapter(c);
     setAnswers({});
     setChecked(false);
+    setEarned(0);
   };
+  // Ctrl+K can open a question's chapter while the quiz is already showing.
+  useEffect(() => {
+    if (focused !== chapter) reset(focused);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focused]);
   return (
     <div className="space-y-3" data-testid="quiz-view">
       <ChapterChips
@@ -184,6 +197,7 @@ export function QuizView() {
           return sc ? `${sc.best}/${sc.total}` : '';
         }}
       />
+      <ChapterArticles chapter={chapter} />
       <h3 className="text-[13px] font-bold text-slate-50">{tr({ en: `Chapter ${chapter} quiz · ${localChapter(chapterById(chapter), locale).title}`, vi: `Câu hỏi chương ${chapter} · ${localChapter(chapterById(chapter), locale).title}` })}</h3>
       <ol className="space-y-3">
         {questions.map((q, qi) => {
@@ -209,6 +223,7 @@ export function QuizView() {
                 <p className={`mt-2 text-[11.5px] leading-snug ${missed ? 'text-rose-300' : 'text-lime-300'}`}>
                   {missed ? tr({ en: 'Not quite. ', vi: 'Chưa đúng. ' }) : tr({ en: 'Correct. ', vi: 'Chính xác. ' })}
                   <span className="text-slate-300">{q.explanation}</span>
+                  {missed && answers[q.id] !== undefined && q.optionNotes?.[answers[q.id]!] && <span className="mt-0.5 block text-slate-400" data-testid="quiz-option-note">{q.optionNotes[answers[q.id]!]}</span>}
                 </p>
               )}
             </li>
@@ -219,6 +234,7 @@ export function QuizView() {
         <div className="space-y-2">
           <p className="text-[13px] font-bold text-slate-50" role="status" data-testid="quiz-score">
             {tr({ en: 'Score', vi: 'Điểm' })}: {result.score}/{result.total}
+            {earned > 0 && <span className="ml-2 text-amber-200" data-testid="quiz-xp">{rm('quizXpEarned', { xp: earned })}</span>}
           </p>
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => reset(chapter)} data-testid="quiz-retry" className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-slate-300 ring-1 ring-slate-700 hover:bg-slate-800">
@@ -232,7 +248,12 @@ export function QuizView() {
           type="button"
           disabled={!complete}
           onClick={() => {
-            record(chapter, gradeQuiz(chapter, answers).score);
+            const graded = gradeQuiz(chapter, answers);
+            record(chapter, graded.score);
+            // Each retail operations question pays its XP once, the first time it is right.
+            const xp = questions.filter((q) => isOpsQuestion(q.id) && !graded.missed.includes(q.id)).reduce((sum, q) => sum + retailOpsStore.getState().answerQuiz(q.id, true), 0);
+            bankStore.getState().awardCareerXp(xp);
+            setEarned(xp);
             setChecked(true);
           }}
           data-testid="quiz-check"

@@ -5,7 +5,9 @@
  */
 
 import type { ChapterId } from './academyCatalog';
-import { activeLocale, type Locale } from '../i18n/localeCore';
+import { activeLocale, pick, type Locale } from '../i18n/localeCore';
+import { OPS_QUIZ, type OpsQuizQuestion } from '../data/retailOpsKnowledge';
+import { OPS_SUB_CHAPTER } from './retailOps';
 import { GLOSSARY_VI, QUIZ_VI } from '../i18n/academyVi';
 
 export interface GlossaryEntry {
@@ -70,6 +72,8 @@ export interface QuizQuestion {
   /** Index into `options`. */
   answer: 0 | 1 | 2 | 3;
   explanation: string;
+  /** Why each option is right or wrong, for the questions that explain every choice. */
+  optionNotes?: readonly string[];
 }
 
 export const QUIZZES: Readonly<Record<ChapterId, readonly QuizQuestion[]>> = {
@@ -110,7 +114,19 @@ export const QUIZZES: Readonly<Record<ChapterId, readonly QuizQuestion[]>> = {
   ],
 };
 
-export const quizFor = (chapter: ChapterId): readonly QuizQuestion[] => QUIZZES[chapter];
+const OPS_PREFIX = 'ops-';
+
+/** A retail operations question in the Academy's shape. */
+function opsQuestion(q: OpsQuizQuestion, locale: Locale): QuizQuestion {
+  const [a, b, c, d] = q.options.map((o) => pick(o.text, locale)) as [string, string, string, string];
+  return { id: `${OPS_PREFIX}${q.id}`, prompt: pick(q.question, locale), options: [a, b, c, d], answer: q.correct as QuizQuestion['answer'], explanation: pick(q.options[q.correct]!.why, locale), optionNotes: q.options.map((o) => pick(o.why, locale)) };
+}
+
+/** Whether a question is one of the retail operations', which pay career XP. */
+export const isOpsQuestion = (id: string): boolean => id.startsWith(OPS_PREFIX);
+
+/** A chapter's quiz: its own questions, then the retail sub-processes taught in it. */
+export const quizFor = (chapter: ChapterId): readonly QuizQuestion[] => [...QUIZZES[chapter], ...OPS_QUIZ.filter((q) => OPS_SUB_CHAPTER[q.sub] === chapter).map((q) => opsQuestion(q, 'en'))];
 
 export interface QuizResult {
   score: number;
@@ -140,6 +156,8 @@ export function localGlossary(entry: GlossaryEntry, locale: Locale = activeLocal
 /** A quiz question with its prompt, options and explanation in the active language. The answer index is unchanged. */
 export function localQuestion(q: QuizQuestion, locale: Locale = activeLocale()): QuizQuestion {
   if (locale === 'en') return q;
+  const ops = isOpsQuestion(q.id) ? OPS_QUIZ.find((o) => `${OPS_PREFIX}${o.id}` === q.id) : null;
+  if (ops) return opsQuestion(ops, locale);
   const vi = QUIZ_VI[q.id];
   return vi ? { ...q, ...vi } : q;
 }

@@ -11,7 +11,7 @@ export function useFocusFade(root: RefObject<Object3D | null>, place: PlaceId): 
   useFrame((_, dt) => {
     const s = bankStore.getState();
     // A tour runs its own lighting, so it leaves the desks alone.
-    const want = s.spotlight ? 1 : deskFocus(place, s.hoverPlace, activeFlowOf(s));
+    const want = s.spotlight ? 1 : deskFocus(place, s.hoverPlace, activeFlowOf(s), s.subProcess);
     if (now.current === want && want === 1) return;
     now.current += (want - now.current) * Math.min(1, dt * 8);
     if (Math.abs(now.current - want) < 0.01) now.current = want;

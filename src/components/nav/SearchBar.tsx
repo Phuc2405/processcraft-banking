@@ -8,6 +8,7 @@ const GROUP: Record<SearchCategory, { icon: string; en: string; vi: string }> = 
   lesson: { icon: '📚', en: 'FinTech Terms & Lessons', vi: 'Thuật ngữ & bài học FinTech' },
   gl: { icon: '📊', en: 'GL Accounts', vi: 'Tài khoản sổ cái' },
   kb: { icon: '📖', en: 'Knowledge Base', vi: 'Thư viện kiến thức' },
+  ops: { icon: '🏦', en: 'Retail Operations (Phase 1/4)', vi: 'Nghiệp vụ bán lẻ (Giai đoạn 1/4)' },
 };
 
 const isMac = (): boolean => typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
@@ -83,7 +84,7 @@ export function SearchBar({ onBeforeGo }: { onBeforeGo?: () => void }) {
   let row = -1;
 
   return (
-    <div ref={root} className="relative min-w-[140px] max-w-[300px] flex-1" data-testid="global-search">
+    <div ref={root} className="relative min-w-[120px] max-w-[300px] flex-1 !shrink" data-testid="global-search">
       <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[12px] text-slate-500" aria-hidden="true">
         🔍
       </span>

@@ -1,7 +1,6 @@
 import { t } from '../../../i18n/t';
 import { Canvas } from '@react-three/fiber';
-import { Component, memo, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
-import { useAcademyStore } from '../../../store/academyStore';
+import { Component, memo, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type KeyboardEvent, type ReactNode } from 'react';
 import { activeFlowOf, floatingBarsHiddenOf, useBankStore } from '../../../store/bankStore';
 import { OfficeScene } from './OfficeScene';
 import { TourLayer3D } from './TourLayer3D';
@@ -12,7 +11,9 @@ import { weatherStore, type WeatherChoice } from '../../../engine/world/weather'
 import { useWeather } from './useWeather';
 import { skyFlash } from './Environment3D';
 import { MapLegend } from '../MapLegend';
-import { topBand, topBandLayout, useDockInset, useMapCentre, useMeasuredBox, useTopBand } from '../ViewportControls';
+import { topBand, useBelowDock, useMeasuredBox, useRightInset, useTopBand } from '../ViewportControls';
+import { SubProcessMenu } from '../SubProcessMenu';
+import { AdaptivePopover, listboxKey } from '../../shell/AdaptivePopover';
 
 /** The sky behind the diorama: a gradient from the time-of-day presets and the weather blend, redrawn every ten bank minutes and as the weather eases. A white layer over it flashes with the storm's lightning. */
 function SkyBackdrop() {
@@ -86,34 +87,41 @@ function WeatherMenu({ compact = false }: { compact?: boolean }) {
   const choice = useWeather((s) => s.choice);
   const weather = useWeather((s) => s.weather);
   const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
+  const [active, setActive] = useState(0);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const pickChoice = (c: WeatherChoice | undefined): void => {
+    if (c) weatherStore.getState().choose(c);
+    setOpen(false);
+    trigger.current?.focus();
+  };
+  const onKeyDown = (e: KeyboardEvent): void => {
     if (!open) return;
-    const away = (e: PointerEvent): void => {
-      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
-    };
-    const esc = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    window.addEventListener('pointerdown', away);
-    window.addEventListener('keydown', esc);
-    return () => {
-      window.removeEventListener('pointerdown', away);
-      window.removeEventListener('keydown', esc);
-    };
-  }, [open]);
+    const next = listboxKey(e.key, active, CHOICES.length);
+    if (next === null) return;
+    e.preventDefault();
+    if (next === 'pick') pickChoice(CHOICES[active]);
+    else if (next === 'close') {
+      e.stopPropagation();
+      setOpen(false);
+    } else setActive(next);
+  };
   const shown = choice === 'random' ? `🎲 ${t('Random')} · ${t(WEATHER_LABEL[weather])}` : t(WEATHER_LABEL[choice]);
-  // Beside the Academy panel the button shrinks to the weather's own icon, so the toolbar keeps to one row.
+  // Where the row is tight the button shrinks to the weather's own icon, so everything stays on one line.
   const icon = `${choice === 'random' ? '🎲 ' : ''}${WEATHER_LABEL[weather].split(' ')[0]}`;
   return (
-    <div ref={box} className="relative" data-testid="office-weather" data-weather={weather} data-choice={choice}>
+    <div className="relative shrink-0" data-testid="office-weather" data-weather={weather} data-choice={choice}>
       <button
+        ref={trigger}
         type="button"
         className={`flex ${compact ? 'w-[76px]' : 'w-[250px]'} items-center justify-between gap-2 rounded-lg border border-white bg-white/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-700 shadow-md hover:bg-white`}
         aria-haspopup="listbox"
         aria-expanded={open}
         title={t(WEATHER_HINT[choice])}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          setActive(Math.max(0, CHOICES.indexOf(choice)));
+          setOpen((o) => !o);
+        }}
+        onKeyDown={onKeyDown}
       >
         {compact ? (
           <span className="truncate" aria-label={`${t('Weather')}: ${shown}`}>
@@ -129,23 +137,20 @@ function WeatherMenu({ compact = false }: { compact?: boolean }) {
         </span>
       </button>
       {open && (
-        <ul role="listbox" aria-label={t('Weather')} className="absolute left-0 top-full z-50 mt-1 max-h-[min(560px,70vh)] w-[300px] overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
-          {CHOICES.map((c) => (
-            <li key={c} role="option" aria-selected={c === choice}>
+        <AdaptivePopover anchor={trigger} onClose={() => setOpen(false)} width={300} label={t('Weather')} testId="office-weather-list" activeIndex={active} className="border-slate-200 bg-white py-1 shadow-xl">
+          {CHOICES.map((c, i) => (
+            <li key={c} role="option" aria-selected={c === choice} data-index={i} data-weather-option={c}>
               <button
                 type="button"
-                className={`block w-full px-3 py-1.5 text-left ${c === choice ? 'bg-sky-50 text-sky-800' : 'text-slate-700 hover:bg-slate-50'} ${c === 'random' ? 'border-b border-slate-100' : ''}`}
-                onClick={() => {
-                  weatherStore.getState().choose(c);
-                  setOpen(false);
-                }}
+                className={`block w-full px-3 py-1.5 text-left ${c === choice ? 'bg-sky-50 text-sky-800' : i === active ? 'bg-slate-50 text-slate-700' : 'text-slate-700 hover:bg-slate-50'} ${c === 'random' ? 'border-b border-slate-100' : ''}`}
+                onClick={() => pickChoice(c)}
               >
                 <span className="block text-[12px] font-semibold">{t(WEATHER_LABEL[c])}</span>
                 <span className="block text-[10.5px] leading-snug text-slate-500">{t(WEATHER_HINT[c])}</span>
               </button>
             </li>
           ))}
-        </ul>
+        </AdaptivePopover>
       )}
     </div>
   );
@@ -156,7 +161,7 @@ function WeatherControls({ compact }: { compact: boolean }) {
   const part = useBankStore((s) => atmosphereAt(s.view.minute).part);
   const label = t(DAY_PART_LABEL[part]);
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex shrink-0 items-center gap-1.5" data-testid="office-weather-bar">
       <span className="whitespace-nowrap rounded-lg border border-white bg-white/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-700 shadow-md" data-testid="office-daypart" data-part={part} title={label}>
         {compact ? label.split(' ')[0] : label}
       </span>
@@ -165,38 +170,11 @@ function WeatherControls({ compact }: { compact: boolean }) {
   );
 }
 
-/** Where the 3D toolbar sits: one row in the top-left corner, or just under the viewport dock when the dock leaves it no room beside it (a narrow window, the inspector open, longer words): topBandLayout. */
-export const TOOLBAR_CLASS = 'absolute left-4 top-3 z-40 flex flex-row flex-nowrap items-center gap-1.5';
+/** The 3D office's one row of controls, under the viewport dock: a single cluster centred in the free map, the sub-process menu first, then the time, weather and view controls. Only the controls catch the pointer, so the map can still be dragged either side of them. Above the map's banners and cards (z-40), under every modal (z-50 and up). */
+export const TOOLBAR_CLASS = 'pointer-events-none absolute left-0 z-[45] flex w-full flex-row flex-nowrap items-center justify-center gap-3 px-2';
 
-/** The weather bar: centred just under the viewport dock (and its flow bar), above the map's banners and cards (z-40) but under every modal (z-50 and up). */
-export const WEATHER_BAR_CLASS = 'pointer-events-auto absolute z-[45] flex -translate-x-1/2 items-center transition-[left] duration-200 ease-out';
-
-/** Where the toolbar and the weather bar go now, from what the top of the map measures (topBandLayout). */
-function useTopBandLayout(): { toolbarTop: number; weatherTop: number } {
-  const dock = useTopBand((s) => s.dock);
-  const toolbarW = useTopBand((s) => (s.toolbar ? s.toolbar.right - s.toolbar.left : 0));
-  const toolbarH = useTopBand((s) => (s.toolbar ? s.toolbar.bottom - s.toolbar.top : 0));
-  const weatherW = useTopBand((s) => (s.weather ? s.weather.right - s.weather.left : 0));
-  return topBandLayout({ dock, toolbarW, toolbarH, weatherW });
-}
-
-/** The weather bar's place: under the dock (however many rows its flow bar has), over the middle of the map that the inspector leaves free, and under the toolbar if that had to drop below the dock too. */
-function WeatherBar({ compact, top }: { compact: boolean; top: number }) {
-  const left = useMapCentre();
-  const box = useRef<HTMLDivElement>(null);
-  // Like the dock, it stands aside while a tour's kickoff card or the day's report is open.
-  const kickoff = useBankStore(floatingBarsHiddenOf);
-  useMeasuredBox(box, (b) => topBand.setState({ weather: b }), [left, top, compact, kickoff]);
-  useEffect(() => {
-    if (kickoff) topBand.setState({ weather: null });
-  }, [kickoff]);
-  if (kickoff) return null;
-  return (
-    <div ref={box} className={WEATHER_BAR_CLASS} style={{ top, left }} data-testid="office-weather-bar">
-      <WeatherControls compact={compact} />
-    </div>
-  );
-}
+/** Under this width the row shrinks its words to icons (the full words are in their tooltips), so it stays on one line. */
+export const TOOLBAR_FULL_PX = 900;
 
 /** The 3D Isometric Office: the same bank as the 2D blueprint, as a bright low-poly diorama. */
 
@@ -238,18 +216,23 @@ function Office3DView() {
   const setLabelMode = useBankStore((s) => s.setLabelMode);
   const touring = useBankStore((s) => s.spotlight !== null);
   const flowOn = useBankStore((s) => activeFlowOf(s) !== null);
-  const splitOpen = useAcademyStore((s) => s.isSplitScreenOpen);
   const resumeOffered = useBankStore((s) => s.leftTour !== null);
   const [resetKey, setResetKey] = useState(0);
   const [ready, setReady] = useState(false);
   const [lost, setLost] = useState(false);
   const back = useCallback(() => setViewMode('2d'), [setViewMode]);
   // The legend sits top-right, under the viewport dock and left of the zoom toolbar and the inspector, as on the 2D map.
-  const dockInset = useDockInset();
-  // The toolbar keeps clear of the dock, and the weather bar of both, whatever their sizes on screen.
-  const band = useTopBandLayout();
+  const legendTop = useBelowDock();
+  // The row stands just under the viewport dock, whatever height the dock takes on screen.
+  const dockBottom = useTopBand((s) => s.dock?.bottom ?? 0);
+  const toolbarTop = dockBottom ? dockBottom + 6 : 12;
+  const rightInset = useRightInset();
+  const mapW = useTopBand((s) => s.mapW);
+  const tight = mapW > 0 && mapW - rightInset < TOOLBAR_FULL_PX;
+  const kickoff = useBankStore(floatingBarsHiddenOf);
+  const showMenu = useBankStore((s) => s.scope === 'beginner' && s.spotlight === null) && !kickoff;
   const toolbar = useRef<HTMLDivElement>(null);
-  useMeasuredBox(toolbar, (b) => topBand.setState({ toolbar: b }), [band.toolbarTop, splitOpen, labelMode, touring]);
+  useMeasuredBox(toolbar, (b) => topBand.setState({ toolbar: b }), [toolbarTop, tight, labelMode, touring, showMenu, kickoff]);
   const legendRight = useBankStore((s) => 76 + (s.selection.kind !== 'none' ? s.inspectorWidth : 0));
 
   if (lost) return <Unavailable reason="The graphics context was lost." onBack={back} />;
@@ -304,8 +287,15 @@ function Office3DView() {
           <b className="font-semibold text-slate-800">{t('Click')}</b>{t(' a desk or a person to inspect it')}
         </span>
       </div>
-      {/* One row in the top-left corner, never pushed down into the view: beside the Academy panel, where the map is narrow, the buttons shrink to their icons instead (the full words are in their tooltips). */}
-      <div ref={toolbar} className={TOOLBAR_CLASS} style={{ top: band.toolbarTop }} data-testid="office-toolbar">
+      {/* One centred row: the menu, then the time, weather and view controls beside it. It never wraps: where the map is narrow the controls shrink to their icons instead. */}
+      <div ref={toolbar} className={TOOLBAR_CLASS} style={{ top: toolbarTop, width: `calc(100% - ${rightInset}px)` }} data-testid="office-toolbar">
+        {showMenu && (
+          <div className="pointer-events-auto min-w-0 shrink" data-testid="office-toolbar-left">
+            <SubProcessMenu />
+          </div>
+        )}
+        <div className="pointer-events-auto flex shrink-0 flex-nowrap items-center gap-1.5" data-testid="office-toolbar-right">
+          {!kickoff && <WeatherControls compact={tight} />}
         <button
           type="button"
           onClick={() => setResetKey((n) => n + 1)}
@@ -314,7 +304,7 @@ function Office3DView() {
           title={touring ? t('Glide back to the desk the tour is at') : t('Glide back to the whole office')}
           aria-label={t('Reset view')}
         >
-          {splitOpen ? '↺' : t('Reset view')}
+          {tight ? '↺' : t('Reset view')}
         </button>
         <button
           type="button"
@@ -324,13 +314,13 @@ function Office3DView() {
           className="whitespace-nowrap rounded-lg border border-white bg-white/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-700 shadow-md transition hover:bg-white"
           title={labelMode === 'always' ? t('Hide the floating name badges until you point at a workstation') : t('Show a floating name badge over every workstation')}
         >
-          {splitOpen ? `🏷 ${labelMode === 'always' ? t('Always Show') : t('Hover Only')}` : `${t('Labels:')} ${labelMode === 'always' ? t('Always Show') : t('Hover Only')}`}
+          {tight ? '🏷' : `${t('Labels:')} ${labelMode === 'always' ? t('Always Show') : t('Hover Only')}`}
         </button>
+        </div>
       </div>
-      {/* The weather keeps changing in random mode even while its bar stands aside (a tour's kickoff card). */}
+      {/* The weather keeps changing in random mode even while its controls stand aside (a tour's kickoff card). */}
       <RandomWeather />
-      <WeatherBar compact={splitOpen} top={band.weatherTop} />
-      {!touring && <MapLegend top={dockInset + 12} right={legendRight} />}
+      {!touring && <MapLegend top={legendTop} right={legendRight} />}
     </div>
   );
 }

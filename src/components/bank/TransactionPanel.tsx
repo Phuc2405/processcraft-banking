@@ -2,13 +2,14 @@ import { tr } from '../../i18n/locale';
 import { t } from '../../i18n/t';
 import { Fragment, type ReactNode } from 'react';
 import { formatAud } from '../../engine/money';
-import { postingKindLabel } from '../../data/ledgerCopy';
-import type { PostingKind } from '../../types/processLearning';
-import { journalLines, journalText, plainFacts, rawMessage, responseCodeFor, type ResponseCode } from '../../sim/isoMessages';
+import { rawMessage, responseCodeFor, type ResponseCode } from '../../sim/isoMessages';
 import { scenarioShort } from '../../sim/scenarios';
 import { formatClock } from '../../sim/clock';
 import type { PacketTrace } from '../../sim/types';
 import { dataDepthOf, useBankStore } from '../../store/bankStore';
+import { useMessages } from '../../utils/i18nHelper';
+import { retailOpsMessages } from './retailOps.messages';
+import { RetailOpsSection } from './RetailOpsDock';
 import { useTerms } from './useTerms';
 
 /** The inspector for a payment the learner sent with a preset action. */
@@ -93,24 +94,8 @@ function Route({ trace }: { trace: PacketTrace }) {
   );
 }
 
-function Standard({ trace }: { trace: PacketTrace }) {
-  return (
-    <Section title={t('What happened')} testId="tx-standard">
-      <dl className="grid grid-cols-2 gap-2">
-        {plainFacts(trace).map((f) => (
-          <div key={f.label} className="rounded-lg border border-slate-800 bg-slate-950/60 px-2.5 py-2">
-            <dt className="text-[10.5px] font-semibold uppercase tracking-wide text-slate-500">{f.label}</dt>
-            <dd className={`mt-0.5 text-[13px] font-semibold ${f.tone ? TONE_TEXT[f.tone] : 'text-slate-100'}`}>{f.value}</dd>
-          </div>
-        ))}
-      </dl>
-    </Section>
-  );
-}
-
-function Expert({ trace }: { trace: PacketTrace }) {
+function IsoMessage({ trace }: { trace: PacketTrace }) {
   const rc = responseCodeFor(trace);
-  const lines = journalLines(trace);
   return (
     <>
       <Section title={tr({ en: `${rc.scheme} response`, vi: `Phản hồi ${rc.scheme}` })} testId="tx-rc">
@@ -122,32 +107,15 @@ function Expert({ trace }: { trace: PacketTrace }) {
       <Section title={trace.kind === 'A2A' ? t('Raw message (pacs.008)') : trace.done ? t('Raw message (ISO 8583 0110)') : t('Raw message (ISO 8583 0100)')}>
         <JsonBlock value={rawMessage(trace)} />
       </Section>
-      <Section title={t('Core banking GL journal')} testId="tx-journal">
-        {lines.length === 0 ? (
-          <p className="text-[12px] text-slate-500">{t('Nothing posted yet: the ledger writes when the payment reaches the desk that books it.')}</p>
-        ) : (
-          <ul className="space-y-1.5">
-            {lines.map((l, i) => (
-              <li key={i} className="rounded-lg border border-slate-800 bg-slate-950/60 px-2.5 py-1.5" title={l.memo}>
-                <div className="font-mono text-[11px] leading-snug text-slate-200" data-testid="tx-journal-line">
-                  <span className="font-bold text-emerald-300">{t('DR:')}</span> {l.debit.code}-{l.debit.name} {formatAud(l.amountCents)} <span className="text-slate-600">|</span> <span className="font-bold text-rose-300">{t('CR:')}</span> {l.credit.code}-{l.credit.name} {formatAud(l.amountCents)}
-                </div>
-                <div className="mt-0.5 text-[10.5px] uppercase tracking-wide text-slate-500">{postingKindLabel(l.kind as PostingKind)}</div>
-                <span className="sr-only">{journalText(l)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Section>
     </>
   );
 }
 
 export function TransactionPanel({ id }: { id: string }) {
+  const m = useMessages(retailOpsMessages);
   const trace = useBankStore((s) => (s.presetTrace?.id === id ? s.presetTrace : null));
   const depth = useBankStore(dataDepthOf);
   const clear = useBankStore((s) => s.clearSelection);
-  const setDepth = useBankStore((s) => s.setDataDepth);
   const rc = trace ? responseCodeFor(trace) : null;
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="tx-panel" data-depth={depth} data-done={trace?.done ?? undefined}>
@@ -168,13 +136,7 @@ export function TransactionPanel({ id }: { id: string }) {
         </div>
         {rc && (
           <div className={`mt-2 text-[12px] font-semibold ${TONE_TEXT[rc.tone]}`} role="status">
-            {rc.tone === 'pending'
-              ? t('On its way through the bank…')
-              : depth === 'expert'
-                ? `RC ${rc.code} · ${rc.text}`
-                : rc.tone === 'good'
-                  ? t('Done: approved')
-                  : tr({ en: `Done: declined (${rc.text.toLowerCase()})`, vi: `Xong: bị từ chối (${rc.text})` })}
+            {rc.tone === 'pending' ? t('On its way through the bank…') : `RC ${rc.code} · ${rc.text}`}
           </div>
         )}
       </header>
@@ -186,13 +148,10 @@ export function TransactionPanel({ id }: { id: string }) {
             <Section title={t('Route')}>
               <Route trace={trace} />
             </Section>
-            {depth === 'expert' ? <Expert trace={trace} /> : <Standard trace={trace} />}
-            <p className="mt-4 text-[11px] leading-snug text-slate-500">
-              {depth === 'expert' ? t('Want it in plain English? ') : t('Want the raw ISO 8583 message and the GL journal? ')}
-              <button type="button" onClick={() => setDepth(depth === 'expert' ? 'standard' : 'expert')} className="font-semibold text-sky-300 underline-offset-2 hover:underline" data-testid="tx-depth-toggle">
-                {depth === 'expert' ? t('Switch to Standard') : t('Switch to Expert')}
-              </button>
-            </p>
+            <Section title={m('bookSectionTitle')} testId="tx-retail-journal">
+              <RetailOpsSection txId={id} />
+            </Section>
+            <IsoMessage trace={trace} />
           </>
         )}
       </div>

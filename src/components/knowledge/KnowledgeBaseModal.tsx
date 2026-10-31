@@ -26,11 +26,13 @@ import {
   type BufferJournal,
 } from '../../data/knowledgeBase';
 import { AML_ARTICLE, type KbTable } from '../../data/amlKnowledge';
-import { RETAIL_GUIDES, type RetailGuide } from '../../data/retailKnowledge';
+import { RETAIL_DEEP_DIVES, type RetailDeepDive } from '../../data/advancedKnowledge';
+import { RETAIL_TOPICS, type RetailGuide } from '../../data/retailKnowledge';
+import { scenarioJournals, TELLER_DECISION, TELLER_FLOW, TOPIC_MODULES } from '../../data/retailTopicModules';
 import { pick, useLocale, type Locale, type Localized } from '../../i18n/locale';
 import { fold } from '../../hooks/useSearchIndex';
 import { formatMoney } from '../../sim/kpis';
-import { GL_ACCOUNTS, GL_CODE, GL_SIDE, type GlAccount } from '../../sim/staffRoleplay';
+import { GL_ACCOUNTS, GL_CODE, GL_SIDE, type GlAccount, type RetailScenarioId } from '../../sim/staffRoleplay';
 import { uiStore, useUiStore, type KnowledgeTab } from '../../store/uiStore';
 import { formatNodes, message, useMessages } from '../../utils/i18nHelper';
 import { analystWorkspaceMessages, type AnalystWorkspaceKey } from '../bank/analystWorkspace.messages';
@@ -41,6 +43,7 @@ import { ViewModeToggle, type ViewMode } from '../shell/SegmentedToggle';
 import { knowledgeBaseMessages } from './knowledgeBase.messages';
 import { AuthorLink } from '../shell/AuthorLink';
 import { creditsMessages } from '../shell/credits.messages';
+import { CoreJournal, OpsCrosswalk, OpsFlashcards, TopicModuleView } from './RetailOpsStudy';
 
 /** The formal account name the ledger sheet uses ("Nostro accounts (correspondents)"). */
 const glName = (gl: GlAccount, locale: Locale): string => message(analystWorkspaceMessages, `gl_${gl}` as AnalystWorkspaceKey, undefined, locale);
@@ -590,7 +593,7 @@ export function SopFlow({ steps, title, testId = 'kb-sop-flow' }: { steps: reado
 }
 
 /** What each answer leads to: the SOP followed, a breach approved, a clean case rejected. */
-function DecisionTree({ right, wrongApprove, wrongReject }: { right: string; wrongApprove: string; wrongReject: string }) {
+function DecisionTree({ right, wrongApprove, wrongReject, testId = 'kb-decision-tree' }: { right: string; wrongApprove: string; wrongReject: string; testId?: string }) {
   const m = useMessages(knowledgeBaseMessages);
   const leaf = (label: string, text: string, tone: string) => (
     <div className={`rounded-lg border px-2.5 py-1.5 text-[13.5px] ${tone}`}>
@@ -599,7 +602,7 @@ function DecisionTree({ right, wrongApprove, wrongReject }: { right: string; wro
     </div>
   );
   return (
-    <figure className="mt-3" data-testid="kb-decision-tree">
+    <figure className="mt-3" data-testid={testId}>
       <figcaption className="text-[12.5px] font-bold uppercase tracking-wider text-violet-300">{m('treeTitle')}</figcaption>
       <div className="mt-1.5 grid gap-2 sm:grid-cols-3">
         {leaf(m('treeRight'), right, 'border-lime-400/40 bg-lime-950/30 text-lime-50')}
@@ -610,12 +613,56 @@ function DecisionTree({ right, wrongApprove, wrongReject }: { right: string; wro
   );
 }
 
+/** The Advanced view's expert notes on a retail topic. */
+function RetailDeepDiveView({ dive, id, locale }: { dive: RetailDeepDive; id: string; locale: Locale }) {
+  const m = useMessages(knowledgeBaseMessages);
+  const block = (key: string, title: string, body: ReactNode) => (
+    <div key={key} className="rounded-lg border border-violet-400/25 bg-slate-950/50 px-2.5 py-2" data-deep={key}>
+      <div className="text-[12.5px] font-bold uppercase tracking-wider text-violet-300">{title}</div>
+      <div className="mt-1 text-[14px] leading-normal text-slate-200">{body}</div>
+    </div>
+  );
+  return (
+    <div className="mt-3 grid gap-2 md:grid-cols-2" data-testid="kb-deep-dive" data-topic={id}>
+      {block('statute', m('deepStatute'), pick(dive.statute, locale))}
+      {block(
+        'edge',
+        m('deepEdgeCases'),
+        <ul className="list-disc space-y-1 pl-4">
+          {dive.edgeCases.map((e, i) => (
+            <li key={i}>{pick(e, locale)}</li>
+          ))}
+        </ul>,
+      )}
+      {block('risk', m('deepRisk'), pick(dive.riskScoring, locale))}
+      {block('settlement', m('deepSettlement'), pick(dive.settlement, locale))}
+      <div className="md:col-span-2">{block('audit', m('deepAudit'), pick(dive.audit, locale))}</div>
+    </div>
+  );
+}
+
+/** What a queue scenario posts on the core ledger when it is approved, and when it is refused. */
+function ScenarioJournals({ scenario, locale }: { scenario: RetailScenarioId; locale: Locale }) {
+  const m = useMessages(knowledgeBaseMessages);
+  const { approve, reject } = scenarioJournals(scenario);
+  if (!approve.length && !reject.length) return null;
+  return (
+    <figure className="mt-3" data-testid="kb-scenario-journals">
+      <figcaption className="text-[12.5px] font-bold uppercase tracking-wider text-emerald-300">{m('coreJournalsTitle')}</figcaption>
+      <div className="mt-1.5 grid gap-2 md:grid-cols-2">
+        {approve.length > 0 && <CoreJournal title={m('journalIfApproved')} lines={approve} locale={locale} />}
+        {reject.length > 0 && <CoreJournal title={m('journalIfRefused')} lines={reject} locale={locale} />}
+      </div>
+    </figure>
+  );
+}
+
 /** One retail guide: plain intro, then each scenario's trigger, SOP flow and decision tree (Basic or Advanced copy), and the rules and postings in the Advanced view. */
-function RetailGuideSection({ g, advanced, locale, lit }: { g: RetailGuide; advanced: boolean; locale: Locale; lit: boolean }) {
+function RetailGuideSection({ g, advanced, locale, highlight }: { g: RetailGuide; advanced: boolean; locale: Locale; highlight: string | null }) {
   const m = useMessages(knowledgeBaseMessages);
   const v = advanced ? 'Exp' : 'Std';
   return (
-    <section id={kbAnchorId(g.id)} data-section={g.id} className={`mt-5 scroll-mt-2 ${lit ? 'rounded-lg ring-2 ring-amber-300/80' : ''}`}>
+    <section id={kbAnchorId(g.id)} data-section={g.id} className={`mt-6 scroll-mt-2 border-t border-slate-800 pt-5 ${highlight === g.id ? 'rounded-lg ring-2 ring-amber-300/80' : ''}`}>
       <h3 className="text-[17px] font-bold text-slate-50">{pick(g.title, locale)}</h3>
       <p className="mt-1.5">{pick(g.intro, locale)}</p>
       {advanced && (
@@ -624,6 +671,7 @@ function RetailGuideSection({ g, advanced, locale, lit }: { g: RetailGuide; adva
           <p className="mt-1 text-slate-200">{pick(g.foundation, locale)}</p>
         </div>
       )}
+      {advanced && RETAIL_DEEP_DIVES[g.id] && <RetailDeepDiveView dive={RETAIL_DEEP_DIVES[g.id]!} id={g.id} locale={locale} />}
       {g.scenarios.map((id) => (
         <div key={id} className="mt-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3" data-scenario={id}>
           <h4 className="text-[15px] font-bold text-emerald-200">{aw(`retail_${id}_title`, locale)}</h4>
@@ -633,13 +681,23 @@ function RetailGuideSection({ g, advanced, locale, lit }: { g: RetailGuide; adva
           </p>
           <SopFlow title={m('flowTitle')} steps={[1, 2, 3].map((n) => aw(`retail_${id}_sop${v}_${n}`, locale))} />
           <DecisionTree right={aw(`risk_retail_${id}_benefit${v}`, locale)} wrongApprove={aw(`risk_retail_${id}_approve${v}`, locale)} wrongReject={aw(`risk_retail_${id}_reject${v}`, locale)} />
+          <ScenarioJournals scenario={id} locale={locale} />
         </div>
+      ))}
+      {g.id === 'retail-teller-vault' && (
+        <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3" data-testid="kb-teller-flow">
+          <SopFlow title={m('flowTitle')} steps={TELLER_FLOW.map((s) => pick(s, locale))} testId="kb-sop-flow-teller" />
+          <DecisionTree right={pick(TELLER_DECISION.right, locale)} wrongApprove={pick(TELLER_DECISION.wrongApprove, locale)} wrongReject={pick(TELLER_DECISION.wrongReject, locale)} testId="kb-decision-tree-teller" />
+        </div>
+      )}
+      {(TOPIC_MODULES[g.id] ?? []).map((mod) => (
+        <TopicModuleView key={mod.id} module={mod} highlight={highlight} />
       ))}
     </section>
   );
 }
 
-/** The retail operations article: 11 guides, each on both levels, with SOP flows and decision trees. */
+/** The retail operations catalog: one article per topic, on both levels, each with its flow, decision tree, message flow, step cards, journals, red flags and regulations. */
 export function RetailArticle({ highlight = null, view = 'basic' }: { highlight?: string | null; view?: ViewMode }) {
   const m = useMessages(knowledgeBaseMessages);
   const locale = useLocale();
@@ -650,7 +708,7 @@ export function RetailArticle({ highlight = null, view = 'basic' }: { highlight?
       <nav aria-label={m('onThisPage')} className="mt-3 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2">
         <div className="text-[12.5px] font-semibold uppercase tracking-wider text-slate-500">{m('onThisPage')}</div>
         <ul className="mt-1 grid gap-x-4 gap-y-0.5 sm:grid-cols-2">
-          {RETAIL_GUIDES.map((g) => (
+          {RETAIL_TOPICS.map((g) => (
             <li key={g.id}>
               <a href={`#${kbAnchorId(g.id)}`} className="text-[14.5px] text-sky-300 hover:underline">
                 {pick(g.title, locale)}
@@ -659,9 +717,10 @@ export function RetailArticle({ highlight = null, view = 'basic' }: { highlight?
           ))}
         </ul>
       </nav>
-      {RETAIL_GUIDES.map((g) => (
-        <RetailGuideSection key={g.id} g={g} advanced={view === 'advanced'} locale={locale} lit={highlight === g.id} />
+      {RETAIL_TOPICS.map((g) => (
+        <RetailGuideSection key={g.id} g={g} advanced={view === 'advanced'} locale={locale} highlight={highlight} />
       ))}
+      <OpsCrosswalk highlight={highlight} />
     </article>
   );
 }
@@ -713,17 +772,18 @@ export function AmlArticle({ highlight = null, view = 'basic' }: { highlight?: s
 }
 
 /** The Knowledge Base's categories (Strategy): each tab's label and the article it renders. A new category is one more entry. */
-const KB_TABS: readonly { id: KnowledgeTab; label: 'tabCore' | 'tabAml' | 'tabRetail'; render: (highlight: string | null, view: ViewMode) => ReactNode }[] = [
+const KB_TABS: readonly { id: KnowledgeTab; label: 'tabCore' | 'tabAml' | 'tabRetail' | 'tabFlashcards'; render: (highlight: string | null, view: ViewMode) => ReactNode }[] = [
   { id: 'core', label: 'tabCore', render: (highlight, view) => <CoreLedgerArticle highlight={highlight} view={view} /> },
   { id: 'aml', label: 'tabAml', render: (highlight, view) => <AmlArticle highlight={highlight} view={view} /> },
   { id: 'retail', label: 'tabRetail', render: (highlight, view) => <RetailArticle highlight={highlight} view={view} /> },
+  { id: 'flashcards', label: 'tabFlashcards', render: (highlight) => <OpsFlashcards highlight={highlight} /> },
 ];
 
 /** The category tab bar: opens on the tab of wherever the window was opened from, and any tab is one click away. */
 export function KnowledgeTabs({ tab, onTab }: { tab: KnowledgeTab; onTab: (tab: KnowledgeTab) => void }) {
   const m = useMessages(knowledgeBaseMessages);
   return (
-    <div role="tablist" aria-label={m('tabsLabel')} className="mb-4 flex gap-1 border-b border-slate-800" data-testid="kb-tabs">
+    <div role="tablist" aria-label={m('tabsLabel')} className="sticky -top-5 z-10 -mx-6 -mt-5 mb-4 flex flex-wrap gap-1 overflow-x-auto border-b border-slate-800 bg-slate-900 px-6 pt-3 sm:flex-nowrap" data-testid="kb-tabs">
       {KB_TABS.map((t) => (
         <button
           key={t.id}
@@ -732,7 +792,7 @@ export function KnowledgeTabs({ tab, onTab }: { tab: KnowledgeTab; onTab: (tab: 
           aria-selected={tab === t.id}
           data-testid={`kb-tab-${t.id}`}
           onClick={() => onTab(t.id)}
-          className={`-mb-px whitespace-nowrap rounded-t-lg border-b-2 px-4 py-2 text-[14.5px] font-bold transition ${tab === t.id ? 'border-sky-400 bg-slate-800/60 text-slate-50' : 'border-transparent text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'}`}
+          className={`shrink-0 whitespace-nowrap rounded-t-lg border-b-2 px-4 py-2 text-[14.5px] font-bold transition ${tab === t.id ? 'border-sky-400 bg-slate-800/60 text-slate-50' : 'border-transparent text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'}`}
         >
           {m(t.label)}
         </button>
@@ -766,7 +826,7 @@ export function KnowledgeBaseModal() {
     return () => window.clearTimeout(t);
   }, [anchor]);
   return (
-    <Modal title={m('title')} subtitle={m('subtitle')} icon="📒" onClose={() => uiStore.getState().closeKnowledge()} width="max-w-5xl" testId="knowledge-base" z="z-[90]" actions={<KnowledgeHeaderControls view={view} onView={setView} />} footer={<KnowledgeDisclaimer />}>
+    <Modal title={m('title')} subtitle={m('subtitle')} icon="📒" onClose={() => uiStore.getState().closeKnowledge()} width="max-w-5xl" testId="knowledge-base" z="z-[90]" bodyClass="overflow-x-hidden [scroll-padding-top:4rem]" actions={<KnowledgeHeaderControls view={view} onView={setView} />} footer={<KnowledgeDisclaimer />}>
       <KnowledgeTabs tab={tab} onTab={(t) => uiStore.getState().setKnowledgeTab(t)} />
       <div role="tabpanel" data-tab={tab}>
         {KB_TABS.find((t) => t.id === tab)!.render(highlight, view)}
