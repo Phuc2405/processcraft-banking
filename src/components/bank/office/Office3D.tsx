@@ -3,6 +3,8 @@ import { Canvas } from '@react-three/fiber';
 import { Component, memo, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type KeyboardEvent, type ReactNode } from 'react';
 import { activeFlowOf, floatingBarsHiddenOf, useBankStore } from '../../../store/bankStore';
 import { OfficeScene } from './OfficeScene';
+import { bindContextEvents, disposeObject, disposeRenderer, type RendererLike, type SceneNode } from './webglSafety';
+import { notificationStore } from '../../../store/notificationStore';
 import { TourLayer3D } from './TourLayer3D';
 import { CAMERA_DIRECTION, CAMERA_DISTANCE } from '../../../engine/plan/layout3d';
 import { atmosphereAt, WEATHERS, type DayPart } from '../../../engine/world/atmosphere';
@@ -11,7 +13,7 @@ import { weatherStore, type WeatherChoice } from '../../../engine/world/weather'
 import { useWeather } from './useWeather';
 import { skyFlash } from './Environment3D';
 import { MapLegend } from '../MapLegend';
-import { topBand, useBelowDock, useMeasuredBox, useRightInset, useTopBand } from '../ViewportControls';
+import { topBand, useBelowDock, useInspectorCovers, useMeasuredBox, useRightInset, useTopBand } from '../ViewportControls';
 import { SubProcessMenu } from '../SubProcessMenu';
 import { AdaptivePopover, listboxKey } from '../../shell/AdaptivePopover';
 
@@ -175,6 +177,8 @@ export const TOOLBAR_CLASS = 'pointer-events-none absolute left-0 z-[45] flex w-
 
 /** Under this width the row shrinks its words to icons (the full words are in their tooltips), so it stays on one line. */
 export const TOOLBAR_FULL_PX = 900;
+/** Under this free width even the icon-only row does not fit beside the menu: the row may wrap onto a second line. */
+export const TOOLBAR_WRAP_PX = 520;
 
 /** The 3D Isometric Office: the same bank as the 2D blueprint, as a bright low-poly diorama. */
 
@@ -221,6 +225,19 @@ function Office3DView() {
   const [ready, setReady] = useState(false);
   const [lost, setLost] = useState(false);
   const back = useCallback(() => setViewMode('2d'), [setViewMode]);
+  // The live renderer and scene, so the unmount (a 2D <-> 3D toggle) can free their GPU memory, and the context listeners can be unbound.
+  const three = useRef<{ gl: RendererLike; scene: SceneNode; unbind: () => void } | null>(null);
+  useEffect(
+    () => () => {
+      const t3 = three.current;
+      three.current = null;
+      if (!t3) return;
+      t3.unbind();
+      disposeObject(t3.scene);
+      disposeRenderer(t3.gl);
+    },
+    [],
+  );
   // The legend sits top-right, under the viewport dock and left of the zoom toolbar and the inspector, as on the 2D map.
   const legendTop = useBelowDock();
   // The row stands just under the viewport dock, whatever height the dock takes on screen.
@@ -229,10 +246,12 @@ function Office3DView() {
   const rightInset = useRightInset();
   const mapW = useTopBand((s) => s.mapW);
   const tight = mapW > 0 && mapW - rightInset < TOOLBAR_FULL_PX;
+  const covered = useInspectorCovers();
+  const wraps = mapW > 0 && mapW - rightInset < TOOLBAR_WRAP_PX;
   const kickoff = useBankStore(floatingBarsHiddenOf);
   const showMenu = useBankStore((s) => s.scope === 'beginner' && s.spotlight === null) && !kickoff;
   const toolbar = useRef<HTMLDivElement>(null);
-  useMeasuredBox(toolbar, (b) => topBand.setState({ toolbar: b }), [toolbarTop, tight, labelMode, touring, showMenu, kickoff]);
+  useMeasuredBox(toolbar, (b) => topBand.setState({ toolbar: b }), [toolbarTop, tight, wraps, labelMode, touring, showMenu, kickoff, covered]);
   const legendRight = useBankStore((s) => 76 + (s.selection.kind !== 'none' ? s.inspectorWidth : 0));
 
   if (lost) return <Unavailable reason="The graphics context was lost." onBack={back} />;
@@ -253,12 +272,25 @@ function Office3DView() {
           dpr={[1, 1.5]}
           camera={{ position: [CAMERA_DIRECTION[0] * k, k, CAMERA_DIRECTION[1] * k], zoom: 28, near: 0.1, far: 400 }}
           gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
-          onCreated={({ gl }) => {
+          onCreated={({ gl, scene }) => {
             setReady(true);
-            gl.domElement.addEventListener('webglcontextlost', (e) => {
-              e.preventDefault();
-              setLost(true);
+            const unbind = bindContextEvents(gl.domElement, {
+              // The GPU took the context away: never crash, fall back to the 2D blueprint (the same bank, the same clock, still paused if it was).
+              onLost: () => {
+                setLost(true);
+                notificationStore.getState().push({
+                  tone: 'warning',
+                  icon: '🧊',
+                  title: { en: '3D view paused by the browser', vi: 'Trình duyệt đã tạm dừng chế độ 3D' },
+                  body: { en: 'The graphics context was lost, so the bank is shown on the 2D blueprint. Nothing was lost.', vi: 'Mất ngữ cảnh đồ họa nên ngân hàng được hiển thị trên sơ đồ 2D. Không có dữ liệu nào bị mất.' },
+                  deferred: false,
+                  source: 'webgl-lost',
+                });
+                back();
+              },
+              onRestored: () => setLost(false),
             });
+            three.current = { gl, scene, unbind };
           }}
         >
           <OfficeScene resetKey={resetKey} />
@@ -288,9 +320,9 @@ function Office3DView() {
         </span>
       </div>
       {/* One centred row: the menu, then the time, weather and view controls beside it. It never wraps: where the map is narrow the controls shrink to their icons instead. */}
-      <div ref={toolbar} className={TOOLBAR_CLASS} style={{ top: toolbarTop, width: `calc(100% - ${rightInset}px)` }} data-testid="office-toolbar">
+      <div ref={toolbar} className={`${TOOLBAR_CLASS} ${wraps ? '!flex-wrap gap-y-1.5' : ''} ${covered ? 'invisible' : ''}`} style={{ top: toolbarTop, width: `calc(100% - ${rightInset}px)` }} data-testid="office-toolbar">
         {showMenu && (
-          <div className="pointer-events-auto min-w-0 shrink" data-testid="office-toolbar-left">
+          <div className="pointer-events-auto min-w-[8.5rem] shrink" data-testid="office-toolbar-left">
             <SubProcessMenu />
           </div>
         )}

@@ -5,6 +5,8 @@ import { glossaryFor, GLOSSARY, gradeQuiz, isOpsQuestion, localGlossary, localQu
 import { retailOpsStore } from '../../store/retailOpsStore';
 import { useMessages } from '../../utils/i18nHelper';
 import { retailOpsMessages } from '../bank/retailOps.messages';
+import { RETAIL_FLASHCARDS } from '../../data/retailFlashcards';
+import { Flashcard as RetailCard } from '../knowledge/RetailOpsStudy';
 import { ChapterArticles } from './ChapterArticles';
 import { sampleForLevel } from '../../sim/academySamples';
 import { formatAud } from '../../engine/money';
@@ -77,7 +79,7 @@ function Flashcard({ entry, flipped, onFlip }: { entry: GlossaryEntry; flipped: 
         {tr({ en: `Chapter ${chapter.id} · ${flipped ? 'Definition' : 'Term'}`, vi: `Chương ${chapter.id} · ${flipped ? 'Định nghĩa' : 'Thuật ngữ'}` })}
       </span>
       {flipped ? (
-        <span className="mt-2 text-[12.5px] leading-relaxed text-slate-200" data-testid="flashcard-back">
+        <span className="bk-scroll mt-2 max-h-[220px] overflow-y-auto overscroll-contain text-[12.5px] leading-relaxed text-slate-200" data-testid="flashcard-back">
           {entry.definition}
         </span>
       ) : (
@@ -92,6 +94,48 @@ function Flashcard({ entry, flipped, onFlip }: { entry: GlossaryEntry; flipped: 
 
 /** The flashcards, one at a time or as a glossary list. */
 export function FlashcardsView() {
+  const m = useMessages(retailOpsMessages);
+  const [deck, setDeck] = useState<'academy' | 'retail'>('academy');
+  return (
+    <div className="space-y-3" data-testid="flashcards-deck" data-deck={deck}>
+      <div className="flex overflow-hidden rounded-md ring-1 ring-slate-700" role="group" aria-label={m('flashcardDeck')}>
+        {(['academy', 'retail'] as const).map((d) => (
+          <button key={d} type="button" aria-pressed={deck === d} onClick={() => setDeck(d)} data-testid={`deck-${d}`} className={`flex-1 px-2 py-1 text-[11.5px] font-semibold ${deck === d ? 'bg-slate-100 text-slate-950' : 'text-slate-300 hover:bg-slate-800'}`}>
+            {d === 'academy' ? m('deckAcademy') : m('deckRetail')}
+          </button>
+        ))}
+      </div>
+      {deck === 'academy' ? <AcademyDeck /> : <RetailDeck />}
+    </div>
+  );
+}
+
+/** The Retail Banking Flashcards, one at a time: the same deck and the same cards as the Knowledge Base's flashcard tab. */
+function RetailDeck() {
+  const m = useMessages(retailOpsMessages);
+  const [index, setIndex] = useState(0);
+  const card = RETAIL_FLASHCARDS[index]!;
+  const go = (delta: number): void => setIndex((i) => (i + delta + RETAIL_FLASHCARDS.length) % RETAIL_FLASHCARDS.length);
+  return (
+    <div className="space-y-3" data-testid="retail-flashcards-view">
+      {/* A fresh key per card, so moving on always lands on the front. */}
+      <RetailCard key={card.id} card={card} lit={false} />
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={() => go(-1)} data-testid="retail-flashcard-prev" className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-slate-300 ring-1 ring-slate-700 hover:bg-slate-800">
+          {m('deckBack')}
+        </button>
+        <span className="flex-1 text-center font-mono text-[11px] text-slate-400" data-testid="retail-flashcard-count">
+          {index + 1} / {RETAIL_FLASHCARDS.length}
+        </span>
+        <button type="button" onClick={() => go(1)} data-testid="retail-flashcard-next" className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-slate-300 ring-1 ring-slate-700 hover:bg-slate-800">
+          {m('deckNext')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AcademyDeck() {
   const locale = useLocale();
   const chapter = useAcademyStore((s) => s.cardsChapter);
   const setChapter = useAcademyStore((s) => s.setCardsChapter);

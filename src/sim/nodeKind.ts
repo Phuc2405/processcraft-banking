@@ -1,4 +1,4 @@
-/** How each of the 24 map stations is presented: a machine run by server threads, or a desk run by people. */
+/** How each of the 26 map stations is presented: a machine run by server threads, or a desk run by people. */
 
 import type { StationId } from './topology';
 
@@ -23,7 +23,7 @@ export const AUTOMATED_NODES = [
 ] as const satisfies readonly StationId[];
 
 /** The 8 desks people still run: underwriting, the night back office, the teller counter, AML compliance and disputes. */
-export const HUMAN_NODES = ['BNPL', 'EOD_BATCH', 'EOD_VISA', 'SUSPENSE', 'RECON', 'TELLER_CASH', 'AML_DESK', 'DISPUTE_DESK'] as const satisfies readonly StationId[];
+export const HUMAN_NODES = ['BNPL', 'EOD_BATCH', 'EOD_VISA', 'SUSPENSE', 'RECON', 'TELLER_CASH', 'AML_DESK', 'DISPUTE_DESK', 'SAVINGS_DESK', 'COLLATERAL_VAULT'] as const satisfies readonly StationId[];
 
 const AUTOMATED: ReadonlySet<StationId> = new Set(AUTOMATED_NODES);
 
@@ -47,7 +47,8 @@ export type NodeFamily =
   | 'fds'
   | 'aml'
   | 'dispute'
-  | 'swift';
+  | 'swift'
+  | 'savings';
 
 export const NODE_FAMILY: Readonly<Record<StationId, NodeFamily>> = {
   GATE_VIRTUAL: 'gateway',
@@ -73,6 +74,8 @@ export const NODE_FAMILY: Readonly<Record<StationId, NodeFamily>> = {
   SEC_FDS: 'fds',
   AML_DESK: 'aml',
   DISPUTE_DESK: 'dispute',
+  SAVINGS_DESK: 'savings',
+  COLLATERAL_VAULT: 'savings',
   GATE_SWIFT: 'swift',
 };
 

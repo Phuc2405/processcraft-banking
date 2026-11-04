@@ -1,7 +1,11 @@
 import { isAutomatedNode } from '../../sim/nodeKind';
 import { ServerRackGraphic } from './ServerRack';
 import { useNodeCopy } from './useNodeCopy';
-import { tr } from '../../i18n/locale';
+import { tr, useLocale } from '../../i18n/locale';
+import { useDeskVisited } from '../../store/deskVisitStore';
+import { acronymHint } from './codeGlossary';
+import { DeskCrowd2D } from './DeskCrowd2D';
+import { DeskVisitors2D } from './DeskVisitors2D';
 import { t } from '../../i18n/t';
 import { feedText } from '../../i18n/feedVi';
 import { localizeScenarioText } from '../../sim/scenarios';
@@ -14,7 +18,7 @@ import { wiresOfRoute } from '../../sim/spotlightPlan';
 import { DEPARTMENTS, DEPARTMENT_IDS, STATIONS, type DepartmentId, type ExternalId, type PlaceId, type StationId } from '../../sim/topology';
 import { MapLegend } from './MapLegend';
 import type { Move, StationView } from '../../sim/types';
-import { academyFocusOf, activeFlowOf, activeScopeOf, useBankStore } from '../../store/bankStore';
+import { academyFocusOf, activeFlowOf, activeScopeOf, beatLive, useBankStore } from '../../store/bankStore';
 import { AtmCassetteBadge } from './RetailOpsDock';
 import { GUIDED_FLOWS, type FlowScope } from '../../sim/guidedFlows';
 import type { FlowId } from '../../types/viewport';
@@ -223,6 +227,9 @@ const StationCard = memo(function StationCard({
   const wm = useMessages(analystWorkspaceMessages);
   const bm = useMessages(deskBadgeMessages);
   const spotlightFocus = useBankStore((s) => s.spotlightFocus);
+  const locale = useLocale();
+  // People are at this desk for a savings or collateral demo: it shows as busy for as long as they are.
+  const visited = useDeskVisited(id);
   const def = STATIONS[id];
   const box = PLACE_BOX[id];
   const first = sv.workers[0];
@@ -230,7 +237,7 @@ const StationCard = memo(function StationCard({
   const here = focus ? focus.current.place === id && !focus.tour.intro : false;
   const passed = focus ? focus.visited.has(id) : false;
   const flowLit = flow ? flow.scope.places.has(id) : false;
-  const dim = !focus && !flowLit && sv.status === 'IDLE' && sv.queueLength === 0 && !isOnShift(id, phase);
+  const dim = !focus && !flowLit && !visited && sv.status === 'IDLE' && sv.queueLength === 0 && !isOnShift(id, phase);
   const worst = sv.alerts.some((a) => a.severity === 'crit' && a.live) ? 'crit' : sv.alerts.length > 0 ? 'warn' : null;
   // One wording on every desk, accounts included, the same as the 3D badges.
   const unit = t('waiting');
@@ -266,13 +273,13 @@ const StationCard = memo(function StationCard({
         data-testid={`station-${id}`}
         data-status={sv.status}
         data-heat={heat ?? undefined}
-        className={`absolute inset-0 rounded-xl border bg-gradient-to-b from-slate-900 to-[#0b1120] transition hover:border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${lit && focus ? 'bk-spot-lit' : flowLit ? 'bk-flow-lit' : border} ${flowHere ? 'bk-flow-here' : ''} ${selected ? 'ring-2 ring-sky-400' : ''} ${pulse}`}
+        className={`absolute inset-0 rounded-xl border bg-gradient-to-b from-slate-900 to-[#0b1120] transition hover:border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${lit && focus ? 'bk-spot-lit' : flowLit ? 'bk-flow-lit' : border} ${flowHere || visited ? 'bk-flow-here' : ''} ${selected ? 'ring-2 ring-sky-400' : ''} ${pulse}`}
       />
       <div className="pointer-events-none absolute inset-0 flex flex-col p-1.5">
         {/* Fixed rows: a two-line title box, the art and the count, and the staff row pinned to the bottom. */}
         <div className="flex h-[24px] shrink-0 items-start gap-1.5" data-testid={`station-title-${id}`}>
           <span className={`mt-[3px] h-1.5 w-1.5 shrink-0 rounded-full ${passed && focus ? 'bg-[var(--tour)]' : heat ? HEAT_DOT[heat] : STATUS_DOT_CLASS[sv.status]}`} title={heatText ?? undefined} data-testid={heat ? `heat-dot-${id}` : undefined} />
-          <span className="line-clamp-2 text-[10.5px] font-semibold leading-[1.12] text-slate-100" data-testid={`station-name-${id}`} title={name}>
+          <span className="line-clamp-2 text-[10.5px] font-semibold leading-[1.12] text-slate-100" data-testid={`station-name-${id}`} title={acronymHint(name, locale)}>
             {name}
           </span>
           {worst && !focus && (
@@ -504,6 +511,7 @@ function wireStyle(to: string, from: string): { base: string; glow: string; dash
   if (to === 'OUT_DECLINED') return { base: '#7f1d1d', glow: '#fb7185', dash: '5 4' };
   if (from === 'OUT_APPROVED' || from.startsWith('EOD_') || from === 'RECON' || from === 'SUSPENSE' || to === 'OUT_SETTLED') return { base: '#78350f', glow: '#fbbf24' };
   if (to === 'CUSTOMER_OTP' || from === 'CUSTOMER_OTP') return { base: '#4c1d95', glow: '#a78bfa', dash: '3 3' };
+  if (from === 'COLLATERAL_VAULT') return { base: '#155e75', glow: '#22d3ee', dash: '7 3' };
   return { base: '#334155', glow: '#38bdf8' };
 }
 
@@ -553,7 +561,7 @@ function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; t
   return (
     <svg className="pointer-events-none absolute inset-0 z-10" width={STAGE.width} height={STAGE.height} aria-hidden="true">
       <defs>
-        {(['#334155', '#7f1d1d', '#78350f', '#4c1d95'] as const).map((c) => (
+        {(['#334155', '#7f1d1d', '#78350f', '#4c1d95', '#155e75'] as const).map((c) => (
           <marker key={c} id={`bk-arrow-${c.slice(1)}`} viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
             <path d="M0.5 0.8L7 4L0.5 7.2z" fill={c} />
           </marker>
@@ -645,17 +653,18 @@ function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; t
 /** How many of a beat's tokens wear a badge saying what the payment is. */
 const LABELLED_TOKENS = 6;
 
-function Travellers({ moves, tick, phase, speedIndex, className = '' }: { moves: readonly Move[]; tick: number; phase: Phase; speedIndex: number; className?: string }) {
+function Travellers({ moves, tick, phase, speedIndex, live, className = '' }: { moves: readonly Move[]; tick: number; phase: Phase; speedIndex: number; live: boolean; className?: string }) {
   const beat = beatMs(phase, SPEEDS[speedIndex]?.factor ?? 1);
-  const hop = Math.round(Math.max(240, Math.min(720, beat * 0.5)));
+  // The same hop as the 3D office (hopTiming): slow enough to follow a payment from desk to desk.
+  const hop = Math.round(Math.max(320, Math.min(1100, beat * 0.5)));
   return (
     <div className={`pointer-events-none absolute inset-0 z-10 ${className}`} aria-hidden="true">
       {moves.map((m, i) => {
         const path = pathOfWire(m.edge);
         if (!path) return null;
         // The first few payments of a beat say what they are for. More would only hide the wires, and a hop that is over in a blink cannot be read.
-        const label = i < LABELLED_TOKENS && hop >= 320 ? localizeScenarioText(m.scenario) : '';
-        return <PathTraveller key={`${tick}-${m.key}`} path={path} look={lookOfKind(m.kind, m.cardType)} delayMs={Math.round(m.at * beat * 0.55)} durationMs={hop} {...(label ? { label } : {})} />;
+        const label = i < LABELLED_TOKENS && hop >= 400 ? localizeScenarioText(m.scenario) : '';
+        return <PathTraveller key={`${tick}-${m.key}`} path={path} look={lookOfKind(m.kind, m.cardType)} delayMs={Math.round(m.at * beat * 0.55)} durationMs={hop} paused={!live} {...(label ? { label } : {})} />;
       })}
     </div>
   );
@@ -700,6 +709,8 @@ function BankMapView() {
   const view = useBankStore((s) => s.view);
   const selection = useBankStore((s) => s.selection);
   const speedIndex = useBankStore((s) => s.speedIndex);
+  // A paused bank's payments stay still: the last beat never replays when the map is drawn again or the clock is moved.
+  const live = useBankStore(beatLive);
   const clearSelection = useBankStore((s) => s.clearSelection);
   const focus = useSpotlightFocus();
   const terms = useTerms();
@@ -745,8 +756,8 @@ function BankMapView() {
               <DepartmentFrame key={id} id={id} focus={focus} flow={flow} terms={terms} />
             ))}
             <Wires moves={view.moves} tick={view.tick} focus={focus} flow={flow} active={panning ? null : (hovered ?? selectedStation)} />
-            {!focus && <Travellers moves={litMoves} tick={view.tick} phase={view.phase} speedIndex={speedIndex} />}
-            {!focus && dimMoves.length > 0 && <Travellers moves={dimMoves} tick={view.tick} phase={view.phase} speedIndex={speedIndex} className="opacity-15 grayscale" />}
+            {!focus && <Travellers moves={litMoves} tick={view.tick} phase={view.phase} speedIndex={speedIndex} live={live} />}
+            {!focus && dimMoves.length > 0 && <Travellers moves={dimMoves} tick={view.tick} phase={view.phase} speedIndex={speedIndex} live={live} className="opacity-15 grayscale" />}
             {STATION_LIST.map((def) => (
               <StationCard key={def.id} id={def.id} sv={view.stations[def.id]} phase={view.phase} tick={view.tick} selected={selectedStation === def.id} accent={DEPARTMENTS[def.department].accent} focus={focus} flow={flow} flowHere={flowHereAt === def.id || academyAt === def.id} terms={terms} />
             ))}
@@ -759,6 +770,8 @@ function BankMapView() {
               </div>
             )}
             {!focus && <AtmCassetteBadge />}
+            {!focus && <DeskCrowd2D />}
+            {!focus && <DeskVisitors2D />}
             {focus && <SpotlightToken focus={focus} />}
             <SearchGlow />
           </div>

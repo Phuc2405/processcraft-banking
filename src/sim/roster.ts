@@ -54,6 +54,8 @@ const SHIRT: Record<StationId, string> = {
   SEC_FDS: '#b91c1c',
   AML_DESK: '#991b1b',
   DISPUTE_DESK: '#c2410c',
+  SAVINGS_DESK: '#047857',
+  COLLATERAL_VAULT: '#065f46',
   GATE_SWIFT: '#c2410c',
 };
 
@@ -81,6 +83,8 @@ export const ROLE: Record<StationId, string> = {
   SEC_FDS: 'Server AI engine, FDS',
   AML_DESK: 'Compliance analyst',
   DISPUTE_DESK: 'Disputes specialist',
+  SAVINGS_DESK: 'Savings officer',
+  COLLATERAL_VAULT: 'Collateral custodian',
   GATE_SWIFT: 'Gateway monitor, SWIFT',
 };
 

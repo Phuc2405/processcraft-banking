@@ -37,7 +37,12 @@ export function Modal({ title, subtitle, icon, onClose, children, footer, action
             <h2 id={titleId} className="text-[18px] font-bold leading-tight text-slate-50">
               {title}
             </h2>
-            {subtitle && <p className="mt-0.5 text-[14px] leading-normal text-slate-400">{subtitle}</p>}
+            {/* On a narrow screen a long subtitle is one line with an ellipsis (the full text is its tooltip), so it never pushes the body down. */}
+            {subtitle && (
+              <p className="mt-0.5 text-[14px] leading-normal text-slate-400 max-md:overflow-hidden max-md:text-ellipsis max-md:whitespace-nowrap" title={subtitle} data-testid={`${testId}-subtitle`}>
+                {subtitle}
+              </p>
+            )}
           </div>
           {actions && (
             <div className="order-3 flex w-full flex-wrap items-center gap-2 sm:order-none sm:w-auto sm:shrink-0 sm:justify-end" data-testid={`${testId}-actions`}>

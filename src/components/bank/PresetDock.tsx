@@ -1,9 +1,13 @@
 import { memo, useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
-import { pick, tr, useLocale } from '../../i18n/locale';
-import { demoActionsFor, demoBlocked, type DemoAction } from '../../sim/demoActions';
+import { activeLocale, pick, tr, useLocale } from '../../i18n/locale';
+import { acronymHint } from './codeGlossary';
+import { demoActionById, demoActionsFor, demoBlocked, type DemoAction } from '../../sim/demoActions';
+import { demoGroup, isOpsGroup, showsGroupsOf } from '../../sim/demoGroups';
+import { shiftOf, shiftSnap } from '../../sim/demoSchedule';
+import { shiftQueueStore, useShiftQueue } from '../../store/shiftQueueStore';
 import { flowText, GUIDED_FLOWS } from '../../sim/guidedFlows';
 import type { PresetVariant } from '../../sim/presets';
-import { cassetteStatus, opsSubProcess } from '../../sim/retailOps';
+import { cassetteStatus } from '../../sim/retailOps';
 import { opsLessonAnchor } from '../../data/retailOpsKnowledge';
 import { activeFlowOf, useBankStore } from '../../store/bankStore';
 import { formatAud } from '../../engine/money';
@@ -13,7 +17,8 @@ import { useMessages } from '../../utils/i18nHelper';
 import { AdaptivePopover, listboxKey } from '../shell/AdaptivePopover';
 import { retailOpsMessages } from './retailOps.messages';
 import { opsStamp, runDemo } from './retailOpsActions';
-import { topBand, useMeasuredBox, useRightInset, useTopBand } from './ViewportControls';
+import { topBand, useInspectorCovers, useMeasuredBox, useRightInset, useTopBand } from './ViewportControls';
+import { dockLayout } from './dockOverflow';
 
 /** The one demo bar of the guided flow in focus, anchored at the bottom of the map in the Beginner scope. Every control runs through runDemo. */
 
@@ -23,6 +28,9 @@ const VARIANT: Record<PresetVariant, string> = {
   primary: 'bg-sky-500 text-sky-950 hover:bg-sky-400',
   warning: 'bg-amber-400 text-amber-950 hover:bg-amber-300',
 };
+
+/** The pass / fail colour of a scenario in the dropdown, so both sides of the decision stay readable without the pills. */
+const DOT: Record<PresetVariant, string> = { success: 'bg-emerald-400', danger: 'bg-rose-400', primary: 'bg-sky-400', warning: 'bg-amber-300' };
 
 /** Under this free width (the map less the inspector and zoom toolbar), the pills would stack into rows, so the bar becomes a selector. */
 export const COMPACT_DOCK_PX = 640;
@@ -37,10 +45,14 @@ function useDemoState(action: DemoAction | undefined): { disabled: boolean; titl
   const minute = useBankStore((s) => s.view.minute);
   const counterLocked = useRetailOpsStore((s) => s.book.vaultPrompt !== null);
   if (!action) return { disabled: true, title: '' };
-  const locked = counterLocked && action.sub === 'teller-vault';
-  const why = demoBlocked(action.id, { dayOver, minute });
-  const title = locked ? m('theCounterIsLockedUntil') : why === 'dayOver' ? tr({ en: 'Today is over: start the next day (or reset this one) to send another payment.', vi: 'Hôm nay đã kết thúc: hãy bắt đầu ngày mới (hoặc chạy lại ngày này) để gửi giao dịch khác.' }) : why === 'night' ? tr({ en: 'The branch is closed for the night cycle. Start the next day to send another payment.', vi: 'Chi nhánh đã đóng cửa cho chu kỳ ban đêm. Hãy bắt đầu ngày mới để gửi giao dịch khác.' }) : action.hint();
-  return { disabled: why !== null || locked, title };
+  const locked = counterLocked && action.group === 'teller-vault';
+  // A counter button stays live after the day: it offers to replay today up to 16:30.
+  const shift = shiftOf(action.id);
+  // A 24/7 channel stays live after midnight (it rolls the bank into the next day), as a counter button does (it replays today up to 16:30).
+  const why = shift === 'always' || shiftSnap(action.id, minute)?.direction === 'back' ? null : demoBlocked(action.id, { dayOver, minute });
+  const hint = shift === 'always' ? action.hint() : `${action.hint()} ${m(shift === 'day' ? 'shiftHintDay' : 'shiftHintEod')}`;
+  const title = locked ? m('theCounterIsLockedUntil') : why === 'dayOver' ? tr({ en: 'Today is over: start the next day (or reset this one) to send another payment.', vi: 'Hôm nay đã kết thúc: hãy bắt đầu ngày mới (hoặc chạy lại ngày này) để gửi giao dịch khác.' }) : hint;
+  return { disabled: why !== null || locked, title: acronymHint(title, activeLocale()) };
 }
 
 function DemoButton({ action }: { action: DemoAction }) {
@@ -117,7 +129,8 @@ function DemoSelector({ actions }: { actions: readonly DemoAction[] }) {
       {open && (
         <AdaptivePopover anchor={trigger} onClose={() => setOpen(false)} direction="up" width={380} maxVh={0.45} maxPx={320} align="start" id={listId} label={m('selectScenario')} testId="demo-select-list" activeIndex={active}>
           {actions.map((a, i) => (
-            <li key={a.id} id={`${listId}-${i}`} role="option" aria-selected={a.id === chosen?.id} data-index={i} data-testid={`demo-option-${a.id}`} title={a.hint()} onPointerMove={() => setActive(i)} onClick={() => choose(a)} className={`flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] font-semibold text-slate-100 ${i === active ? 'bg-slate-800' : ''}`}>
+            <li key={a.id} id={`${listId}-${i}`} role="option" aria-selected={a.id === chosen?.id} data-index={i} data-testid={`demo-option-${a.id}`} data-variant={a.variant} title={a.hint()} onPointerMove={() => setActive(i)} onClick={() => choose(a)} className={`flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] font-semibold text-slate-100 ${i === active ? 'bg-slate-800' : ''}`}>
+              <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${DOT[a.variant]}`} />
               <span aria-hidden="true">{a.icon}</span>
               <span className="min-w-0 flex-1">{a.label()}</span>
               {a.id === chosen?.id && (
@@ -133,6 +146,31 @@ function DemoSelector({ actions }: { actions: readonly DemoAction[] }) {
   );
 }
 
+/** The buttons pressed outside their shift that the learner chose to wait with: each runs by itself when its window opens. */
+function WaitingChips() {
+  const m = useMessages(retailOpsMessages);
+  const waiting = useShiftQueue((s) => s.waiting);
+  if (!waiting.length) return null;
+  return (
+    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1.5" role="status" data-testid="shift-waiting">
+      <span className="whitespace-nowrap text-[10.5px] font-bold uppercase tracking-wider text-amber-300">⏳ {m('shiftWaitingTitle')}</span>
+      {waiting.map((w) => {
+        const label = demoActionById(w.id).label();
+        return (
+          <span key={w.id} className="flex min-w-0 max-w-[16rem] items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/10 py-0.5 pl-2 pr-1 text-[11px] font-semibold text-amber-100" data-testid={`shift-waiting-${w.id}`} data-shift={w.shift}>
+            <span className="min-w-0 truncate" title={label}>
+              {label} · {w.shift === 'day' ? '09:00' : '23:00'}
+            </span>
+            <button type="button" onClick={() => shiftQueueStore.getState().unqueue(w.id)} aria-label={m('shiftWaitingRemove', { label })} title={m('shiftWaitingRemove', { label })} className="grid h-4 w-4 shrink-0 place-items-center rounded-full text-[12px] leading-none text-amber-200 hover:bg-amber-400/20">
+              ×
+            </button>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function PresetDockView() {
   const m = useMessages(retailOpsMessages);
   const locale = useLocale();
@@ -144,42 +182,54 @@ function PresetDockView() {
   const shortMap = useTopBand((s) => s.shortMap);
   const mapW = useTopBand((s) => s.mapW);
   const vault = useRetailOpsStore((s) => s.book.vaultPrompt);
+  const waitingCount = useShiftQueue((s) => s.waiting.length);
+  const covered = useInspectorCovers();
   const cassetteLow = cassetteStatus(useRetailOpsStore((s) => s.book)).low;
   const box = useRef<HTMLDivElement>(null);
   // What stands on top of the bar (the ledger) keeps clear of it, whatever height the bar takes.
-  useMeasuredBox(box, (b) => topBand.setState({ demoDock: b }), [flow, sub, shortMap, mapW, right, vault, cassetteLow]);
+  useMeasuredBox(box, (b) => topBand.setState({ demoDock: b }), [flow, sub, shortMap, mapW, right, vault, cassetteLow, waitingCount]);
   useEffect(() => {
-    if (!flow) topBand.setState({ demoDock: null });
-  }, [flow]);
-  if (!flow) return null;
+    if (!flow || covered) topBand.setState({ demoDock: null });
+  }, [flow, covered]);
+  if (!flow || covered) return null;
   const f = GUIDED_FLOWS[flow];
   const ft = flowText(flow);
   const actions = demoActionsFor(flow, sub);
-  const compact = dockIsCompact(mapW - right, shortMap, typeof window === 'undefined' ? Infinity : window.innerWidth);
+  // A single-group flow's dock is titled by its flow, as the menu lists it; the 📖 lesson is the retail book's, so core groups have none.
+  const group = sub && showsGroupsOf(flow) ? demoGroup(sub) : null;
+  const lesson = sub && isOpsGroup(sub) ? sub : null;
+  const title = group ? pick(group.title, locale) : `${f.code}. ${ft.title}`;
+  const free = mapW > 0 ? mapW - right - 24 : 1280;
+  // One row only: what the title, the lesson link and the padding leave of the free width must hold every pill, or the whole area is a dropdown.
+  const budget = free - Math.round(title.length * 6.2 + 24) - (lesson ? 30 : 0) - 32;
+  const windowW = typeof window === 'undefined' ? Infinity : window.innerWidth;
+  const compact = dockIsCompact(mapW - right, shortMap, windowW);
+  const dropdown = compact || dockLayout(actions.map((a) => ({ id: a.id, variant: a.variant, text: `${a.icon} ${a.label()}` })), budget, windowW) === 'dropdown';
   return (
     // The middle of what the inspector and the zoom toolbar leave free, so the bar never slides under them.
     <div
       ref={box}
-      style={{ left: `calc(50% - ${Math.round(right / 2)}px)`, maxWidth: `calc(100% - ${right + 24}px)`, ...(compact ? { width: `calc(100% - ${right + 24}px)` } : {}) }}
-      className={`absolute bottom-0 z-20 flex ${compact ? '' : 'w-max flex-wrap'} -translate-x-1/2 items-center gap-2 rounded-t-2xl transition-[left] duration-200 ease-out border border-b-0 border-slate-800 px-3 py-2 shadow-2xl ${solid ? 'bg-slate-900/95' : 'bg-slate-950/90 backdrop-blur-md'}`}
+      style={{ left: `calc(50% - ${Math.round(right / 2)}px)`, maxWidth: `calc(100% - ${right + 24}px)`, ...(compact ? { width: `calc(100% - ${right + 24}px)` } : dropdown ? { width: `min(760px, calc(100% - ${right + 24}px))` } : {}) }}
+      className={`absolute bottom-0 z-20 flex ${dropdown ? '' : 'w-max flex-wrap'} -translate-x-1/2 items-center gap-2 rounded-t-2xl transition-[left] duration-200 ease-out border border-b-0 border-slate-800 px-3 py-2 shadow-2xl ${solid ? 'bg-slate-900/95' : 'bg-slate-950/90 backdrop-blur-md'}`}
       role="toolbar"
       aria-label={tr({ en: `${ft.title} actions`, vi: `Thao tác ${ft.title}` })}
       data-testid="preset-dock"
       data-flow={flow}
       data-sub={sub ?? undefined}
       data-compact={compact}
+      data-layout={dropdown ? 'dropdown' : 'inline'}
     >
       {!compact && (
         <span className="mr-1 whitespace-nowrap text-[10.5px] font-bold uppercase tracking-wider" style={{ color: f.accent }}>
-          {sub ? pick(opsSubProcess(sub).title, locale) : `${f.code}. ${ft.title}`}
+          {title}
         </span>
       )}
-      {sub && (
-        <button type="button" onClick={() => uiStore.getState().openKnowledge(opsLessonAnchor(sub))} title={m('openThisSubProcessS')} aria-label={m('openThisSubProcessS')} data-testid={`ops-lesson-${sub}`} className="shrink-0 text-[13px]">
+      {lesson && (
+        <button type="button" onClick={() => uiStore.getState().openKnowledge(opsLessonAnchor(lesson))} title={m('openThisSubProcessS')} aria-label={m('openThisSubProcessS')} data-testid={`ops-lesson-${lesson}`} className="shrink-0 text-[13px]">
           📖
         </button>
       )}
-      {compact ? (
+      {dropdown ? (
         // Keyed by the list: another flow starts from its own first scenario.
         <DemoSelector key={`${flow}-${sub ?? ''}`} actions={actions} />
       ) : (
@@ -197,6 +247,7 @@ function PresetDockView() {
           🚚 {m('citRefill')}
         </button>
       )}
+      <WaitingChips />
       {running && !compact && (
         <span className="whitespace-nowrap text-[11px] text-slate-400" role="status" data-testid="preset-running">
           {tr({ en: 'Payment on its way…', vi: 'Giao dịch đang di chuyển…' })}

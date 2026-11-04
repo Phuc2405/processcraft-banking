@@ -9,10 +9,10 @@ import { useNodeCopy } from '../useNodeCopy';
 
 afterEach(() => setActiveLocale('en'));
 
-describe('24-node classification', () => {
-  it('splits every station into 16 automated and 8 human, with no overlap', () => {
+describe('26-node classification', () => {
+  it('splits every station into 16 automated and 10 human, with no overlap', () => {
     expect(AUTOMATED_NODES).toHaveLength(16);
-    expect(HUMAN_NODES).toHaveLength(8);
+    expect(HUMAN_NODES).toHaveLength(10);
     expect(new Set([...AUTOMATED_NODES, ...HUMAN_NODES])).toEqual(new Set(STATION_IDS));
   });
 
@@ -41,6 +41,7 @@ describe('24-node classification', () => {
 
   it('has a desk-specific queue and error example for every family', () => {
     const keys = Object.keys(tipMessages.messages);
+    expect(keys).toContain('line_cases');
     for (const f of new Set<NodeFamily>(Object.values(NODE_FAMILY))) {
       expect(keys, f).toContain(`queue_${f}`);
       expect(keys, f).toContain(`errors_${f}`);

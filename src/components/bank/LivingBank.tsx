@@ -2,6 +2,8 @@ import { t } from '../../i18n/t';
 import { Component, lazy, Suspense, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
 import { noticeText } from '../../i18n/simVi';
 import { useBankStore } from '../../store/bankStore';
+import { installAmbientVisits } from '../../store/ambientVisits';
+import { installDeskOccupancy } from '../../store/deskOccupancy';
 import { useAcademyStore } from '../../store/academyStore';
 import { AcademySplitLayout } from '../academy/AcademySplitLayout';
 import { GuidedBar, ResumeWalkthrough, WalkChip } from '../education/GuidedWalkthrough';
@@ -18,6 +20,7 @@ import { Inspector } from './Inspector';
 import { LedgerDrawer } from './LedgerDrawer';
 import { LearningHub } from './LearningHub';
 import { PresetDock } from './PresetDock';
+import { ShiftPrompt } from './ShiftPrompt';
 import { useBankClock } from './useBankClock';
 import { useTopBand, ViewportControls } from './ViewportControls';
 import { ZoomToolbar } from '../shell/ZoomToolbar';
@@ -114,6 +117,11 @@ function Notice() {
 /** The Living Bank: day clock, the map of departments, the inspector drawer, and the process learning hub. */
 export function LivingBank() {
   useBankClock();
+  // The day's walk-ins at the Savings Desk and the Collateral Vault, and the count of everyone at a counter on its badge.
+  useEffect(() => {
+    const stops = [installAmbientVisits(), installDeskOccupancy()];
+    return () => stops.forEach((stop) => stop());
+  }, []);
   const viewMode = useBankStore((s) => s.viewMode);
   const setViewMode = useBankStore((s) => s.setViewMode);
   const [collapsed, setCollapsed] = useState(false);
@@ -138,7 +146,7 @@ export function LivingBank() {
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="living-bank">
       <ClockBar />
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
         <BankSidebar collapsed={collapsed} onToggle={choose} />
         <AcademySplitLayout>
           <main className="flex min-w-0 flex-1 flex-col bg-[#070b14]" aria-label={t('Bank map')}>
@@ -172,6 +180,7 @@ export function LivingBank() {
         </AcademySplitLayout>
       </div>
       <DayReportModal />
+      <ShiftPrompt />
       <CourseCatalog />
       <LearningHub />
       <AnalystWorkspaceModal />

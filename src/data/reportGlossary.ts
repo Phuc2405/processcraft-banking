@@ -33,6 +33,7 @@ export const STAT_GLOSSARY = {
 /** Why payments were declined, keyed by reason so the tip is right whichever vocabulary the label is shown in. */
 export const DECLINE_GLOSSARY: Record<DeclineReason, string> = {
   FUNDS: 'The account or credit line did not have enough available to cover the payment.',
+  CREDIT_RISK: 'Debt service would take more than 45% of the customer’s income, so the credit was refused.',
   DCVV_EXPIRED: '3-digit rotating security code (dCVV) on virtual cards that expired before transaction completion.',
   DCVV_MISMATCH: 'The rotating security code typed did not match the one the virtual card was showing.',
   UNKNOWN_DPAN: 'The virtual card number did not belong to any card in the bank’s token vault.',
@@ -54,6 +55,9 @@ export const DECLINE_GLOSSARY: Record<DeclineReason, string> = {
   TELLER_VAULT_LIMIT: 'The teller’s till did not hold enough cash for the withdrawal, so it waits for a vault top-up.',
   TELLER_SUSPECT_NOTE: 'The counting machine flagged suspect notes, so their serials were recorded and the deposit was refused.',
   DISPUTE_REJECTED: 'The claim came after its time limit, or the evidence (merchant proof, ATM journal, beneficiary bank) went against it.',
+  OTP_LOCKED: 'Three wrong one-time codes in a 3DS challenge, so the issuer locked the card for online payments (RC 75).',
+  DAILY_LIMIT: 'The money was there, but the card’s daily cash withdrawal limit was already used up (RC 61).',
+  ACCOUNT_FROZEN: 'The account is blocked by a freeze order, so nothing may be paid out of it, whatever the balance (RC 62).',
 };
 
 export type PnlLabel = keyof typeof PNL_GLOSSARY;

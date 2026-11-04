@@ -21,17 +21,19 @@ export const PACKET_HEX: Record<PacketKind, string> = {
   TELLER: '#84cc16',
   SWIFT: '#fb923c',
   DISPUTE: '#f87171',
+  CREDIT_OPS: '#34d399',
   SETTLEMENT: '#f59e0b',
 };
 
 /** What a wire carries, by the 2D map legend: a decline, the night run, an OTP challenge, or the approved, everyday path. */
-export type LaneKind = 'reject' | 'night' | 'otp' | 'approve';
+export type LaneKind = 'reject' | 'night' | 'otp' | 'lock' | 'approve';
 
 /** The same rules as the 2D map's wire colours (BankMap wireStyle). */
 export function laneKind(to: string, from: string): LaneKind {
   if (to === 'OUT_DECLINED') return 'reject';
   if (from === 'OUT_APPROVED' || from.startsWith('EOD_') || from === 'RECON' || from === 'SUSPENSE' || to === 'OUT_SETTLED') return 'night';
   if (to === 'CUSTOMER_OTP' || from === 'CUSTOMER_OTP') return 'otp';
+  if (from === 'COLLATERAL_VAULT') return 'lock';
   return 'approve';
 }
 
@@ -41,6 +43,7 @@ export const LANE_STYLE: Readonly<Record<LaneKind, { tape: string; glow: string;
   approve: { tape: '#c9c2b4', glow: '#38bdf8' },
   night: { tape: '#e8bd7a', glow: '#fbbf24' },
   otp: { tape: '#c4b5fd', glow: '#a78bfa', dash: [0.13, 0.15] },
+  lock: { tape: '#a5f3fc', glow: '#22d3ee', dash: [0.24, 0.12] },
 };
 
 export const KIOSK_HEX = {

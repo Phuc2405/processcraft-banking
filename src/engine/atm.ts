@@ -13,6 +13,9 @@ export const NOTE_DENOMINATIONS: readonly MinorUnits[] = [5000, 2000];
 export const ATM_MIN_CENTS = 2000;
 export const ATM_MAX_CENTS = 100_000;
 
+/** What one card may take out of ATMs in a day, across every machine: past it the issuer answers RC 61. */
+export const ATM_DAILY_LIMIT_CENTS = 200_000;
+
 export type PinOutcome = 'VERIFIED' | 'LOCKED';
 
 export interface PinResult {

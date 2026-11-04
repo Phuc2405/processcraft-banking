@@ -165,7 +165,7 @@ export class WorldEngine {
     // Everyone wanted in the park at the start is already in place; after that they come and go on foot.
     this.park = factory.parkCrowd(start.minute);
     this.walkout = new ClosingWalkout(isClosed(start.minute));
-    this.arrivals = new ArrivalWalks(this.handoff, this.sidewalk);
+    this.arrivals = new ArrivalWalks(this.handoff, this.sidewalk, (k) => this.lot.alight(k));
     this.street = new StreetPeople(factory.pedestrians(), factory.vehicles(), this.sidewalk);
   }
 

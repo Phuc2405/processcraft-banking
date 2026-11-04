@@ -53,7 +53,9 @@ import {
 } from '../../../engine/plan/layout3d';
 import { tape } from './materials';
 import { LANE_STYLE, laneKind, SET } from './palette';
+import { DeskVisitors3D } from './DeskVisitors3D';
 import { Arrivals, Packets } from './Traffic';
+import { PeopleTags3D } from './PeopleTags3D';
 import { SignalPulses } from './SignalPulses';
 import { GuardCabin3D } from './GuardCabin3D';
 import { TOUR_DAYLIGHT, TOUR_GLIDE_MS, type CamFocus } from './tour3d';
@@ -850,6 +852,7 @@ const CrowdRenderer = memo(function CrowdRenderer() {
       <Pedestrians />
       <GuardCabin3D />
       <Arrivals />
+      <PeopleTags3D />
     </group>
   );
 });
@@ -863,6 +866,7 @@ const DeskRenderer = memo(function DeskRenderer() {
       <Kiosks />
       <Packets />
       <SignalPulses />
+      <DeskVisitors3D />
     </group>
   );
 });

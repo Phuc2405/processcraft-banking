@@ -965,3 +965,88 @@ body[data-hover3d] .bk-office-canvas[data-grabbing] {
     transition: none;
   }
 }
+
+/* People at the staffed counters on the 2D map (savings, collateral, Pay-in-4 appraisal). */
+.bk-visit-status {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 2px);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  border-radius: 9999px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 14px;
+  color: #e2e8f0;
+  background: rgb(15 23 42 / 0.88);
+  box-shadow: 0 0 0 1px rgb(148 163 184 / 0.45);
+}
+.bk-visit-figure[data-phase='transact'] .bk-visit-status {
+  bottom: calc(100% + 18px);
+}
+.bk-visit-status[data-status='processing'] {
+  color: #fde68a;
+  box-shadow: 0 0 0 1px rgb(251 191 36 / 0.7);
+}
+.bk-visit-status[data-status='done'] {
+  color: #6ee7b7;
+  box-shadow: 0 0 0 1px rgb(52 211 153 / 0.7);
+}
+/* The 2D line at the walk-up counters (DeskCrowd2D): walking in, stepping up and walking off are one transition. */
+.bk-crowd-figure {
+  transition:
+    transform var(--crowd-ms, 650ms) linear,
+    opacity var(--crowd-ms, 650ms) linear;
+}
+[data-frozen='true'] .bk-crowd-figure {
+  transition: none;
+}
+/* A paused bank: everyone stands still, the walking bob included. */
+[data-frozen='true'] .bk-visit-figure .bk-visit-body,
+[data-frozen='true'] .bk-visit-figure .bk-visit-bubble {
+  animation: none !important;
+}
+.bk-visit-figure .bk-visit-body {
+  transform-origin: 50% 100%;
+}
+.bk-visit-figure[data-phase='walk'] .bk-visit-body,
+.bk-visit-figure[data-phase='leave'] .bk-visit-body {
+  animation: bk-visit-step 0.32s ease-in-out infinite alternate;
+}
+.bk-visit-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  display: none;
+  transform: translateX(-50%);
+  font-size: 13px;
+  line-height: 1;
+}
+.bk-visit-figure[data-phase='transact'] .bk-visit-bubble {
+  display: block;
+  animation: bk-visit-pop 0.9s ease-in-out infinite;
+}
+@keyframes bk-visit-step {
+  from {
+    transform: translateY(0) rotate(-3deg);
+  }
+  to {
+    transform: translateY(-2px) rotate(3deg);
+  }
+}
+@keyframes bk-visit-pop {
+  0%,
+  100% {
+    transform: translate(-50%, 0) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -3px) scale(1.15);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bk-visit-figure[data-phase] .bk-visit-body,
+  .bk-visit-figure[data-phase='transact'] .bk-visit-bubble {
+    animation: none;
+  }
+}

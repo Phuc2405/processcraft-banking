@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RETAIL_FLASHCARDS } from '../../data/retailFlashcards';
 import { OPS_FLASHCARDS, type OpsFlashcard } from '../../data/retailOpsKnowledge';
 import type { TopicModule } from '../../data/retailTopicModules';
 import { pick, useLocale, type Locale } from '../../i18n/locale';
@@ -155,7 +156,20 @@ export function OpsCrosswalk({ highlight = null }: { highlight?: string | null }
   );
 }
 
-function Flashcard({ card, lit: on }: { card: OpsFlashcard; lit: boolean }) {
+type FlashcardPoint = { tier: 'definition' | 'journal' | 'rules' | 'reference'; title: 'flashcardDefinition' | 'flashcardEntry' | 'flashcardRule' | 'flashcardReference'; text?: OpsFlashcard['rule'] };
+
+/** The numbered points on the back of a card, in order; a card without a supplementary rule simply has one point fewer. */
+export function flashcardPoints(card: OpsFlashcard): FlashcardPoint[] {
+  return [
+    { tier: 'definition', title: 'flashcardDefinition', text: card.rule },
+    { tier: 'journal', title: 'flashcardEntry' },
+    // Always four points, in the same order on every card: a card without its own rule note repeats the definition's rule.
+    { tier: 'rules', title: 'flashcardRule', text: card.detail ?? card.rule },
+    { tier: 'reference', title: 'flashcardReference', text: card.reference },
+  ];
+}
+
+export function Flashcard({ card, lit: on }: { card: OpsFlashcard; lit: boolean }) {
   const m = useMessages(retailOpsMessages);
   const locale = useLocale();
   const [flipped, setFlipped] = useState(false);
@@ -164,18 +178,48 @@ function Flashcard({ card, lit: on }: { card: OpsFlashcard; lit: boolean }) {
     <button type="button" id={kbId(`flash-${card.id}`)} onClick={() => setFlipped((f) => !f)} aria-pressed={flipped} data-flipped={flipped} data-card={card.id} className={`kb-flip block h-full w-full min-w-0 scroll-mt-2 text-left ${lit(on)}`}>
       <span className="kb-flip-inner h-full">
         <span className={`kb-flip-face flex min-h-[13rem] min-w-0 flex-col rounded-xl border border-slate-700 bg-slate-950/70 p-3 ${flipped ? 'invisible' : ''}`} data-face="front">
-          <span className="break-words text-[11.5px] font-bold uppercase tracking-wider text-sky-300">{pick(sub.title, locale)}</span>
+          <span className="break-words text-[11.5px] font-bold uppercase tracking-wider text-sky-300" data-testid="flashcard-header">
+            {m('flashcardHeader')}
+          </span>
+          <span className="mt-1 self-start break-words rounded-full border border-slate-700 bg-slate-900 px-2 py-0.5 text-[10.5px] font-semibold text-slate-400" data-testid="flashcard-sub">
+            {pick(sub.title, locale)}
+          </span>
           <span className="mt-2 line-clamp-6 flex-1 break-words text-[15px] font-semibold leading-snug text-slate-50" title={pick(card.front, locale)}>
             {pick(card.front, locale)}
           </span>
           <span className="mt-2 text-[11.5px] text-slate-500">{m('clickToFlip')}</span>
         </span>
         <span className={`kb-flip-face kb-flip-back flex min-h-[13rem] min-w-0 flex-col rounded-xl border border-emerald-400/40 bg-emerald-950/30 p-3 ${flipped ? '' : 'invisible'}`} data-face="back">
-          {card.lines.length > 0 ? <OpsLines lines={card.lines} /> : <span className="text-[12px] font-semibold text-slate-400">{m('noJournalPosts')}</span>}
-          <span className="mt-2 line-clamp-5 flex-1 break-words text-[13.5px] leading-snug text-slate-100" title={pick(card.rule, locale)}>
-            {pick(card.rule, locale)}
+          {/* The same scroll container as the dropdowns and the map legend: a long journal scrolls inside the card, never stretching its grid row. */}
+          {/* The back is one indented numbered list, "1/ … 2/ … 3/ …": the definition, the entry it posts, the rule behind it, and where the rule comes from. */}
+          <span className="bk-scroll -mr-1.5 flex max-h-[220px] min-w-0 flex-col gap-2 overflow-y-auto overscroll-contain pr-1.5" data-testid="flashcard-back-scroll">
+            <span className="break-words text-[12.5px] font-bold leading-snug text-emerald-200" data-testid="flashcard-term">
+              {pick(card.term ?? sub.title, locale)}
+            </span>
+            <span className="flex min-w-0 flex-col gap-2" role="list" data-testid="flashcard-points">
+              {flashcardPoints(card).map((point, i) => (
+                <span key={point.tier} role="listitem" className="flex min-w-0 gap-1.5 border-t border-emerald-400/15 pt-1.5 first:border-t-0 first:pt-0" data-tier={point.tier}>
+                  <span className="w-5 shrink-0 font-mono text-[12px] font-bold text-emerald-300" aria-hidden="true">
+                    {i + 1}/
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5 pl-0.5">
+                    <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">{m(point.title)}</span>
+                    {point.tier === 'journal' ? (
+                      card.lines.length > 0 ? (
+                        <span className="min-w-0 pl-1">
+                          <OpsLines lines={card.lines} />
+                        </span>
+                      ) : (
+                        <span className="text-[12px] font-semibold text-slate-400">{m('noJournalPosts')}</span>
+                      )
+                    ) : (
+                      <span className={point.tier === 'reference' ? 'break-words font-mono text-[11.5px] text-violet-200' : point.tier === 'rules' ? 'break-words text-[12.5px] leading-snug text-slate-300' : 'break-words text-[13.5px] leading-snug text-slate-100'}>{pick(point.text!, locale)}</span>
+                    )}
+                  </span>
+                </span>
+              ))}
+            </span>
           </span>
-          <span className="mt-2 break-words font-mono text-[11.5px] text-violet-200">{pick(card.reference, locale)}</span>
         </span>
       </span>
     </button>
@@ -186,7 +230,14 @@ export function OpsFlashcards({ highlight = null }: { highlight?: string | null 
   const m = useMessages(retailOpsMessages);
   return (
     <article data-testid="ops-flashcards" className="min-w-0 text-[15px] leading-relaxed text-slate-200">
-      <h3 className="text-[20px] font-extrabold text-slate-50">{m('retailOperationsFlashcards')}</h3>
+      <h3 className="text-[20px] font-extrabold text-slate-50">{m('retailBankingFlashcards')}</h3>
+      <p className="mt-1 text-slate-300">{m('retailBankingFlashcardsIntro')}</p>
+      <div className="mt-3 grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="retail-flashcard-grid">
+        {RETAIL_FLASHCARDS.map((c) => (
+          <Flashcard key={c.id} card={c} lit={highlight === `flash-${c.id}`} />
+        ))}
+      </div>
+      <h3 className="mt-8 text-[20px] font-extrabold text-slate-50">{m('retailOperationsFlashcards')}</h3>
       <p className="mt-1 text-slate-300">{m('aRealSituationOnThe')}</p>
       <div className="mt-3 grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="ops-flashcard-grid">
         {OPS_FLASHCARDS.map((c) => (

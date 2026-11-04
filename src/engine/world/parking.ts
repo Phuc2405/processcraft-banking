@@ -130,17 +130,26 @@ export const counterSpot = (s: Pick<Slot, 'index'>): V2 => {
   return [pose.x + 0.55, pose.z + pose.d / 2 + 0.45];
 };
 
+/**
+ * The walk from a vehicle's side to the car park's footway: out of the driver's door (just ahead of the middle of its side, in the gap
+ * to the next bay), along that gap past its tail and across to the footway. Never out of the boot: one gets in and out at the side.
+ */
+export function alightPath(s: Pick<Slot, 'x' | 'z' | 'kind'>): V2[] {
+  const { len, wid } = SIZE[s.kind];
+  const row = rowOf(s);
+  const nose = LOT_SIDE * row.facing;
+  // In the gap beside it: never further out than the bay's own edge.
+  const z = s.z + Math.min(row.bay / 2 - 0.1, wid / 2 + 0.2);
+  const tail = s.x + Math.sign(ax - s.x) * (len / 2 + 0.15);
+  return [[s.x + nose * len * 0.12, z], [tail, z], [fx, z]];
+}
+
 /** Where someone walks between their bay and the counter they came for. */
 export function walkPath(s: Slot): V2[] {
-  const len = SIZE[s.kind].len;
-  // Beside the vehicle, inside its own bay, at its aisle end.
-  const z = s.z + rowOf(s).bay / 2 - 0.1;
-  const end = s.x + Math.sign(ax - s.x) * (len / 2 - 0.2);
   const door = CUSTOMER_DOOR[1];
   const spot = counterSpot(s);
   return [
-    [end, z],
-    [fx, z],
+    ...alightPath(s),
     [fx, door],
     [-HX - 0.1, door],
     [LEFT_WALK_X, door],
@@ -493,6 +502,13 @@ export class ParkingLot {
       out.push({ id: v.id, x, z, heading: Math.atan2(px - x, pz - z) });
     }
     return out;
+  }
+
+  /** A passenger getting out of a car parked in its bay (its driver already in the branch), `k` picking which: their walk to the footway, or null when no car stands parked. */
+  alight(k: number): V2[] | null {
+    const cars = this.vehicles.filter((v) => v.phase === 'parked' && v.kind === 'car');
+    const v = cars[((k % cars.length) + cars.length) % cars.length];
+    return v ? alightPath(this.slots[v.slot]!) : null;
   }
 
   /** How far the barrier is up, 0-1: up while the moving vehicle is near the gate. */

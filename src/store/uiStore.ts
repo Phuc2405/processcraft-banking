@@ -10,10 +10,11 @@ export const SOUND_KEY = 'processcraft:v1:sound';
 export type Overlay = 'none' | 'aml' | 'benchmark' | 'chaos' | 'audit' | 'knowledge';
 
 /** The Knowledge Base's tabs: the core ledger, AML compliance, the retail scenarios, and the retail flashcards. */
-export type KnowledgeTab = 'core' | 'aml' | 'retail' | 'flashcards';
+export type KnowledgeTab = 'core' | 'aml' | 'retail' | 'flashcards' | 'legal';
 
 /** The tab an anchor lives on: AML anchors start with `aml`, retail guides with `retail`, cards with `flash-`, everything else is the core ledger's. */
-export const knowledgeTabOf = (anchor: string | null): KnowledgeTab => (anchor?.startsWith('aml') ? 'aml' : anchor?.startsWith('retail') ? 'retail' : anchor?.startsWith('flash-') ? 'flashcards' : 'core');
+export const knowledgeTabOf = (anchor: string | null): KnowledgeTab =>
+  anchor?.startsWith('aml') ? 'aml' : anchor?.startsWith('retail') ? 'retail' : anchor?.startsWith('flash-') ? 'flashcards' : anchor?.startsWith('legal-') ? 'legal' : 'core';
 
 export interface UiState {
   /** The "Choose Your Experience Mode" chooser. */

@@ -60,8 +60,8 @@ describe('guided flows', () => {
 
   it('every flow but the night one has payment presets', () => {
     expect(presetsFor(1).map((p) => p.variant)).toEqual(['success', 'danger']);
-    expect(presetsFor(2).map((p) => p.variant)).toEqual(['primary', 'warning']);
-    expect(presetsFor(3).map((p) => p.variant)).toEqual(['success']);
+    expect(presetsFor(2).map((p) => p.variant)).toEqual(['success', 'primary', 'danger', 'danger', 'warning']);
+    expect(presetsFor(3).map((p) => p.variant)).toEqual(['success', 'danger', 'danger']);
     expect(presetsFor(4).map((p) => p.id)).toEqual(['eod']);
   });
 

@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { pick, useLocale } from '../../i18n/locale';
 import { flowText, GUIDED_FLOWS } from '../../sim/guidedFlows';
-import { opsSubProcess, opsSubProcessesIn, type OpsSubProcessId } from '../../sim/retailOps';
+import { demoGroup, demoGroupsIn, showsGroupsOf, type DemoGroupId } from '../../sim/demoGroups';
 import { useBankStore } from '../../store/bankStore';
 import { FLOW_IDS, type FlowId } from '../../types/viewport';
 import { useMessages } from '../../utils/i18nHelper';
@@ -9,10 +9,13 @@ import { AdaptivePopover, listboxKey } from '../shell/AdaptivePopover';
 import { retailOpsMessages } from './retailOps.messages';
 import { selectSubProcess } from './retailOpsActions';
 
-/** What the menu offers, in order: each of the eight flows, with its retail sub-processes under it. */
-export type MenuChoice = { kind: 'flow'; flow: FlowId } | { kind: 'sub'; flow: FlowId; sub: OpsSubProcessId };
+/**
+ * What the menu offers, in order: each of the eight flows, with its child sub-groups under it. A flow with a single sub-group lists
+ * none: picking the flow already shows that group's buttons, so a nested row would only repeat its parent.
+ */
+export type MenuChoice = { kind: 'flow'; flow: FlowId } | { kind: 'sub'; flow: FlowId; sub: DemoGroupId };
 
-export const MENU_CHOICES: readonly MenuChoice[] = FLOW_IDS.flatMap((flow): MenuChoice[] => [{ kind: 'flow', flow }, ...opsSubProcessesIn(flow).map((s): MenuChoice => ({ kind: 'sub', flow, sub: s.id }))]);
+export const MENU_CHOICES: readonly MenuChoice[] = FLOW_IDS.flatMap((flow): MenuChoice[] => [{ kind: 'flow', flow }, ...(showsGroupsOf(flow) ? demoGroupsIn(flow).map((g): MenuChoice => ({ kind: 'sub', flow, sub: g.id })) : [])]);
 
 const choiceId = (c: MenuChoice): string => (c.kind === 'flow' ? `flow-${c.flow}` : `flow-sub-${c.sub}`);
 
@@ -24,12 +27,14 @@ export function SubProcessMenu() {
   const sub = useBankStore((s) => s.subProcess);
   const setFlow = useBankStore((s) => s.setActiveFlow);
   const [open, setOpen] = useState(false);
-  const selected = MENU_CHOICES.findIndex((c) => (sub ? c.kind === 'sub' && c.sub === sub : c.kind === 'flow' && c.flow === flow));
+  const selected = MENU_CHOICES.findIndex((c) => (sub && showsGroupsOf(flow) ? c.kind === 'sub' && c.sub === sub : c.kind === 'flow' && c.flow === flow));
   const [active, setActive] = useState(selected);
   const trigger = useRef<HTMLButtonElement>(null);
   const listId = useId();
   const accent = GUIDED_FLOWS[flow].accent;
-  const title = sub ? pick(opsSubProcess(sub).title, locale) : `${GUIDED_FLOWS[flow].code}. ${flowText(flow).title}`;
+  // A single-group flow's group is shown as its flow, as the menu lists it.
+  const group = sub && showsGroupsOf(flow) ? sub : null;
+  const title = group ? pick(demoGroup(group).title, locale) : `${GUIDED_FLOWS[flow].code}. ${flowText(flow).title}`;
 
   useEffect(() => {
     if (open) setActive(selected);
@@ -73,7 +78,7 @@ export function SubProcessMenu() {
         aria-controls={listId}
         aria-activedescendant={open ? `${listId}-${active}` : undefined}
         aria-label={m('selectSubProcess')}
-        title={sub ? pick(opsSubProcess(sub).title, locale) : flowText(flow).blurb}
+        title={group ? pick(demoGroup(group).title, locale) : flowText(flow).blurb}
         onClick={() => setOpen((o) => !o)}
         onKeyDown={onKeyDown}
         data-testid="flow-menu"
@@ -93,7 +98,8 @@ export function SubProcessMenu() {
         <AdaptivePopover anchor={trigger} onClose={() => setOpen(false)} width={360} id={listId} label={m('selectSubProcess')} testId="flow-menu-list" activeIndex={active}>
           {MENU_CHOICES.map((c, i) => {
             const on = i === selected;
-            const label = c.kind === 'flow' ? `${GUIDED_FLOWS[c.flow].code}. ${flowText(c.flow).title}` : pick(opsSubProcess(c.sub).title, locale);
+            const parent = c.kind === 'flow';
+            const label = parent ? flowText(c.flow).title : pick(demoGroup(c.sub).title, locale);
             return (
               <li
                 key={choiceId(c)}
@@ -102,10 +108,16 @@ export function SubProcessMenu() {
                 aria-selected={on}
                 data-index={i}
                 data-testid={choiceId(c)}
+                data-level={parent ? 1 : 2}
                 onPointerMove={() => setActive(i)}
                 onClick={() => choose(c)}
-                className={`flex cursor-pointer items-center gap-2 rounded-lg py-1 pr-2 ${c.kind === 'flow' ? 'pl-2 text-[12px] font-bold text-slate-100' : 'pl-6 text-[11.5px] text-slate-300'} ${i === active ? 'bg-slate-800' : ''}`}
+                className={`flex cursor-pointer items-center gap-2 rounded-lg py-1 pr-2 ${parent ? `pl-2 text-[12px] font-bold text-slate-100 ${i > 0 ? 'mt-1' : ''}` : 'ml-3.5 border-l border-slate-700 pl-3 text-[11.5px] text-slate-300'} ${i === active ? 'bg-slate-800' : ''}`}
               >
+                {parent && (
+                  <span className="w-5 shrink-0 font-mono text-[11px]" style={{ color: GUIDED_FLOWS[c.flow].accent }}>
+                    {GUIDED_FLOWS[c.flow].code}
+                  </span>
+                )}
                 <span className="min-w-0 flex-1">{label}</span>
                 {on && (
                   <span aria-hidden="true" style={{ color: accent }}>

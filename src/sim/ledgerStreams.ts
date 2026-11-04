@@ -55,6 +55,7 @@ export const SYSTEM_ENGINE: Readonly<Record<TxRecord['kind'], StationId>> = {
   TELLER: 'TELLER_CASH',
   SWIFT: 'GATE_SWIFT',
   DISPUTE: 'DISPUTE_DESK',
+  CREDIT_OPS: 'LEDGER_DEBIT',
   SETTLEMENT: 'EOD_BATCH',
 };
 

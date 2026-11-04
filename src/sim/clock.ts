@@ -57,10 +57,13 @@ export function formatClock(minute: number): string {
   return `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`;
 }
 
-/** Real milliseconds one beat takes at the Relaxed (1x) speed. */
-const BEAT_MS: Record<Phase, number> = { PRE_OPEN: 900, WORKING: 1500, AFTER_HOURS: 900, EOD: 1500 };
-/** A 5-minute beat before a shift, at 1x: the staff's hour in about half a minute, time for everyone to walk in. */
-const PRE_SHIFT_MS = 2400;
+/**
+ * Real milliseconds one beat takes at the Relaxed (1x) speed. Paced so an observer can follow each customer's walk, the desk that
+ * lights up, and every hop of a payment without feeling rushed (the faster speeds are one click away on the clock bar).
+ */
+const BEAT_MS: Record<Phase, number> = { PRE_OPEN: 1200, WORKING: 2200, AFTER_HOURS: 1200, EOD: 2200 };
+/** A 5-minute beat before a shift, at 1x: the staff's hour in about 40 seconds, time to watch everyone walk in. */
+const PRE_SHIFT_MS = 3200;
 
 export interface SpeedChoice {
   /** What the button says. */
@@ -71,7 +74,7 @@ export interface SpeedChoice {
   name?: string;
 }
 
-/** The six speeds on the clock bar. 1x is Relaxed: one tick every 1.5 seconds. */
+/** The six speeds on the clock bar. 1x is Relaxed: one working-hours tick every 2.2 seconds. */
 /** The name of a speed in the active language. */
 export const speedNameText = (name: string | undefined): string | undefined => (name === undefined ? undefined : activeLocale() === 'vi' ? ({ 'Slow-mo': 'Chậm', Relaxed: 'Thong thả' } as Record<string, string>)[name] ?? name : name);
 

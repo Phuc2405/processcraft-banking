@@ -10,6 +10,7 @@ import { useMessages } from '../../utils/i18nHelper';
 import { academySplitMessages } from './academySplit.messages';
 import { FlashcardsView, QuizView } from './AcademyStudy';
 import { LessonView, ViewLevelToggle } from './LessonView';
+import { LanguageToggle } from '../shell/LanguageToggle';
 
 /** The Academy split view. */
 
@@ -189,6 +190,29 @@ function RoadmapLessonSplit({ lesson }: { lesson: ReactNode }) {
   );
 }
 
+/** The least map the split view must leave beside the lesson panel (and the bank's left rail). */
+const MIN_SPLIT_MAP_PX = 480;
+const RAIL_PX = 48;
+
+/** True when the window cannot hold the panel at `width` beside a usable map: the open panel then shows in Focus Mode, over the map. */
+export const splitTooNarrow = (windowWidth: number, width: number): boolean => windowWidth - RAIL_PX - width < MIN_SPLIT_MAP_PX;
+
+function useWindowWidth(): number {
+  const [w, setW] = useState(() => (typeof window === 'undefined' ? Infinity : window.innerWidth));
+  useEffect(() => {
+    const on = (): void => setW(window.innerWidth);
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, []);
+  return w;
+}
+
+/** Whether the panel is maximized: chosen in the store, or forced on a window too narrow to split. */
+function useMaximized(): boolean {
+  const ww = useWindowWidth();
+  return useAcademyStore((s) => s.isSplitScreenOpen && (s.isMaximized || splitTooNarrow(ww, s.panelWidth)));
+}
+
 /** [⛶ Focus Mode] / [↙ Split View]. */
 function FocusToggle() {
   const maximized = useAcademyStore((s) => s.isMaximized);
@@ -232,7 +256,7 @@ function Catalog({ className }: { className: string }) {
 
 function AcademyPanel() {
   const open = useAcademyStore((s) => s.isSplitScreenOpen);
-  const maximized = useAcademyStore((s) => s.isMaximized && s.isSplitScreenOpen);
+  const maximized = useMaximized();
   const setMaximized = useAcademyStore((s) => s.setMaximized);
   const width = useAcademyStore((s) => s.panelWidth);
   const setWidth = useAcademyStore((s) => s.setPanelWidth);
@@ -299,21 +323,27 @@ function AcademyPanel() {
       {/* The content keeps its own width while the frame opens and closes, so it slides in without rewrapping. */}
       <div className={`flex h-full flex-col overflow-hidden ${maximized ? 'w-full border-x border-slate-800 bg-slate-950 shadow-2xl xl:w-[85%]' : ''}`} style={maximized ? undefined : { width }}>
         <header className={`shrink-0 border-b border-slate-800 py-2.5 ${maximized ? 'px-5' : 'px-3'}`}>
-          <div className="flex items-center gap-2">
-            <h2 className={`flex-1 font-bold text-slate-50 ${maximized ? 'text-[16px]' : 'text-[13.5px]'}`}>
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className={`min-w-0 flex-1 truncate font-bold text-slate-50 ${maximized ? 'text-[16px]' : 'text-[13.5px]'}`}>
               <span aria-hidden="true">🎓 </span>
               {tr({ en: 'Academy', vi: 'Học viện' })}
             </h2>
-            <span className="font-mono text-[11px] text-slate-400" data-testid="academy-progress-text">
+            <span className="shrink-0 font-mono text-[11px] text-slate-400" data-testid="academy-progress-text">
               {doneCount}/{LESSON_COUNT} {tr({ en: 'lessons', vi: 'bài' })}
             </span>
-            <button type="button" onClick={toggle} aria-label={tr({ en: 'Close the lesson panel', vi: 'Đóng bảng bài học' })} title={tr({ en: 'Close', vi: 'Đóng' })} data-testid="academy-close" className="grid h-6 w-6 place-items-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-white">
+            <button type="button" onClick={toggle} aria-label={tr({ en: 'Close the lesson panel', vi: 'Đóng bảng bài học' })} title={tr({ en: 'Close', vi: 'Đóng' })} data-testid="academy-close" className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-white">
               ×
             </button>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+          {/* One wrapping row of controls: on a narrow panel they flow onto a second line rather than squeezing (or overlapping) each other. */}
+          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2" data-testid="academy-controls">
             <FocusToggle />
             <ViewLevelToggle />
+            {maximized && (
+              <div className="shrink-0" data-testid="academy-language-wrap">
+                <LanguageToggle testId="academy-language" />
+              </div>
+            )}
             <button
               type="button"
               onClick={() => downloadCheatSheet()}
@@ -370,7 +400,7 @@ function AcademyPanel() {
 /** Lays the lesson panel beside the Living Bank's map (`children`). */
 export function AcademySplitLayout({ children }: { children: ReactNode }) {
   useEffect(() => bindAcademySync(academyStore, bankStore), []);
-  const maximized = useAcademyStore((s) => s.isMaximized && s.isSplitScreenOpen);
+  const maximized = useMaximized();
   const stage = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = stage.current as (HTMLDivElement & { inert: boolean }) | null;

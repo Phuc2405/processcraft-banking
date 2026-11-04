@@ -14,6 +14,17 @@ export const TIP_MAX_WIDTH = 280;
 
 export const tipWidth = (viewportWidth: number): number => Math.max(120, Math.min(TIP_MAX_WIDTH, viewportWidth - TIP_MARGIN * 2));
 
+/** Where a result's card goes: beside the results panel (right if it fits, then left), level with the row, and under the panel on a screen too narrow for either. */
+export function placeSideTip(row: Box, panel: Box, tip: { width: number; height: number }, viewport: { width: number; height: number }): { left: number; top: number } {
+  const right = panel.left + panel.width + TIP_GAP;
+  const left = panel.left - TIP_GAP - tip.width;
+  const fitsRight = right + tip.width <= viewport.width - TIP_MARGIN;
+  const fitsLeft = left >= TIP_MARGIN;
+  const clampTop = (top: number): number => Math.max(TIP_MARGIN, Math.min(top, viewport.height - tip.height - TIP_MARGIN));
+  if (fitsRight || fitsLeft) return { left: Math.round(fitsRight ? right : left), top: Math.round(clampTop(row.top)) };
+  return { left: Math.round(Math.max(TIP_MARGIN, Math.min(panel.left, viewport.width - tip.width - TIP_MARGIN))), top: Math.round(clampTop(panel.top + panel.height + TIP_GAP)) };
+}
+
 export function placeTip(anchor: Box, tip: { width: number; height: number }, viewport: { width: number; height: number }): { left: number; top: number; side: 'above' | 'below' } {
   const centre = anchor.left + anchor.width / 2;
   const maxLeft = Math.max(TIP_MARGIN, viewport.width - tip.width - TIP_MARGIN);

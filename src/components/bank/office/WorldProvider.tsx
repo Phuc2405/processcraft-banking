@@ -2,6 +2,7 @@ import { useFrame } from '@react-three/fiber';
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { SPEEDS } from '../../../sim/clock';
 import { bankStore } from '../../../store/bankStore';
+import { deskVisitStore } from '../../../store/deskVisitStore';
 import type { WorldEngine } from '../../../engine/simulation/WorldEngine';
 import { simulation } from '../useSimulation';
 import { liveMix, weatherStore } from '../../../engine/world/weather';
@@ -29,7 +30,9 @@ function WorldTicker({ world }: { world: WorldEngine }) {
     const s = bankStore.getState();
     const { mixChanged } = world.tick({
       realDt: dt,
-      playing: s.playing && s.spotlight === null,
+      // A solo demo stops the clock when its one payment is done: the world keeps moving while people are still at a counter,
+      // but never once the learner has paused (the visits are frozen then).
+      playing: (s.playing || (deskVisitStore.getState().visits.length > 0 && deskVisitStore.getState().frozenAt === null)) && s.spotlight === null,
       speed: SPEEDS[s.speedIndex]?.factor ?? 1,
       minute: s.view.minute,
       weather: weatherStore.getState().weather,

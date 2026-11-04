@@ -68,8 +68,11 @@ export function journeyFrames(points: readonly Pt[], delayMs: number, durationMs
 }
 
 /** `label` is what the money is for ("☕ Corner Cafe Tap ($4.50)"). */
-export function PathTraveller({ path, look, delayMs, durationMs, label }: { path: string; look: TokenLook; delayMs: number; durationMs: number; label?: string }) {
+export function PathTraveller({ path, look, delayMs, durationMs, label, paused = false }: { path: string; look: TokenLook; delayMs: number; durationMs: number; label?: string; paused?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
+  const animation = useRef<Animation | null>(null);
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -80,9 +83,25 @@ export function PathTraveller({ path, look, delayMs, durationMs, label }: { path
       el.style.opacity = '1';
       return;
     }
-    const animation = el.animate(journeyFrames(points, delayMs, durationMs), { duration: Math.max(1, delayMs + durationMs), fill: 'both', easing: 'linear' });
-    return () => animation.cancel();
+    if (typeof el.animate !== 'function') return;
+    const run = el.animate(journeyFrames(points, delayMs, durationMs), { duration: Math.max(1, delayMs + durationMs), fill: 'both', easing: 'linear' });
+    // Drawn while the bank is paused (the map came back from 3D, another flow was lit, the clock was moved): this hop already
+    // happened, so it is put at its end (hidden) and never replays. Only a beat played live rides the wire.
+    if (pausedRef.current) run.finish();
+    animation.current = run;
+    return () => {
+      animation.current = null;
+      run.cancel();
+    };
   }, [path, delayMs, durationMs]);
+
+  // Paused mid-hop: the token holds where it is, and rides on from there on Play.
+  useLayoutEffect(() => {
+    const run = animation.current;
+    if (!run || run.playState === 'finished') return;
+    if (paused) run.pause();
+    else run.play();
+  }, [paused]);
 
   return (
     <div

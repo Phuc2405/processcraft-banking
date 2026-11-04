@@ -74,6 +74,13 @@ function ResultCard({ outcome }: { outcome: OpsOutcome }) {
           {m('customerBalance')}: {formatAud(outcome.customer.before)} → <span className={outcome.customer.after < 0 ? 'font-bold text-rose-300' : 'text-slate-200'}>{outcome.customer.after < 0 ? `-${formatAud(-outcome.customer.after)}` : formatAud(outcome.customer.after)}</span>
         </p>
       )}
+      {outcome.facts && (
+        <ul className="mt-1 space-y-0.5 text-[11.5px] leading-snug text-sky-200" data-testid="ops-facts">
+          {outcome.facts.map((f, i) => (
+            <li key={i}>{pick(f, locale)}</li>
+          ))}
+        </ul>
+      )}
       {outcome.journal ? (
         <div className="mt-1">
           <OpsLines lines={outcome.journal.lines} testId="ops-journal-lines" />

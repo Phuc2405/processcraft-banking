@@ -78,10 +78,11 @@ const GLOSSARY_VI: Readonly<Record<string, string>> = {
 
 const DECLINE_LABEL_VI: Readonly<Record<DeclineReason, string>> = {
   FUNDS: 'Tài khoản không đủ số dư',
+  CREDIT_RISK: 'DTI vượt ngưỡng 45%',
   DCVV_EXPIRED: 'dCVV hết hạn',
   DCVV_MISMATCH: 'Sai dCVV',
   UNKNOWN_DPAN: 'Thẻ ảo không xác định',
-  THREE_DS_REJECT: '3DS từ chối',
+  THREE_DS_REJECT: 'Từ chối xác thực 3DS',
   OTP_ABANDONED: 'Không nhập OTP',
   DOWN_PAYMENT: 'Từ chối khoản trả trước',
   PIN_LOCKED: 'Khóa PIN ATM, giữ thẻ',
@@ -91,18 +92,22 @@ const DECLINE_LABEL_VI: Readonly<Record<DeclineReason, string>> = {
   PROCESS_ERROR: 'Lỗi xử lý',
   EKYC_LIVENESS_FAILED: 'eKYC không xác minh được danh tính',
   BIOMETRIC_AUTH_REQUIRED: 'FacePay không khớp khuôn mặt',
-  FDS_HIGH_RISK_DEVICE: 'FDS: thiết bị rủi ro cao',
-  AML_SANCTION_MATCH: 'Trùng danh sách cấm vận',
+  FDS_HIGH_RISK_DEVICE: 'Từ chối: thiết bị rủi ro cao (FDS)',
+  AML_SANCTION_MATCH: 'Tạm dừng kiểm tra Cấm vận (AML/OFAC)',
   AML_STR_BLOCKED: 'Bị chặn sau khi rà soát STR',
   QR_PAYLOAD_INVALID: 'Mã VietQR không hợp lệ',
-  SWIFT_INVALID: 'Điện SWIFT bị từ chối',
+  SWIFT_INVALID: 'Lệnh SWIFT bị trả về (sai BIC/IBAN)',
   TELLER_VAULT_LIMIT: 'Vượt hạn mức tiền mặt tại quầy',
   TELLER_SUSPECT_NOTE: 'Tiền nghi giả tại quầy',
-  DISPUTE_REJECTED: 'Khiếu nại bị từ chối',
+  DISPUTE_REJECTED: 'Từ chối tra soát: người nhận đã rút tiền',
+  OTP_LOCKED: 'Nhập sai OTP quá 3 lần, khóa thẻ',
+  DAILY_LIMIT: 'Vượt hạn mức rút tiền ngày',
+  ACCOUNT_FROZEN: 'Tài khoản đang bị phong tỏa',
 };
 
 const DECLINE_GLOSSARY_VI: Readonly<Record<DeclineReason, string>> = {
   FUNDS: 'Tài khoản hoặc hạn mức tín dụng không đủ để chi trả giao dịch.',
+  CREDIT_RISK: 'Nghĩa vụ trả nợ sẽ chiếm hơn 45% thu nhập của khách nên tín dụng bị từ chối.',
   DCVV_EXPIRED: 'Mã bảo mật xoay vòng 3 chữ số (dCVV) trên thẻ ảo đã hết hạn trước khi giao dịch hoàn tất.',
   DCVV_MISMATCH: 'Mã bảo mật xoay vòng được nhập không khớp với mã thẻ ảo đang hiển thị.',
   UNKNOWN_DPAN: 'Số thẻ ảo không thuộc thẻ nào trong kho token của ngân hàng.',
@@ -124,6 +129,9 @@ const DECLINE_GLOSSARY_VI: Readonly<Record<DeclineReason, string>> = {
   TELLER_VAULT_LIMIT: 'Ngăn kéo tiền của giao dịch viên không đủ tiền mặt cho lần rút; khách được hẹn quay lại sau khi tiếp quỹ.',
   TELLER_SUSPECT_NOTE: 'Máy đếm tiền gắn cờ tiền nghi giả; số seri đã được ghi lại và giao dịch nộp tiền bị từ chối.',
   DISPUTE_REJECTED: 'Khiếu nại nộp quá thời hạn, hoặc bằng chứng (chứng từ của cửa hàng, nhật ký ATM, ngân hàng thụ hưởng) không có lợi cho khách.',
+  OTP_LOCKED: 'Nhập sai mã OTP ba lần trong phiên xác thực 3DS, nên ngân hàng phát hành khóa thẻ cho giao dịch trực tuyến (RC 75).',
+  DAILY_LIMIT: 'Tài khoản đủ tiền, nhưng hạn mức rút tiền mặt trong ngày của thẻ đã dùng hết (RC 61).',
+  ACCOUNT_FROZEN: 'Tài khoản bị phong tỏa theo lệnh, nên không được chi trả bất kỳ khoản nào dù số dư còn (RC 62).',
 };
 
 /** A report label in the active language. */

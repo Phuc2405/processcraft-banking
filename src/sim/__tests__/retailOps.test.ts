@@ -8,7 +8,11 @@ import { AML_DEEP_SECTIONS, RETAIL_DEEP_DIVES } from '../../data/advancedKnowled
 import { dayIntroStore } from '../../components/bank/dayIntro';
 import { RETAIL_TOPICS } from '../../data/retailKnowledge';
 import { scenarioJournals, TOPIC_MODULES } from '../../data/retailTopicModules';
-import { runDemo, selectSubProcess } from '../../components/bank/retailOpsActions';
+import { confirmShiftSnap, executeDemo, releaseDueDemos, runDemo, selectSubProcess, stayForShift } from '../../components/bank/retailOpsActions';
+import { shiftQueueStore } from '../../store/shiftQueueStore';
+import { DEMO_GROUPS, demoGroupsIn, groupMembers, groupScope, showsGroupsOf } from '../demoGroups';
+import { modeOf, shiftOf, shiftSnap } from '../demoSchedule';
+import { PRESETS } from '../presets';
 import { MENU_CHOICES, SubProcessMenu } from '../../components/bank/SubProcessMenu';
 import { dockIsCompact } from '../../components/bank/PresetDock';
 import { listboxKey, popoverPlace } from '../../components/shell/AdaptivePopover';
@@ -21,15 +25,16 @@ import { notificationStore } from '../../store/notificationStore';
 import { createRetailOpsStore, OPS_QUIZ_XP, RETAIL_OPS_KEY, retailOpsStore } from '../../store/retailOpsStore';
 import { knowledgeTabOf } from '../../store/uiStore';
 import { FLOW_IDS } from '../../types/viewport';
-import { ALL_DEMO_ACTIONS, demoActionsFor, demoBlocked } from '../demoActions';
+import { ALL_DEMO_ACTIONS, demoActionsFor, demoActionsInGroup, demoBlocked } from '../demoActions';
 import { flowPlaces, flowScope } from '../guidedFlows';
 import { isOpsQuestion, localQuestion, quizFor } from '../academyKnowledge';
 import { journalLines } from '../isoMessages';
-import { applyPresetJournal, settleEod, OPS_SUB_CHAPTER, opsScope, cassetteStatus, decodeBook, openingBook, OPS_ACCOUNTS, OPS_ACTIONS, OPS_LIMITS, OPS_SUBPROCESSES, opsActionById, opsFlowOf, opsJournalBalanced, opsNatural, opsTrial, refillCassette, resolveTicket, runOpsAction, transferToVault, type OpsActionId, type OpsLine } from '../retailOps';
+import { applyPresetJournal, settleEod, OPS_SUB_CHAPTER, cassetteStatus, decodeBook, openingBook, OPS_ACCOUNTS, OPS_ACTIONS, OPS_LIMITS, OPS_SUBPROCESSES, opsActionById, opsFlowOf, opsJournalBalanced, opsNatural, opsTrial, refillCassette, resolveTicket, runOpsAction, transferToVault, type OpsActionId, type OpsLine } from '../retailOps';
 import { hasWire, isStation, STATIONS } from '../topology';
 
 const AT = 'D1 09:00:00';
 const pickLabel = (t: { en: string }): string => t.en;
+const pickVi = (t: { vi: string }): string => t.vi;
 const run = (id: OpsActionId, book = openingBook()) => runOpsAction(book, id, AT);
 /** "dr 2010 101.65" per line, by the GL number the desk prints. */
 const entry = (lines: readonly OpsLine[] | undefined): string[] => (lines ?? []).map((l) => `${l.dr > 0 ? 'dr' : 'cr'} ${OPS_ACCOUNTS.find((a) => a.id === l.account)!.code} ${l.dr || l.cr}`);
@@ -42,7 +47,7 @@ describe('the eight guided flows carry the six sub-processes', () => {
   });
 
   it('maps each sub-process to the flow the brief names', () => {
-    expect(Object.fromEntries(OPS_SUBPROCESSES.map((s) => [s.id, s.flow]))).toEqual({ 'bill-pay': 1, 'card-fees': 1, 'wallet-qr': 7, 'atm-napas': 3, 'cassette-jam': 3, 'teller-vault': 6 });
+    expect(Object.fromEntries(OPS_SUBPROCESSES.map((s) => [s.id, s.flow]))).toEqual({ 'bill-pay': 1, 'card-fees': 1, 'auto-pay': 1, 'bnpl-credit': 2, 'debt-waterfall': 2, 'credit-risk': 2, 'wallet-qr': 7, 'atm-napas': 3, 'cassette-jam': 3, 'teller-vault': 6, 'term-deposit': 6, 'collateral': 6 });
   });
 
   it('walks every action through desks its flow lights', () => {
@@ -58,29 +63,94 @@ describe('the eight guided flows carry the six sub-processes', () => {
     }
   });
 
-  it('merges the core presets and the retail actions into one bar per flow', () => {
-    const ids = (f: 1 | 2 | 3 | 6 | 7) => demoActionsFor(f).map((a) => a.id);
-    expect(ids(1)).toEqual(['pos-20', 'pos-500', 'bill-electric-85', 'bill-water-250', 'fee-annual-45', 'fee-card-10']);
-    expect(ids(2)).toEqual(['token-45', 'otp-250']);
-    expect(ids(3)).toEqual(['cdm-200', 'atm-withdraw-100', 'atm-jam-200', 'cassette-low']);
-    expect(ids(6)).toEqual(['teller-12k', 'teller-smurf', 'teller-deposit-5000', 'teller-exceed-limit']);
-    expect(ids(7)).toEqual(['qr-780', 'qr-rooted', 'wallet-cashin-100', 'qr-45']);
+  it('merges the core presets and the retail actions into one bar per flow, group by group, happy paths first', () => {
+    const ids = (f: 1 | 2 | 3 | 6 | 7 | 8) => demoActionsFor(f).map((a) => a.id);
+    expect(ids(1)).toEqual(['pos-20', 'pos-500', 'bill-electric-85', 'bill-nsf-51', 'bill-timeout-68', 'fee-card-10', 'fee-annual-45', 'fee-collect-fail', 'autopay-loan-250', 'autopay-nsf-250']);
+    expect(ids(2)).toEqual(['token-45', 'otp-250', '3ds-timeout', 'token-51', 'otp-locked', 'bnpl-approve-400', 'card-late-fee', 'bnpl-decline-dti', 'bnpl-decline-cic', 'waterfall-120', 'waterfall-50', 'waterfall-nsf', 'risk-cure', 'risk-migrate-95dpd', 'risk-migrate-group5']);
+    expect(ids(3)).toEqual(['cdm-200', 'atm-withdraw-100', 'atm-51', 'atm-61', 'cassette-refill', 'cassette-low', 'atm-jam-200']);
+    expect(ids(6)).toEqual(['teller-12k', 'teller-smurf', 'teller-51', 'teller-frozen', 'teller-deposit-5000', 'teller-exceed-limit', 'teller-counterfeit', 'td-mature-close', 'td-break-10k', 'td-break-pledged', 'td-break-id-mismatch', 'collateral-release', 'collateral-lock', 'collateral-liquidate', 'collateral-shortfall']);
+    expect(ids(7)).toEqual(['qr-780', 'wallet-cashin-100', 'qr-rooted', 'wallet-name-mismatch']);
+    expect(ids(8)).toEqual(['swift-6800', 'swift-reject', 'swift-sanction', 'claim-return', 'claim-rejected']);
+  });
+
+  it('puts every demo button in exactly one child sub-group of its own flow: a flow total is the sum of its groups', () => {
+    const seen = new Map<string, string>();
+    for (const g of DEMO_GROUPS) {
+      expect(groupMembers(g.id).length, g.id).toBeGreaterThan(0);
+      for (const a of demoActionsInGroup(g.id)) {
+        expect(seen.has(a.id), `${a.id} in ${g.id} and ${seen.get(a.id)}`).toBe(false);
+        seen.set(a.id, g.id);
+        expect(a.flow, a.id).toBe(g.flow);
+        expect(a.group, a.id).toBe(g.id);
+      }
+    }
+    for (const f of FLOW_IDS) expect(demoActionsFor(f).length, `flow ${f}`).toBe(demoGroupsIn(f).reduce((n, g) => n + demoActionsInGroup(g.id).length, 0));
+    expect(seen.size).toBe(PRESETS.length + OPS_ACTIONS.length);
+    expect(ALL_DEMO_ACTIONS).toHaveLength(seen.size);
+  });
+
+  it('keeps one button per mechanic: no duplicate labels, and the deduplicated cases are gone', () => {
+    for (const locale of ['en', 'vi'] as const) {
+      setActiveLocale(locale);
+      const labels = ALL_DEMO_ACTIONS.map((a) => a.label());
+      expect(new Set(labels).size, locale).toBe(labels.length);
+      // Decline wording is spelled out, never a bare code like "51 NSF".
+      for (const l of labels) expect(l, l).not.toMatch(/51 NSF/);
+    }
+    const ids = ALL_DEMO_ACTIONS.map((a) => a.id as string);
+    expect(ids).not.toContain('qr-45');
+    expect(ids).not.toContain('bill-water-250');
+  });
+
+  it('names the sub-groups and the cases the brief lists', () => {
+    setActiveLocale('vi');
+    const label = (id: string) => ALL_DEMO_ACTIONS.find((a) => a.id === id)!.label();
+    expect(pickVi(DEMO_GROUPS.find((g) => g.id === 'token-3ds')!.title)).toBe('Thanh toán thẻ số hóa (Token) & Xác thực 3DS / OTP');
+    expect(pickVi(DEMO_GROUPS.find((g) => g.id === 'atm-napas')!.title)).toBe('Giao dịch Rút/Nộp tiền ATM & Phí liên ngân hàng');
+    expect(pickVi(DEMO_GROUPS.find((g) => g.id === 'cash-ctr')!.title)).toBe('Giao dịch tiền mặt giá trị lớn (CTR) & Rà soát chia nhỏ giao dịch');
+    expect(label('otp-locked')).toBe('Nhập sai OTP quá 3 lần (Khóa thẻ)');
+    expect(label('token-51')).toBe('Thanh toán thẻ số hóa (Từ chối 51 - Không đủ số dư)');
+    expect(label('atm-51')).toBe('Rút tiền ATM (Từ chối 51 - Không đủ số dư)');
+    expect(label('atm-61')).toBe('Rút tiền ATM (Từ chối 61 - Vượt hạn mức ngày)');
+    expect(label('teller-51')).toBe('Rút tiền tại quầy (Từ chối 51 - Không đủ số dư)');
+    expect(label('teller-frozen')).toBe('Rút tiền tại quầy (Từ chối - Tài khoản đang bị Phong tỏa)');
+    expect(label('qr-780')).toBe('Quét VietQR / FacePay (Chấp thuận 00)');
+    expect(label('qr-rooted')).toBe('Điện thoại đã bẻ khóa/root (Từ chối: thiết bị rủi ro cao)');
+    expect(label('wallet-cashin-100')).toBe('Nạp $100 vào ví MoMo (Chấp thuận 00)');
+    expect(label('swift-6800')).toBe('Chuyển tiền quốc tế SWIFT $6,800 (Du học / Chuyển tiền cá nhân)');
+    expect(label('swift-reject')).toBe('Lệnh SWIFT bị trả về (Sai mã BIC/IBAN ngân hàng nhận)');
+    expect(label('swift-sanction')).toBe('Tạm dừng kiểm tra Cấm vận SWIFT (AML/OFAC)');
+    expect(label('autopay-nsf-250')).toBe('Tự động trích $250 (Từ chối 51 - Không đủ số dư)');
+  });
+
+  it('words every Vietnamese button in plain Vietnamese: no raw error codes, no English phrases', () => {
+    setActiveLocale('vi');
+    for (const a of ALL_DEMO_ACTIONS) {
+      const text = a.label();
+      expect(text, a.id).not.toMatch(/[A-Z]{2,}_[A-Z_]+/);
+      expect(text, a.id).not.toMatch(/\b(Hold|Rejection|Session|Timeout|Approved|Declined|Trigger|Simulate|Charge)\b/);
+    }
   });
 
   it('narrows the bar and the lit path to a chosen sub-process', () => {
-    expect(demoActionsFor(1, 'card-fees').map((a) => a.id)).toEqual(['fee-annual-45', 'fee-card-10']);
-    expect(opsScope('cassette-jam').places.has('SUSPENSE')).toBe(true);
-    expect(opsScope('atm-napas').places.has('SUSPENSE')).toBe(false);
-    for (const s of OPS_SUBPROCESSES) for (const p of opsScope(s.id).places) expect(flowPlaces(s.flow).has(p), `${s.id} ${p}`).toBe(true);
+    expect(demoActionsFor(1, 'card-fees').map((a) => a.id)).toEqual(['fee-card-10', 'fee-annual-45', 'fee-collect-fail']);
+    expect(groupScope('cassette-jam').places.has('SUSPENSE')).toBe(true);
+    expect(groupScope('atm-napas').places.has('SUSPENSE')).toBe(false);
+    expect(groupScope('card-auth').places.has('GATE_POS')).toBe(true);
+    for (const g of DEMO_GROUPS) for (const p of groupScope(g.id).places) expect(flowPlaces(g.flow).has(p), `${g.id} ${p}`).toBe(true);
   });
 
-  it('offers every flow and sub-process in the menu, and names the choice on its trigger', () => {
-    expect(MENU_CHOICES).toHaveLength(FLOW_IDS.length + OPS_SUBPROCESSES.length);
+  it('offers every flow and its sub-groups in the menu, flattening a flow with only one group, with no count badges', () => {
+    expect(MENU_CHOICES).toHaveLength(FLOW_IDS.length + FLOW_IDS.filter(showsGroupsOf).reduce((n, f) => n + demoGroupsIn(f).length, 0));
+    for (const f of [4, 5, 7] as const) {
+      expect(showsGroupsOf(f), `flow ${f}`).toBe(false);
+      expect(MENU_CHOICES.some((c) => c.kind === 'sub' && c.flow === f), `flow ${f}`).toBe(false);
+    }
     const out = renderToStaticMarkup(createElement(SubProcessMenu));
     expect(out).toContain('data-testid="flow-menu"');
     expect(out).toContain('role="combobox"');
     expect(out).toContain('aria-haspopup="listbox"');
-    for (const s of OPS_SUBPROCESSES) expect(pickLabel(s.title)).not.toMatch(/^\d/);
+    for (const g of DEMO_GROUPS) expect(pickLabel(g.title)).not.toMatch(/^\d/);
   });
 });
 
@@ -93,7 +163,7 @@ describe('every demo button runs one pipeline', () => {
     for (const a of ALL_DEMO_ACTIONS) {
       if (a.id === 'eod') continue;
       retailOpsStore.getState().reset();
-      runDemo(a.id);
+      executeDemo(a.id);
       const bank = bankStore.getState();
       expect(bank.flow, a.id).toBe(a.flow);
       expect(retailOpsStore.getState().last?.action, a.id).toBe(a.id);
@@ -112,29 +182,54 @@ describe('every demo button runs one pipeline', () => {
     for (const a of OPS_ACTIONS) {
       if (a.id === 'cassette-low') continue;
       retailOpsStore.getState().reset();
-      runDemo(a.id);
+      executeDemo(a.id);
       const route = bankStore.getState().presetTrace!.route;
-      for (const p of route) expect(opsScope(a.sub).places.has(p), `${a.id} ${p}`).toBe(true);
+      for (const p of route) expect(groupScope(a.sub).places.has(p), `${a.id} ${p}`).toBe(true);
+    }
+  });
+
+  it('walks each core preset only through desks its sub-group lights', () => {
+    for (const p of PRESETS) {
+      if (p.id === 'eod') continue;
+      retailOpsStore.getState().reset();
+      executeDemo(p.id);
+      for (const place of bankStore.getState().presetTrace!.route) expect(groupScope(p.group).places.has(place), `${p.id} ${place}`).toBe(true);
     }
   });
 
   it('gets the answer each button promises from the bank itself', () => {
     const outcome = (id: OpsActionId) => {
       retailOpsStore.getState().reset();
-      runDemo(id);
+      executeDemo(id);
       return bankStore.getState().presetTrace!.plan.outcome;
     };
     expect(outcome('bill-electric-85')).toBe('APPROVED');
-    expect(outcome('bill-water-250')).toBe('DECLINED');
     expect(outcome('wallet-cashin-100')).toBe('APPROVED');
-    expect(outcome('qr-45')).toBe('APPROVED');
     expect(outcome('atm-withdraw-100')).toBe('APPROVED');
     expect(outcome('teller-deposit-5000')).toBe('APPROVED');
     expect(outcome('fee-annual-45')).toBe('APPROVED');
   });
 
+  it('declines each new failure case for the reason its label names', () => {
+    const plan = (id: Parameters<typeof executeDemo>[0]) => {
+      retailOpsStore.getState().reset();
+      executeDemo(id);
+      return bankStore.getState().presetTrace!.plan;
+    };
+    expect(plan('token-51')).toMatchObject({ outcome: 'DECLINED', decline: 'FUNDS' });
+    expect(plan('otp-locked')).toMatchObject({ outcome: 'DECLINED', decline: 'OTP_LOCKED' });
+    expect(plan('3ds-timeout')).toMatchObject({ outcome: 'DECLINED', decline: 'OTP_ABANDONED' });
+    expect(plan('atm-51')).toMatchObject({ outcome: 'DECLINED', decline: 'FUNDS' });
+    expect(plan('atm-61')).toMatchObject({ outcome: 'DECLINED', decline: 'DAILY_LIMIT', reasonCode: 'EXCEEDS_WITHDRAWAL_LIMIT' });
+    expect(plan('teller-51')).toMatchObject({ outcome: 'DECLINED', decline: 'FUNDS' });
+    expect(plan('teller-frozen')).toMatchObject({ outcome: 'DECLINED', decline: 'ACCOUNT_FROZEN' });
+    expect(plan('swift-reject')).toMatchObject({ outcome: 'DECLINED', decline: 'SWIFT_INVALID' });
+    expect(plan('qr-780')).toMatchObject({ outcome: 'APPROVED' });
+    expect(retailOpsStore.getState().last?.clearing).toMatchObject({ slaMs: 5_000, withinSla: true });
+  });
+
   it('still posts the core journal while the inspector shows the retail one', () => {
-    runDemo('atm-withdraw-100');
+    executeDemo('atm-withdraw-100');
     for (let i = 0; i < 80 && !bankStore.getState().presetTrace?.done; i++) bankStore.getState().sim.step();
     const trace = bankStore.getState().sim.traceOf(bankStore.getState().presetTrace!.id)!;
     expect(journalLines(trace).length).toBeGreaterThan(0);
@@ -144,7 +239,7 @@ describe('every demo button runs one pipeline', () => {
   it('keeps a chosen sub-process through its own buttons, and clears it on a flow change', () => {
     selectSubProcess('card-fees');
     expect(bankStore.getState().flow).toBe(1);
-    expect(activeScopeOf(bankStore.getState())).toBe(opsScope('card-fees'));
+    expect(activeScopeOf(bankStore.getState())).toBe(groupScope('card-fees'));
     runDemo('fee-card-10');
     expect(bankStore.getState().subProcess).toBe('card-fees');
     bankStore.getState().setActiveFlow(1);
@@ -153,19 +248,123 @@ describe('every demo button runs one pipeline', () => {
   });
 
   it('runs even a counter lock through the same pipeline', () => {
-    runDemo('teller-exceed-limit');
+    executeDemo('teller-exceed-limit');
     expect(retailOpsStore.getState().book.vaultPrompt).not.toBeNull();
     const before = bankStore.getState().presetTrace?.id;
-    runDemo('teller-deposit-5000');
+    executeDemo('teller-deposit-5000');
     expect(retailOpsStore.getState().last?.status).toBe('BLOCKED');
     expect(bankStore.getState().presetTrace?.id).toBe(before);
   });
 
-  it('blocks a payment at night and after the day, but never the sensor drill', () => {
-    expect(demoBlocked('qr-45', { dayOver: true, minute: 600 })).toBe('dayOver');
-    expect(demoBlocked('qr-45', { dayOver: false, minute: 23 * 60 })).toBe('night');
+  it('blocks a payment only after the day, never at night (digital channels are 24/7), and never the sensor drill', () => {
+    expect(demoBlocked('qr-780', { dayOver: true, minute: 600 })).toBe('dayOver');
+    expect(demoBlocked('qr-780', { dayOver: false, minute: 23 * 60 })).toBeNull();
+    expect(demoBlocked('pos-20', { dayOver: false, minute: 23 * 60 + 30 })).toBeNull();
     expect(demoBlocked('eod', { dayOver: false, minute: 23 * 60 })).toBeNull();
     expect(demoBlocked('cassette-low', { dayOver: true, minute: 600 })).toBeNull();
+  });
+});
+
+describe('the shift rules: 24/7 channels, day counters and the night batch', () => {
+  beforeEach(() => {
+    bankStore.getState().resetDay();
+    shiftQueueStore.getState().clear();
+    retailOpsStore.getState().reset();
+  });
+
+  it('classifies every button: digital channels 24/7, counters by day, the batch at night', () => {
+    for (const id of ['ekyc-open', 'pos-20', 'autopay-nsf-250', 'qr-780', 'swift-6800', 'token-45', 'atm-61', 'wallet-cashin-100'] as const) expect(shiftOf(id), id).toBe('always');
+    for (const id of ['teller-12k', 'teller-frozen', 'td-break-10k', 'collateral-liquidate', 'claim-return'] as const) expect(shiftOf(id), id).toBe('day');
+    for (const id of ['eod', 'risk-migrate-95dpd'] as const) expect(shiftOf(id), id).toBe('eod');
+  });
+
+  it('snaps a counter to 09:00 before opening and back to 16:30 after closing, and the batch to 23:00, all the same day', () => {
+    expect(shiftSnap('teller-12k', 7 * 60)).toMatchObject({ target: 9 * 60, direction: 'forward', reason: 'beforeOpening' });
+    expect(shiftSnap('teller-12k', 20 * 60)).toMatchObject({ target: 16 * 60 + 30, direction: 'back', reason: 'afterClosing' });
+    expect(shiftSnap('teller-12k', 10 * 60)).toBeNull();
+    expect(shiftSnap('eod', 10 * 60)).toMatchObject({ target: 23 * 60, direction: 'forward', reason: 'nightShift' });
+    expect(shiftSnap('eod', 14 * 60)).toMatchObject({ target: 23 * 60 });
+    expect(shiftSnap('eod', 23 * 60 + 10)).toBeNull();
+    for (const m of [0, 7 * 60, 12 * 60, 20 * 60, 23 * 60 + 30]) expect(shiftSnap('pos-20', m)).toBeNull();
+  });
+
+  it('runs a 24/7 button at once, with no prompt, whatever the hour', () => {
+    expect(bankStore.getState().view.minute).toBe(7 * 60);
+    runDemo('ekyc-open');
+    expect(shiftQueueStore.getState().prompt).toBeNull();
+    expect(bankStore.getState().presetTrace).not.toBeNull();
+  });
+
+  it('asks before a counter runs out of hours; Confirm moves the clock to 09:00 the same day and runs it', () => {
+    const day = bankStore.getState().view.day;
+    runDemo('teller-12k');
+    expect(shiftQueueStore.getState().prompt).toMatchObject({ id: 'teller-12k', snap: { target: 9 * 60 } });
+    confirmShiftSnap();
+    const bank = bankStore.getState();
+    expect(shiftQueueStore.getState().prompt).toBeNull();
+    expect(bank.view.day).toBe(day);
+    expect(bank.view.minute).toBeGreaterThanOrEqual(9 * 60);
+    expect(bank.view.minute).toBeLessThan(10 * 60);
+    expect(retailOpsStore.getState().last?.action).toBe('teller-12k');
+  });
+
+  it('after closing, Confirm replays the same day back to 16:30', () => {
+    bankStore.getState().skipTo(20 * 60);
+    const day = bankStore.getState().view.day;
+    runDemo('claim-return');
+    expect(shiftQueueStore.getState().prompt?.snap.direction).toBe('back');
+    confirmShiftSnap();
+    expect(bankStore.getState().view.day).toBe(day);
+    expect(bankStore.getState().view.minute).toBeGreaterThanOrEqual(16 * 60 + 30);
+    expect(bankStore.getState().view.minute).toBeLessThan(17 * 60);
+    expect(retailOpsStore.getState().last?.action).toBe('claim-return');
+  });
+
+  it('Cancel keeps the clock and queues the scenario, which runs by itself once its shift opens', () => {
+    runDemo('teller-12k');
+    stayForShift();
+    expect(bankStore.getState().view.minute).toBe(7 * 60);
+    expect(shiftQueueStore.getState().waiting.map((w) => w.id)).toEqual(['teller-12k']);
+    runDemo('teller-12k');
+    stayForShift();
+    expect(shiftQueueStore.getState().waiting).toHaveLength(1);
+    releaseDueDemos();
+    expect(shiftQueueStore.getState().waiting).toHaveLength(1);
+    bankStore.getState().skipTo(9 * 60);
+    // Paused: moving the clock into the shift never starts the queued scenario by itself.
+    releaseDueDemos();
+    expect(shiftQueueStore.getState().waiting).toHaveLength(1);
+    expect(retailOpsStore.getState().last).toBeNull();
+    // It runs once the learner plays again.
+    bankStore.getState().play();
+    releaseDueDemos();
+    bankStore.getState().pause();
+    expect(shiftQueueStore.getState().waiting).toHaveLength(0);
+    expect(retailOpsStore.getState().last?.action).toBe('teller-12k');
+  });
+
+  it('never runs a scenario twice when it was queued and then confirmed', () => {
+    runDemo('teller-12k');
+    stayForShift();
+    runDemo('teller-12k');
+    confirmShiftSnap();
+    expect(shiftQueueStore.getState().waiting).toHaveLength(0);
+    const first = bankStore.getState().presetTxId;
+    releaseDueDemos();
+    expect(bankStore.getState().presetTxId).toBe(first);
+  });
+
+  it('offers to fast-forward the night batch from the daytime', () => {
+    bankStore.getState().skipTo(10 * 60);
+    runDemo('eod');
+    expect(shiftQueueStore.getState().prompt).toMatchObject({ id: 'eod', snap: { target: 23 * 60, reason: 'nightShift' } });
+    confirmShiftSnap();
+    expect(bankStore.getState().view.minute).toBeGreaterThanOrEqual(23 * 60);
+  });
+
+  it('draws human-driven flows with people and system flows on the wires only', () => {
+    for (const id of ['teller-12k', 'teller-frozen', 'claim-return', 'td-break-10k', 'collateral-liquidate', 'atm-61', 'cdm-200'] as const) expect(modeOf(id), id).toBe('human');
+    for (const id of ['pos-20', 'ekyc-open', 'qr-780', 'swift-6800', 'autopay-nsf-250', 'eod', 'cassette-low', 'risk-migrate-95dpd', 'wallet-cashin-100'] as const) expect(modeOf(id), id).toBe('system');
   });
 });
 
@@ -196,8 +395,8 @@ describe('the demo actions post what the brief says', () => {
     expect(entry(outcome.journal?.lines)).toEqual(['dr 2010 8500', 'cr 1113 8500']);
   });
 
-  it('$250 water bill: declined 51, only the $15 NSF fee to 4510', () => {
-    const { outcome } = run('bill-water-250');
+  it('$250 auto-pay on $120: declined 51, only the $15 NSF fee to 4510', () => {
+    const { outcome } = run('autopay-nsf-250');
     expect(outcome).toMatchObject({ status: 'DECLINED', rc: '51' });
     expect(entry(outcome.journal?.lines)).toEqual(['dr 2010 1500', 'cr 4510 1500']);
   });
@@ -206,9 +405,9 @@ describe('the demo actions post what the brief says', () => {
     expect(entry(run('wallet-cashin-100').outcome.journal?.lines)).toEqual(['dr 2010 10000', 'cr 1950 10000']);
   });
 
-  it('$45 VietQR clears inside the 5-second SLA', () => {
-    const { outcome } = run('qr-45');
-    expect(entry(outcome.journal?.lines)).toEqual(['dr 2010 4500', 'cr 1113 4500']);
+  it('$780 VietQR / FacePay clears inside the 5-second SLA', () => {
+    const { outcome } = applyPresetJournal(openingBook(), 'qr-780', 'APPROVED', AT);
+    expect(entry(outcome.journal?.lines)).toEqual(['dr 2010 78000', 'cr 1113 78000']);
     expect(outcome.clearing).toMatchObject({ slaMs: 5_000, withinSla: true });
     expect(outcome.clearing!.elapsedMs).toBeLessThanOrEqual(5_000);
   });
@@ -304,7 +503,7 @@ describe('the demo actions post what the brief says', () => {
   it('shows the case it names whatever was clicked before', () => {
     let book = openingBook();
     for (let i = 0; i < 20; i++) book = run('teller-deposit-5000', transferToVault(book, AT).book).book;
-    expect(run('bill-water-250', book).outcome.rc).toBe('51');
+    expect(run('autopay-nsf-250', book).outcome.rc).toBe('51');
     expect(run('fee-annual-45', book).outcome.customer?.after).toBe(-2_500);
   });
 
@@ -336,6 +535,59 @@ describe('the demo actions post what the brief says', () => {
         }
       }),
     );
+  });
+});
+
+describe('Phase 2: the credit desk posts what the brief says', () => {
+  it('auto-pay collects, or returns with the NSF fee', () => {
+    expect(entry(run('autopay-loan-250').outcome.journal?.lines)).toEqual(['dr 2010 25000', 'cr 1320 25000']);
+    const nsf = run('autopay-nsf-250').outcome;
+    expect(nsf).toMatchObject({ status: 'DECLINED', rc: '51' });
+    expect(entry(nsf.journal?.lines)).toEqual(['dr 2010 1500', 'cr 4510 1500']);
+  });
+
+  it('Pay-in-4 pays the shop in full, and a DTI over 45% is refused with nothing posted', () => {
+    expect(entry(run('bnpl-approve-400').outcome.journal?.lines)).toEqual(['dr 2010 10000', 'dr 1320 30000', 'cr 1113 40000']);
+    const refused = run('bnpl-decline-dti');
+    expect(refused.outcome).toMatchObject({ status: 'DECLINED', rc: '05', journal: null });
+    expect(refused.book.posted).toBe(0);
+  });
+
+  it('a late card payment debits 1310 against 4510 and 4110', () => {
+    expect(entry(run('card-late-fee').outcome.journal?.lines)).toEqual(['dr 1310 4200', 'cr 4510 2500', 'cr 4110 1700']);
+  });
+
+  it('a repayment fills penalty, then interest, then principal', () => {
+    expect(entry(run('waterfall-120').outcome.journal?.lines)).toEqual(['dr 2010 12000', 'cr 4510 2500', 'cr 4110 4000', 'cr 1320 5500']);
+    expect(entry(run('waterfall-50').outcome.journal?.lines)).toEqual(['dr 2010 5000', 'cr 4510 2500', 'cr 4110 2500']);
+  });
+
+  it('95 days past due provides 20% for group 3', () => {
+    expect(entry(run('risk-migrate-95dpd').outcome.journal?.lines)).toEqual(['dr 5610 20000', 'cr 1290 20000']);
+  });
+
+  it('early closure pays the demand rate and reverses the rest of the accrual', () => {
+    expect(entry(run('td-break-10k').outcome.journal?.lines)).toEqual(['dr 2021 1000000', 'dr 2023 29589', 'cr 2010 1000493', 'cr 5110 29096']);
+  });
+
+  it('collateral locks once, then liquidates in waterfall order with the surplus returned', () => {
+    expect(run('collateral-liquidate').outcome.status).toBe('BLOCKED');
+    const locked = run('collateral-lock');
+    expect(entry(locked.outcome.journal?.lines)).toEqual(['dr 2021 500000', 'cr 2022 500000']);
+    expect(locked.book.collateralLockedCents).toBe(500_000);
+    expect(run('collateral-lock', locked.book).outcome.status).toBe('BLOCKED');
+    const done = run('collateral-liquidate', locked.book);
+    expect(entry(done.outcome.journal?.lines)).toEqual(['dr 2022 500000', 'cr 4510 20000', 'cr 4110 30000', 'cr 1320 400000', 'cr 2010 50000']);
+    expect(done.book.collateralLockedCents).toBe(0);
+    expect(done.book.balances.TD_PLEDGED).toBe(0);
+  });
+
+  it('releases a provision on liquidation only as far as one was made', () => {
+    const provided = run('risk-migrate-95dpd').book;
+    const locked = run('collateral-lock', provided).book;
+    const lines = entry(run('collateral-liquidate', locked).outcome.journal?.lines);
+    expect(lines).toContain('dr 1290 20000');
+    expect(lines).toContain('cr 5610 20000');
   });
 });
 
@@ -528,22 +780,22 @@ describe('English terminology', () => {
     const t = Object.fromEntries(OPS_SUBPROCESSES.map((s) => [s.id, s.title]));
     expect(t['bill-pay']!.en).toBe('Utility Bill Pay & Direct Debit');
     expect(t['wallet-qr']!.en).toBe('e-Wallet & Dynamic QR (MoMo / VietQR)');
-    expect(t['atm-napas']!.en).toBe('ATM Cash & Domestic Interbank Fee (NAPAS)');
-    expect(t['atm-napas']!.vi).toBe('Rút tiền ATM & Phí NAPAS');
+    expect(t['atm-napas']!.en).toBe('ATM Cash Withdrawal/Deposit & Interbank Fees');
+    expect(t['atm-napas']!.vi).toBe('Giao dịch Rút/Nộp tiền ATM & Phí liên ngân hàng');
     expect(t['bill-pay']!.vi).toBe('Thanh toán hóa đơn & Ủy nhiệm thu');
   });
 });
 
 describe('the Academy keeps its chapters and takes the quiz', () => {
-  it('has only the four reference tabs in the Knowledge Base', () => {
+  it('has the five reference tabs in the Knowledge Base, the regulatory registry included', () => {
     const tabs = renderToStaticMarkup(createElement(KnowledgeTabs, { tab: 'core', onTab: () => undefined }));
-    expect(tabs.match(/role="tab"/g)).toHaveLength(4);
-    for (const id of ['core', 'aml', 'retail', 'flashcards']) expect(tabs).toContain(`kb-tab-${id}`);
+    expect(tabs.match(/role="tab"/g)).toHaveLength(5);
+    for (const id of ['core', 'aml', 'retail', 'flashcards', 'legal']) expect(tabs).toContain(`kb-tab-${id}`);
     expect(tabs).not.toContain('kb-tab-quiz');
   });
 
   it('puts every retail question in its sub-process’s chapter, in both languages', () => {
-    expect(OPS_SUB_CHAPTER).toEqual({ 'bill-pay': 2, 'card-fees': 2, 'wallet-qr': 4, 'atm-napas': 5, 'cassette-jam': 5, 'teller-vault': 5 });
+    expect(OPS_SUB_CHAPTER).toEqual({ 'bill-pay': 2, 'card-fees': 2, 'auto-pay': 2, 'debt-waterfall': 2, 'bnpl-credit': 4, 'credit-risk': 4, 'wallet-qr': 4, 'atm-napas': 5, 'cassette-jam': 5, 'teller-vault': 5, 'term-deposit': 5, 'collateral': 5 });
     const ops = ([1, 2, 3, 4, 5, 6] as const).flatMap((c) => quizFor(c).filter((q) => isOpsQuestion(q.id)));
     expect(ops).toHaveLength(OPS_QUIZ.length);
     for (const q of ops) {

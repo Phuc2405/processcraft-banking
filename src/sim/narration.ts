@@ -102,6 +102,8 @@ function describeCheckpoint(c: Checkpoint, what: string, stop: Stop): string {
       return `Posting ${what} on the CASA ledger: ${POSTING_TEXT[c.verdict]}`;
     case 'AML_SCREEN':
       return `Screening ${what}: ${SCREEN_TEXT[c.reason]}`;
+    case 'CREDIT_OPS':
+      return `Working on ${what}`;
   }
 }
 
@@ -182,6 +184,8 @@ export function describeWork(station: StationId, p: Packet, stop: Stop, previous
     case 'AML_DESK':
     case 'DISPUTE_DESK':
     case 'GATE_SWIFT':
+    case 'SAVINGS_DESK':
+    case 'COLLATERAL_VAULT':
       return `Working on ${what}`;
   }
 }
@@ -210,5 +214,7 @@ export const IDLE_TEXT: Record<StationId, string> = {
   SEC_FDS: 'Scoring device fingerprints in real time',
   AML_DESK: 'No alerts waiting for review',
   DISPUTE_DESK: 'No claims waiting',
+  SAVINGS_DESK: 'Waiting for the next term deposit to close',
+  COLLATERAL_VAULT: 'No liens waiting to be actioned',
   GATE_SWIFT: 'Watching the SWIFT inbound and outbound queues',
 };

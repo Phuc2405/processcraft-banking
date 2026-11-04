@@ -33,6 +33,9 @@ export const OFFICE_PLACE_BOX: Record<PlaceId, PlaceBox> = {
   OUT_APPROVED: { cx: 1000, cy: 354, w: 110, h: 100 },
   OUT_SETTLED: { cx: 985, cy: 728, w: 110, h: 92 },
   ...bandBoxes(BAND_ROW_3D),
+  // Phase 2/4: the free right-hand side of the wing; nothing else on the frozen plan moves.
+  SAVINGS_DESK: card(980, BAND_ROW_3D),
+  COLLATERAL_VAULT: card(980, BAND_ROW_3D + 140),
 };
 
 export const OFFICE_DEPT_BOX: Record<DepartmentId, DeptBox> = {
@@ -43,9 +46,12 @@ export const OFFICE_DEPT_BOX: Record<DepartmentId, DeptBox> = {
   EOD: { x: 10, y: 646, w: 1060, h: 140 },
   ATM: { x: 480, y: 826 + WING_SHIFT, w: 400, h: 142 },
   ...bandDepts(BAND_ROW_3D),
+  SAVINGS: { x: 896, y: BAND_ROW_3D - 82, w: 168, h: 278 },
 };
 
 const OFFICE_ROUTES: Record<string, RouteSpec> = {
+  'COLLATERAL_VAULT>SAVINGS_DESK': R(['t'], ['b'], { quiet: true }),
+  'SAVINGS_DESK>LEDGER_DEBIT': R(['l'], ['r', 40], { via: [[884, BAND_ROW_3D], [884, 280]], quiet: true }),
   // Virtual cards
   'GATE_VIRTUAL>SEC_VAULT': R(['r'], ['l']),
   'SEC_VAULT>SEC_DCVV': R(['r'], ['l']),

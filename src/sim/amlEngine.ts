@@ -267,7 +267,7 @@ export function resolveDispute(c: DisputeClaim): Extract<Checkpoint, { at: 'DISP
 
 // Route planning
 
-export const EXTENDED_KINDS: readonly ExtendedKind[] = ['ONBOARD', 'QR', 'TELLER', 'SWIFT', 'DISPUTE'];
+export const EXTENDED_KINDS: readonly ExtendedKind[] = ['ONBOARD', 'QR', 'TELLER', 'SWIFT', 'DISPUTE', 'CREDIT_OPS'];
 export const isExtendedKind = (kind: string): kind is ExtendedKind => (EXTENDED_KINDS as readonly string[]).includes(kind);
 
 /** Virtual milliseconds each checkpoint costs, for the latency KPI. */
@@ -424,6 +424,10 @@ function planTeller(c: Customer): RoutePlan {
     1,
     MS.TELLER,
   );
+  if (ext.accountFrozen && cash.direction === 'OUT') {
+    counter.note = 'The account is blocked (a freeze order is on file): the teller may not pay out a cent, whatever the balance.';
+    return plan([counter, end('OUT_DECLINED', 'Refused', 'ACCOUNT_FROZEN: the account is blocked, so the withdrawal is refused.')], 'DECLINED', 'ACCOUNT_FROZEN', 'ACCOUNT_FROZEN', []);
+  }
   if (teller.verdict === 'SUSPECT_NOTES') return plan([counter, end('OUT_DECLINED', 'Refused', 'TELLER_SUSPECT_NOTE: the notes are held for the counterfeit report.')], 'DECLINED', 'TELLER_SUSPECT_NOTE', 'TELLER_SUSPECT_NOTE', []);
   if (teller.verdict === 'VAULT_LIMIT') return plan([counter, end('OUT_DECLINED', 'Declined', 'TELLER_VAULT_LIMIT: not enough cash at the counter.')], 'DECLINED', 'TELLER_VAULT_LIMIT', 'TELLER_VAULT_LIMIT', []);
   const screen = screenAml({ subject: ext.subject, amountCents: amount, cash });
@@ -472,6 +476,14 @@ function planDispute(c: Customer): RoutePlan {
   return plan([desk, ledger, end('OUT_APPROVED', 'Refunded', `Refund of ${formatAud(amount)} credited to the customer.`)], 'APPROVED', claim.type === 'PACS004_RETURN' ? 'PACS004_RETURNED' : 'DISPUTE_REFUNDED', null, [draft]);
 }
 
+/** A credit or savings operation: the retail book has decided and posted it, and this walks the desks it crosses. The savings desk counts a case it receives from the vault as well as one that starts there. */
+function planCreditOps(c: Customer): RoutePlan {
+  const { route, label, note, decline } = c.ext!.creditOps!;
+  const last = route[route.length - 1] as 'OUT_APPROVED' | 'OUT_DECLINED';
+  const stops = route.slice(0, -1).map((place, i) => stop(place, i === 0 ? 'GATE' : 'WORK', label, note, i === 0 || place === 'SAVINGS_DESK' ? { at: 'CREDIT_OPS' } : undefined, 0.5, MS.POSTING));
+  return plan([...stops, end(last, decline ? 'Declined' : 'Done', note)], decline ? 'DECLINED' : 'APPROVED', decline ?? 'CREDIT_OPS_POSTED', decline, []);
+}
+
 /** Plans a Phase 8 customer. Every hop is a wire on the map (the tests check it with routeIsWired). */
 export function planExtended(c: Customer): RoutePlan {
   switch (c.kind as ExtendedKind) {
@@ -485,6 +497,8 @@ export function planExtended(c: Customer): RoutePlan {
       return planTeller(c);
     case 'DISPUTE':
       return planDispute(c);
+    case 'CREDIT_OPS':
+      return planCreditOps(c);
   }
 }
 

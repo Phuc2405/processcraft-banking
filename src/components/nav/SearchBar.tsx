@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { useSearchIndex, type SearchCategory, type SearchEntry } from '../../hooks/useSearchIndex';
 import { tr } from '../../i18n/locale';
 import { runSearchAction } from './navigate';
+import { SearchResultTip, SearchResultTitle } from './SearchResultItem';
 
 const GROUP: Record<SearchCategory, { icon: string; en: string; vi: string }> = {
   station: { icon: '📍', en: 'Stations & Nodes', vi: 'Trạm & nút' },
@@ -20,7 +21,10 @@ export function SearchBar({ onBeforeGo }: { onBeforeGo?: () => void }) {
   const [active, setActive] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const root = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const activeRow = useRef<HTMLDivElement>(null);
   const listId = useId();
+  const tipId = useId();
   const { groups, order, flat } = useSearchIndex(query);
   const shortcut = isMac() ? '⌘K' : 'Ctrl K';
 
@@ -49,6 +53,11 @@ export function SearchBar({ onBeforeGo }: { onBeforeGo?: () => void }) {
   }, [open]);
 
   useEffect(() => setActive(0), [query]);
+
+  // The arrow keys can highlight a row below the fold: bring it into view with its tooltip.
+  useEffect(() => {
+    if (open) activeRow.current?.scrollIntoView({ block: 'nearest' });
+  }, [active, open]);
 
   const choose = (entry: SearchEntry | undefined): void => {
     if (!entry) return;
@@ -113,7 +122,7 @@ export function SearchBar({ onBeforeGo }: { onBeforeGo?: () => void }) {
       </kbd>
 
       {showList && (
-        <div id={listId} role="listbox" aria-label={tr({ en: 'Search results', vi: 'Kết quả tìm kiếm' })} data-testid="search-results" className="absolute left-0 top-full z-[60] mt-1 max-h-[70vh] w-[420px] overflow-y-auto rounded-xl border border-slate-700 bg-slate-950/98 p-1.5 shadow-2xl">
+        <div ref={panel} id={listId} role="listbox" aria-label={tr({ en: 'Search results', vi: 'Kết quả tìm kiếm' })} data-testid="search-results" className="absolute left-0 top-full z-[60] mt-1 max-h-[70vh] w-[420px] max-w-[calc(100vw-16px)] overflow-y-auto rounded-xl border border-slate-700 bg-slate-950/98 p-1.5 shadow-2xl">
           {flat.length === 0 ? (
             <p className="px-2.5 py-2 text-[12px] text-slate-400" data-testid="search-empty">
               {tr({ en: `No matches for “${query.trim()}”`, vi: `Không có kết quả cho “${query.trim()}”` })}
@@ -132,17 +141,19 @@ export function SearchBar({ onBeforeGo }: { onBeforeGo?: () => void }) {
                   return (
                     <div
                       key={entry.id}
+                      ref={on ? activeRow : undefined}
                       id={optionId(i)}
                       role="option"
                       aria-selected={on}
+                      aria-describedby={on ? tipId : undefined}
                       data-testid={`search-option-${entry.id}`}
                       onPointerMove={() => setActive(i)}
                       onPointerDown={(e) => e.preventDefault()}
                       onClick={() => choose(entry)}
                       className={`cursor-pointer rounded-lg px-2.5 py-1.5 ${on ? 'bg-slate-800' : ''}`}
                     >
-                      <div className="truncate text-[12.5px] font-medium text-slate-100">{entry.label}</div>
-                      <div className="truncate text-[11px] text-slate-400">{entry.detail}</div>
+                      <SearchResultTitle entry={entry} />
+                      <div className="line-clamp-1 text-xs text-slate-400">{entry.detail}</div>
                     </div>
                   );
                 })}
@@ -151,6 +162,7 @@ export function SearchBar({ onBeforeGo }: { onBeforeGo?: () => void }) {
           )}
         </div>
       )}
+      {showList && flat[active] && <SearchResultTip entry={flat[active]} id={tipId} row={activeRow} panel={panel} />}
     </div>
   );
 }

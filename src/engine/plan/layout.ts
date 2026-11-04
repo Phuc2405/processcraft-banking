@@ -7,11 +7,12 @@ import type { BoxSide, Pt } from '../../types/geometry';
 /** The branch itself is the BUILDING (the old stage). */
 export const BUILDING = { width: 1080, height: 1180 } as const;
 // 2D stage (Phase 1A compact grid: EOD moved under the outcome column.
-export const STAGE = { width: 1352, height: 1000 } as const;
+export const STAGE = { width: 1560, height: 1000 } as const;
 
 // Right-side clusters (Flows 3 and 4): `right` px of extra free space so the zoom toolbar never covers them and the camera never parks against the edge.
-export const EDGE_PAD = { right: 120, band: 240, centre: 0.55 } as const;
-export const needsRightPad = (r: { x0: number; x1: number }): boolean => r.x1 >= STAGE.width - EDGE_PAD.band || (r.x0 + r.x1) / 2 >= STAGE.width * EDGE_PAD.centre;
+export const EDGE_PAD = { right: 120, band: 240, centre: 0.55, wide: 0.6 } as const;
+// A cluster spanning most of the map has no room to give: padding it would push its left side off the frame.
+export const needsRightPad = (r: { x0: number; x1: number }): boolean => r.x1 - r.x0 < STAGE.width * EDGE_PAD.wide && (r.x1 >= STAGE.width - EDGE_PAD.band || (r.x0 + r.x1) / 2 >= STAGE.width * EDGE_PAD.centre);
 
 export const CARD = { w: 160, h: 92 } as const;
 
@@ -88,6 +89,9 @@ export const PLACE_BOX: Record<PlaceId, PlaceBox> = {
   OUT_APPROVED: { cx: 1000, cy: 354, w: 110, h: 100 },
   OUT_SETTLED: { cx: 1105, cy: 830, w: 110, h: 92 },
   ...bandBoxes(BAND_ROW_2D),
+  // Phase 2/4: a column of its own right of the night cycle: the vault feeds the savings desk, which posts straight to the ledger.
+  SAVINGS_DESK: card(1440, 548),
+  COLLATERAL_VAULT: card(1440, 688),
 };
 
 export interface DeptBox {
@@ -105,6 +109,7 @@ export const DEPT_BOX: Record<DepartmentId, DeptBox> = {
   EOD: { x: 910, y: 466, w: 390, h: 444 },
   ATM: { x: 1094, y: 66, w: 192, h: 366 },
   ...bandDepts(BAND_ROW_2D),
+  SAVINGS: { x: 1344, y: 466, w: 192, h: 284 },
 };
 
 // Wires
@@ -441,6 +446,8 @@ const ROUTES: Record<string, RouteSpec> = {
   'ATM_CASH>OUT_DECLINED': R(['l', -30], ['r', 20], { via: [[1080, 324], [1080, 170]], quiet: true }),
   'ATM_CASH>OUT_APPROVED': R(['l', 10], ['r', 10], { quiet: true }),
   'ATM_CASH>SUSPENSE': R(['b', -70], ['t', 40], { via: [[1120, 614], [1040, 614]], quiet: true }),
+  'COLLATERAL_VAULT>SAVINGS_DESK': R(['t'], ['b'], { labelAt: [1480, 618] }),
+  'SAVINGS_DESK>LEDGER_DEBIT': R(['t'], ['t', 20], { via: [[1440, 24], [800, 24]], labelAt: [1200, 24] }),
   // Phase 8 band: declines drop beside the trunk to the floor lane and climb the right-hand gutter, each on its own lane of every run (DECLINE_LANES), until the reject gateway collects them (GATEWAYS) and one trunk carries them into Declined.
   ...bandRoutes(
     BAND_ROW_2D,

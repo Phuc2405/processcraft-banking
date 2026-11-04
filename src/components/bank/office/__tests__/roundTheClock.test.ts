@@ -169,7 +169,8 @@ describe('the car park never jams', () => {
     }
     expect(gone.size).toBeGreaterThan(25);
     // Nobody back at their car waits long for the lot's turn.
-    expect(longestWait).toBeLessThan(45);
+    // Drivers now get out at the side door and walk round the tail, a few metres more each way.
+    expect(longestWait).toBeLessThan(50);
     // The cash van got its turns too.
     expect(lot.cit.runs).toBeGreaterThan(2);
   });

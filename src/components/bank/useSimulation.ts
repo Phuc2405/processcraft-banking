@@ -5,11 +5,12 @@ import { deskBadgeMessages } from './deskBadge.messages';
 import { statusLabel } from './ui';
 import type { StationId } from '../../sim/topology';
 import { bankStore } from '../../store/bankStore';
+import { deskPeopleOverlay } from '../../store/deskOccupancy';
 import { deskStatusLine, type DeskStatus } from '../../engine/simulation/deskStatus';
 import { SimulationEngine } from '../../engine/simulation/SimulationEngine';
 
 /** The app's one simulation engine, over the bank store: what both views of the bank read through the hooks below. */
-export const simulation = new SimulationEngine(bankStore);
+export const simulation = new SimulationEngine(bankStore, undefined, deskPeopleOverlay);
 
 /** A desk's "X waiting · Y working" status, re-rendering the caller only when that desk's status changes. */
 export function useDeskStatus(id: StationId): DeskStatus {

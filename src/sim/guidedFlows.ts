@@ -27,7 +27,9 @@ export type FlowNodeId =
   | 'facepay'
   | 'fds_engine'
   | 'swift_gateway'
-  | 'dispute_desk';
+  | 'dispute_desk'
+  // Phase 2/4
+  | 'savings_collateral';
 
 /** The flow-to-node contract, exactly as the brief names it. */
 export const GUIDED_FLOW_NODES: Readonly<Record<FlowId, readonly FlowNodeId[]>> = {
@@ -36,7 +38,7 @@ export const GUIDED_FLOW_NODES: Readonly<Record<FlowId, readonly FlowNodeId[]>> 
   3: ['cdm_kiosk', 'cash_sorter', 'casa_desk'],
   4: ['batch_processor', 'clearing_house', 'settlement_desk', 'reconciliation_desk'],
   5: ['ekyc_gate', 'aml_screen', 'casa_posting'],
-  6: ['teller_counter', 'aml_screen', 'casa_posting'],
+  6: ['teller_counter', 'aml_screen', 'casa_posting', 'savings_collateral'],
   7: ['qr_gateway', 'facepay', 'fds_engine', 'aml_screen', 'casa_posting'],
   8: ['swift_gateway', 'facepay', 'fds_engine', 'aml_screen', 'casa_posting', 'dispute_desk'],
 };
@@ -82,13 +84,13 @@ export const GUIDED_FLOWS: Readonly<Record<FlowId, FlowDef>> = {
     code: '02',
     title: 'Web & 3DS',
     accent: '#a78bfa',
-    blurb: 'An online checkout: a tokenised card with a dynamic code, or a 3DS risk check that may text the customer a code.',
+    blurb: 'An online checkout: a tokenised card with a dynamic code, or a 3DS risk check that may text the customer a code. Also Pay-in-4, debt recovery and credit risk.',
     steps: [
       step('web_checkout', ['GATE_VIRTUAL', 'GATE_ECOM'], 'Web Checkout Gate', 'A website or app sends the card payment to the bank.', 'Card-not-present authorisation in: a DPAN with dCVV, or a PAN with a 3DS AReq.'),
       step('token_vault', ['SEC_VAULT', 'SEC_DCVV'], 'Token Vault & dCVV', 'Swaps the stand-in card number for the real one and checks the one-time code.', 'Detokenises DPAN → FPAN and validates the dynamic CVV inside its time window.'),
       step('fraud_desk', ['SEC_3DS'], '3DS Risk Desk', 'Scores the risk: low risk goes straight through, medium risk gets a code.', 'Risk-based authentication: frictionless below the threshold, challenge in the band, reject above it.'),
       step('otp_service', ['CUSTOMER_OTP'], 'SMS One-Time Code', 'The customer types the code from their phone, or gives up.', 'OTP challenge (CReq/CRes). A completed challenge moves fraud liability to the issuer.'),
-      step('auth_engine', ['LEDGER_DEBIT', 'LEDGER_CREDIT', 'OUT_APPROVED', 'OUT_DECLINED'], 'Authorisation Engine', 'Checks the money is there, locks it, and answers the website.', 'Funds check and auth hold on the CASA or credit line, then the 0110 response code.'),
+      step('auth_engine', ['BNPL', 'LEDGER_DEBIT', 'LEDGER_CREDIT', 'OUT_APPROVED', 'OUT_DECLINED'], 'Authorisation Engine', 'Checks the money is there, locks it, and answers the website. Pay-in-4 and credit questions go to the BNPL desk.', 'Funds check and auth hold on the CASA or credit line, then the 0110 response code. BNPL desk: DTI over 45% is refused; repayments follow the penalty, interest, principal waterfall.'),
     ],
   },
   3: {
@@ -100,7 +102,7 @@ export const GUIDED_FLOWS: Readonly<Record<FlowId, FlowDef>> = {
     steps: [
       step('cdm_kiosk', ['GATE_ATM'], 'Cash Deposit Machine', 'The customer inserts their card and types the PIN.', 'Card read and PIN verified at the CDM (three tries before the card is kept).'),
       step('cash_sorter', ['ATM_CASH', 'SUSPENSE', 'RECON', 'OUT_SETTLED'], 'Note Validator & Cassette', 'The machine counts the notes and checks they are real. If it jams, the money waits in suspense until the cash count.', 'Note validation and count; the cash joins the machine cassette (GL 1015 ATM Cash). A dispense fault routes to TK 2930 ATM Suspense and an EOD ticket; under 15% raises a CIT refill alert.'),
-      step('casa_desk', ['LEDGER_DEBIT', 'OUT_APPROVED', 'EOD_BATCH'], 'Customer CASA', 'The money appears in the customer’s account straight away, or leaves it with the fee for a withdrawal.', 'Posting: Dr 1015 ATM Cash in Machines / Cr 2010 Customer CASA. Withdrawal: Dr 2010 $101.65 / Cr 1011 $100 + Cr 4520 $1.10 + Cr 3510 $0.55, settled with the domestic switch (NAPAS) at EOD.'),
+      step('casa_desk', ['LEDGER_DEBIT', 'OUT_APPROVED', 'OUT_DECLINED', 'EOD_BATCH'], 'Customer CASA', 'The money appears in the customer’s account straight away, or leaves it with the fee for a withdrawal. A withdrawal the balance (RC 51) or the daily limit (RC 61) cannot cover is declined.', 'Posting: Dr 1015 ATM Cash in Machines / Cr 2010 Customer CASA. Withdrawal: Dr 2010 $101.65 / Cr 1011 $100 + Cr 4520 $1.10 + Cr 3510 $0.55, settled with the domestic switch (NAPAS) at EOD.'),
     ],
   },
   4: {
@@ -133,11 +135,12 @@ export const GUIDED_FLOWS: Readonly<Record<FlowId, FlowDef>> = {
     code: '06',
     title: 'Teller Cash & CTR',
     accent: '#84cc16',
-    blurb: 'Cash over the branch counter: notes counted, fakes caught, every cash transaction over $10,000 reported, and a till over its $50,000 limit sent to the vault.',
+    blurb: 'Cash over the branch counter: notes counted, fakes caught, every cash transaction over $10,000 reported, and a till over its $50,000 limit sent to the vault. Also term deposits and collateral.',
     steps: [
       step('teller_counter', ['TELLER_CASH'], 'Teller Counter', 'The teller counts the notes, checks for fakes and that the till has enough cash.', 'Note count against the till (GL 1012), suspect serials recorded (TELLER_SUSPECT_NOTE), CTR filed at $10,000 or more. A till over $50,000 locks the counter until the surplus is moved to the vault (Dr 1011 vault / Cr 1011 till).'),
       step('aml_screen', ['AML_DESK'], 'AML Review', 'Cash split into pieces just under the reporting line is held for an analyst.', 'Structuring (smurfing) detection: deposits ≥ 80% of the CTR line that sum past it are STR_PENDING.'),
       step('casa_posting', ['LEDGER_DEBIT', 'OUT_APPROVED', 'OUT_DECLINED'], 'Customer CASA', 'The account is credited, or debited for the cash handed over.', 'Dr 1012 Teller Vault Cash / Cr 2010 Customer CASA for a deposit; the reverse for a withdrawal.'),
+      step('savings_collateral', ['SAVINGS_DESK', 'COLLATERAL_VAULT'], 'Savings & Collateral', 'Term deposits are closed here, and pledged savings are frozen when a loan defaults.', 'Early closure falls to the 0.1% demand rate; Dr 2021 / Cr 2022 freezes collateral; liquidation pays the debt in waterfall order.'),
     ],
   },
   7: {
@@ -258,13 +261,13 @@ const FLOW_VI: Readonly<Record<FlowId, FlowWords>> = {
   },
   2: {
     title: 'Web & 3DS',
-    blurb: 'Một lần thanh toán trực tuyến: thẻ đã mã hóa kèm mã động, hoặc kiểm tra rủi ro 3DS có thể nhắn mã cho khách.',
+    blurb: 'Một lần thanh toán trực tuyến: thẻ đã mã hóa kèm mã động, hoặc kiểm tra rủi ro 3DS có thể nhắn mã cho khách. Kèm trả góp, thu hồi nợ và rủi ro tín dụng.',
     steps: [
       { name: 'Cổng thanh toán web', standard: 'Website hoặc ứng dụng gửi giao dịch thẻ tới ngân hàng.', expert: 'Yêu cầu cấp phép không xuất trình thẻ: DPAN kèm dCVV, hoặc PAN kèm 3DS AReq.' },
       { name: 'Kho token & dCVV', standard: 'Đổi số thẻ thay thế thành số thật và kiểm tra mã dùng một lần.', expert: 'Giải mã token DPAN → FPAN và xác thực CVV động trong cửa sổ thời gian.' },
       { name: 'Bàn rủi ro 3DS', standard: 'Chấm điểm rủi ro: rủi ro thấp đi thẳng, rủi ro trung bình nhận mã.', expert: 'Xác thực dựa trên rủi ro: xác thực liền mạch dưới ngưỡng, thử thách trong dải, từ chối trên ngưỡng.' },
       { name: 'Mã SMS dùng một lần', standard: 'Khách nhập mã từ điện thoại, hoặc bỏ cuộc.', expert: 'Thử thách OTP (CReq/CRes). Thử thách hoàn tất chuyển trách nhiệm gian lận sang ngân hàng phát hành.' },
-      { name: 'Bộ máy cấp phép', standard: 'Kiểm tra tiền có đủ, khoanh giữ và trả lời website.', expert: 'Kiểm tra số dư và khoanh giữ trên CASA hoặc hạn mức tín dụng, rồi trả mã phản hồi 0110.' },
+      { name: 'Bộ máy cấp phép', standard: 'Kiểm tra tiền có đủ, khoanh giữ và trả lời website. Trả góp và tín dụng chuyển sang quầy BNPL.', expert: 'Kiểm tra số dư và khoanh giữ trên CASA hoặc hạn mức tín dụng, rồi trả mã phản hồi 0110. Quầy BNPL: DTI trên 45% bị từ chối; khoản trả nợ theo thứ tự phạt, lãi, gốc.' },
     ],
   },
   3: {
@@ -297,11 +300,12 @@ const FLOW_VI: Readonly<Record<FlowId, FlowWords>> = {
   },
   6: {
     title: 'Tiền mặt tại quầy & CTR',
-    blurb: 'Tiền mặt qua quầy chi nhánh: đếm tiền, phát hiện tiền giả, báo cáo mọi giao dịch tiền mặt trên $10,000, và chuyển về kho quỹ khi ngăn kéo vượt hạn mức $50,000.',
+    blurb: 'Tiền mặt qua quầy chi nhánh: đếm tiền, phát hiện tiền giả, báo cáo mọi giao dịch tiền mặt trên $10,000, và chuyển về kho quỹ khi ngăn kéo vượt hạn mức $50,000. Kèm tiền gửi có kỳ hạn và TSĐB.',
     steps: [
       { name: 'Quầy giao dịch viên', standard: 'Giao dịch viên đếm tiền, kiểm tra tiền giả và xem ngăn kéo có đủ tiền không.', expert: 'Đếm tiền theo quỹ quầy (TK 1012), ghi số seri tiền nghi giả (TELLER_SUSPECT_NOTE), lập CTR từ $10,000 trở lên. Ngăn kéo vượt $50,000 sẽ khóa quầy đến khi phần dư chuyển về kho quỹ (Nợ 1011 kho / Có 1011 ngăn kéo).' },
       { name: 'Rà soát AML', standard: 'Tiền mặt bị chia nhỏ ngay dưới ngưỡng báo cáo được giữ lại cho chuyên viên.', expert: 'Phát hiện chia nhỏ giao dịch (smurfing): các lần nộp ≥ 80% ngưỡng CTR mà tổng vượt ngưỡng sẽ là STR_PENDING.' },
       { name: 'Tài khoản thanh toán của khách', standard: 'Tài khoản được ghi có, hoặc ghi nợ số tiền mặt đã chi.', expert: 'Nợ 1012 Quỹ tiền mặt tại quầy / Có 2010 Tài khoản của khách khi nộp; ngược lại khi rút.' },
+      { name: 'Tiết kiệm & Tài sản bảo đảm', standard: 'Tất toán tiền gửi có kỳ hạn tại đây, và phong tỏa tiền gửi cầm cố khi khoản vay vỡ nợ.', expert: 'Tất toán sớm về mức không kỳ hạn 0,1%; Nợ 2021 / Có 2022 phong tỏa TSĐB; xử lý TSĐB trả nợ theo thứ tự cấn trừ.' },
     ],
   },
   7: {

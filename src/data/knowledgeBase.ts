@@ -256,6 +256,26 @@ export const CORE_LEDGER_ARTICLE = {
       ],
     },
     {
+      id: 'flow-loan-waterfall',
+      title: L('Overdue loan repayment waterfall', 'Thứ tự cấn trừ khi trả nợ quá hạn'),
+      summary: L('A part-payment on an overdue loan pays the penalty first, then the interest, and only then the principal.', 'Khoản trả một phần cho nợ quá hạn trả phạt trước, rồi đến lãi, sau cùng mới đến gốc.'),
+      sample: 12_000,
+      watch: [],
+      steps: [
+        { text: L('The customer pays $120. The penalty and interest are income as they are paid; what is left reduces the loan.', 'Khách trả $120. Phạt và lãi là thu nhập khi được trả; phần còn lại giảm dư nợ.'), lines: [dr('CASA', 12_000), cr('LATE_PENALTY_INCOME', 2_500), cr('INTEREST_INCOME', 4_000), cr('LOAN_PRINCIPAL', 5_500)] },
+      ],
+    },
+    {
+      id: 'flow-td-early',
+      title: L('Early term deposit closure', 'Tất toán tiền gửi có kỳ hạn trước hạn'),
+      summary: L('Interest falls from the contract rate to the demand rate, so the bank pays far less than it expected to.', 'Lãi giảm từ lãi suất hợp đồng về mức không kỳ hạn, nên ngân hàng trả ít hơn nhiều so với dự kiến.'),
+      sample: 1_000_000,
+      watch: [],
+      steps: [
+        { text: L('The deposit is repaid with only the demand-rate interest, which is the bank’s expense.', 'Tiền gửi được trả kèm lãi theo mức không kỳ hạn, là chi phí của ngân hàng.'), lines: [dr('TERM_DEPOSIT', 1_000_000), dr('INTEREST_EXPENSE', 493), cr('CASA', 1_000_493)] },
+      ],
+    },
+    {
       id: 'flow-swift',
       title: L('International SWIFT transfer and return', 'Chuyển tiền quốc tế SWIFT và hoàn trả'),
       summary: L('A customer wires money abroad; the beneficiary bank sends it back because the account is closed.', 'Khách chuyển tiền ra nước ngoài; ngân hàng thụ hưởng trả lại vì tài khoản đã đóng.'),
