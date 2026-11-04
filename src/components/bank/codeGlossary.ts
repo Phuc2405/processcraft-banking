@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { ACRONYM_DETAILS, type AcronymDetail } from '../../data/acronyms';
 import { GL_SIDE, type GlAccount, type LedgerLine } from '../../sim/staffRoleplay';
 import { message, useLocale, type Locale, type Values } from '../../utils/i18nHelper';
 import { codeGlossaryMessages, type CodeGlossaryKey } from './codeGlossary.messages';
@@ -13,7 +14,7 @@ const has = (key: string): key is CodeGlossaryKey => key in MSGS;
 const say = (key: CodeGlossaryKey, locale: Locale, values?: Values): string => message(codeGlossaryMessages, key, values, locale);
 
 /** "pacs.008" → "PACS008", "ISO 20022" → "ISO20022", "eKYC" → "EKYC"; underscores in status codes are kept. */
-const termKey = (code: string): string => code.toUpperCase().replace(/[.\s-]/g, '');
+const termKey = (code: string): string => code.toUpperCase().replace(/[.\s-]/g, '').replace(/Đ/g, 'D');
 
 /** The meaning of one code, or undefined when the glossary does not know it. */
 export function explainCode(code: string, locale: Locale): string | undefined {
@@ -21,8 +22,8 @@ export function explainCode(code: string, locale: Locale): string | undefined {
   return undefined;
 }
 
-/** Codes worth explaining inside free text: SCREAMING_SNAKE codes, short acronyms, and ISO 20022 message names. */
-const CODE_IN_TEXT = /\b(?:ISO 20022|pacs\.\d{3}|e?KYC|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+|[A-Z]{2,6})\b/g;
+/** Codes worth explaining inside free text: SCREAMING_SNAKE codes, short acronyms, ISO 20022 message names, and the spellings the plain capitals miss (3DS, dCVV, TSĐB, A2A, MT103). */
+const CODE_IN_TEXT = /\b(?:ISO 20022|pacs\.\d{3}|e?KYC|3DS|dCVV|TSĐB|A2A|MT\d{3}|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+|[A-Z]{2,7})\b/g;
 
 /** Every known code in `text`, once each, with its meaning, in the order they appear. */
 export function codesIn(text: string, locale: Locale): { code: string; meaning: string }[] {
@@ -95,7 +96,29 @@ const TERM_SPELLING: Readonly<Record<string, string>> = {
   SUSPENSE: 'Suspense',
   DR: 'Dr',
   CR: 'Cr',
+  TSDB: 'TSĐB',
+  DCVV: 'dCVV',
+  MEMO: 'Memo',
 };
+
+/** A short label's hover text: the label, then each acronym in it expanded ("SWIFT: Society for… · The global network…"). Falls back to the label alone. */
+export function acronymHint(text: string, locale: Locale): string {
+  const found = acronymsIn(text, locale);
+  return found.length ? [text, ...found.map((a) => `${a.label}: ${a.full}. ${a.meaning}`)].join('\n') : text;
+}
+
+export type ExpandedAcronym = GlossaryTerm & AcronymDetail & { full: string; vi: string };
+
+/** Every glossary acronym in `text`, once each, with its expanded name, Vietnamese name and rule, for the Inspector's notes. */
+export function acronymsIn(text: string, locale: Locale): ExpandedAcronym[] {
+  const out: ExpandedAcronym[] = [];
+  for (const { code, meaning } of codesIn(text, locale)) {
+    const key = termKey(code);
+    const detail = ACRONYM_DETAILS[key];
+    if (detail && !out.some((a) => a.key === key)) out.push({ key, label: TERM_SPELLING[key] ?? key, meaning, ...detail, full: detail.name.en, vi: detail.name.vi });
+  }
+  return out;
+}
 
 export interface GlossaryTerm {
   /** The key after `term_` ("PACS008"): the anchor id of the term in the Knowledge Base. */

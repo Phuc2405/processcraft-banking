@@ -208,9 +208,10 @@ describe('people', () => {
     expect(ENTRANCES.map((e) => e.at)).toContainEqual(CUSTOMER_DOOR);
     for (const id of WALK_IN_DESKS) {
       const path = arrivalPath(id, 2);
-      // From beside a car on the car park's footway, across the walkway and in at the door: nobody appears at the door.
-      expect(path[0]![0]).toBe(CAR_PARK_FOOTWAY_X);
-      expect(path[1]).toEqual([CAR_PARK_FOOTWAY_X, CUSTOMER_DOOR[1]]);
+      // From the far end of the street, along the pavement, down the car park's footway and in at the door: nobody appears anywhere.
+      expect(path[0]![0]).toBeLessThan(-STREET.halfWidth);
+      expect(path[1]![0]).toBe(CAR_PARK_FOOTWAY_X);
+      expect(path[2]).toEqual([CAR_PARK_FOOTWAY_X, CUSTOMER_DOOR[1]]);
       expect(path).toContainEqual(CUSTOMER_DOOR);
       expect(path).toContainEqual([LEFT_WALK_X, FRONT_AISLE_Z]);
       expect(CUSTOMER_DOOR[0]).toBeLessThan(-FLOOR.w / 2);
@@ -252,8 +253,8 @@ describe('lanes and packets', () => {
   it('times a hop like the 2D map: a later move in the beat starts later, and a hop is neither a blink nor a crawl', () => {
     const fast = hopTiming(0.5, 150);
     const slow = hopTiming(0.5, 6000);
-    expect(fast.durationMs).toBe(240);
-    expect(slow.durationMs).toBe(720);
+    expect(fast.durationMs).toBe(320);
+    expect(slow.durationMs).toBe(1100);
     expect(hopTiming(0, 1500).delayMs).toBe(0);
     expect(hopTiming(1, 1500).delayMs).toBeGreaterThan(hopTiming(0.5, 1500).delayMs);
   });

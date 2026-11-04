@@ -46,7 +46,7 @@ const barrierHits = (path: readonly V2[]): number => {
 
 describe('queue ropes, stanchions and booth glass are walls to walk round', () => {
   it('brings every customer to the back of the queue without stepping through a rope or a booth wall', () => {
-    for (const id of [...WALK_IN_DESKS, ...ATM_STATIONS]) for (let q = 0; q <= 6; q++) expect(barrierHits(arrivalPath(id, q)), `${id} queue ${q}`).toBe(0);
+    for (const id of [...WALK_IN_DESKS, ...ATM_STATIONS]) for (let q = 0; q <= 6; q++) for (const o of ['street', 'gate'] as const) expect(barrierHits(arrivalPath(id, q, o)), `${id} queue ${q} from ${o}`).toBe(0);
   });
 
   it('walks ATM customers out of the booth by the gap and off down the street, and closing-time leavers out of the rope lanes', () => {

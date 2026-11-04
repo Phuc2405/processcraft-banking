@@ -26,7 +26,7 @@ export function useSmallScreen(): boolean {
   return small;
 }
 
-/** On a screen narrower than 768 px: a notice that the bank is built for a desktop, pinned to the top of the viewport (the app itself keeps its desktop width and scrolls sideways). */
+/** On a screen narrower than 768 px: a notice that the bank is built for a desktop, pinned to the top of the viewport (the app adapts to the width, but the full bank reads best on a wide screen). */
 export function SmallScreenBanner() {
   const small = useSmallScreen();
   const [dismissed, setDismissed] = useState(readDismissed);
@@ -47,8 +47,8 @@ export function SmallScreenBanner() {
       <p className="min-w-0 flex-1 text-[13px] leading-snug">
         <span className="font-bold">{tr({ en: 'Best on a desktop.', vi: 'Hiển thị tốt nhất trên máy tính.' })}</span>{' '}
         {tr({
-          en: 'The Living Bank, its 3D office and the Build Lab canvas need at least 768 px. On this screen, scroll sideways or turn your device to landscape.',
-          vi: 'Ngân hàng sống, văn phòng 3D và sơ đồ Build Lab cần chiều rộng tối thiểu 768 px. Trên màn hình này, hãy cuộn ngang hoặc xoay thiết bị sang chế độ ngang.',
+          en: 'The bank adapts to this screen: the demo buttons collapse into one menu and panels open full-screen. For the whole map side by side with the Academy, turn your device to landscape.',
+          vi: 'Ngân hàng tự co giãn theo màn hình này: các nút demo gộp vào một menu và các bảng mở toàn màn hình. Để xem cả sơ đồ bên cạnh Học viện, hãy xoay thiết bị sang chế độ ngang.',
         })}
       </p>
       <button type="button" onClick={dismiss} data-testid="small-screen-dismiss" aria-label={tr({ en: 'Dismiss', vi: 'Đóng' })} className="rounded-md px-2 py-0.5 text-[18px] leading-none text-amber-200 hover:bg-amber-900">

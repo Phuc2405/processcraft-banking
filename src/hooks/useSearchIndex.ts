@@ -9,6 +9,9 @@ import { DEPARTMENTS, EXTERNAL_IDS, STATIONS, STATION_IDS, type PlaceId } from '
 import type { TermMode } from '../sim/terms';
 import type { AccountId } from '../types/processLearning';
 import { useBankStore } from '../store/bankStore';
+import { ACRONYM_DETAILS } from '../data/acronyms';
+import { RETAIL_FLASHCARDS } from '../data/retailFlashcards';
+import { REG_DOCUMENTS } from '../data/regulatoryRegistry';
 import { CORE_LEDGER_ARTICLE, isIntermediate } from '../data/knowledgeBase';
 import { AML_ARTICLE } from '../data/amlKnowledge';
 import { RETAIL_TOPICS } from '../data/retailKnowledge';
@@ -16,7 +19,10 @@ import { TOPIC_MODULES } from '../data/retailTopicModules';
 import { pick } from '../i18n/locale';
 import { GL_ACCOUNTS } from '../sim/staffRoleplay';
 import { lessonSearchText, opsLessonAnchor, OPS_FLASHCARDS, OPS_LESSONS, OPS_QUIZ } from '../data/retailOpsKnowledge';
-import { coreCodeOf, OPS_ACCOUNTS, OPS_ACTIONS, OPS_SUB_CHAPTER, OPS_SUBPROCESSES, opsFlowOf, opsSubProcess, type OpsActionId, type OpsSubProcessId } from '../sim/retailOps';
+import { coreCodeOf, OPS_ACCOUNTS, OPS_ACTIONS, OPS_SUB_CHAPTER, opsFlowOf, opsSubProcess } from '../sim/retailOps';
+import type { DemoActionId } from '../sim/demoActions';
+import { DEMO_GROUPS, demoGroup, type DemoGroupId } from '../sim/demoGroups';
+import { PRESETS, presetTextIn } from '../sim/presets';
 import type { ChapterId } from '../sim/academyCatalog';
 import { message } from '../utils/i18nHelper';
 import { analystWorkspaceMessages, type AnalystWorkspaceKey } from '../components/bank/analystWorkspace.messages';
@@ -25,7 +31,7 @@ import { glossaryTerms, glPlain } from '../components/bank/codeGlossary';
 export type SearchCategory = 'station' | 'lesson' | 'gl' | 'kb' | 'ops';
 
 /** `knowledge` opens the Knowledge Base at an anchor: a section id, `gl-<ID>` for a ledger account or `term-<KEY>` for an acronym. */
-export type SearchAction = { kind: 'place'; place: PlaceId } | { kind: 'lesson'; level: LevelId } | { kind: 'knowledge'; anchor: string } | { kind: 'sub'; sub: OpsSubProcessId } | { kind: 'opsAction'; action: OpsActionId } | { kind: 'quiz'; chapter: ChapterId };
+export type SearchAction = { kind: 'place'; place: PlaceId } | { kind: 'lesson'; level: LevelId } | { kind: 'knowledge'; anchor: string } | { kind: 'sub'; sub: DemoGroupId } | { kind: 'opsAction'; action: DemoActionId } | { kind: 'quiz'; chapter: ChapterId };
 
 export interface SearchEntry {
   id: string;
@@ -36,6 +42,14 @@ export interface SearchEntry {
   /** Extra matchable text, already folded. */
   keys: string;
   action: SearchAction;
+  /** A definition card's short name: the row shows it in bold with `full` clipped beside it. */
+  abbr?: string;
+  /** The expanded term. */
+  full?: string;
+  /** The term in Vietnamese, on the hover card. */
+  vi?: string;
+  /** The core banking rule, on the hover card. */
+  rule?: string;
 }
 
 export type SearchGroups = Record<SearchCategory, SearchEntry[]>;
@@ -236,13 +250,16 @@ export function knowledgeEntries(locale: Locale): SearchEntry[] {
   }
   const meanings = new Map(glossaryTerms('vi').map((t) => [t.key, t.meaning]));
   for (const t of glossaryTerms(locale)) {
+    const d = ACRONYM_DETAILS[t.key];
     out.push({
       id: `kb:term:${t.key}`,
       category: 'kb',
       label: t.label,
       detail: t.meaning,
-      keys: fold([t.key, t.meaning, meanings.get(t.key) ?? ''].join(' | ')),
+      keys: fold([t.key, t.meaning, meanings.get(t.key) ?? '', d?.name.en ?? '', d?.name.vi ?? '', ...(d?.aliases ?? [])].join(' | ')),
       action: { kind: 'knowledge', anchor: `term-${t.key}` },
+      abbr: t.label,
+      ...(d ? { full: d.name.en, vi: d.name.vi, rule: pick(d.rule, locale) } : {}),
     });
   }
   return out;
@@ -255,11 +272,16 @@ export function knowledgeEntries(locale: Locale): SearchEntry[] {
 export function retailOpsEntries(locale: Locale): SearchEntry[] {
   const out: SearchEntry[] = [];
   const both = (v: { en: string; vi: string }): string => `${v.en} | ${v.vi}`;
-  for (const s of OPS_SUBPROCESSES) {
-    out.push({ id: `ops:sub:${s.id}`, category: 'ops', label: pick(s.title, locale), detail: pick({ en: 'Sub-process: highlight its path', vi: 'Quy trình con: làm nổi đường đi' }, locale), keys: fold(both(s.title)), action: { kind: 'sub', sub: s.id } });
+  // Every child sub-group of the eight flows, retail or core, and every demo button in it.
+  for (const g of DEMO_GROUPS) {
+    out.push({ id: `ops:sub:${g.id}`, category: 'ops', label: pick(g.title, locale), detail: pick({ en: 'Sub-process: highlight its path', vi: 'Quy trình con: làm nổi đường đi' }, locale), keys: fold(both(g.title)), action: { kind: 'sub', sub: g.id } });
   }
   for (const a of OPS_ACTIONS) {
     out.push({ id: `ops:action:${a.id}`, category: 'ops', label: `${a.icon} ${pick(a.label, locale)}`, detail: pick(a.hint, locale), keys: fold([both(a.label), both(a.hint), `flow ${opsFlowOf(a)}`, both(opsSubProcess(a.sub).title)].join(' | ')), action: { kind: 'opsAction', action: a.id } });
+  }
+  for (const p of PRESETS) {
+    const vi = presetTextIn(p, 'vi');
+    out.push({ id: `ops:preset:${p.id}`, category: 'ops', label: `${p.icon} ${presetTextIn(p, locale).label}`, detail: presetTextIn(p, locale).hint, keys: fold([p.label, vi.label, p.hint, vi.hint, `flow ${p.flow}`, both(demoGroup(p.group).title)].join(' | ')), action: { kind: 'opsAction', action: p.id } });
   }
   for (const acc of OPS_ACCOUNTS) {
     out.push({ id: `ops:gl:${acc.id}`, category: 'ops', label: `${acc.code} ${pick(acc.name, locale)}`, detail: pick(acc.plain, locale), keys: fold([acc.code, `tk ${acc.code}`, acc.id.replace(/_/g, ' '), both(acc.name), both(acc.plain), coreCodeOf(acc.id)].join(' | ')), action: { kind: 'knowledge', anchor: `retail-ops-gl-${acc.id}` } });
@@ -268,8 +290,12 @@ export function retailOpsEntries(locale: Locale): SearchEntry[] {
     const title = opsSubProcess(l.sub).title;
     out.push({ id: `ops:lesson:${l.sub}`, category: 'ops', label: `📖 ${pick(title, locale)}`, detail: pick(l.summary, locale), keys: fold([both(title), lessonSearchText(l)].join(' | ')), action: { kind: 'knowledge', anchor: opsLessonAnchor(l.sub) } });
   }
-  for (const c of OPS_FLASHCARDS) {
+  for (const c of [...RETAIL_FLASHCARDS, ...OPS_FLASHCARDS]) {
     out.push({ id: `ops:flash:${c.id}`, category: 'ops', label: `🃏 ${pick(c.front, locale)}`, detail: pick(c.rule, locale), keys: fold([both(c.front), both(c.rule), both(c.reference), 'flashcard the ghi nho'].join(' | ')), action: { kind: 'knowledge', anchor: `flash-${c.id}` } });
+  }
+  // The regulatory registry: a document number, title or topic opens its card in the Circulars & Decrees tab.
+  for (const d of REG_DOCUMENTS) {
+    out.push({ id: `ops:legal:${d.id}`, category: 'ops', label: `⚖️ ${pick(d.number, locale)} · ${pick(d.title, locale)}`, detail: pick(d.summary, locale), keys: fold([both(d.number), d.number.vi.replace(/[/-]/g, ' '), both(d.title), both(d.summary), d.tags.vi, 'thong tu nghi dinh van ban phap ly regulation legal'].join(' | ')), action: { kind: 'knowledge', anchor: `legal-${d.id}` } });
   }
   for (const q of OPS_QUIZ) {
     out.push({ id: `ops:quiz:${q.id}`, category: 'ops', label: `❓ ${pick(q.question, locale)}`, detail: pick(opsSubProcess(q.sub).title, locale), keys: fold([both(q.question), ...q.options.map((o) => both(o.text)), 'quiz trac nghiem'].join(' | ')), action: { kind: 'quiz', chapter: OPS_SUB_CHAPTER[q.sub] } });
@@ -280,7 +306,8 @@ export function retailOpsEntries(locale: Locale): SearchEntry[] {
 /** 0 = no match; higher is better. */
 export function scoreEntry(e: SearchEntry, q: string): number {
   const label = fold(e.label);
-  if (label === q) return 100;
+  // Typing an acronym exactly: its definition card leads, ahead of a lesson or desk of the same name.
+  if (label === q) return e.abbr ? 101 : 100;
   if (label.startsWith(q)) return 80;
   if (label.split(/[\s\-/&(),.]+/).some((w) => w.startsWith(q))) return 60;
   if (label.includes(q)) return 40;

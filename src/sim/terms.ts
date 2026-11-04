@@ -153,6 +153,16 @@ const EN: TermBook = {
       short: 'Money Laundering Review',
       tip: 'Compliance officers look at payments the system held as suspicious, report them to the regulator, and freeze money linked to sanctioned people.',
     },
+    SAVINGS_DESK: {
+      plain: 'Savings & Term Deposit Desk',
+      short: 'Savings Desk',
+      tip: 'Closes fixed-term savings, working out the interest again at a much lower rate if they are closed early.',
+    },
+    COLLATERAL_VAULT: {
+      plain: 'Collateral Vault',
+      short: 'Collateral Vault',
+      tip: 'When a loan goes bad, the savings pledged against it are frozen here and then used to pay it off.',
+    },
     DISPUTE_DESK: {
       plain: 'Complaints & Refund Claims Desk',
       short: 'Refund Claims Desk',
@@ -173,6 +183,7 @@ const EN: TermBook = {
     ATM: { plain: 'Sidewalk Cash Machine', short: 'Sidewalk Cash Machine', tip: 'The two blue cash machines on the pavement outside the branch.' },
     ENTRANCE: { plain: 'Front Door & Identity Checks', short: 'Front Door & Identity', tip: 'Where new customers are identified, QR payments arrive, cash is handled at the counter, and big transfers need a face scan.' },
     COMPLIANCE: { plain: 'Fraud & Money Laundering Watch', short: 'Fraud & Laundering Watch', tip: 'Where risky devices are stopped and suspicious money is reviewed and reported.' },
+    SAVINGS: { plain: 'Savings & Collateral', short: 'Savings & Collateral', tip: 'Where term deposits are closed, and where pledged savings are frozen and used to clear bad debt.' },
     BACKOFFICE: { plain: 'Claims & Overseas Transfers', short: 'Claims & Overseas', tip: 'Where customer refund claims are decided and money is sent abroad.' },
   },
   externals: {
@@ -382,6 +393,16 @@ const VI: TermBook = {
       short: 'Rà soát rửa tiền',
       tip: 'Chuyên viên tuân thủ xem các giao dịch bị hệ thống giữ lại vì đáng ngờ, báo cáo cơ quan quản lý và phong tỏa tiền liên quan tới người bị cấm vận.',
     },
+    SAVINGS_DESK: {
+      plain: 'Quầy tiết kiệm',
+      short: 'Quầy tiết kiệm',
+      tip: 'Tất toán tiền gửi có kỳ hạn, tính lại tiền lãi ở mức thấp hơn nhiều nếu tất toán sớm.',
+    },
+    COLLATERAL_VAULT: {
+      plain: 'Kho tài sản bảo đảm',
+      short: 'Kho TSĐB',
+      tip: 'Khi khoản vay thành nợ xấu, tiền gửi cầm cố được phong tỏa tại đây rồi dùng để trả nợ.',
+    },
     DISPUTE_DESK: {
       plain: 'Quầy khiếu nại & đòi tiền',
       short: 'Quầy khiếu nại',
@@ -402,6 +423,7 @@ const VI: TermBook = {
     ATM: { plain: 'Máy ATM vỉa hè', short: 'Máy ATM vỉa hè', tip: 'Hai máy ATM màu xanh trên vỉa hè trước chi nhánh.' },
     ENTRANCE: { plain: 'Cửa vào & kiểm tra danh tính', short: 'Cửa vào & danh tính', tip: 'Nơi khách mới được định danh, giao dịch QR đi vào, tiền mặt được xử lý tại quầy và giao dịch lớn cần quét khuôn mặt.' },
     COMPLIANCE: { plain: 'Giám sát gian lận & rửa tiền', short: 'Giám sát gian lận & rửa tiền', tip: 'Nơi thiết bị rủi ro bị chặn và tiền đáng ngờ được rà soát, báo cáo.' },
+    SAVINGS: { plain: 'Tiết kiệm & Tài sản bảo đảm', short: 'Tiết kiệm & TSĐB', tip: 'Nơi tất toán tiền gửi có kỳ hạn, phong tỏa tiền gửi cầm cố và dùng để xử lý nợ xấu.' },
     BACKOFFICE: { plain: 'Khiếu nại & chuyển tiền quốc tế', short: 'Khiếu nại & quốc tế', tip: 'Nơi giải quyết khiếu nại đòi tiền của khách và gửi tiền ra nước ngoài.' },
   },
   externals: {
@@ -523,6 +545,8 @@ const EXPERT_STATION_VI: Readonly<Record<StationId, { name: string; blurb: strin
   SEC_FACEPAY: { name: 'Xác thực Sinh trắc học FacePay', blurb: 'Mọi giao dịch chuyển tiền trên $400 (10 triệu VND) phải được xác thực bằng khuôn mặt, đối chiếu với sinh trắc học đã đăng ký khi mở tài khoản.' },
   SEC_FDS: { name: 'Hệ thống FDS & Dấu chân Thiết bị', blurb: 'Hệ thống phát hiện gian lận chấm điểm thiết bị và hành vi: IP bất thường, điện thoại đã root/jailbreak, tấn công dò BIN. Đồng thời chạy sàng lọc AML tự động.' },
   AML_DESK: { name: 'Bàn tra soát AML & Danh sách đen', blurb: 'Chuyên viên tuân thủ rà soát các giao dịch bị giữ: lập STR hoặc giải phóng, và xác nhận các trường hợp trùng danh sách cấm vận OFAC/PEP trước khi phong tỏa tiền.' },
+  SAVINGS_DESK: { name: 'Quầy Tiết kiệm', blurb: 'Tất toán tiền gửi có kỳ hạn, tính lại tiền lãi từ lãi suất hợp đồng về lãi suất không kỳ hạn khi tất toán sớm.' },
+  COLLATERAL_VAULT: { name: 'Kho Tài sản bảo đảm', blurb: 'Quản lý phong tỏa tiền gửi cầm cố: phong tỏa khi vỡ nợ, rồi xử lý theo thứ tự cấn trừ để thu hồi nợ xấu.' },
   DISPUTE_DESK: { name: 'Quầy Tra soát Khiếu nại & Đòi tiền', blurb: 'Chuyên viên xử lý khiếu nại của khách: tra soát thẻ (chargeback), hoàn trả pacs.004 và lệch tiền ATM, trong thời hạn của tổ chức thẻ.' },
   GATE_SWIFT: { name: 'Cổng Chuyển tiền Quốc tế SWIFT / ISO 20022', blurb: 'Đọc điện chuyển tiền quốc tế pacs.008 (mã BIC, EndToEndId, số tiền quyết toán và loại tiền) và quy đổi ngoại tệ trước khi sàng lọc.' },
 };
@@ -536,6 +560,7 @@ const EXPERT_DEPARTMENT_VI: Readonly<Record<DepartmentId, { name: string; blurb:
   ATM: { name: 'ATM vỉa hè', blurb: 'Hai buồng ATM màu xanh trên vỉa hè trước chi nhánh: buồng thẻ và PIN, rồi buồng tiền mặt. Nếu kẹt tiền sau khi khách bị trừ, khoản tiền vào thẳng tài khoản treo.' },
   ENTRANCE: { name: 'Cổng vào & Xác thực', blurb: 'Nơi khách hàng mới và tiền mặt gặp ngân hàng: mở tài khoản eKYC, cổng VietQR, quầy giao dịch viên và xác thực sinh trắc học FacePay cho giao dịch giá trị cao.' },
   COMPLIANCE: { name: 'Phát hiện Gian lận & Tuân thủ AML', blurb: 'FDS chấm điểm mọi thiết bị và hành vi; chuyên viên AML rà soát hoạt động đáng ngờ và xác nhận các trường hợp trùng cấm vận.' },
+  SAVINGS: { name: 'Tiết kiệm & Tài sản bảo đảm', blurb: 'Nơi tất toán tiền gửi có kỳ hạn, phong tỏa tiền gửi cầm cố và xử lý chúng để thu hồi nợ xấu.' },
   BACKOFFICE: { name: 'Khiếu nại & Quốc tế', blurb: 'Chuyển tiền quốc tế SWIFT theo ISO 20022, và các chuyên viên giải quyết tra soát thẻ, hoàn trả pacs.004 và lệch tiền ATM.' },
 };
 

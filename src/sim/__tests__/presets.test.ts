@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { isBalanced } from '../../engine/ledger';
 import { BankSimulation } from '../bankSimulation';
 import { WORK_START } from '../clock';
-import { PRESETS, presetCustomer, type PresetId } from '../presets';
+import { opsCustomer, PRESETS, presetCustomer, type PresetId } from '../presets';
 import { generateDay } from '../traffic';
 
 function runPreset(id: PresetId, opts: { headless?: boolean } = {}) {
@@ -64,6 +64,29 @@ describe('preset actions', () => {
     const before = generateDay(2026, 1).customers.map((c) => c.id + c.scenario);
     runPreset('pos-20');
     expect(generateDay(2026, 1).customers.map((c) => c.id + c.scenario)).toEqual(before);
+  });
+
+  it('a returned instalment shows the $250 that was declined, not the $15 fee that posted', () => {
+    expect(opsCustomer('autopay-nsf-250', 1_500)?.payload.amount).toBe(25_000);
+  });
+
+  it('a credit demo customer holds the balance the retail book decided on', () => {
+    expect(opsCustomer('autopay-nsf-250')?.payload.availableBalance).toBe(12_000);
+    expect(opsCustomer('autopay-loan-250')?.payload.availableBalance).toBe(90_000);
+  });
+
+  it('counts a savings case at each desk that handles it', () => {
+    const sim = new BankSimulation({ seed: 2026 });
+    sim.stepUntil(WORK_START + 30);
+    for (const id of ['td-break-10k', 'collateral-lock'] as const) {
+      const txId = sim.inject(opsCustomer(id)!);
+      if (!txId) throw new Error('not injected');
+      for (let i = 0; i < 40 && !sim.traceOf(txId)?.done; i++) sim.step();
+      expect(sim.traceOf(txId)?.done, id).toBe(true);
+    }
+    const cases = (station: 'SAVINGS_DESK' | 'COLLATERAL_VAULT') => sim.snapshot().stations[station].stats.lines.find((l) => l.label === 'Cases worked')?.value;
+    expect(cases('SAVINGS_DESK')).toBe('2');
+    expect(cases('COLLATERAL_VAULT')).toBe('1');
   });
 
   it('scripted ids get their own serials and are forgotten the next day', () => {

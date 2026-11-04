@@ -96,7 +96,7 @@ import type {
 const LEDGER_RECENT = 40;
 
 /** How long a customer will wait at the checkout, in total, before they give up. Minutes. */
-export const PATIENCE: Record<CheckoutKind, number> = { POS: 15, ECOM: 25, VIRTUAL: 20, BNPL: 45, A2A: 15, ATM: 8, ONBOARD: 30, QR: 12, TELLER: 40, SWIFT: 60, DISPUTE: 240 };
+export const PATIENCE: Record<CheckoutKind, number> = { POS: 15, ECOM: 25, VIRTUAL: 20, BNPL: 45, A2A: 15, ATM: 8, ONBOARD: 30, QR: 12, TELLER: 40, SWIFT: 60, DISPUTE: 240, CREDIT_OPS: 30 };
 
 /** Declines that are down to how the bank is set up, not to the customer. */
 const FRICTION: ReadonlySet<DeclineReason> = new Set<DeclineReason>(['DCVV_EXPIRED', 'THREE_DS_REJECT', 'OTP_ABANDONED', 'ATM_JAM', 'TIMEOUT', 'EKYC_LIVENESS_FAILED', 'BIOMETRIC_AUTH_REQUIRED', 'FDS_HIGH_RISK_DEVICE']);
@@ -239,6 +239,8 @@ export class BankSimulation {
   private scripted = new Map<string, Packet>();
   /** Generated customers kept out of the building during a solo run (see step). */
   private heldBack: Customer[] = [];
+  /** The beat now being played is a solo run: only the scripted demo payments move. */
+  private soloBeat = false;
   /** Chaos Monkey: the faults switched on, today's scripted scenario and what they did. */
   private chaosConfig: ChaosConfig = { ...NO_CHAOS };
   private chaosScenario: ChaosScenario = 'NONE';
@@ -347,9 +349,15 @@ export class BankSimulation {
     return true;
   }
 
-  /** Moves the bank forward by one beat. */
+  /**
+   * Moves the bank forward by one beat. `admit: false` is a solo run (a demo clicked while the learner had paused): nobody new walks
+   * in, and only the scripted demo payments move. Every other customer already in the bank holds exactly where they are, so a paused
+   * bank never leaks a background transaction while it plays one demo.
+   */
   step(options: { admit?: boolean } = {}): void {
     if (this.dayOver) return;
+    const solo = options.admit === false;
+    this.soloBeat = solo;
     const phase = phaseAt(this.minute);
     const bm = beatMinutesAt(this.minute);
     const start = this.minute;
@@ -363,7 +371,7 @@ export class BankSimulation {
     }
     this.announce(phase, start);
 
-    if (this.chaosConfig.fatigueSpike) this.spikeFatigue();
+    if (this.chaosConfig.fatigueSpike && !solo) this.spikeFatigue();
     // In working hours the day's customers come; while the branch is shut only the round-the-clock channels do (card terminals and online checkouts, transfers, the ATM).
     const arriving = phase === 'WORKING' ? [...(this.traffic.beats[workingBeatIndex(start)] ?? []), ...this.chaosArrivals(start)] : this.traffic.offHours.filter((c) => c.minute >= start && c.minute < start + bm);
     if (options.admit === false) this.heldBack.push(...arriving);
@@ -373,11 +381,14 @@ export class BankSimulation {
       for (const customer of [...late, ...arriving]) this.admit(customer);
     }
     this.releasePhones(start, bm);
-    if (phase === 'EOD' && !this.nightStarted) this.startNight(start);
+    // The night cycle is not a demo payment: it waits for the bank to play.
+    if (phase === 'EOD' && !this.nightStarted && !solo) this.startNight(start);
 
     for (const id of SERVICE_ORDER) this.serve(this.stations[id], phase, start, bm);
 
-    if (phase === 'WORKING' || phase === 'AFTER_HOURS') this.expireWaiting(start + bm);
+    // Nobody gives up and leaves while the bank is paused for a solo demo: their wait does not count.
+    if ((phase === 'WORKING' || phase === 'AFTER_HOURS') && !solo) this.expireWaiting(start + bm);
+    this.soloBeat = false;
     this.endBeat(phase, bm);
 
     this.minute += bm;
@@ -872,9 +883,9 @@ export class BankSimulation {
 
   private releasePhones(start: number, bm: number): void {
     if (this.otpWaiting.length === 0) return;
-    const ready = this.otpWaiting.filter((p) => p.readyAtMinute < start + bm).sort((a, b) => a.readyAtMinute - b.readyAtMinute);
+    const ready = this.otpWaiting.filter((p) => p.readyAtMinute < start + bm && (!this.soloBeat || this.scripted.has(p.id))).sort((a, b) => a.readyAtMinute - b.readyAtMinute);
     if (ready.length === 0) return;
-    this.otpWaiting = this.otpWaiting.filter((p) => p.readyAtMinute >= start + bm);
+    this.otpWaiting = this.otpWaiting.filter((p) => !ready.includes(p));
     for (const p of ready) {
       const at = Math.max(start, p.readyAtMinute);
       const stop = p.plan.stops[p.stopIndex];
@@ -949,7 +960,10 @@ export class BankSimulation {
     const queue = st.queue;
     let guard = 0;
     while (queue.length > 0 && guard++ < 50_000) {
-      const head = queue[0]!;
+      // A solo run serves only the demo's own payment, wherever it stands in the line; everyone else waits, untouched.
+      const at = this.soloBeat ? queue.findIndex((p) => this.scripted.has(p.id)) : 0;
+      if (at < 0) break;
+      const head = queue[at]!;
       const ready = Math.max(0, head.queuedAtMinute - beatStart);
       let best: WorkerState | null = null;
       let bestStart = Infinity;
@@ -962,7 +976,7 @@ export class BankSimulation {
         }
       }
       if (!best || bestStart >= bm - 1e-9) break;
-      queue.shift();
+      queue.splice(at, 1);
       this.work(st, best, head, beatStart, bestStart, bm);
     }
     for (const w of st.workers) {
@@ -1076,6 +1090,9 @@ export class BankSimulation {
           this.pushAlert(st.id, 'crit', text, `jam:${p.id}`);
         } else if (f.ledgerDecision === 'INSUFFICIENT_FUNDS') {
           bump(st, 'noFunds');
+          st.errors++;
+        } else if (f.ledgerDecision === 'OVER_LIMIT') {
+          bump(st, 'overLimit');
           st.errors++;
         }
         break;
@@ -1335,6 +1352,9 @@ export class BankSimulation {
         } else bump(st, 'posted');
         break;
       case 'AML_SCREEN':
+        break;
+      case 'CREDIT_OPS':
+        bump(st, 'cases');
         break;
     }
   }
@@ -2082,6 +2102,9 @@ export class BankSimulation {
           { label: 'Sanctions matches (OFAC/PEP)', value: n('sanctions'), tone: warn('sanctions', 'crit'), tip: 'sanctions' },
           { label: 'Released to the ledger', value: n('released'), tip: 'released' },
         ];
+      case 'SAVINGS_DESK':
+      case 'COLLATERAL_VAULT':
+        return [{ label: 'Cases worked', value: n('cases'), tip: 'cases' }];
       case 'DISPUTE_DESK':
         return [
           { label: 'Claims worked (CB / pacs.004 / ATM)', value: `${n('claims')} (${n('chargebacks')} / ${n('returns')} / ${n('atmClaims')})`, tip: 'claims' },

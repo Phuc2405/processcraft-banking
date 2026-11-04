@@ -57,10 +57,10 @@ export type DeclineGroupId = 'NSF' | 'OTP' | 'RISK' | 'COMPLIANCE' | 'HARDWARE' 
 
 export const DECLINE_GROUPS: ReadonlyArray<{ id: DeclineGroupId; label: string; color: string; reasons: readonly DeclineReason[] }> = [
   { id: 'NSF', label: 'Not enough money', color: '#64748b', reasons: ['FUNDS', 'DOWN_PAYMENT'] },
-  { id: 'OTP', label: 'OTP abandoned', color: '#f59e0b', reasons: ['OTP_ABANDONED'] },
-  { id: 'RISK', label: 'Risk & security blocks', color: '#f43f5e', reasons: ['THREE_DS_REJECT', 'DCVV_EXPIRED', 'DCVV_MISMATCH', 'UNKNOWN_DPAN', 'A2A_INVALID', 'QR_PAYLOAD_INVALID', 'SWIFT_INVALID', 'FDS_HIGH_RISK_DEVICE'] },
-  { id: 'COMPLIANCE', label: 'Identity & compliance', color: '#2dd4bf', reasons: ['EKYC_LIVENESS_FAILED', 'BIOMETRIC_AUTH_REQUIRED', 'AML_SANCTION_MATCH', 'AML_STR_BLOCKED', 'DISPUTE_REJECTED'] },
-  { id: 'HARDWARE', label: 'ATM & branch cash', color: '#38bdf8', reasons: ['ATM_JAM', 'PIN_LOCKED', 'TELLER_VAULT_LIMIT', 'TELLER_SUSPECT_NOTE'] },
+  { id: 'OTP', label: 'OTP abandoned', color: '#f59e0b', reasons: ['OTP_ABANDONED', 'OTP_LOCKED'] },
+  { id: 'RISK', label: 'Risk & security blocks', color: '#f43f5e', reasons: ['THREE_DS_REJECT', 'DCVV_EXPIRED', 'DCVV_MISMATCH', 'UNKNOWN_DPAN', 'A2A_INVALID', 'QR_PAYLOAD_INVALID', 'SWIFT_INVALID', 'FDS_HIGH_RISK_DEVICE', 'CREDIT_RISK'] },
+  { id: 'COMPLIANCE', label: 'Identity & compliance', color: '#2dd4bf', reasons: ['EKYC_LIVENESS_FAILED', 'BIOMETRIC_AUTH_REQUIRED', 'AML_SANCTION_MATCH', 'AML_STR_BLOCKED', 'DISPUTE_REJECTED', 'ACCOUNT_FROZEN'] },
+  { id: 'HARDWARE', label: 'ATM & branch cash', color: '#38bdf8', reasons: ['ATM_JAM', 'PIN_LOCKED', 'TELLER_VAULT_LIMIT', 'TELLER_SUSPECT_NOTE', 'DAILY_LIMIT'] },
   { id: 'QUEUE', label: 'Queues & errors', color: '#a78bfa', reasons: ['TIMEOUT', 'PROCESS_ERROR'] },
 ];
 
@@ -235,7 +235,7 @@ export const TX_CSV_HEADER = [
   'Ledger_Ref',
 ] as const;
 
-export type ChannelType = 'CARD_PAYMENT' | 'PAY_IN_4' | 'INSTANT_A2A' | 'ATM_WITHDRAWAL' | 'CASH_DEPOSIT' | 'EKYC_ONBOARDING' | 'VIETQR_NAPAS247' | 'TELLER_CASH' | 'SWIFT_REMITTANCE' | 'DISPUTE_CLAIM';
+export type ChannelType = 'CARD_PAYMENT' | 'PAY_IN_4' | 'INSTANT_A2A' | 'ATM_WITHDRAWAL' | 'CASH_DEPOSIT' | 'EKYC_ONBOARDING' | 'VIETQR_NAPAS247' | 'TELLER_CASH' | 'SWIFT_REMITTANCE' | 'DISPUTE_CLAIM' | 'CREDIT_OPERATION';
 
 export const CHANNEL_TYPE: Record<Exclude<PacketKind, 'SETTLEMENT'>, ChannelType> = {
   POS: 'CARD_PAYMENT',
@@ -249,6 +249,7 @@ export const CHANNEL_TYPE: Record<Exclude<PacketKind, 'SETTLEMENT'>, ChannelType
   TELLER: 'TELLER_CASH',
   SWIFT: 'SWIFT_REMITTANCE',
   DISPUTE: 'DISPUTE_CLAIM',
+  CREDIT_OPS: 'CREDIT_OPERATION',
 };
 
 /** "08:14:22" for a minute of the day with a fraction for the seconds. */

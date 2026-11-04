@@ -5,9 +5,10 @@
  * current text, not legal advice. Pure data, both languages.
  */
 
+import { FLASHCARD_DETAIL } from './flashcardDetails';
 import type { Localized } from '../i18n/locale';
 import type { ChapterId } from '../sim/academyCatalog';
-import { exampleJournal, exampleTicketClose, exampleVaultTransfer, OPS_SUB_CHAPTER, opsSubProcess, OPS_SUBPROCESSES, type OpsLine, type OpsSubProcessId } from '../sim/retailOps';
+import { exampleJournal, exampleLiquidation, examplePresetJournal, exampleTicketClose, exampleVaultTransfer, OPS_SUB_CHAPTER, opsSubProcess, OPS_SUBPROCESSES, type OpsLine, type OpsSubProcessId } from '../sim/retailOps';
 
 const L = (en: string, vi: string): Localized<string> => ({ en, vi });
 
@@ -65,7 +66,7 @@ export const OPS_LESSONS: readonly OpsLesson[] = [
     ],
     diagrams: [
       { title: L('$85 electric bill, paid (RC 00)', 'Hóa đơn điện $85, đã thanh toán (RC 00)'), lines: exampleJournal('bill-electric-85') },
-      { title: L('$250 water bill, returned (RC 51): only the NSF fee posts', 'Hóa đơn nước $250, bị trả lại (RC 51): chỉ ghi nhận phí NSF'), lines: exampleJournal('bill-water-250') },
+      { title: L('$250 water bill, returned (RC 51): only the NSF fee posts', 'Hóa đơn nước $250, bị trả lại (RC 51): chỉ ghi nhận phí NSF'), lines: exampleJournal('autopay-nsf-250') },
     ],
     keywords: ['bill pay', 'thanh toan hoa don', 'direct debit', 'uy nhiem thu', 'nsf', 'rc 51', 'pain.008', 'utility', 'tien dien', 'tien nuoc'],
   },
@@ -101,7 +102,7 @@ export const OPS_LESSONS: readonly OpsLesson[] = [
     ],
     diagrams: [
       { title: L('$100 MoMo cash-in', 'Nạp $100 vào ví MoMo'), lines: exampleJournal('wallet-cashin-100') },
-      { title: L('$45 VietQR, cleared within the SLA', 'VietQR $45, bù trừ trong SLA'), lines: exampleJournal('qr-45') },
+      { title: L('$780 VietQR / FacePay, cleared within the SLA', 'VietQR / FacePay $780, bù trừ trong SLA'), lines: examplePresetJournal('qr-780') },
     ],
     keywords: ['wallet', 'vi dien tu', 'momo', 'zalopay', 'apple pay', 'vietqr', 'qr', 'rtp', 'instant', 'sla', 'pacs.008', 'pacs.002', 'crc', 'nap vi'],
   },
@@ -246,22 +247,232 @@ export const OPS_LESSONS: readonly OpsLesson[] = [
     ],
     keywords: ['annual fee', 'phi thuong nien', 'card lock', 'khoa the', 'issuance', 'phat hanh the', 'overdraft', 'thau chi', 'so du am', 'negative balance', '1310', 'rc 62'],
   },
+  {
+    id: 'retail-ops-auto-pay',
+    sub: 'auto-pay',
+    summary: L(
+      'A loan instalment is collected automatically on its due date under the customer’s mandate. If the balance cannot cover it, the bank collects nothing for the instalment, charges an NSF fee, and the debt starts to age.',
+      'Kỳ trả góp được thu tự động vào ngày đến hạn theo ủy quyền của khách. Nếu số dư không đủ, ngân hàng không thu được kỳ đó, thu phí NSF, và khoản nợ bắt đầu quá hạn.',
+    ),
+    iso: [
+      { hop: 'Loan system → Core', message: 'ISO 20022 pain.008', meaning: L('The collection for the instalment due today, under the mandate on file.', 'Lệnh thu kỳ đến hạn hôm nay, theo ủy quyền đã đăng ký.') },
+      { hop: 'Core → Loan system', message: 'ISO 20022 pacs.002', meaning: L('ACSC when collected, RJCT with reason AM04 when funds are short.', 'ACSC khi thu được, RJCT kèm lý do AM04 khi không đủ tiền.') },
+      { hop: 'Core → Customer', message: 'ISO 20022 camt.054', meaning: L('The debit notification, so the customer sees the instalment or the fee.', 'Thông báo ghi nợ để khách thấy kỳ trả góp hoặc khoản phí.') },
+    ],
+    rules: [
+      { source: L('Decree 52/2024/ND-CP', 'Nghị định 52/2024/NĐ-CP'), rule: L('Debits run under the customer’s instruction or authorisation.', 'Việc trích nợ thực hiện theo lệnh hoặc ủy quyền của khách.') },
+      { source: L('SBV Circular 39/2016/TT-NHNN', 'Thông tư 39/2016/TT-NHNN'), rule: L('Repayment terms and overdue treatment come from the loan agreement.', 'Điều khoản trả nợ và xử lý quá hạn theo hợp đồng vay.') },
+      { source: L('APRA APS 220', 'APRA APS 220'), rule: L('Missed instalments must feed the bank’s arrears reporting from the first day.', 'Kỳ trả trễ phải đi vào báo cáo nợ quá hạn của ngân hàng ngay từ ngày đầu.') },
+    ],
+    sop: [
+      L('On the due date, read the instalment and the mandate.', 'Vào ngày đến hạn, đọc kỳ trả góp và ủy quyền.'),
+      L('Compare the instalment with the available balance.', 'So kỳ trả góp với số dư khả dụng.'),
+      L('Covered: post Dr 2010 / Cr 1320 and answer RC 00.', 'Đủ tiền: ghi Nợ 2010 / Có 1320 và trả RC 00.'),
+      L('Short: post only the NSF fee, Dr 2010 / Cr 4510, and answer RC 51.', 'Thiếu tiền: chỉ ghi phí NSF, Nợ 2010 / Có 4510, và trả RC 51.'),
+      L('Start counting days past due and notify the customer.', 'Bắt đầu tính ngày quá hạn và báo cho khách.'),
+    ],
+    redFlags: [
+      L('Repeated NSF returns just before a loan goes overdue.', 'Bị trả lại vì NSF nhiều lần ngay trước khi khoản vay quá hạn.'),
+      L('The NSF fee charged more than once for the same instalment.', 'Phí NSF bị thu nhiều lần cho cùng một kỳ.'),
+      L('A collection after the customer cancelled the mandate.', 'Lệnh thu sau khi khách đã hủy ủy quyền.'),
+    ],
+    diagrams: [
+      { title: L('$250 instalment collected', 'Thu được kỳ trả góp $250'), lines: exampleJournal('autopay-loan-250') },
+      { title: L('$250 instalment returned: only the NSF fee posts', 'Kỳ trả góp $250 bị trả lại: chỉ ghi phí NSF'), lines: exampleJournal('autopay-nsf-250') },
+    ],
+    keywords: ['auto-pay', 'auto pay', 'tu dong trich no', 'installment', 'tra gop', 'nsf', 'am04', 'camt.054', 'pain.008', 'mandate', 'uy quyen'],
+  },
+  {
+    id: 'retail-ops-bnpl-credit',
+    sub: 'bnpl-credit',
+    summary: L(
+      'At Pay-in-4 checkout the desk decides in seconds whether the customer can afford four instalments. Approved, the bank pays the shop in full and is owed what remains. A missed card payment adds a late fee and overdue interest to the receivable.',
+      'Khi thanh toán trả góp 4 kỳ, quầy quyết định trong vài giây khách có đủ khả năng trả hay không. Nếu duyệt, ngân hàng trả đủ cho cửa hàng và được khách nợ phần còn lại. Kỳ thẻ trả trễ sẽ cộng phí phạt và lãi quá hạn vào khoản phải thu.',
+    ),
+    iso: [
+      { hop: 'Merchant → Bank', message: 'ISO 8583 0100', meaning: L('The checkout’s authorisation request, carrying the instalment plan.', 'Yêu cầu cấp phép khi thanh toán, kèm kế hoạch trả góp.') },
+      { hop: 'Bank → Merchant', message: 'ISO 8583 0110', meaning: L('RC 00 approved, or RC 05 when debt service is over the limit.', 'RC 00 chấp thuận, hoặc RC 05 khi nghĩa vụ trả nợ vượt ngưỡng.') },
+      { hop: 'Bank → Merchant’s bank', message: 'ISO 20022 pacs.008', meaning: L('The shop is paid in full, whatever the instalments.', 'Cửa hàng được trả đủ, bất kể các kỳ trả góp.') },
+      { hop: 'Core → Customer', message: 'ISO 20022 camt.054', meaning: L('Notice of each instalment and of any late fee.', 'Thông báo từng kỳ và phí phạt nếu có.') },
+    ],
+    rules: [
+      { source: L('SBV Circular 39/2016/TT-NHNN', 'Thông tư 39/2016/TT-NHNN'), rule: L('Consumer lending requires the bank to assess the customer’s capacity to repay.', 'Cho vay tiêu dùng yêu cầu ngân hàng đánh giá khả năng trả nợ của khách.') },
+      { source: L('SBV Circular 18/2024/TT-NHNN', 'Thông tư 18/2024/TT-NHNN'), rule: L('Card fees and late charges must be disclosed in the card terms.', 'Phí thẻ và phí trễ hạn phải được công bố trong điều khoản thẻ.') },
+      { source: L('National Credit Code · APRA APS 220', 'Bộ luật Tín dụng Quốc gia · APRA APS 220'), rule: L('In Australia, ASIC applies responsible lending and BNPL rules, and APRA covers credit risk at banks.', 'Tại Úc, ASIC áp dụng quy định cho vay có trách nhiệm và BNPL, APRA điều chỉnh rủi ro tín dụng của ngân hàng.') },
+    ],
+    sop: [
+      L('Read the income, the existing debts and the score.', 'Đọc thu nhập, các khoản nợ hiện có và điểm tín dụng.'),
+      L('Work out DTI including the new instalment.', 'Tính DTI gồm cả kỳ trả góp mới.'),
+      L('DTI over 45%: refuse with RC 05 and post nothing.', 'DTI trên 45%: từ chối với RC 05 và không ghi nhận gì.'),
+      L('Approved: Dr 2010 down payment, Dr 1320 the rest, Cr 1113 the full price.', 'Duyệt: Nợ 2010 khoản trả trước, Nợ 1320 phần còn lại, Có 1113 toàn bộ giá.'),
+      L('On a missed card payment: Dr 1310 / Cr 4510 late fee and Cr 4110 overdue interest.', 'Khi trễ kỳ thẻ: Nợ 1310 / Có 4510 phí phạt và Có 4110 lãi quá hạn.'),
+    ],
+    redFlags: [
+      L('Stated income far above what the account’s credits show.', 'Thu nhập khai cao hơn nhiều so với tiền vào tài khoản.'),
+      L('Several plans opened in one day across merchants: debt stacking.', 'Nhiều kế hoạch mở trong một ngày ở nhiều cửa hàng: chồng nợ.'),
+      L('A new identity that spends to the limit at once, then never pays.', 'Danh tính mới tiêu hết hạn mức ngay rồi không bao giờ trả.'),
+    ],
+    diagrams: [
+      { title: L('$400 Pay-in-4 approved', 'Duyệt trả góp 4 kỳ $400'), lines: exampleJournal('bnpl-approve-400') },
+      { title: L('Card late fee and overdue interest', 'Phí phạt trễ hạn và lãi quá hạn thẻ'), lines: exampleJournal('card-late-fee') },
+    ],
+    keywords: ['bnpl', 'pay in 4', 'tra gop', 'dti', 'late fee', 'phi phat', 'lai qua han', 'phai thu the', 'credit desk', 'chong no'],
+  },
+  {
+    id: 'retail-ops-debt-waterfall',
+    sub: 'debt-waterfall',
+    summary: L(
+      'A repayment on an overdue debt fills three buckets in a fixed order: penalty fees, then overdue interest, and only then principal. A customer who pays too little can leave the principal untouched, which is why the amount still owed may barely move.',
+      'Khoản trả cho nợ quá hạn lấp ba nhóm theo thứ tự cố định: phí phạt, lãi quá hạn, rồi mới đến nợ gốc. Khách trả quá ít có thể chưa đụng đến gốc, nên số nợ còn lại gần như không đổi.',
+    ),
+    iso: [
+      { hop: 'Payer bank → Bank', message: 'ISO 20022 pacs.008', meaning: L('The repayment arrives, with the loan as its reference.', 'Khoản trả đến, kèm mã khoản vay.') },
+      { hop: 'Bank → Payer bank', message: 'ISO 20022 pacs.002', meaning: L('Accepted, and applied to the named loan.', 'Đã chấp nhận và áp dụng cho khoản vay được ghi.') },
+      { hop: 'Core → Customer', message: 'ISO 20022 camt.054', meaning: L('The credit notice, with how it was allocated.', 'Thông báo ghi có, kèm cách phân bổ.') },
+    ],
+    rules: [
+      { source: L('SBV Circular 39/2016/TT-NHNN', 'Thông tư 39/2016/TT-NHNN'), rule: L('The order of recovery follows the agreement between the bank and the customer.', 'Thứ tự thu hồi theo thỏa thuận giữa ngân hàng và khách.') },
+      { source: L('National Credit Code (ASIC)', 'Bộ luật Tín dụng Quốc gia (ASIC)'), rule: L('Australian consumers in hardship can ask to vary terms, which may change how payments apply.', 'Khách tại Úc gặp khó khăn có thể đề nghị điều chỉnh điều khoản, có thể đổi cách áp dụng khoản trả.') },
+      { source: L('APRA APS 220', 'APRA APS 220'), rule: L('Allocation must not hide arrears or delay recognising a problem loan.', 'Việc phân bổ không được che giấu nợ quá hạn hay trì hoãn ghi nhận nợ có vấn đề.') },
+    ],
+    sop: [
+      L('Identify the loan, and read the penalty, interest and principal owed.', 'Xác định khoản vay, đọc phạt, lãi và gốc còn nợ.'),
+      L('Pay the penalty first: Cr 4510.', 'Trả phạt trước: Có 4510.'),
+      L('Then the overdue interest: Cr 4110.', 'Rồi đến lãi quá hạn: Có 4110.'),
+      L('Then the principal: Cr 1320. Return anything beyond the whole debt.', 'Rồi đến gốc: Có 1320. Trả lại phần vượt quá toàn bộ nợ.'),
+      L('Show the customer each amount and what is still owed.', 'Cho khách thấy từng khoản và số còn nợ.'),
+    ],
+    redFlags: [
+      L('Principal credited before penalties and interest.', 'Ghi có gốc trước phạt và lãi.'),
+      L('A manual allocation with no second approver.', 'Phân bổ thủ công không có người duyệt thứ hai.'),
+      L('Sudden early repayment by a third party with no link to the borrower.', 'Bên thứ ba không liên quan bất ngờ trả nợ trước hạn.'),
+    ],
+    diagrams: [
+      { title: L('$120 repaid: $55 reaches the principal', 'Trả $120: $55 vào gốc'), lines: exampleJournal('waterfall-120') },
+      { title: L('$50 repaid: the principal is untouched', 'Trả $50: chưa đụng đến gốc'), lines: exampleJournal('waterfall-50') },
+    ],
+    keywords: ['waterfall', 'can tru', 'thu hoi no', 'penalty', 'phi phat', 'overdue interest', 'lai qua han', 'principal', 'no goc', 'allocation', 'phan bo'],
+  },
+  {
+    id: 'retail-ops-credit-risk',
+    sub: 'credit-risk',
+    summary: L(
+      'Two measures drive credit risk here. Debt-to-income looks forward: can this customer carry more debt? Days past due look back: is this debt going bad? Lateness moves a loan through five groups, each with a provision the bank must set aside.',
+      'Hai thước đo chính cho rủi ro tín dụng. DTI nhìn về trước: khách có gánh thêm nợ được không? Số ngày quá hạn nhìn lại: khoản nợ có đang xấu đi không? Quá hạn đưa khoản vay qua năm nhóm, mỗi nhóm có mức dự phòng ngân hàng phải trích.',
+    ),
+    iso: [
+      { hop: 'Core → Risk system', message: 'Month-end loan file', meaning: L('Each loan’s balance and days past due.', 'Dư nợ và số ngày quá hạn của từng khoản.') },
+      { hop: 'Credit bureau → Bank', message: 'CIC group report', meaning: L('The group other banks gave the same customer.', 'Nhóm nợ ngân hàng khác xếp cho cùng khách.') },
+      { hop: 'Risk system → Core', message: 'Provision batch posting', meaning: L('The change in provisions: Dr 5610 / Cr 1290.', 'Thay đổi dự phòng: Nợ 5610 / Có 1290.') },
+    ],
+    rules: [
+      { source: L('SBV Circular 31/2024/TT-NHNN', 'Thông tư 31/2024/TT-NHNN'), rule: L('Debt classification into groups in Vietnam.', 'Phân loại nợ theo nhóm tại Việt Nam.') },
+      { source: L('Decree 86/2024/ND-CP', 'Nghị định 86/2024/NĐ-CP'), rule: L('Provisioning rates and how provisions are used.', 'Tỷ lệ trích lập và việc sử dụng dự phòng.') },
+      { source: L('APRA APS 220 · AASB 9', 'APRA APS 220 · AASB 9'), rule: L('Australian credit risk management and expected credit losses. The 45% DTI limit here is this simulator’s policy, not a statute.', 'Quản lý rủi ro tín dụng và tổn thất dự kiến tại Úc. Ngưỡng DTI 45% ở đây là chính sách của mô phỏng, không phải luật định.') },
+    ],
+    sop: [
+      L('Work out DTI: monthly debt service divided by income.', 'Tính DTI: nghĩa vụ trả nợ hằng tháng chia thu nhập.'),
+      L('Up to 36% is healthy, up to 45% is on watch, above that is refused.', 'Đến 36% là tốt, đến 45% cần theo dõi, trên mức đó bị từ chối.'),
+      L('Each month, read days past due and set the group: from 10, 90, 180 and 360 days.', 'Hằng tháng, đọc số ngày quá hạn và xếp nhóm: từ 10, 90, 180 và 360 ngày.'),
+      L('Provide 0, 5, 20, 50 or 100% of what collateral does not cover.', 'Trích 0, 5, 20, 50 hoặc 100% phần tài sản bảo đảm không bù đắp.'),
+      L('Move the customer’s other loans to the same group, and report to the bureau.', 'Chuyển các khoản khác của khách về cùng nhóm và báo cáo trung tâm tín dụng.'),
+    ],
+    redFlags: [
+      L('Evergreening: a new loan that pays off an overdue one.', 'Đảo nợ: khoản vay mới để trả khoản quá hạn.'),
+      L('A group better than the one the bureau reports.', 'Nhóm nợ tốt hơn nhóm trung tâm tín dụng báo cáo.'),
+      L('Rising DTI across a portfolio with no change in policy.', 'DTI của cả danh mục tăng mà chính sách không đổi.'),
+    ],
+    diagrams: [{ title: L('Migration to group 3: 20% of $1,000', 'Chuyển sang nhóm 3: 20% của $1,000'), lines: exampleJournal('risk-migrate-95dpd') }],
+    keywords: ['dti', 'debt to income', 'credit score', 'diem tin dung', 'nhom no', 'debt group', 'npl', 'no xau', 'provision', 'du phong', 'migration', 'chuyen nhom', '45%'],
+  },
+  {
+    id: 'retail-ops-term-deposit',
+    sub: 'term-deposit',
+    summary: L(
+      'A term deposit closed early loses its contract rate: interest is worked out again at the demand rate of 0.1% a year. The bank has been accruing at the contract rate, so the difference is reversed out of its interest expense, and that difference is the customer’s penalty.',
+      'Tiền gửi có kỳ hạn tất toán sớm sẽ mất lãi suất hợp đồng: lãi được tính lại theo mức không kỳ hạn 0,1%/năm. Ngân hàng đã dự chi theo lãi suất hợp đồng, nên phần chênh lệch được đảo khỏi chi phí lãi, và đó chính là khoản phạt của khách.',
+    ),
+    iso: [
+      { hop: 'Teller / App → Core', message: 'Deposit closure request', meaning: L('The holder asks to close, naming the deposit.', 'Chủ tiền gửi yêu cầu tất toán, ghi rõ khoản tiền gửi.') },
+      { hop: 'Core → Customer', message: 'ISO 20022 camt.054', meaning: L('The credit notice, with the recalculated interest.', 'Thông báo ghi có, kèm tiền lãi đã tính lại.') },
+      { hop: 'Bank → Other bank', message: 'ISO 20022 pacs.008', meaning: L('If the proceeds are sent elsewhere.', 'Nếu số tiền được chuyển đi nơi khác.') },
+    ],
+    rules: [
+      { source: L('SBV Circulars 48/2018 & 49/2018/TT-NHNN', 'Thông tư 48/2018 & 49/2018/TT-NHNN'), rule: L('Early withdrawal terms for savings and term deposits.', 'Điều kiện rút trước hạn với tiền gửi tiết kiệm và có kỳ hạn.') },
+      { source: L('APRA APS 210', 'APRA APS 210'), rule: L('Deposits that can leave early count as a liquidity risk.', 'Tiền gửi có thể rút sớm được tính là rủi ro thanh khoản.') },
+      { source: L('Banking Code of Practice (ABA)', 'Bộ quy tắc ngân hàng (ABA)'), rule: L('Australian customers must be told the terms, including what early closure costs.', 'Khách tại Úc phải được biết điều khoản, gồm chi phí khi tất toán sớm.') },
+    ],
+    sop: [
+      L('Confirm the holder’s identity, and that the deposit is not pledged.', 'Xác minh chủ tiền gửi và khoản này không bị cầm cố.'),
+      L('Work out interest at the contract rate for the days held: what has accrued.', 'Tính lãi theo lãi suất hợp đồng cho số ngày đã gửi: khoản đã dự chi.'),
+      L('Work out interest at the demand rate: what will be paid.', 'Tính lãi theo mức không kỳ hạn: khoản sẽ trả.'),
+      L('Tell the customer the penalty before they confirm.', 'Báo khoản phạt cho khách trước khi xác nhận.'),
+      L('Post Dr 2021 and Dr 2023 against Cr 2010 and Cr 5110.', 'Ghi Nợ 2021 và Nợ 2023, đối ứng Có 2010 và Có 5110.'),
+    ],
+    redFlags: [
+      L('A large closure straight after a change of contact details.', 'Tất toán lớn ngay sau khi đổi thông tin liên hệ.'),
+      L('A deposit opened and closed quickly with no reason: possible layering.', 'Gửi rồi tất toán nhanh không lý do: có thể là phân tán tiền.'),
+      L('Interest paid at the contract rate on an early closure.', 'Trả lãi hợp đồng khi tất toán sớm.'),
+    ],
+    diagrams: [{ title: L('$10,000 closed after 180 of its days at 6%', 'Tất toán $10,000 sau 180 ngày ở mức 6%'), lines: exampleJournal('td-break-10k') }],
+    keywords: ['term deposit', 'tiet kiem', 'tien gui co ky han', 'early closure', 'tat toan truoc han', 'rut truoc han', 'demand rate', 'khong ky han', '0.1%', 'accrued', 'du chi'],
+  },
+  {
+    id: 'retail-ops-collateral',
+    sub: 'collateral',
+    summary: L(
+      'When an overdraft or BNPL plan defaults, the savings pledged against it are frozen. Liquidation then uses them to pay the debt in waterfall order, returns anything left to the customer, and releases the provision the bank no longer needs.',
+      'Khi thấu chi hoặc trả góp vỡ nợ, tiền gửi cầm cố bị phong tỏa. Việc xử lý sau đó dùng số tiền này trả nợ theo thứ tự cấn trừ, trả phần dư cho khách và hoàn nhập khoản dự phòng không còn cần.',
+    ),
+    iso: [
+      { hop: 'Risk system → Core', message: 'Default event', meaning: L('The default triggers the lien on the pledged deposit.', 'Sự kiện vỡ nợ kích hoạt phong tỏa tiền gửi cầm cố.') },
+      { hop: 'Core → Customer', message: 'ISO 20022 camt.054', meaning: L('Notice of the debit, the credit and any surplus.', 'Thông báo ghi nợ, ghi có và phần dư.') },
+      { hop: 'Bank → Credit bureau', message: 'CIC update', meaning: L('The debt is shown as settled, with its history kept.', 'Khoản nợ được ghi là đã tất toán, giữ lại lịch sử.') },
+    ],
+    rules: [
+      { source: L('Civil Code 2015 & secured transaction rules', 'Bộ luật Dân sự 2015 & quy định giao dịch bảo đảm'), rule: L('Pledges and how a secured creditor enforces them in Vietnam.', 'Cầm cố và cách bên nhận bảo đảm xử lý tài sản tại Việt Nam.') },
+      { source: L('SBV Circular 39/2016/TT-NHNN', 'Thông tư 39/2016/TT-NHNN'), rule: L('Set-off follows the terms agreed in the lending contract.', 'Cấn trừ theo điều khoản đã thỏa thuận trong hợp đồng cho vay.') },
+      { source: L('APRA APS 112 · APS 220', 'APRA APS 112 · APS 220'), rule: L('In Australia, eligible collateral reduces capital and credit risk only if it can really be enforced.', 'Tại Úc, tài sản bảo đảm đủ điều kiện chỉ giảm vốn và rủi ro tín dụng nếu thực sự xử lý được.') },
+    ],
+    sop: [
+      L('Confirm the default: the overdraft is at least 90 days overdue.', 'Xác nhận vỡ nợ: thấu chi quá hạn từ 90 ngày.'),
+      L('Freeze the pledged deposit: Dr 2021 / Cr 2022, and notify the customer.', 'Phong tỏa tiền gửi cầm cố: Nợ 2021 / Có 2022, và báo khách.'),
+      L('Run the waterfall over the debt with the deposit as the payment.', 'Chạy thứ tự cấn trừ với tiền gửi là khoản trả.'),
+      L('Post Dr 2022 against Cr 4510, Cr 4110, Cr 1320 and Cr 2010 for any surplus.', 'Ghi Nợ 2022, đối ứng Có 4510, Có 4110, Có 1320 và Có 2010 phần dư.'),
+      L('Release the provision no longer needed: Dr 1290 / Cr 5610.', 'Hoàn nhập dự phòng không còn cần: Nợ 1290 / Có 5610.'),
+    ],
+    redFlags: [
+      L('A lien released while the loan is still open.', 'Giải tỏa khi khoản vay còn dư nợ.'),
+      L('Liquidation before the default test is met.', 'Xử lý trước khi đủ điều kiện vỡ nợ.'),
+      L('A surplus not returned to the customer.', 'Phần dư không trả lại khách.'),
+    ],
+    diagrams: [
+      { title: L('Default: $5,000 of savings frozen', 'Vỡ nợ: phong tỏa $5,000 tiền gửi'), lines: exampleJournal('collateral-lock') },
+      { title: L('Liquidation: the debt cleared, $500 returned', 'Xử lý: tất toán nợ, trả lại $500'), lines: exampleLiquidation() },
+    ],
+    keywords: ['collateral', 'tai san bao dam', 'tsdb', 'lien', 'phong toa', 'liquidation', 'xu ly tai san', 'pledge', 'cam co', 'default', 'vo no', 'set-off'],
+  },
 ];
 
 export interface OpsFlashcard {
   id: string;
   sub: OpsSubProcessId;
   front: Localized<string>;
+  /** The expanded full term, at the top of the back. */
+  term?: Localized<string>;
   lines: readonly OpsLine[];
+  /** The core definition: what the card teaches, in one to three short sentences (tier 1, under the term). */
   rule: Localized<string>;
+  /** The supplementary business rule or regulation (tier 3, above the reference). */
+  detail?: Localized<string>;
   reference: Localized<string>;
 }
 
-export const OPS_FLASHCARDS: readonly OpsFlashcard[] = [
+const OPS_CARD_BASE: readonly OpsFlashcard[] = [
   { id: 'electric', sub: 'bill-pay', front: L('A customer with $900 pays an $85 electric bill at the shop terminal. What posts?', 'Khách có $900 trả hóa đơn điện $85 tại máy ở cửa hàng. Ghi nhận thế nào?'), lines: exampleJournal('bill-electric-85'), rule: L('Covered by available funds: RC 00, and the money goes to the biller’s bank.', 'Đủ số dư khả dụng: RC 00, và tiền chuyển sang ngân hàng của nhà cung cấp.'), reference: L('Decree 52/2024/ND-CP', 'Nghị định 52/2024/NĐ-CP') },
-  { id: 'nsf', sub: 'bill-pay', front: L('A $250 water bill arrives on an account holding $120. What posts?', 'Hóa đơn nước $250 đến khi tài khoản có $120. Ghi nhận thế nào?'), lines: exampleJournal('bill-water-250'), rule: L('RC 51: the bill is returned unpaid, nothing reaches the biller, and only the $15 NSF fee posts.', 'RC 51: hóa đơn bị trả lại, nhà cung cấp không nhận gì, chỉ ghi nhận phí NSF $15.'), reference: L('SBV Circular 17/2024/TT-NHNN', 'Thông tư 17/2024/TT-NHNN') },
+  { id: 'nsf', sub: 'bill-pay', front: L('A $250 water bill arrives on an account holding $120. What posts?', 'Hóa đơn nước $250 đến khi tài khoản có $120. Ghi nhận thế nào?'), lines: exampleJournal('autopay-nsf-250'), rule: L('RC 51: the bill is returned unpaid, nothing reaches the biller, and only the $15 NSF fee posts.', 'RC 51: hóa đơn bị trả lại, nhà cung cấp không nhận gì, chỉ ghi nhận phí NSF $15.'), reference: L('SBV Circular 17/2024/TT-NHNN', 'Thông tư 17/2024/TT-NHNN') },
   { id: 'momo', sub: 'wallet-qr', front: L('A customer tops up their MoMo wallet with $100. What does the bank owe, and to whom?', 'Khách nạp $100 vào ví MoMo. Ngân hàng phải trả gì, cho ai?'), lines: exampleJournal('wallet-cashin-100'), rule: L('The bank owes the wallet provider until settlement. The wallet must be in the holder’s own name.', 'Ngân hàng phải trả đơn vị ví đến khi quyết toán. Ví phải đứng tên chính chủ.'), reference: L('SBV Circular 40/2024/TT-NHNN', 'Thông tư 40/2024/TT-NHNN') },
-  { id: 'vietqr', sub: 'wallet-qr', front: L('A $45 dynamic VietQR is scanned. What must happen, and how fast?', 'Quét VietQR động $45. Điều gì phải xảy ra, và nhanh đến đâu?'), lines: exampleJournal('qr-45'), rule: L('CRC and name check, fraud score, then pacs.008 and pacs.002 ACSC within the 5-second SLA.', 'Kiểm tra CRC và tên, chấm điểm gian lận, rồi pacs.008 và pacs.002 ACSC trong SLA 5 giây.'), reference: L('SBV standard TCCS 03:2018', 'TCCS 03:2018/NHNN') },
+  { id: 'vietqr', sub: 'wallet-qr', front: L('A $780 dynamic VietQR is scanned. What must happen, and how fast?', 'Quét VietQR động $780. Điều gì phải xảy ra, và nhanh đến đâu?'), lines: examplePresetJournal('qr-780'), rule: L('CRC and name check, FacePay (over $400), fraud score, then pacs.008 and pacs.002 ACSC within the 5-second SLA.', 'Kiểm tra CRC và tên, FacePay (trên $400), chấm điểm gian lận, rồi pacs.008 và pacs.002 ACSC trong SLA 5 giây.'), reference: L('SBV standard TCCS 03:2018', 'TCCS 03:2018/NHNN') },
   { id: 'crc', sub: 'wallet-qr', front: L('A scanned QR fails its CRC-16 check. Should the bank send it?', 'Mã QR quét sai CRC-16. Ngân hàng có gửi không?'), lines: [], rule: L('No: the code may have been altered. Nothing posts, and the payment is refused before any money moves.', 'Không: mã có thể đã bị sửa. Không ghi nhận gì, giao dịch bị từ chối trước khi tiền dịch chuyển.'), reference: L('SBV standard TCCS 03:2018', 'TCCS 03:2018/NHNN') },
   { id: 'atm', sub: 'atm-napas', front: L('A $100 withdrawal over the domestic switch (NAPAS): who gets what from the $101.65?', 'Rút $100 qua NAPAS: ai nhận phần nào trong $101.65?'), lines: exampleJournal('atm-withdraw-100'), rule: L('$100 is the cash, $1.10 is the bank’s income, and $0.55 is only held for the domestic switch (NAPAS).', '$100 là tiền mặt, $1.10 là thu nhập của ngân hàng, $0.55 chỉ giữ hộ NAPAS.'), reference: L('SBV Circular 36/2012/TT-NHNN', 'Thông tư 36/2012/TT-NHNN') },
   { id: 'partial', sub: 'atm-napas', front: L('The cassette holds $60 and the customer asks for $100. What does the ATM do?', 'Hộp tiền còn $60 và khách rút $100. ATM làm gì?'), lines: [], rule: L('It refuses: an ATM never pays out part of a withdrawal. Nothing posts, and the cassette is refilled.', 'Từ chối: ATM không bao giờ chi một phần. Không ghi nhận gì, và hộp tiền được tiếp quỹ.'), reference: L('SBV Circular 36/2012/TT-NHNN', 'Thông tư 36/2012/TT-NHNN') },
@@ -273,7 +484,17 @@ export const OPS_FLASHCARDS: readonly OpsFlashcard[] = [
   { id: 'till', sub: 'teller-vault', front: L('A deposit takes the till to $52,500. What must happen next?', 'Khoản nộp đưa ngăn kéo lên $52,500. Việc tiếp theo là gì?'), lines: exampleVaultTransfer(), rule: L('The counter locks. Two people move everything above the $25,000 float to the vault. The GL total of 1011 is unchanged.', 'Quầy bị khóa. Hai người chuyển phần trên mức $25,000 về kho quỹ. Tổng TK 1011 không đổi.'), reference: L('SBV Circular 01/2014/TT-NHNN', 'Thông tư 01/2014/TT-NHNN') },
   { id: 'annual', sub: 'card-fees', front: L('A $45 annual fee hits an account holding $20. What does the bank’s book show?', 'Phí thường niên $45 đến khi tài khoản có $20. Sổ ngân hàng ghi gì?'), lines: exampleJournal('fee-annual-45'), rule: L('$20 from CASA and $25 as an overdraft on 1310: the statement shows -$25.', '$20 từ CASA và $25 thấu chi tại 1310: sao kê hiển thị -$25.'), reference: L('SBV Circular 39/2016/TT-NHNN', 'Thông tư 39/2016/TT-NHNN') },
   { id: 'lock', sub: 'card-fees', front: L('A customer pays the $10 card lock fee from a healthy balance. What posts?', 'Khách trả phí khóa thẻ $10 từ số dư đủ. Ghi nhận thế nào?'), lines: exampleJournal('fee-card-10'), rule: L('A simple fee. After the lock, authorisations answer RC 62, restricted card.', 'Khoản phí đơn giản. Sau khi khóa, các lần cấp phép trả RC 62, thẻ bị hạn chế.'), reference: L('SBV Circular 18/2024/TT-NHNN', 'Thông tư 18/2024/TT-NHNN') },
+  { id: 'autopay-nsf', sub: 'auto-pay', front: L('An auto-pay instalment of $250 hits an account holding $120. What posts, and what happens to the debt?', 'Kỳ tự động trích $250 đến khi tài khoản có $120. Ghi nhận gì, và khoản nợ ra sao?'), lines: exampleJournal('autopay-nsf-250'), rule: L('RC 51: only the $15 NSF fee posts. The instalment stays unpaid and starts counting days past due.', 'RC 51: chỉ ghi phí NSF $15. Kỳ trả chưa thu được và bắt đầu tính ngày quá hạn.'), reference: L('SBV Circular 39/2016/TT-NHNN', 'Thông tư 39/2016/TT-NHNN') },
+  { id: 'bnpl-approve', sub: 'bnpl-credit', front: L('A $400 Pay-in-4 is approved with $100 down. Who is paid what?', 'Trả góp 4 kỳ $400 được duyệt, trả trước $100. Ai nhận gì?'), lines: exampleJournal('bnpl-approve-400'), rule: L('The shop gets the full $400 at once. The customer pays $100 now and owes the bank $300 on 1320.', 'Cửa hàng nhận đủ $400 ngay. Khách trả $100 và nợ ngân hàng $300 tại TK 1320.'), reference: L('SBV Circular 39/2016/TT-NHNN', 'Thông tư 39/2016/TT-NHNN') },
+  { id: 'dti', sub: 'bnpl-credit', front: L('Income is $2,000 and debt service would be $960. What happens?', 'Thu nhập $2,000 và nghĩa vụ trả nợ sẽ là $960. Điều gì xảy ra?'), lines: [], rule: L('DTI is 48%, over the 45% limit: refused with RC 05, and nothing posts.', 'DTI là 48%, vượt ngưỡng 45%: từ chối với RC 05, không ghi nhận gì.'), reference: L('Simulator policy · APS 220', 'Chính sách mô phỏng · APS 220') },
+  { id: 'late-fee', sub: 'bnpl-credit', front: L('A card payment is missed. Where do the $25 fee and $17 interest go?', 'Trễ một kỳ thẻ. Phí $25 và lãi $17 đi đâu?'), lines: exampleJournal('card-late-fee'), rule: L('Both raise what the cardholder owes on 1310, and both are income for the bank.', 'Cả hai làm tăng khoản chủ thẻ phải trả tại 1310 và đều là thu nhập của ngân hàng.'), reference: L('SBV Circular 18/2024/TT-NHNN', 'Thông tư 18/2024/TT-NHNN') },
+  { id: 'waterfall', sub: 'debt-waterfall', front: L('A customer owes $25 penalty, $40 interest and $300 principal, and pays $50. How is it split?', 'Khách nợ phạt $25, lãi $40, gốc $300 và trả $50. Phân bổ thế nào?'), lines: exampleJournal('waterfall-50'), rule: L('$25 penalty, $25 interest, nothing to principal: the order is fixed.', 'Phạt $25, lãi $25, gốc chưa có gì: thứ tự là cố định.'), reference: L('SBV Circular 39/2016/TT-NHNN', 'Thông tư 39/2016/TT-NHNN') },
+  { id: 'migration', sub: 'credit-risk', front: L('A $1,000 unsecured loan reaches 95 days past due. What changes?', 'Khoản vay $1,000 không TSĐB quá hạn 95 ngày. Điều gì thay đổi?'), lines: exampleJournal('risk-migrate-95dpd'), rule: L('It becomes non-performing group 3, with a 20% provision, and the score falls.', 'Trở thành nợ xấu nhóm 3, trích lập 20%, và điểm tín dụng giảm.'), reference: L('SBV Circular 31/2024 · Decree 86/2024', 'Thông tư 31/2024 · Nghị định 86/2024') },
+  { id: 'td-early', sub: 'term-deposit', front: L('$10,000 at 6% is closed after 180 days. What does the customer get?', '$10,000 ở mức 6% tất toán sau 180 ngày. Khách nhận gì?'), lines: exampleJournal('td-break-10k'), rule: L('The principal plus $4.93 at the 0.1% demand rate. The other $290.96 of accrued interest is reversed.', 'Gốc cộng $4.93 theo mức không kỳ hạn 0,1%. $290.96 lãi đã dự chi còn lại được đảo.'), reference: L('SBV Circular 49/2018/TT-NHNN', 'Thông tư 49/2018/TT-NHNN') },
+  { id: 'collateral', sub: 'collateral', front: L('$5,000 of locked savings meets a $4,500 defaulted debt. What posts?', '$5,000 tiền gửi phong tỏa gặp khoản nợ vỡ $4,500. Ghi nhận gì?'), lines: exampleLiquidation(), rule: L('The debt is paid in waterfall order, and the $500 surplus goes back to the customer.', 'Nợ được trả theo thứ tự cấn trừ, $500 dư trả lại khách.'), reference: L('Civil Code 2015', 'Bộ luật Dân sự 2015') },
 ];
+
+export const OPS_FLASHCARDS: readonly OpsFlashcard[] = OPS_CARD_BASE.map((c) => (FLASHCARD_DETAIL[c.id] ? { ...c, detail: FLASHCARD_DETAIL[c.id] } : c));
 
 export interface OpsQuizOption {
   text: Localized<string>;
@@ -436,6 +657,102 @@ export const OPS_QUIZ: readonly OpsQuizQuestion[] = [
       opt('Dr 2010 $20, and the $25 is written off', 'Nợ 2010 $20, xóa $25', 'A fee on the contract is owed, not written off.', 'Phí theo hợp đồng là khoản phải trả, không bị xóa.'),
     ],
   },
+  {
+    id: 'autopay-nsf',
+    sub: 'auto-pay',
+    question: L('An auto-pay instalment fails for lack of funds. What is true?', 'Kỳ tự động trích thất bại do thiếu tiền. Điều nào đúng?'),
+    correct: 1,
+    options: [
+      opt('The bank pays it from an overdraft anyway', 'Ngân hàng vẫn trả bằng thấu chi', 'An unarranged overdraft is not created for an instalment.', 'Không tự tạo thấu chi ngoài thỏa thuận để trả kỳ góp.'),
+      opt('Only the NSF fee posts, and the debt starts to age', 'Chỉ ghi phí NSF, và nợ bắt đầu quá hạn', 'Right: RC 51, Dr 2010 / Cr 4510, and days past due begin.', 'Đúng: RC 51, Nợ 2010 / Có 4510, và bắt đầu tính ngày quá hạn.'),
+      opt('The loan is written off', 'Khoản vay bị xóa', 'One missed instalment does not end the loan.', 'Một kỳ trễ không chấm dứt khoản vay.'),
+      opt('The mandate is cancelled automatically', 'Ủy quyền tự động bị hủy', 'The mandate stays until the customer or the bank ends it.', 'Ủy quyền vẫn còn đến khi khách hoặc ngân hàng chấm dứt.'),
+    ],
+  },
+  {
+    id: 'dti-limit',
+    sub: 'bnpl-credit',
+    question: L('Income $3,000, debts $1,300, new instalment $100. What is the decision?', 'Thu nhập $3,000, nợ $1,300, kỳ mới $100. Quyết định là gì?'),
+    correct: 2,
+    options: [
+      opt('Approved as healthy', 'Duyệt, mức tốt', '46.7% is far above the healthy band.', '46,7% cao hơn nhiều so với mức tốt.'),
+      opt('Approved on watch', 'Duyệt, cần theo dõi', 'The watch band ends at 45%.', 'Mức theo dõi kết thúc ở 45%.'),
+      opt('Refused: DTI is over 45%', 'Từ chối: DTI trên 45%', 'Right: $1,400 ÷ $3,000 is 46.7%.', 'Đúng: $1.400 ÷ $3.000 là 46,7%.'),
+      opt('Refused because of the score', 'Từ chối do điểm tín dụng', 'No score is given here: DTI decides it.', 'Ở đây không có điểm: DTI quyết định.'),
+    ],
+  },
+  {
+    id: 'bnpl-merchant',
+    sub: 'bnpl-credit',
+    question: L('When is the shop paid under Pay-in-4?', 'Khi nào cửa hàng được trả trong trả góp 4 kỳ?'),
+    correct: 0,
+    options: [
+      opt('In full, straight away', 'Trả đủ ngay', 'Right: the bank carries the instalments on 1320.', 'Đúng: ngân hàng theo dõi các kỳ tại TK 1320.'),
+      opt('A quarter at each instalment', 'Một phần tư mỗi kỳ', 'That is what the customer pays, not the shop.', 'Đó là phần khách trả, không phải cửa hàng.'),
+      opt('After the last instalment', 'Sau kỳ cuối', 'The shop carries no credit risk.', 'Cửa hàng không chịu rủi ro tín dụng.'),
+      opt('Only if the customer never pays late', 'Chỉ khi khách không trễ kỳ nào', 'Lateness is the bank’s problem.', 'Trễ hạn là vấn đề của ngân hàng.'),
+    ],
+  },
+  {
+    id: 'waterfall-order',
+    sub: 'debt-waterfall',
+    question: L('What is the order of the debt recovery waterfall?', 'Thứ tự thu hồi nợ là gì?'),
+    correct: 3,
+    options: [
+      opt('Principal, interest, penalty', 'Gốc, lãi, phạt', 'That reverses it, and understates income.', 'Đó là thứ tự ngược, làm ghi thấp thu nhập.'),
+      opt('Interest, principal, penalty', 'Lãi, gốc, phạt', 'Penalties come first here.', 'Ở đây phạt đứng đầu.'),
+      opt('Whatever the customer chooses', 'Theo lựa chọn của khách', 'The order is set in the agreement.', 'Thứ tự được ấn định trong thỏa thuận.'),
+      opt('Penalty, interest, principal', 'Phạt, lãi, gốc', 'Right: each bucket fills before the next.', 'Đúng: mỗi nhóm được lấp đầy trước khi sang nhóm sau.'),
+    ],
+  },
+  {
+    id: 'group-95',
+    sub: 'credit-risk',
+    question: L('Which group is a loan 95 days past due in?', 'Khoản vay quá hạn 95 ngày thuộc nhóm nào?'),
+    correct: 2,
+    options: [
+      opt('Group 1', 'Nhóm 1', 'Group 1 is under 10 days.', 'Nhóm 1 là dưới 10 ngày.'),
+      opt('Group 2', 'Nhóm 2', 'Group 2 runs from 10 to 89 days.', 'Nhóm 2 từ 10 đến 89 ngày.'),
+      opt('Group 3, non-performing', 'Nhóm 3, nợ xấu', 'Right: from 90 days, with a 20% provision.', 'Đúng: từ 90 ngày, trích lập 20%.'),
+      opt('Group 5', 'Nhóm 5', 'Group 5 starts at 360 days.', 'Nhóm 5 bắt đầu từ 360 ngày.'),
+    ],
+  },
+  {
+    id: 'td-penalty',
+    sub: 'term-deposit',
+    question: L('What is the penalty for closing a term deposit early here?', 'Phạt tất toán tiền gửi trước hạn ở đây là gì?'),
+    correct: 1,
+    options: [
+      opt('A fixed fee', 'Một khoản phí cố định', 'No fee is charged: interest is what is lost.', 'Không thu phí: khoản mất là tiền lãi.'),
+      opt('The interest above the 0.1% demand rate', 'Tiền lãi vượt mức không kỳ hạn 0,1%', 'Right: it is reversed out of interest expense on 5110.', 'Đúng: được đảo khỏi chi phí lãi tại TK 5110.'),
+      opt('Part of the principal', 'Một phần tiền gốc', 'The principal is always returned.', 'Tiền gốc luôn được trả lại.'),
+      opt('Nothing at all', 'Không có gì', 'The contract rate is lost.', 'Khách mất lãi suất hợp đồng.'),
+    ],
+  },
+  {
+    id: 'collateral-surplus',
+    sub: 'collateral',
+    question: L('Liquidated collateral is worth more than the debt. What happens to the surplus?', 'TSĐB được xử lý có giá trị lớn hơn khoản nợ. Phần dư ra sao?'),
+    correct: 0,
+    options: [
+      opt('It goes back to the customer', 'Trả lại khách', 'Right: Cr 2010. The collateral was always their money.', 'Đúng: Có 2010. TSĐB vốn là tiền của khách.'),
+      opt('It becomes fee income', 'Thành thu nhập phí', 'The bank has no claim beyond the debt.', 'Ngân hàng không có quyền vượt quá khoản nợ.'),
+      opt('It stays frozen', 'Vẫn bị phong tỏa', 'The lien ends when the debt is cleared.', 'Phong tỏa chấm dứt khi nợ được tất toán.'),
+      opt('It goes to the provision', 'Vào dự phòng', 'A provision is the bank’s own estimate.', 'Dự phòng là ước tính của ngân hàng.'),
+    ],
+  },
+  {
+    id: 'collateral-timing',
+    sub: 'collateral',
+    question: L('When may pledged savings be set off against an overdraft?', 'Khi nào tiền gửi cầm cố được cấn trừ thấu chi?'),
+    correct: 2,
+    options: [
+      opt('Whenever the bank wants', 'Bất cứ khi nào ngân hàng muốn', 'That breaches the pledge terms.', 'Điều đó vi phạm điều khoản cầm cố.'),
+      opt('On the first missed payment', 'Ngay kỳ trễ đầu tiên', 'One late payment is not a default.', 'Một kỳ trễ chưa phải vỡ nợ.'),
+      opt('Only after default: 90 days overdue here', 'Chỉ sau khi vỡ nợ: quá hạn 90 ngày', 'Right: that is this simulator’s test.', 'Đúng: đó là điều kiện của mô phỏng.'),
+      opt('Only if the customer agrees that day', 'Chỉ khi khách đồng ý hôm đó', 'The agreement was given in the pledge.', 'Thỏa thuận đã có trong hợp đồng cầm cố.'),
+    ],
+  },
 ];
 
 /** The Vietnamese and English sentences a lesson can be found by, in addition to its keywords. */
@@ -448,6 +765,8 @@ const GUIDE_CHAPTER: readonly { anchor: string; chapter: ChapterId; title: Local
   { anchor: 'retail-autopay', chapter: 2, title: L('Utility Bill Pay & Direct Debit: NSF penalties', 'Ủy nhiệm thu tự động & phí không đủ số dư (NSF)') },
   { anchor: 'retail-waterfall', chapter: 2, title: L('BNPL & credit debt recovery waterfall', 'Thu hồi nợ BNPL & thứ tự cấn trừ (waterfall)') },
   { anchor: 'retail-wallet-qr', chapter: 4, title: L('e-Wallet & Dynamic QR (MoMo / VietQR)', 'Ví điện tử & thanh toán tức thời VietQR') },
+  { anchor: 'retail-npl', chapter: 4, title: L('NPL debt classification (5 groups) & loss provisioning', 'Phân loại nợ (5 nhóm) & trích lập dự phòng rủi ro') },
+  { anchor: 'retail-term-deposit', chapter: 5, title: L('Term deposit early settlement, pledges & auto-liquidation', 'Tất toán tiền gửi trước hạn, cầm cố & tự động cấn trừ') },
   { anchor: 'retail-atm', chapter: 5, title: L('ATM domestic interbank fees (NAPAS), cash jams & low cassettes', 'Phí ATM liên ngân hàng, kẹt tiền & cảnh báo hết tiền') },
 ];
 

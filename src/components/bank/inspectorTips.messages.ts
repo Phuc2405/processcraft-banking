@@ -21,6 +21,7 @@ export const tipMessages = defineMessages('inspectorTips', {
   queue_biometric: { en: 'Transfers over $400 waiting for the customer’s face scan.', vi: 'Các giao dịch trên $400 chờ khách quét khuôn mặt.' },
   queue_fds: { en: 'Payments waiting for a device and pattern score before they may continue.', vi: 'Các giao dịch chờ chấm điểm thiết bị và hành vi trước khi được đi tiếp.' },
   queue_aml: { en: 'Payments held as STR_PENDING, or frozen on a sanctions hit, waiting for an analyst.', vi: 'Các giao dịch bị giữ ở trạng thái STR_PENDING, hoặc bị phong tỏa do trùng cấm vận, chờ chuyên viên.' },
+  queue_savings: { en: 'Term deposits to close and pledged savings waiting for a lien decision.', vi: 'Tiền gửi có kỳ hạn chờ tất toán và tiền gửi cầm cố chờ quyết định phong tỏa.' },
   queue_dispute: { en: 'Customer claims (chargebacks, pacs.004 returns, ATM mismatches) waiting for a specialist.', vi: 'Khiếu nại của khách (tra soát thẻ, hoàn trả pacs.004, lệch tiền ATM) chờ chuyên viên.' },
   queue_swift: { en: 'Outward pacs.008 remittances waiting for format checks and FX conversion.', vi: 'Các điện chuyển tiền đi pacs.008 chờ kiểm tra định dạng và quy đổi ngoại tệ.' },
 
@@ -46,6 +47,7 @@ export const tipMessages = defineMessages('inspectorTips', {
   errors_biometric: { en: 'A face that did not match, or a customer with no face enrolled: BIOMETRIC_AUTH_REQUIRED.', vi: 'Khuôn mặt không khớp, hoặc khách chưa đăng ký khuôn mặt: BIOMETRIC_AUTH_REQUIRED.' },
   errors_fds: { en: 'A device scored high-risk and stopped: FDS_HIGH_RISK_DEVICE.', vi: 'Một thiết bị bị chấm rủi ro cao và bị chặn: FDS_HIGH_RISK_DEVICE.' },
   errors_aml: { en: 'A review reopened after a wrong decision, which costs an analyst a second pass.', vi: 'Một lần rà soát phải mở lại do quyết định sai, khiến chuyên viên phải xem lần hai.' },
+  errors_savings: { en: 'An interest recalculation or a lien that had to be corrected.', vi: 'Một lần tính lại lãi hoặc phong tỏa phải sửa lại.' },
   errors_dispute: { en: 'A claim decided against the wrong evidence and reworked.', vi: 'Một khiếu nại được quyết định dựa trên bằng chứng sai và phải làm lại.' },
   errors_swift: { en: 'A pacs.008 rejected for a missing EndToEndId, a truncated BIC or a bad currency.', vi: 'Một điện pacs.008 bị từ chối do thiếu EndToEndId, mã BIC bị cắt hoặc loại tiền sai.' },
   capacityMachine: {
@@ -125,6 +127,10 @@ export const tipMessages = defineMessages('inspectorTips', {
     vi: 'Sàng lọc cấm vận OFAC và PEP: tên được so khớp mờ (Jaro-Winkler) với danh sách. Khớp từ 85 trở lên bị phong tỏa với mã AML_SANCTION_MATCH.',
   },
   line_released: { en: 'Alerts cleared as false positives (or released with an STR on file) and passed to the CASA ledger.', vi: 'Các cảnh báo được xác định là nhầm (hoặc giải phóng kèm STR đã lập) và chuyển sang sổ cái CASA.' },
+  line_cases: {
+    en: 'Savings and collateral cases handled at this desk today. Early term deposit closures go through the savings desk; collateral locks and liquidations go through the vault, then the savings desk.',
+    vi: 'Số hồ sơ tiết kiệm và tài sản đảm bảo được xử lý tại quầy này hôm nay. Tất toán sớm tiền gửi đi qua quầy tiết kiệm; phong tỏa và xử lý tài sản đảm bảo đi qua kho, rồi đến quầy tiết kiệm.',
+  },
   line_claims: { en: 'Claims worked today by type: card chargebacks (CB), pacs.004 payment returns, and ATM cash mismatches.', vi: 'Số khiếu nại xử lý hôm nay theo loại: tra soát thẻ (CB), hoàn trả pacs.004 và lệch tiền ATM.' },
   line_refunds: { en: 'Claims upheld and credited back to the customer’s CASA account.', vi: 'Các khiếu nại được chấp nhận và ghi có lại vào tài khoản CASA của khách.' },
   line_sla: {

@@ -29,6 +29,9 @@ export const STATION_IDS = [
   'AML_DESK',
   'DISPUTE_DESK',
   'GATE_SWIFT',
+  // Phase 2/4: the term deposits and the collateral they can secure.
+  'SAVINGS_DESK',
+  'COLLATERAL_VAULT',
 ] as const;
 export type StationId = (typeof STATION_IDS)[number];
 
@@ -38,7 +41,7 @@ export type ExternalId = (typeof EXTERNAL_IDS)[number];
 
 export type PlaceId = StationId | ExternalId;
 
-export type DepartmentId = 'GATES' | 'SECURITY' | 'LEDGER' | 'BNPL' | 'EOD' | 'ATM' | 'ENTRANCE' | 'COMPLIANCE' | 'BACKOFFICE';
+export type DepartmentId = 'GATES' | 'SECURITY' | 'LEDGER' | 'BNPL' | 'EOD' | 'ATM' | 'ENTRANCE' | 'COMPLIANCE' | 'BACKOFFICE' | 'SAVINGS';
 
 export interface DepartmentDef {
   id: DepartmentId;
@@ -104,6 +107,13 @@ export const DEPARTMENTS: Record<DepartmentId, DepartmentDef> = {
     blurb: 'The FDS scores every device and pattern; the AML analysts review suspicious activity and confirm sanctions hits.',
     accent: '#f87171',
     stations: ['SEC_FDS', 'AML_DESK'],
+  },
+  SAVINGS: {
+    id: 'SAVINGS',
+    name: 'Savings & Collateral',
+    blurb: 'Where term deposits are closed and recalculated, and where pledged savings are frozen as collateral and liquidated against bad debt.',
+    accent: '#34d399',
+    stations: ['SAVINGS_DESK', 'COLLATERAL_VAULT'],
   },
   BACKOFFICE: {
     id: 'BACKOFFICE',
@@ -395,6 +405,30 @@ export const STATIONS: Record<StationId, StationDef> = {
     staff: 2,
     processes: ['F'],
   },
+  SAVINGS_DESK: {
+    id: 'SAVINGS_DESK',
+    department: 'SAVINGS',
+    name: 'Savings Desk',
+    blurb: 'Closes term deposits, recalculating early closures from the contract rate down to the demand rate.',
+    kind: 'DESK',
+    capability: 'CORE_LEDGER_CHECK',
+    minutesPerItem: 8,
+    staff: 2,
+    openHoursOnly: true,
+    processes: [],
+  },
+  COLLATERAL_VAULT: {
+    id: 'COLLATERAL_VAULT',
+    department: 'SAVINGS',
+    name: 'Collateral Vault',
+    blurb: 'Holds the lien on pledged savings: frozen on default, then liquidated in waterfall order to clear the bad debt.',
+    kind: 'DESK',
+    capability: 'CORE_LEDGER_CHECK',
+    minutesPerItem: 10,
+    staff: 1,
+    openHoursOnly: true,
+    processes: [],
+  },
   DISPUTE_DESK: {
     id: 'DISPUTE_DESK',
     department: 'BACKOFFICE',
@@ -432,6 +466,8 @@ export const SERVICE_ORDER: StationId[] = [
   'GATE_QR',
   'GATE_SWIFT',
   'TELLER_CASH',
+  'COLLATERAL_VAULT',
+  'SAVINGS_DESK',
   'DISPUTE_DESK',
   'SEC_VAULT',
   'SEC_DCVV',
@@ -509,6 +545,8 @@ export const WIRES: ReadonlyArray<readonly [PlaceId, PlaceId, string?]> = [
   ['AML_DESK', 'OUT_DECLINED', 'blocked'],
   ['DISPUTE_DESK', 'LEDGER_DEBIT', 'refund'],
   ['DISPUTE_DESK', 'OUT_DECLINED', 'high risk: chargeback refused'],
+  ['COLLATERAL_VAULT', 'SAVINGS_DESK', 'lien'],
+  ['SAVINGS_DESK', 'LEDGER_DEBIT', 'term deposit posting'],
 ];
 
 const WIRE_SET = new Set(WIRES.map(([a, b]) => edgeId(a, b)));

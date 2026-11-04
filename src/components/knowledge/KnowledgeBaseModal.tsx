@@ -36,6 +36,7 @@ import { GL_ACCOUNTS, GL_CODE, GL_SIDE, type GlAccount, type RetailScenarioId } 
 import { uiStore, useUiStore, type KnowledgeTab } from '../../store/uiStore';
 import { formatNodes, message, useMessages } from '../../utils/i18nHelper';
 import { analystWorkspaceMessages, type AnalystWorkspaceKey } from '../bank/analystWorkspace.messages';
+import { ACRONYM_DETAILS } from '../../data/acronyms';
 import { glossaryTerms, glPlain } from '../bank/codeGlossary';
 import { LanguageToggle } from '../shell/LanguageToggle';
 import { Modal } from '../shell/Modal';
@@ -44,6 +45,7 @@ import { knowledgeBaseMessages } from './knowledgeBase.messages';
 import { AuthorLink } from '../shell/AuthorLink';
 import { creditsMessages } from '../shell/credits.messages';
 import { CoreJournal, OpsCrosswalk, OpsFlashcards, TopicModuleView } from './RetailOpsStudy';
+import { RegulatoryRegistry } from './RegulatoryRegistry';
 
 /** The formal account name the ledger sheet uses ("Nostro accounts (correspondents)"). */
 const glName = (gl: GlAccount, locale: Locale): string => message(analystWorkspaceMessages, `gl_${gl}` as AnalystWorkspaceKey, undefined, locale);
@@ -493,12 +495,21 @@ export function CoreLedgerArticle({ highlight = null, view = 'basic', accountQue
           {s.id === 'glossary' && (
             <>
               <dl className="mt-3 grid gap-x-4 gap-y-1.5 sm:grid-cols-2" data-testid="kb-glossary">
-                {glossaryTerms(locale).map((t) => (
-                  <div key={t.key} id={kbAnchorId(`term-${t.key}`)} data-term={t.key} className={`rounded-md px-1.5 py-0.5 ${highlight === `term-${t.key}` ? 'bg-amber-400/15 ring-2 ring-amber-300/80' : ''}`}>
-                    <dt className="inline whitespace-nowrap font-mono font-bold text-sky-200">{t.label}</dt>
-                    <dd className="inline text-slate-300"> · {t.meaning}</dd>
-                  </div>
-                ))}
+                {glossaryTerms(locale).map((t) => {
+                  const d = ACRONYM_DETAILS[t.key];
+                  return (
+                    <div key={t.key} id={kbAnchorId(`term-${t.key}`)} data-term={t.key} className={`rounded-md px-1.5 py-0.5 ${highlight === `term-${t.key}` ? 'bg-amber-400/15 ring-2 ring-amber-300/80' : ''}`}>
+                      <dt className="inline whitespace-nowrap font-mono font-bold text-sky-200">{t.label}</dt>
+                      {d && <dd className="inline font-semibold text-slate-100"> · {d.name.en}</dd>}
+                      <dd className="inline text-slate-300"> · {t.meaning}</dd>
+                      {d && (
+                        <dd className="mt-0.5 text-[13px] text-slate-400" data-testid={`kb-term-rule-${t.key}`}>
+                          <span className="text-sky-200/80">{d.name.vi}.</span> {pick(d.rule, locale)}
+                        </dd>
+                      )}
+                    </div>
+                  );
+                })}
               </dl>
               {advanced && (
                 <div className="mt-3 overflow-x-auto">
@@ -772,31 +783,53 @@ export function AmlArticle({ highlight = null, view = 'basic' }: { highlight?: s
 }
 
 /** The Knowledge Base's categories (Strategy): each tab's label and the article it renders. A new category is one more entry. */
-const KB_TABS: readonly { id: KnowledgeTab; label: 'tabCore' | 'tabAml' | 'tabRetail' | 'tabFlashcards'; render: (highlight: string | null, view: ViewMode) => ReactNode }[] = [
+const KB_TABS: readonly { id: KnowledgeTab; label: 'tabCore' | 'tabAml' | 'tabRetail' | 'tabFlashcards' | 'tabLegal'; render: (highlight: string | null, view: ViewMode) => ReactNode }[] = [
   { id: 'core', label: 'tabCore', render: (highlight, view) => <CoreLedgerArticle highlight={highlight} view={view} /> },
   { id: 'aml', label: 'tabAml', render: (highlight, view) => <AmlArticle highlight={highlight} view={view} /> },
   { id: 'retail', label: 'tabRetail', render: (highlight, view) => <RetailArticle highlight={highlight} view={view} /> },
   { id: 'flashcards', label: 'tabFlashcards', render: (highlight) => <OpsFlashcards highlight={highlight} /> },
+  { id: 'legal', label: 'tabLegal', render: (highlight) => <RegulatoryRegistry highlight={highlight} /> },
 ];
 
-/** The category tab bar: opens on the tab of wherever the window was opened from, and any tab is one click away. */
+/**
+ * The category tab bar: opens on the tab of wherever the window was opened from, and any tab is one click away. Under 768px the row of
+ * tabs ("Sổ cái lỗi", "Tuân thủ AML", "Thông tư & Nghị định"…) would wrap or scroll sideways, so it becomes one dropdown instead.
+ */
 export function KnowledgeTabs({ tab, onTab }: { tab: KnowledgeTab; onTab: (tab: KnowledgeTab) => void }) {
   const m = useMessages(knowledgeBaseMessages);
   return (
-    <div role="tablist" aria-label={m('tabsLabel')} className="sticky -top-5 z-10 -mx-6 -mt-5 mb-4 flex flex-wrap gap-1 overflow-x-auto border-b border-slate-800 bg-slate-900 px-6 pt-3 sm:flex-nowrap" data-testid="kb-tabs">
-      {KB_TABS.map((t) => (
-        <button
-          key={t.id}
-          type="button"
-          role="tab"
-          aria-selected={tab === t.id}
-          data-testid={`kb-tab-${t.id}`}
-          onClick={() => onTab(t.id)}
-          className={`shrink-0 whitespace-nowrap rounded-t-lg border-b-2 px-4 py-2 text-[14.5px] font-bold transition ${tab === t.id ? 'border-sky-400 bg-slate-800/60 text-slate-50' : 'border-transparent text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'}`}
+    <div className="sticky -top-5 z-10 -mx-6 -mt-5 mb-4 border-b border-slate-800 bg-slate-900 px-6 pt-3">
+      <label className="block pb-3 md:hidden" data-testid="kb-tab-select-wrap">
+        <span className="sr-only">{m('tabsLabel')}</span>
+        <select
+          value={tab}
+          onChange={(e) => onTab(e.target.value as KnowledgeTab)}
+          aria-label={m('tabsLabel')}
+          data-testid="kb-tab-select"
+          className="w-full cursor-pointer rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-[14.5px] font-bold text-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400"
         >
-          {m(t.label)}
-        </button>
-      ))}
+          {KB_TABS.map((t) => (
+            <option key={t.id} value={t.id}>
+              {m(t.label)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div role="tablist" aria-label={m('tabsLabel')} className="hidden flex-nowrap gap-1 overflow-x-auto md:flex" data-testid="kb-tabs">
+        {KB_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            data-testid={`kb-tab-${t.id}`}
+            onClick={() => onTab(t.id)}
+            className={`shrink-0 whitespace-nowrap rounded-t-lg border-b-2 px-4 py-2 text-[14.5px] font-bold transition ${tab === t.id ? 'border-sky-400 bg-slate-800/60 text-slate-50' : 'border-transparent text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'}`}
+          >
+            {m(t.label)}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

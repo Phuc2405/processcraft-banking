@@ -37,7 +37,7 @@ const written = (id: string, m: Omit<TopicModule, 'id' | 'diagrams'> & { diagram
 /** A topic's parts, by its guide's anchor. */
 export const TOPIC_MODULES: Readonly<Record<string, readonly TopicModule[]>> = {
   'retail-fees': [fromLesson('card-fees', false)],
-  'retail-autopay': [fromLesson('bill-pay', false)],
+  'retail-autopay': [fromLesson('bill-pay', true), fromLesson('auto-pay', true)],
   'retail-atm': [fromLesson('atm-napas', true), fromLesson('cassette-jam', true)],
   'retail-wallet-qr': [fromLesson('wallet-qr', false)],
   'retail-teller-vault': [fromLesson('teller-vault', false)],
@@ -96,6 +96,8 @@ export const TOPIC_MODULES: Readonly<Record<string, readonly TopicModule[]>> = {
       ],
       keywords: ['allocation', 'part-payment', 'cic', 'aps 220', 'arrears'],
     }),
+    fromLesson('debt-waterfall', true),
+    fromLesson('bnpl-credit', true),
   ],
   'retail-term-deposit': [
     written('retail-term-deposit-detail', {
@@ -123,6 +125,8 @@ export const TOPIC_MODULES: Readonly<Record<string, readonly TopicModule[]>> = {
       ],
       keywords: ['lien', 'early withdrawal', 'rut truoc han', 'aps 210', 'collateral'],
     }),
+    fromLesson('term-deposit', true),
+    fromLesson('collateral', true),
   ],
   'retail-eod-recon': [
     written('retail-eod-recon-detail', {
@@ -179,6 +183,7 @@ export const TOPIC_MODULES: Readonly<Record<string, readonly TopicModule[]>> = {
       ],
       keywords: ['31/2024', '86/2024', 'evergreening', 'dao no', 'cic', 'aps 220', 'aasb 9', 'ecl'],
     }),
+    fromLesson('credit-risk', true),
   ],
   'retail-fx': [
     written('retail-fx-detail', {

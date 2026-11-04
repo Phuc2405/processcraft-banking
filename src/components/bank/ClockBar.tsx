@@ -308,10 +308,10 @@ export function ClockBar() {
         ))}
         <button
           type="button"
-          onClick={jumpToEod}
+          onClick={() => jumpToEod()}
           disabled={dayOver || minute >= SKIP_TARGETS.night}
           data-testid="bank-jump-eod"
-          title={t('Jump the clock to 23:00 and keep playing, to watch the night cycle: batch clearing, Visa settlement, reconciliation')}
+          title={t('Jump the clock to 23:00 for the night cycle (batch clearing, Visa settlement, reconciliation). A paused bank stays paused: press Play to watch it')}
           className="rounded-md bg-amber-400/15 px-2 py-1.5 text-[11px] font-semibold text-amber-200 ring-1 ring-amber-400/30 transition hover:bg-amber-400/25 disabled:cursor-not-allowed disabled:opacity-35"
         >
           {t('Jump to EOD (23:00)')}

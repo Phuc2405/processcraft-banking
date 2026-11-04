@@ -2,7 +2,7 @@
 
 import { ACADEMY_REFERENCES } from '../data/academyLevels';
 import { LEVELS, NODE_CATALOG, REFERENCE_SOLUTIONS } from '../data/seedChallenges';
-import { dispense, verifyPin } from '../engine/atm';
+import { ATM_DAILY_LIMIT_CENTS, dispense, verifyPin } from '../engine/atm';
 import { formatAud } from '../engine/money';
 import { postTestResult } from '../engine/postings';
 import { ProcessRunner, type RunResult } from '../engine/processRunner';
@@ -342,6 +342,12 @@ function planAtm(customer: Customer): RoutePlan {
     return plan([pinStop, cash, end('OUT_DECLINED', 'Declined', 'Not enough money in the account.')], { outcome: 'DECLINED', reasonCode: 'INSUFFICIENT_FUNDS', decline: 'FUNDS' });
   }
 
+  const used = session.dailyUsedCents ?? 0;
+  if (used + amount > ATM_DAILY_LIMIT_CENTS) {
+    const cash = step('ATM_CASH', 'Daily limit check', `${formatAud(used)} already withdrawn today: another ${formatAud(amount)} would pass the card's ${formatAud(ATM_DAILY_LIMIT_CENTS)} daily limit, so nothing is dispensed.`, { ledgerDecision: 'OVER_LIMIT' }, 0.5, 900);
+    return plan([pinStop, cash, end('OUT_DECLINED', 'Declined', 'RC 61: the daily withdrawal limit is used up. The money is there; the limit resets tomorrow.')], { outcome: 'DECLINED', reasonCode: 'EXCEEDS_WITHDRAWAL_LIMIT', decline: 'DAILY_LIMIT' });
+  }
+
   const out = dispense(amount, session.jams);
   if (out.outcome === 'JAMMED') {
     const cash = step('ATM_CASH', 'Cash dispense', out.note, { ledgerDecision: 'SUFFICIENT', atmDispense: 'JAMMED' }, 1.5, 4200);
@@ -399,6 +405,7 @@ export function planCheckout(customer: Customer, graphs: BankGraphs): RoutePlan 
     case 'TELLER':
     case 'SWIFT':
     case 'DISPUTE':
+    case 'CREDIT_OPS':
       return planExtended(customer);
 
     case 'BNPL': {
@@ -420,17 +427,24 @@ export function planCheckout(customer: Customer, graphs: BankGraphs): RoutePlan 
         });
       }
       // The customer is sent to their phone for a one-time code, then comes back and the diagram runs again.
-      const otpDone = customer.otpCompletes;
-      const returned: BankingPayload = { ...payload, challenge: { status: otpDone ? 'COMPLETED' : 'ABANDONED', method: 'OTP' } };
+      const otpDone = customer.otpCompletes && !customer.otpResult;
+      const ended = customer.otpResult ?? 'ABANDONED';
+      const returned: BankingPayload = { ...payload, challenge: { status: otpDone ? 'COMPLETED' : ended, method: 'OTP' } };
       const second = walk(graphs.ecom, returned, 'GATE_ECOM', true);
       const otp: Stop = {
         place: 'CUSTOMER_OTP',
         kind: 'OTP',
         nodeId: null,
-        label: otpDone ? 'Customer enters the OTP' : 'Customer walks away',
+        label: otpDone ? 'Customer enters the OTP' : ended === 'FAILED' ? 'Wrong OTP three times' : ended === 'TIMED_OUT' ? '3DS session timed out' : 'Customer walks away',
         capability: null,
         durationMs: 0,
-        note: otpDone ? 'The customer typed the one-time code from their phone.' : 'The customer never entered the one-time code.',
+        note: otpDone
+          ? 'The customer typed the one-time code from their phone.'
+          : ended === 'FAILED'
+            ? 'Three wrong one-time codes: the issuer locks the card for online payments until the customer verifies themselves.'
+            : ended === 'TIMED_OUT'
+              ? 'The 3DS session expired before a code was entered, so the issuer could not authenticate the customer.'
+              : 'The customer never entered the one-time code.',
         facts: {},
         weight: 0,
       };
@@ -440,7 +454,7 @@ export function planCheckout(customer: Customer, graphs: BankGraphs): RoutePlan 
         passes: 2,
         decline: () => {
           if (second.facts.threeDsPath === 'REJECT') return 'THREE_DS_REJECT';
-          if (second.facts.threeDsPath === 'CHALLENGE_FAILED') return 'OTP_ABANDONED';
+          if (second.facts.threeDsPath === 'CHALLENGE_FAILED') return ended === 'FAILED' ? 'OTP_LOCKED' : 'OTP_ABANDONED';
           return 'FUNDS';
         },
       });

@@ -19,6 +19,7 @@ export interface ResponseCode {
 
 const DECLINE_RC: Record<DeclineReason, readonly [string, string]> = {
   FUNDS: ['51', 'Insufficient Funds'],
+  CREDIT_RISK: ['05', 'Do Not Honour'],
   DOWN_PAYMENT: ['51', 'Insufficient Funds'],
   DCVV_EXPIRED: ['N7', 'Dynamic CVV Expired'],
   DCVV_MISMATCH: ['N7', 'CVV Mismatch'],
@@ -40,6 +41,9 @@ const DECLINE_RC: Record<DeclineReason, readonly [string, string]> = {
   TELLER_VAULT_LIMIT: ['61', 'Exceeds Cash Limit'],
   TELLER_SUSPECT_NOTE: ['05', 'Do Not Honour (suspect notes)'],
   DISPUTE_REJECTED: ['05', 'Do Not Honour (claim rejected)'],
+  OTP_LOCKED: ['75', 'Authentication Tries Exceeded (card locked)'],
+  DAILY_LIMIT: ['61', 'Exceeds Withdrawal Limit'],
+  ACCOUNT_FROZEN: ['62', 'Restricted: Account Blocked'],
 };
 
 /** The response-code texts in Vietnamese (the English stays in DECLINE_RC, which the raw message and the tests use). */
@@ -67,6 +71,9 @@ const RC_TEXT_VI: Readonly<Record<string, string>> = {
   'Exceeds Cash Limit': 'Vượt hạn mức tiền mặt (Exceeds Cash Limit)',
   'Do Not Honour (suspect notes)': 'Không chấp thuận (tiền nghi giả)',
   'Do Not Honour (claim rejected)': 'Không chấp thuận (khiếu nại bị từ chối)',
+  'Authentication Tries Exceeded (card locked)': 'Nhập sai OTP quá số lần (khóa thẻ)',
+  'Exceeds Withdrawal Limit': 'Vượt hạn mức rút tiền trong ngày (Exceeds Withdrawal Limit)',
+  'Restricted: Account Blocked': 'Hạn chế: tài khoản đang bị phong tỏa (Account Blocked)',
 };
 
 /** A response-code text in the active language. */

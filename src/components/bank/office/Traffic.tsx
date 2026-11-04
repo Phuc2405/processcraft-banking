@@ -5,7 +5,7 @@ import type { BufferGeometry, Group, Mesh } from 'three';
 import { beatMs, SPEEDS } from '../../../sim/clock';
 import { localizeScenarioText } from '../../../sim/scenarios';
 import type { Move, PacketKind } from '../../../sim/types';
-import { bankStore, useBankStore } from '../../../store/bankStore';
+import { bankStore, beatLive, useBankStore } from '../../../store/bankStore';
 import { CustomerFigure, phaseOf } from './Avatars';
 import { box, cyl, merge, shade, tint, type Part } from './kit';
 import { customerShirt, hopHeight, hopTiming, laneAt, laneLength, packetLane, type V2 } from '../../../engine/plan/layout3d';
@@ -19,10 +19,10 @@ const HEIGHT = 0.62;
 const KINDS = Object.keys(PACKET_HEX) as PacketKind[];
 
 /** How many of each kind can be in the air at once. A busy beat is never bigger than this; the oldest hops are dropped first. */
-const POOL: Record<PacketKind, number> = { VIRTUAL: 18, POS: 26, ECOM: 26, BNPL: 18, A2A: 14, ATM: 14, ONBOARD: 8, QR: 14, TELLER: 10, SWIFT: 8, DISPUTE: 6, SETTLEMENT: 18 };
+const POOL: Record<PacketKind, number> = { VIRTUAL: 18, POS: 26, ECOM: 26, BNPL: 18, A2A: 14, ATM: 14, ONBOARD: 8, QR: 14, TELLER: 10, SWIFT: 8, DISPUTE: 6, CREDIT_OPS: 6, SETTLEMENT: 18 };
 
 type Shape = 'card' | 'coins' | 'folder' | 'bolt' | 'note';
-const SHAPE: Record<PacketKind, Shape> = { VIRTUAL: 'card', POS: 'card', ECOM: 'card', BNPL: 'coins', A2A: 'bolt', ATM: 'note', ONBOARD: 'card', QR: 'bolt', TELLER: 'note', SWIFT: 'bolt', DISPUTE: 'folder', SETTLEMENT: 'folder' };
+const SHAPE: Record<PacketKind, Shape> = { VIRTUAL: 'card', POS: 'card', ECOM: 'card', BNPL: 'coins', A2A: 'bolt', ATM: 'note', ONBOARD: 'card', QR: 'bolt', TELLER: 'note', SWIFT: 'bolt', DISPUTE: 'folder', CREDIT_OPS: 'coins', SETTLEMENT: 'folder' };
 
 const GOLD = '#f2c14e';
 
@@ -86,9 +86,9 @@ const now = (): number => motionNow();
 /** The payments on their way between desks. */
 export const Packets = memo(function Packets() {
   const tick = useBankStore((s) => s.view.tick);
-  const flights = useRef<Record<PacketKind, Flight[]>>({ VIRTUAL: [], POS: [], ECOM: [], BNPL: [], A2A: [], ATM: [], ONBOARD: [], QR: [], TELLER: [], SWIFT: [], DISPUTE: [], SETTLEMENT: [] });
-  const slots = useRef<Record<PacketKind, Array<Group | null>>>({ VIRTUAL: [], POS: [], ECOM: [], BNPL: [], A2A: [], ATM: [], ONBOARD: [], QR: [], TELLER: [], SWIFT: [], DISPUTE: [], SETTLEMENT: [] });
-  const discs = useRef<Record<PacketKind, Array<Mesh | null>>>({ VIRTUAL: [], POS: [], ECOM: [], BNPL: [], A2A: [], ATM: [], ONBOARD: [], QR: [], TELLER: [], SWIFT: [], DISPUTE: [], SETTLEMENT: [] });
+  const flights = useRef<Record<PacketKind, Flight[]>>({ VIRTUAL: [], POS: [], ECOM: [], BNPL: [], A2A: [], ATM: [], ONBOARD: [], QR: [], TELLER: [], SWIFT: [], DISPUTE: [], CREDIT_OPS: [], SETTLEMENT: [] });
+  const slots = useRef<Record<PacketKind, Array<Group | null>>>({ VIRTUAL: [], POS: [], ECOM: [], BNPL: [], A2A: [], ATM: [], ONBOARD: [], QR: [], TELLER: [], SWIFT: [], DISPUTE: [], CREDIT_OPS: [], SETTLEMENT: [] });
+  const discs = useRef<Record<PacketKind, Array<Mesh | null>>>({ VIRTUAL: [], POS: [], ECOM: [], BNPL: [], A2A: [], ATM: [], ONBOARD: [], QR: [], TELLER: [], SWIFT: [], DISPUTE: [], CREDIT_OPS: [], SETTLEMENT: [] });
   const tagGroups = useRef<Array<Group | null>>([]);
   const tagBoxes = useRef<Array<HTMLDivElement | null>>([]);
   const tagText = useRef<string[]>([]);
@@ -104,7 +104,9 @@ export const Packets = memo(function Packets() {
   useEffect(() => {
     const state = bankStore.getState();
     const moves: readonly Move[] = state.view.moves;
-    if (moves.length === 0) return;
+    // A paused bank sends nothing: the office drawn again (from 2D, or for another flow) or a clock moved while paused never
+    // queues the last beat's hops to replay on the next Play. Only a beat played live (or stepped to by hand) flies.
+    if (moves.length === 0 || !beatLive(state)) return;
     const beat = beatMs(state.view.phase, SPEEDS[state.speedIndex]?.factor ?? 1, state.view.minute);
     const t0 = now();
     for (const m of moves) {

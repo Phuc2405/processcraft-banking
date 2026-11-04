@@ -7,7 +7,7 @@ import { pathLength } from '../../../../engine/plan/path';
 import { chatPhase, MIST_BANKS, MIST_CLIP, MIST_LAYERS } from '../Environment3D';
 import { evacuationRoute, servedExit } from '../../../../engine/world/evacuation';
 import { FrontGuard, PARKING_CABIN, PARKING_PLAN } from '../../../../engine/world/guardCabin';
-import { arrivalPath, ATM_STATIONS, atmBooth, atmExitPath, CAR_PARK_FOOTWAY_X, CUSTOMER_DOOR, ENTRANCES, FLOOR_SLAB, KERB_Z, queueSlots, ROAD_END, WALK_IN_DESKS, type V2 } from '../../../../engine/plan/layout3d';
+import { arrivalPath, ATM_STATIONS, atmBooth, atmExitPath, STREET, CAR_PARK_FOOTWAY_X, CUSTOMER_DOOR, ENTRANCES, FLOOR_SLAB, KERB_Z, queueSlots, ROAD_END, WALK_IN_DESKS, type V2 } from '../../../../engine/plan/layout3d';
 import { AISLE, CIT_CLEAR, CIT_MOVER, FOOTWAY, LOT, LOT_SIDE, ParkingLot, SIZE, slotsOf } from '../../../../engine/world/parking';
 import { ParkCrowd, PARK_MEMBERS, talkers } from '../../../../engine/world/parkLife';
 import { PARK } from '../../../../engine/world/parkPlan';
@@ -339,12 +339,14 @@ describe('from the car park to the side doors', () => {
   it('walks the counters’ customers in from the car park’s footway, and back out to it at closing time', () => {
     for (const id of WALK_IN_DESKS) {
       const path = arrivalPath(id, 1);
-      expect(path[0]![0]).toBe(CAR_PARK_FOOTWAY_X);
+      expect(path[0]![0]).toBeLessThan(-STREET.halfWidth);
       // Along the footway to the walkway, then straight across it to the door.
-      expect(path[1]).toEqual([CAR_PARK_FOOTWAY_X, CUSTOMER_DOOR[1]]);
-      expect(path[2]![1]).toBe(CUSTOMER_DOOR[1]);
+      expect(path[2]).toEqual([CAR_PARK_FOOTWAY_X, CUSTOMER_DOOR[1]]);
+      expect(path[3]![1]).toBe(CUSTOMER_DOOR[1]);
+      // Out the same way, and off the far end of the street: never gone in the middle of the car park.
       const out = evacuationRoute(queueSlots(id, 3)[2]!, 2).path;
-      expect(out[out.length - 1]![0]).toBe(CAR_PARK_FOOTWAY_X);
+      expect(out).toContainEqual([CAR_PARK_FOOTWAY_X, CUSTOMER_DOOR[1]]);
+      expect(out[out.length - 1]![0]).toBeLessThan(-STREET.halfWidth);
     }
   });
 });

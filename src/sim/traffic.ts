@@ -99,13 +99,14 @@ const BASE_RATE = { POS: 3.0, ECOM: 2.5, VIRTUAL: 1.3, BNPL: 1.1 } as const;
 const EXTRA_RATE = { A2A: 0.6, ATM: 1.0 } as const;
 
 /** The Phase 8 channels: eKYC onboarding, VietQR, the teller counter, SWIFT and claims. */
-export const PHASE8_RATE: Readonly<Record<ExtendedKind, number>> = { ONBOARD: 0.25, QR: 1.0, TELLER: 0.5, SWIFT: 0.18, DISPUTE: 0.12 };
+export const PHASE8_RATE: Readonly<Record<ExtendedKind, number>> = { ONBOARD: 0.25, QR: 1.0, TELLER: 0.5, SWIFT: 0.18, DISPUTE: 0.12, CREDIT_OPS: 0 };
 /** Free blocks under 5001 (A2A), so the four-digit TX ids keep their shape: the card channels never reach 2000 in a day. */
-const PHASE8_SERIAL: Readonly<Record<ExtendedKind, number>> = { ONBOARD: 2000, QR: 2500, TELLER: 3000, SWIFT: 3500, DISPUTE: 4000 };
-const PHASE8_KINDS = Object.keys(PHASE8_RATE) as ExtendedKind[];
+const PHASE8_SERIAL: Readonly<Record<ExtendedKind, number>> = { ONBOARD: 2000, QR: 2500, TELLER: 3000, SWIFT: 3500, DISPUTE: 4000, CREDIT_OPS: 4500 };
+// CREDIT_OPS is demo-only: it is left out here so that no draw is spent on it and every seeded day stays as it was.
+const PHASE8_KINDS = (Object.keys(PHASE8_RATE) as ExtendedKind[]).filter((kind) => PHASE8_RATE[kind] > 0);
 
 /** Share of attempts that are fraud on an ordinary day. Fraud is mostly a card-not-present problem. */
-const FRAUD_RATE: Record<CheckoutKind, number> = { POS: 0.001, ECOM: 0.04, VIRTUAL: 0.03, BNPL: 0.01, A2A: 0.012, ATM: 0.008, ONBOARD: 0.05, QR: 0.02, TELLER: 0.015, SWIFT: 0.03, DISPUTE: 0.08 };
+const FRAUD_RATE: Record<CheckoutKind, number> = { POS: 0.001, ECOM: 0.04, VIRTUAL: 0.03, BNPL: 0.01, A2A: 0.012, ATM: 0.008, ONBOARD: 0.05, QR: 0.02, TELLER: 0.015, SWIFT: 0.03, DISPUTE: 0.08, CREDIT_OPS: 0 };
 
 export const WORKING_BEATS = (WORK_END - WORK_START) / beatMinutes('WORKING');
 
@@ -505,7 +506,8 @@ export function makeCustomer(seed: number, day: number, id: Id, kind: CheckoutKi
     case 'QR':
     case 'TELLER':
     case 'SWIFT':
-    case 'DISPUTE': {
+    case 'DISPUTE':
+    case 'CREDIT_OPS': {
       const ext = extendedContext(rng, day, kind, scenario.id, amount, fraud);
       // Someone moving a large sum usually has it; a few genuine customers are short.
       const short = rng.chance(fraud ? 0.02 : 0.06);
@@ -616,6 +618,8 @@ function extendedContext(rng: Rng, day: number, kind: ExtendedKind, scenario: st
         },
       };
     }
+    case 'CREDIT_OPS':
+      return { subject, creditOps: { route: ['LEDGER_DEBIT'], label: scenario, note: 'Credit operation', decline: null } };
   }
 }
 

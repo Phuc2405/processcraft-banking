@@ -19,10 +19,24 @@ export interface BankSource {
   subscribe(listener: () => void): () => void;
 }
 
-/** A desk's status, from its view. */
-export function deskStatusOf(sv: StationView): DeskStatus {
-  const working = workingCount(sv);
-  return { waiting: sv.queueLength, working, status: sv.status, showStatus: statusAfterWorking(sv.status, working) };
+/** The people drawn at a desk on top of the simulation's own queue (the desk visits of sim/deskVisit.ts). */
+export interface DeskPeople {
+  waiting: number;
+  processing: number;
+}
+
+/** Where those people are counted, and how to hear that the count changed. Each desk's entry keeps its identity until it changes. */
+export interface DeskOverlay {
+  get(id: StationId): DeskPeople | undefined;
+  subscribe(listener: () => void): () => void;
+}
+
+/** A desk's status, from its view and the people drawn at it: "X waiting" counts both, "Y working" whichever is more, and an idle desk with people at it is busy. */
+export function deskStatusOf(sv: StationView, people?: DeskPeople): DeskStatus {
+  const working = Math.max(workingCount(sv), people?.processing ?? 0);
+  const waiting = sv.queueLength + (people?.waiting ?? 0);
+  const status = sv.status === 'IDLE' && waiting + working > 0 ? 'BUSY' : sv.status;
+  return { waiting, working, status, showStatus: statusAfterWorking(status, working) };
 }
 
 /** The words a status line is written in (the views pass them in their language). */
@@ -43,8 +57,9 @@ export function deskStatusLine(s: DeskStatus, words: DeskStatusWords): string {
 const same = (a: DeskStatus, b: DeskStatus): boolean => a.waiting === b.waiting && a.working === b.working && a.status === b.status && a.showStatus === b.showStatus;
 
 interface Entry {
-  /** The view this status was read from. */
+  /** The view and the overlay entry this status was read from. */
   view: BankView;
+  people: DeskPeople | undefined;
   status: DeskStatus;
   /** The status the desk's subscribers were last told about. */
   told: DeskStatus;
@@ -55,20 +70,25 @@ export class DeskStatusFeed {
   private readonly listeners = new Map<StationId, Set<() => void>>();
   private unhook: (() => void) | null = null;
 
-  constructor(private readonly source: BankSource) {}
+  constructor(
+    private readonly source: BankSource,
+    private readonly overlay?: DeskOverlay,
+  ) {}
 
   /** The desk's status now (the same object until it changes, so a view re-renders only on a real change). */
   get(id: StationId): DeskStatus {
     const view = this.source.getState().view;
+    const people = this.overlay?.get(id);
     const e = this.entries.get(id);
     if (!e) {
-      const status = deskStatusOf(view.stations[id]);
-      this.entries.set(id, { view, status, told: status });
+      const status = deskStatusOf(view.stations[id], people);
+      this.entries.set(id, { view, people, status, told: status });
       return status;
     }
-    if (e.view !== view) {
+    if (e.view !== view || e.people !== people) {
       e.view = view;
-      const now = deskStatusOf(view.stations[id]);
+      e.people = people;
+      const now = deskStatusOf(view.stations[id], people);
       if (!same(e.status, now)) e.status = now;
     }
     return e.status;
@@ -82,7 +102,14 @@ export class DeskStatusFeed {
       this.listeners.set(id, set);
     }
     set.add(listener);
-    if (!this.unhook) this.unhook = this.source.subscribe(() => this.publish());
+    if (!this.unhook) {
+      const a = this.source.subscribe(() => this.publish());
+      const b = this.overlay?.subscribe(() => this.publish());
+      this.unhook = () => {
+        a();
+        b?.();
+      };
+    }
     return () => {
       set.delete(listener);
       if (set.size === 0) this.listeners.delete(id);

@@ -7,10 +7,10 @@ import type { Phase } from './clock';
 import type { BankRules } from './rules';
 import type { DepartmentId, ExternalId, PlaceId, StationId } from './topology';
 
-export type CheckoutKind = 'VIRTUAL' | 'POS' | 'ECOM' | 'BNPL' | 'A2A' | 'ATM' | 'ONBOARD' | 'QR' | 'TELLER' | 'SWIFT' | 'DISPUTE';
+export type CheckoutKind = 'VIRTUAL' | 'POS' | 'ECOM' | 'BNPL' | 'A2A' | 'ATM' | 'ONBOARD' | 'QR' | 'TELLER' | 'SWIFT' | 'DISPUTE' | 'CREDIT_OPS';
 
 /** The Phase 8 channels: they run through the checkpoint interceptor (sim/amlEngine.ts), not a Build Lab diagram. */
-export type ExtendedKind = Extract<CheckoutKind, 'ONBOARD' | 'QR' | 'TELLER' | 'SWIFT' | 'DISPUTE'>;
+export type ExtendedKind = Extract<CheckoutKind, 'ONBOARD' | 'QR' | 'TELLER' | 'SWIFT' | 'DISPUTE' | 'CREDIT_OPS'>;
 export type PacketKind = CheckoutKind | 'SETTLEMENT';
 
 // A day's customers
@@ -43,6 +43,8 @@ export interface AtmSession {
   jams: boolean;
   /** A cash deposit (the machine takes notes in and the account is credited) instead of a withdrawal. Only scripted practice runs set it. */
   deposit?: boolean;
+  /** Cash this card has already taken out today, counted against the card's daily withdrawal limit. */
+  dailyUsedCents?: number;
 }
 
 export interface Customer {
@@ -59,6 +61,8 @@ export interface Customer {
   payload: BankingPayload;
   /** Whether they will type the OTP if they are asked to. Decided in advance so tomorrow can be replayed under other rules. */
   otpCompletes: boolean;
+  /** How an unfinished challenge ends, when it is not simply abandoned: three wrong codes (FAILED, the card is locked) or the 3DS session expiring (TIMED_OUT). */
+  otpResult?: 'FAILED' | 'TIMED_OUT';
 }
 
 // Phase 8: what the extended checkpoints read
@@ -155,7 +159,18 @@ export interface ExtendedContext {
   qr?: QrContext;
   swift?: SwiftContext;
   dispute?: DisputeClaim;
+  /** A credit or savings operation: the desks it crosses and the decision the book has already made. */
+  creditOps?: CreditOpsContext;
+  /** The account is blocked (a court order, a fraud hold or a customer request): nothing may be paid out of it. */
+  accountFrozen?: boolean;
   subject: AmlSubject;
+}
+
+export interface CreditOpsContext {
+  route: readonly PlaceId[];
+  label: string;
+  note: string;
+  decline: DeclineReason | null;
 }
 
 /** What one Phase 8 checkpoint decided. The engine writes it on the stop; the desk counters and the activity line read it. */
@@ -169,7 +184,8 @@ export type Checkpoint =
   | { at: 'AML_REVIEW'; verdict: 'RELEASED' | 'STR_FILED_RELEASED' | 'BLOCKED_STR' | 'BLOCKED_SANCTION'; reason: 'NONE' | 'PEP' | 'STRUCTURING' | 'LARGE_CROSS_BORDER' | 'OFAC' }
   | { at: 'TELLER'; verdict: 'COUNTED' | 'VAULT_LIMIT' | 'SUSPECT_NOTES'; direction: 'IN' | 'OUT'; suspectSerials: number; ctr: boolean }
   | { at: 'DISPUTE'; verdict: 'REFUND' | 'REJECTED_SLA' | 'REJECTED_EVIDENCE'; type: DisputeClaim['type'] }
-  | { at: 'POSTING'; verdict: 'ACCOUNT_OPENED' | 'DEBITED' | 'CREDITED' | 'REFUNDED' | 'NO_FUNDS' };
+  | { at: 'POSTING'; verdict: 'ACCOUNT_OPENED' | 'DEBITED' | 'CREDITED' | 'REFUNDED' | 'NO_FUNDS' }
+  | { at: 'CREDIT_OPS' };
 
 // A payment's route, worked out by running the real process diagram
 
@@ -198,6 +214,7 @@ export interface Stop {
 /** Why a payment was declined, in the bank's own categories. */
 export type DeclineReason =
   | 'FUNDS'
+  | 'CREDIT_RISK'
   | 'DCVV_EXPIRED'
   | 'DCVV_MISMATCH'
   | 'UNKNOWN_DPAN'
@@ -219,7 +236,11 @@ export type DeclineReason =
   | 'SWIFT_INVALID'
   | 'TELLER_VAULT_LIMIT'
   | 'TELLER_SUSPECT_NOTE'
-  | 'DISPUTE_REJECTED';
+  | 'DISPUTE_REJECTED'
+  // Shift-aware failure cases
+  | 'OTP_LOCKED'
+  | 'DAILY_LIMIT'
+  | 'ACCOUNT_FROZEN';
 
 export interface RoutePlan {
   stops: Stop[];

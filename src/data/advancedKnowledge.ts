@@ -255,6 +255,18 @@ export const AML_DEEP_SECTIONS: readonly AmlSection[] = [
     keywords: ['tipping off', 'bao truoc', 'scam', 'lua dao', 'funnel', 'gom tien', 'pep', 'crypto', 'source of wealth', 'edge case', 'tinh huong'],
   },
   {
+    id: 'aml-adv-credit',
+    level: 'advanced',
+    rule: L('Ask where the repayment came from, not just whether the loan was repaid.', 'Hãy hỏi tiền trả nợ đến từ đâu, không chỉ khoản vay đã được trả hay chưa.'),
+    title: L('Credit, savings and collateral as laundering channels', 'Tín dụng, tiết kiệm và tài sản bảo đảm như kênh rửa tiền'),
+    paragraphs: [L('A loan repaid is normally good news, which is what makes credit attractive to launderers: dirty money comes back as a clean repayment, or as a deposit that secures clean money.', 'Khoản vay được trả thường là tin tốt, và đó là lý do tín dụng hấp dẫn kẻ rửa tiền: tiền bẩn quay lại như khoản trả nợ sạch, hoặc như tiền gửi bảo đảm cho tiền sạch.')],
+    advanced: [
+      L('Loan-back schemes pledge criminal savings against a new loan, then deliberately default: liquidating the collateral leaves the launderer holding clean loan money and the bank with a tidy file. A customer indifferent to losing the collateral is the signal.', 'Thủ đoạn vay ngược dùng tiền gửi phạm tội cầm cố cho khoản vay mới rồi cố ý vỡ nợ: xử lý TSĐB để lại cho kẻ rửa tiền khoản vay sạch và ngân hàng một hồ sơ gọn gàng. Khách không quan tâm việc mất TSĐB chính là dấu hiệu.'),
+      L('Sudden early repayment, especially in cash or by an unrelated third party, needs its source checked even though it reduces credit risk. Closing a term deposit early and accepting the penalty is similar: paying to move money quickly is unusual, and worth asking about.', 'Trả nợ trước hạn đột ngột, nhất là bằng tiền mặt hoặc qua bên thứ ba không liên quan, cần kiểm tra nguồn tiền dù làm giảm rủi ro tín dụng. Tất toán tiền gửi sớm và chấp nhận phạt cũng tương tự: trả phí để chuyển tiền nhanh là bất thường và cần hỏi rõ.'),
+    ],
+    keywords: ['loan back', 'vay nguoc', 'early repayment', 'tra no truoc han', 'collateral', 'tsdb', 'tien gui', 'third party', 'ben thu ba'],
+  },
+  {
     id: 'aml-adv-audit',
     level: 'advanced',
     rule: L('If it is not written down, it did not happen.', 'Không ghi lại thì coi như chưa xảy ra.'),

@@ -1,7 +1,7 @@
 import { isNightStation } from '../../sim/roster';
 import { STATIONS, type StationId } from '../../sim/topology';
 import type { StationView } from '../../sim/types';
-import { laneAt, laneLength, QUEUE_VISIBLE, queueSalt, queueSlots, queueStyle, seatOffsets, deskPose, type V2, WALKER_STATIONS, ATM_STATIONS } from '../plan/layout3d';
+import { type ArrivalOrigin, laneAt, laneLength, QUEUE_VISIBLE, queueSalt, queueSlots, queueStyle, seatOffsets, deskPose, type V2, WALKER_STATIONS, ATM_STATIONS } from '../plan/layout3d';
 import { CUSTOMER_DESKS, isClosed, servedExit } from '../world/evacuation';
 import type { SidewalkCrowd } from '../world/sidewalk';
 import { journeyPose, journeyState, type CustomerPose, type Journey } from './customerLifecycle';
@@ -16,7 +16,7 @@ import { pathLength } from '../plan/path';
 /** Walking paces to the desks: a stroll down the pavement to the ATMs, a little brisker into the branch. */
 export const ARRIVAL_PACE = { atm: 0.85, gate: 1.0 } as const;
 /** How many customers can be walking to the desks at once. */
-export const MAX_WALKERS = 14;
+export const MAX_WALKERS = 20;
 /** How fast people in a line walk up a place when the one in front is served. */
 export const STEP_UP_PACE = 0.9;
 /** Served customers: time at the counter or machine before leaving (the one at the front finishes their business there: keying in and taking the cash, or a last word with the teller), the turn, the walking pace, and the business of one who walks up late. */
@@ -54,10 +54,22 @@ export class ArrivalWalks {
   version = 0;
   private queued: Partial<Record<StationId, number>> = {};
 
+  private serial = 0;
+
   constructor(
     private readonly handoff: QueueHandoff,
     private readonly sidewalk: SidewalkCrowd,
+    /** A parked car's door walk for a newcomer to get out of (the car park's alight), or null with none parked. */
+    private readonly fromCar: (k: number) => V2[] | null = () => null,
   ) {}
+
+  /** A counter's newcomers take turns: out of a parked car to the side door, then in from the street at the main gate. */
+  private originFor(id: StationId): ArrivalOrigin {
+    if (ATM_STATIONS.includes(id)) return 'street';
+    const n = this.serial++;
+    const car = n % 2 === 0 ? this.fromCar(n) : null;
+    return car ? { car } : 'gate';
+  }
 
   /** A new beat: whoever joined a counter's line (or came to an ATM) sets off for their place in it. */
   onBeat(stations: Readonly<Record<StationId, StationView>>, minute: number, now: number): void {
@@ -81,7 +93,7 @@ export class ArrivalWalks {
         const slot = this.freeSlot();
         if (slot < 0) break;
         if (place < 0) walkUp = true;
-        const path = routesFor(id).approach(Math.max(0, place));
+        const path = routesFor(id).approach(Math.max(0, place), this.originFor(id));
         const pace = ATM_STATIONS.includes(id) ? ARRIVAL_PACE.atm : ARRIVAL_PACE.gate;
         const who = sv.stats.processedToday + place + queueSalt(id);
         this.walks.push({ path, length: laneLength(path), start: now + k * 0.9, pace, slot, desk: id, who });
@@ -157,6 +169,8 @@ export interface ServedPose {
   yaw: number;
   walking: boolean;
   busy: boolean;
+  /** Where they are in their journey: walking up to the counter, at it, turning away, or walking off. */
+  state: CustomerPose['state'];
 }
 
 /** What waits at a desk (people at the customers' desks, phones at a digital gate, case files at an internal desk), each stepping up a place when the one in front is served. */
@@ -322,7 +336,7 @@ export class DeskLine {
       }
       // Walking, they curve round the others on the pavement; standing, they stay put.
       const at: V2 = p.walking ? this.sidewalk.place(`served-${this.id}-${s.key}`, p.at[0], p.at[1], dt) : p.at;
-      this.servedPoses.set(s.key, { at, yaw: p.yaw, walking: p.walking, busy: p.busy });
+      this.servedPoses.set(s.key, { at, yaw: p.yaw, walking: p.walking, busy: p.busy, state: p.state });
     }
   }
 }

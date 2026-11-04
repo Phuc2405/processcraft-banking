@@ -27,11 +27,16 @@ export const DECLINE_REASONS: readonly DeclineReason[] = [
   'TELLER_VAULT_LIMIT',
   'TELLER_SUSPECT_NOTE',
   'DISPUTE_REJECTED',
+  'CREDIT_RISK',
+  'OTP_LOCKED',
+  'DAILY_LIMIT',
+  'ACCOUNT_FROZEN',
 ];
 
 /** Why a payment was turned away, in a few plain words. */
 export const DECLINE_LABEL: Record<DeclineReason, string> = {
   FUNDS: 'Not enough money',
+  CREDIT_RISK: 'DTI over the limit',
   DCVV_EXPIRED: 'Expired dCVV',
   DCVV_MISMATCH: 'Wrong dCVV',
   UNKNOWN_DPAN: 'Unknown virtual card',
@@ -53,6 +58,9 @@ export const DECLINE_LABEL: Record<DeclineReason, string> = {
   TELLER_VAULT_LIMIT: 'Teller vault cash limit',
   TELLER_SUSPECT_NOTE: 'Suspect notes at the counter',
   DISPUTE_REJECTED: 'Dispute claim rejected',
+  OTP_LOCKED: 'Wrong OTP 3 times, card locked',
+  DAILY_LIMIT: 'Daily withdrawal limit reached',
+  ACCOUNT_FROZEN: 'Account frozen',
 };
 
 /** The Phase 8 channels' own numbers. */
@@ -81,7 +89,7 @@ export function emptyExtKpis(): DayKpis['ext'] {
 export function emptyKpis(): DayKpis {
   return {
     arrivals: 0,
-    byKind: { POS: 0, ECOM: 0, VIRTUAL: 0, BNPL: 0, A2A: 0, ATM: 0, ONBOARD: 0, QR: 0, TELLER: 0, SWIFT: 0, DISPUTE: 0 },
+    byKind: { POS: 0, ECOM: 0, VIRTUAL: 0, BNPL: 0, A2A: 0, ATM: 0, ONBOARD: 0, QR: 0, TELLER: 0, SWIFT: 0, DISPUTE: 0, CREDIT_OPS: 0 },
     approved: 0,
     declined: 0,
     approvedCents: 0,

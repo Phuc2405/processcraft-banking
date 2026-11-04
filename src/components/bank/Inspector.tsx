@@ -1,4 +1,5 @@
 import { tr } from '../../i18n/locale';
+import { AcronymNotes } from './AcronymNotes';
 import { t } from '../../i18n/t';
 import { memo, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
@@ -9,8 +10,10 @@ import { LESSONS, type ProcessId } from '../../sim/learning';
 import { MAX_COVER_PER_STATION, mistakeChance, STAMINA_RECOVERY } from '../../sim/roster';
 import { DEPARTMENTS, STATIONS, type DepartmentId, type StationId } from '../../sim/topology';
 import type { FeedEntry, StationView, WorkerView } from '../../sim/types';
+import { useInspectorCovers } from './ViewportControls';
 import { clampInspectorWidth, INSPECTOR_WIDTH } from '../../store/bankPersistence';
 import { processesAt, useBankStore, type Selection } from '../../store/bankStore';
+import { useDeskStatus } from './useSimulation';
 import { WorkstationGraphic } from '../canvas/nodes/WorkstationGraphic';
 import { MentalModelCard } from '../education/MentalModelCard';
 import { useTerms } from './useTerms';
@@ -250,6 +253,8 @@ function DepartmentPanel({ id }: { id: DepartmentId }) {
 
         <ExploreButtons processes={processes} />
 
+        <AcronymNotes text={`${terms.departmentTitle(id)} ${dept.stations.map((st) => terms.stationTitle(st)).join(' ')}`} />
+
         <section>
           <SectionTitle>{t('Live activity')}</SectionTitle>
           <StreamList entries={stream} empty={t('Nothing has happened here yet today.')} {...(machines ? { names: new Map(indexed.map(({ w, i }) => [w.name, deptCopy.workerName(w, i)])) } : {})} />
@@ -325,6 +330,8 @@ export function DeskEntryButton({ entry, exceptions, disabled, onOpen, ws }: { e
 function StationPanel({ id }: { id: StationId }) {
   const terms = useTerms();
   const sv = useBankStore((s) => s.view.stations[id]);
+  // The same count as the desk's card and 3D badge: the queue plus the people walking in and in line at the counter.
+  const desk = useDeskStatus(id);
   const phase = useBankStore((s) => s.view.phase);
   const select = useBankStore((s) => s.select);
   const addCover = useBankStore((s) => s.addCover);
@@ -382,6 +389,8 @@ function StationPanel({ id }: { id: StationId }) {
 
         <ExploreButtons processes={processesAt(id)} />
 
+        <AcronymNotes text={`${terms.stationTitle(id)} ${terms.caption(id) ?? ''} ${terms.tip(id)}`} />
+
         {sv.alerts.length > 0 && (
           <section data-testid="station-alerts">
             <SectionTitle>{t('Error alerts')}</SectionTitle>
@@ -399,7 +408,7 @@ function StationPanel({ id }: { id: StationId }) {
         <section>
           <SectionTitle>{t('Live stats')}</SectionTitle>
           <div className="grid grid-cols-3 gap-1.5">
-            <Stat label={t('Waiting')} value={sv.queueLength} tone={sv.status === 'CONGESTED' || sv.status === 'ALERT' ? 'warn' : 'info'} info={copy.hybrid('queue', 'tip-queue')} />
+            <Stat label={t('Waiting')} value={desk.waiting} tone={sv.status === 'CONGESTED' || sv.status === 'ALERT' ? 'warn' : 'info'} info={copy.hybrid('queue', 'tip-queue')} />
             <Stat label={t('Done today')} value={stats.processedToday.toLocaleString()} info={copy.tip('done', 'tip-done')} />
             <Stat label={t('Avg wait')} value={waitText(stats.avgWaitMin)} tone={stats.avgWaitMin >= 6 ? 'warn' : 'info'} info={copy.tip('avgWait', 'tip-avg-wait')} />
             <Stat label={t('Peak queue')} value={stats.peakQueue} info={copy.tip('peak', 'tip-peak')} />
@@ -655,6 +664,7 @@ function InspectorDrawer() {
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const grab = useRef<{ x: number; width: number } | null>(null);
   const width = dragWidth ?? stored;
+  const covers = useInspectorCovers();
 
   const onGrab = (e: ReactPointerEvent<HTMLDivElement>): void => {
     if (e.button !== 0) return;
@@ -688,7 +698,9 @@ function InspectorDrawer() {
     <aside
       // Inspector text (numbers, logs, names) stays selectable and copyable; only the map behind it is drag-only.
       className={`absolute bottom-0 right-0 top-0 z-40 flex max-w-full select-text flex-col border-l border-slate-800 bg-slate-900/95 shadow-2xl ease-out will-change-transform ${dragWidth === null ? 'transition-transform duration-200' : ''} ${open ? 'translate-x-0' : 'pointer-events-none translate-x-full'}`}
-      style={{ width }}
+      // On a map too narrow to share, the drawer is a full-width sheet (useInspectorCovers): the map's floating controls wait for it to close.
+      style={{ width: covers ? '100%' : width }}
+      data-covers={covers || undefined}
       aria-label={t('Inspector')}
       aria-hidden={!open}
       data-testid="inspector"

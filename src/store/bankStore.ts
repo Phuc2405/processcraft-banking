@@ -3,6 +3,7 @@
 import { useStore } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 
+import { deskVisitStore } from './deskVisitStore';
 import { BankSimulation, type DisputeResult } from '../sim/bankSimulation';
 import { cleanChaos, NO_CHAOS, type ChaosConfig } from '../engine/chaos';
 import { LESSONS, type ProcessId } from '../sim/learning';
@@ -19,7 +20,7 @@ import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../si
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
 import { compareDays, type Comparison } from '../sim/whatIf';
-import { focusScope, type OpsSubProcessId } from '../sim/retailOps';
+import { focusScope, type DemoGroupId } from '../sim/demoGroups';
 import type { FlowScope } from '../sim/guidedFlows';
 import { browserStorage, clampInspectorWidth, clearBank, loadAuditLog, loadBank, loadCareer, loadPrefs, loadRetailLedger, saveAuditLog, saveCareer, saveRetailLedger, loadUiPrefs, saveBank, savePrefs, saveUiPrefs, type BankPrefs, type BankSaveResult, type KeyValueStorage, type LabelMode, type UiPrefs, type ViewMode } from './bankPersistence';
 
@@ -203,6 +204,8 @@ export interface BankState {
   presetTrace: PacketTrace | null;
   /** True while one preset payment plays out on its own. */
   solo: boolean;
+  /** The snapshot of the beat the learner stepped to by hand with Step, or null: its hops may play although the bank is paused. Any later snapshot (a skip, a reset) is a different object, so it never matches by chance. */
+  stepView: BankState['view'] | null;
   /** The node the Academy split view is teaching right now: it pulses on the 2D map and in the 3D office, and the 3D camera goes to it. */
   focusPlace: PlaceId | null;
 
@@ -300,7 +303,8 @@ export interface BankState {
   setSpeed(index: number): void;
   skipTo(minute: number): void;
   /** Runs the clock forward to 23:00 and keeps playing, so the night cycle can be watched. */
-  jumpToEod(): void;
+  /** Runs the clock to 23:00. It keeps the bank paused if it was, unless `play` asks to start the night cycle (the EOD demo button). */
+  jumpToEod(play?: boolean): void;
   skipToEndOfDay(): void;
   startNextDay(): void;
   resetBank(): void;
@@ -336,8 +340,8 @@ export interface BankState {
   /** Sends any scripted customer into the bank and follows it in the inspector: what every demo button comes down to. */
   runDemoCustomer(customer: Customer): void;
   /** The retail sub-process in focus inside the flow, or null for the whole flow. */
-  subProcess: OpsSubProcessId | null;
-  selectSubProcess(sub: OpsSubProcessId, flow: FlowId): void;
+  subProcess: DemoGroupId | null;
+  selectSubProcess(sub: DemoGroupId, flow: FlowId): void;
   /** Lights a guided flow on the map and plays its main preset payment (the "Simulate this Flow" deep link from the Academy). */
   triggerGuidedFlow(flow: FlowId): void;
 
@@ -581,6 +585,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       presetTxId: null,
       presetTrace: null,
       solo: false,
+      stepView: null,
       focusPlace: null,
 
       selection: { kind: 'none' },
@@ -793,9 +798,14 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       play: () => {
         const s = get();
         if (s.sim.dayOver) return;
+        deskVisitStore.getState().thaw();
         set({ ...endTour(false), playing: true, solo: false });
       },
-      pause: () => set({ playing: false, solo: false }),
+      pause: () => {
+        // A deliberate pause stops everything: the clock, every queue, and the people at the counters, who freeze where they stand.
+        deskVisitStore.getState().freeze();
+        set({ playing: false, solo: false });
+      },
       toggle: () => (get().playing ? get().pause() : get().play()),
 
       step: () => {
@@ -805,6 +815,8 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         advance(1);
         if (s.sim.dayOver) closeDay();
         else refresh();
+        // The one beat the learner asked for plays its hops; nothing after it does until Play.
+        set({ stepView: get().view });
       },
 
       tickBeat: () => {
@@ -839,15 +851,17 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         else refresh();
       },
 
-      jumpToEod: () => {
+      jumpToEod: (play) => {
         const s = get();
         if (s.sim.dayOver || s.sim.minute >= EOD_START) return;
+        // Moving the clock never starts a paused bank: only the night-cycle demo itself (play = true) or the Play button does.
+        const playing = play ?? (s.playing && !s.solo);
         leaveTour();
         s.sim.stepUntil(EOD_START);
         refresh({
-          playing: true,
+          playing,
           solo: false,
-          notice: { kind: 'info', message: 'Jumped to 23:00. The EOD night cycle is starting: batch clearing, Visa settlement, then reconciliation.' },
+          notice: { kind: 'info', message: playing ? 'Jumped to 23:00. The EOD night cycle is starting: batch clearing, Visa settlement, then reconciliation.' : 'Jumped to 23:00. The bank is still paused: press Play to watch the EOD night cycle.' },
         });
       },
 
@@ -1027,7 +1041,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
             set({ ...endTour(false), playing: true, solo: false });
             return;
           }
-          s.jumpToEod();
+          s.jumpToEod(true);
           return;
         }
         const customer = presetCustomer(id, s.sim.rules);
@@ -1234,6 +1248,13 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
     };
   });
 
+  // Every way the bank stops playing (Pause, a reset or replay of today, the next day, a tour taking the clock, the day closing)
+  // freezes the people at the counters too: only a solo demo run ending by itself lets them finish their business. One rule here,
+  // so no path that sets playing:false can leave figures (and the 3D world's clock with them) running behind a paused bank.
+  store.subscribe((s, prev) => {
+    if (prev.playing && !s.playing && !prev.solo) deskVisitStore.getState().freeze();
+  });
+
   return store;
 }
 
@@ -1258,6 +1279,13 @@ export const activeScopeOf = (s: Pick<BankState, 'scope' | 'flow' | 'spotlight' 
   const flow = activeFlowOf(s);
   return flow ? focusScope(flow, s.subProcess) : null;
 };
+/**
+ * Whether the payments of the beat on screen may move: while the bank plays (a solo demo run included), or on the beat the learner
+ * just stepped to by hand. A paused bank never replays its last beat: not when the map is drawn again (2D to 3D and back, another
+ * flow or sub-process lit), nor when its clock is moved while paused (a skip, a jump, a replay of today).
+ */
+export const beatLive = (s: Pick<BankState, 'playing' | 'stepView' | 'view'>): boolean => s.playing || s.stepView === s.view;
+
 export const activeFlowOf = (s: Pick<BankState, 'scope' | 'flow' | 'spotlight'>): FlowId | null => (s.scope === 'beginner' && !s.spotlight ? s.flow : null);
 
 /** The node the Academy is teaching, if it should show. */

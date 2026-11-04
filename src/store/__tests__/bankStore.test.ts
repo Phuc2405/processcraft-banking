@@ -409,20 +409,28 @@ describe('the relaxed clock', () => {
   });
 
   it('gives a beat of the working day about a second and a half at Relaxed, and scales with the speed', () => {
-    expect(beatMs('WORKING', 1)).toBe(1500);
-    expect(beatMs('EOD', 1)).toBe(1500);
-    expect(beatMs('WORKING', 0.25)).toBe(6000);
-    expect(beatMs('WORKING', 10)).toBe(150);
+    expect(beatMs('WORKING', 1)).toBe(2200);
+    expect(beatMs('EOD', 1)).toBe(2200);
+    expect(beatMs('WORKING', 0.25)).toBe(8800);
+    expect(beatMs('WORKING', 10)).toBe(220);
   });
 
-  it('jumps to 23:00 and keeps playing so the night cycle can be watched', () => {
+  it('jumps to 23:00 but never starts a paused bank: only Play, or the night-cycle demo itself, does', () => {
     const store = make();
     store.getState().jumpToEod();
     const s = store.getState();
     expect(s.view.minute).toBe(EOD_START);
     expect(s.view.phase).toBe('EOD');
-    expect(s.playing).toBe(true);
+    expect(s.playing).toBe(false);
     expect(s.notice?.message).toMatch(/23:00/);
+    const playing = make();
+    playing.getState().play();
+    playing.getState().jumpToEod();
+    expect(playing.getState().playing).toBe(true);
+    const demo = make();
+    demo.getState().runPreset('eod');
+    expect(demo.getState().view.minute).toBe(EOD_START);
+    expect(demo.getState().playing).toBe(true);
   });
 
   it('does nothing when it is already night, or the day is over', () => {

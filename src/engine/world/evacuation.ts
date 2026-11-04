@@ -1,6 +1,8 @@
 import type { StationId } from '../../sim/topology';
 import { routesFor } from '../simulation/routes';
-import { carParkApproach, CUSTOMER_DOOR, FLOOR_SLAB, FRONT_AISLE_Z, LEFT_WALK_X, MAIN_GATE, queueSlots, SIDE_DOORS_RIGHT, STATION_POSES, WALK_IN_DESKS, type V2 } from '../plan/layout3d';
+import { carParkApproach, CUSTOMER_DOOR, FLOOR_SLAB, FRONT_AISLE_Z, LEFT_WALK_X, MAIN_GATE, queueSlots, SIDE_DOORS_RIGHT, STATION_POSES, streetEnd, WALK_IN_DESKS, WALKWAY_Z, type V2 } from '../plan/layout3d';
+import { LOOP } from './parkPlan';
+import { PARK_EXIT } from './parkLife';
 
 /** Closing time in the 3D office. */
 
@@ -24,9 +26,14 @@ export function evacuationRoute(at: V2, k: number): { exit: ExitKind; path: V2[]
     const toCar = carParkApproach([-HX + 0.3, door[1]], k).reverse();
     return { exit: 'left', path: [at, front, [LEFT_WALK_X, FRONT_AISLE_Z], [LEFT_WALK_X, door[1]], ...toCar] };
   }
-  if (k % 3 === 0) return { exit: 'main', path: [at, front, [MAIN_GATE.x, FRONT_AISLE_Z], [MAIN_GATE.x, HZ + 1.0]] };
+  // Out of the main gate onto the pavement, and off along it (left or right by turns): never gone at the door.
+  if (k % 3 === 0) {
+    const end = streetEnd(k % 2 ? 1 : -1, k);
+    return { exit: 'main', path: [at, front, [MAIN_GATE.x, FRONT_AISLE_Z], [MAIN_GATE.x, HZ + 1.0], [MAIN_GATE.x, WALKWAY_Z], end] };
+  }
+  // Out of the right-hand side door into the park, down its loop path, out of its gate and off down the street.
   const d = SIDE_DOORS_RIGHT.reduce((best, z) => (Math.abs(z - FRONT_AISLE_Z) < Math.abs(best - FRONT_AISLE_Z) ? z : best));
-  return { exit: 'right', path: [at, front, [HX - 1.2, FRONT_AISLE_Z], [HX - 1.2, d], [HX + 1.2, d]] };
+  return { exit: 'right', path: [at, front, [HX - 1.2, FRONT_AISLE_Z], [HX - 1.2, d], [HX + 1.2, d], [LOOP.x0, d], [LOOP.x0, LOOP.z1], ...PARK_EXIT] };
 }
 
 /** The way the customer just served at desk `id` walks off, from their place in its line (`k`, 0 at the counter or the machine). */

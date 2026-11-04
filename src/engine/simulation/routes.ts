@@ -1,14 +1,14 @@
 import { STATIONS, type StationId } from '../../sim/topology';
 import { evacuationRoute } from '../world/evacuation';
 import { arriveRoute, leaveRoute } from './staff';
-import { arrivalPath, atmExitPath, queueSlots, type Pose, type V2 } from '../plan/layout3d';
+import { arrivalPath, atmExitPath, queueSlots, type ArrivalOrigin, type Pose, type V2 } from '../plan/layout3d';
 
 /** How people find their way in the 3D office (Strategy). */
 
 /** A customer's ways at one desk. */
 export interface PathfindingStrategy {
-  /** The way a newcomer walks to place `place` of the desk's line (0 at the counter or machine). */
-  approach(place: number): V2[];
+  /** The way a newcomer walks to place `place` of the desk's line (0 at the counter or machine), from `origin` (a counter's: a car, the gate, the street). */
+  approach(place: number, origin?: ArrivalOrigin): V2[];
   /** The way the customer served in place `k` of the line walks off. */
   depart(k: number): V2[];
 }
@@ -27,8 +27,8 @@ class PavementAtmRoute implements PathfindingStrategy {
 /** A counter in the branch: from the car park in at the side door, along the wall and the front aisle; back out the same way. */
 class SideDoorCounterRoute implements PathfindingStrategy {
   constructor(private readonly id: StationId) {}
-  approach(place: number): V2[] {
-    return arrivalPath(this.id, place);
+  approach(place: number, origin?: ArrivalOrigin): V2[] {
+    return arrivalPath(this.id, place, origin);
   }
   depart(k: number): V2[] {
     return evacuationRoute(queueSlots(this.id, k + 1)[k]!, 2).path;

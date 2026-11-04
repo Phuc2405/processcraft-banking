@@ -7,6 +7,9 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Vector3, type Group, type Mesh } from 'three';
 import { STATIONS, type StationId } from '../../../sim/topology';
 import { bankStore, useBankStore } from '../../../store/bankStore';
+import { useDeskVisited } from '../../../store/deskVisitStore';
+import { useLocale } from '../../../i18n/locale';
+import { acronymsIn } from '../codeGlossary';
 import { pickPlace, useTourLit } from './tourHooks';
 import { useTerms } from '../useTerms';
 import { CustomerFigure, SeatedAvatar } from './Avatars';
@@ -199,6 +202,7 @@ function DeskSeats({ id, accent, absent, early }: { id: StationId; accent: strin
   const select = useBankStore((s) => s.select);
   const seats = useMemo(() => seatOffsets(workers.length), [workers.length]);
   const automated = isAutomatedNode(id);
+  const visited = useDeskVisited(id);
   return (
     <>
       {workers.map((w, i) => {
@@ -220,7 +224,7 @@ function DeskSeats({ id, accent, absent, early }: { id: StationId; accent: strin
             <SeatedAvatar
               id={w.id}
               profile={w.profile}
-              working={w.working}
+              working={w.working || visited}
               fatigue={w.fatigue}
               productivity={w.productivity}
               surge={surge}
@@ -468,6 +472,8 @@ function DeskTooltip3D({ id, top }: { id: StationId; top: number }) {
   const terms = useTerms();
   const rules = routingRules(id);
   const { side, at } = useTipPlacement(id, top);
+  const locale = useLocale();
+  const expanded = acronymsIn(terms.stationTitle(id), locale);
   return (
     // Above the badges' layer (the canvas) and every other overlay, on the side where it hides none of this desk's badges.
     <Html position={at} zIndexRange={[60, 50]} style={{ pointerEvents: 'none' }}>
@@ -479,6 +485,11 @@ function DeskTooltip3D({ id, top }: { id: StationId; top: number }) {
         className="w-[260px] rounded-lg border border-slate-500 bg-slate-900 px-3 py-2 text-left shadow-[0_10px_30px_rgba(0,0,0,0.6)]"
       >
         <div className="text-[13px] font-semibold leading-snug text-slate-50">{terms.stationTitle(id)}</div>
+        {expanded.map((a) => (
+          <div key={a.key} className="mt-0.5 text-[11.5px] font-medium leading-snug text-sky-200" data-testid="desk-tip-acronym">
+            {a.label}: {a.full}
+          </div>
+        ))}
         <p className="mt-0.5 text-[12px] leading-snug text-slate-300">{terms.tip(id)}</p>
         {(rules.pass.length > 0 || rules.decline.length > 0) && (
           <dl className="mt-1.5 space-y-0.5 text-[11.5px] leading-snug">

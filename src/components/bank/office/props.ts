@@ -182,6 +182,10 @@ export function stationProp(id: StationId): PropParts {
       return network();
     case 'AML_DESK':
       return recon();
+    case 'SAVINGS_DESK':
+      return ledgerBook('#047857');
+    case 'COLLATERAL_VAULT':
+      return strongbox();
     case 'DISPUTE_DESK':
       return ledgerBook('#7c2d12');
     case 'GATE_SWIFT':

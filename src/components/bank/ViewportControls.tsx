@@ -74,13 +74,14 @@ function ViewportControlsView() {
     ro.observe(map);
     return () => ro.disconnect();
   }, [kickoff]);
-  useMeasuredBox(box, (b) => topBand.setState({ dock: b }), [rightInset, scope, touring, noWebgl, kickoff]);
+  const covered = useInspectorCovers();
+  useMeasuredBox(box, (b) => topBand.setState({ dock: b }), [rightInset, scope, touring, noWebgl, kickoff, covered]);
   useEffect(() => {
     if (kickoff) topBand.setState({ dock: null });
   }, [kickoff]);
   if (kickoff) return null;
   return (
-    <div ref={box} className="pointer-events-none absolute top-3 z-40 flex w-max -translate-x-1/2 flex-col items-center transition-[left] duration-200 ease-out" style={{ left: `calc(50% - ${Math.round(rightInset / 2)}px)`, maxWidth: `calc(100% - ${rightInset + 16}px)` }} data-testid="viewport-controls">
+    <div ref={box} className={`pointer-events-none absolute top-3 z-40 w-max ${covered ? 'hidden' : 'flex'} -translate-x-1/2 flex-col items-center transition-[left] duration-200 ease-out`} style={{ left: `calc(50% - ${Math.round(rightInset / 2)}px)`, maxWidth: `calc(100% - ${rightInset + 16}px)` }} data-testid="viewport-controls">
       <div className={`pointer-events-auto flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-2xl border border-slate-800 p-1.5 px-3 shadow-2xl ${solid ? 'bg-slate-900/95' : 'bg-slate-950/90 backdrop-blur-md'}`} role="toolbar" aria-label={t('Viewport')}>
         <SegmentedToggle<Scope> label={t('Scope')} value={scope} options={SCOPE_OPTIONS()} onChange={setScope} testId="scope" stateKey="scope" title={t(SCOPE_TITLE)} />
         <span className="h-5 w-px bg-slate-800" aria-hidden="true" />
@@ -120,6 +121,18 @@ export function useRightInset(): number {
 }
 
 const SHORT_MAP_PX = 420;
+
+/** The least map a floating control needs beside the open inspector. With less, the inspector covers the map and the controls wait. */
+export const MIN_FREE_MAP_PX = 360;
+
+/** Whether the open inspector leaves the map too narrow for its floating controls, given the map's measured width (0 = unmeasured). */
+export const inspectorCoversMap = (mapW: number, inspectorWidth: number, open: boolean): boolean => open && mapW > 0 && mapW - inspectorWidth - ZOOM_TOOLBAR_GUTTER < MIN_FREE_MAP_PX;
+
+/** True while the inspector is a full-width sheet over a narrow map: the viewport dock, legend, demo bar and 3D toolbar stand aside, rather than crushing into a sliver. */
+export function useInspectorCovers(): boolean {
+  const mapW = useTopBand((s) => s.mapW);
+  return useBankStore((s) => inspectorCoversMap(mapW, s.inspectorWidth, s.selection.kind !== 'none'));
+}
 
 /** A floating panel's box on the map, in pixels from the map's top-left corner. */
 export type MapBox = ScreenRect;

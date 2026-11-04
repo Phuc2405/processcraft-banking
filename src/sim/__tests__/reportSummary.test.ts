@@ -4,7 +4,7 @@ import { churnFor, closeBook, openingBook, signupsFor, STARTING_CUSTOMERS, START
 import { DECLINE_REASONS, pnl } from '../kpis';
 import { CSV_HEADER, DECLINE_GROUPS, declineGroups, pnlLines, reportCsv, reportFileName, revenueVsLosses, signedMoney, takeaway, topDrain } from '../reportSummary';
 import { sumReports, simulateDay } from '../whatIf';
-import type { DayReport } from '../types';
+import type { DayReport, DeclineReason } from '../types';
 
 const day1 = (): DayReport => simulateDay({ seed: 2026, day: 1, rules: {}, cover: {} });
 
@@ -115,6 +115,12 @@ describe('the overview', () => {
     const groups = declineGroups(r);
     expect(groups.reduce((n, g) => n + g.count, 0)).toBe(DECLINE_REASONS.reduce((n, reason) => n + r.kpis.declines[reason], 0));
     expect(groups.reduce((n, g) => n + g.share, 0)).toBeCloseTo(1, 9);
+  });
+
+  it('counts a DTI refusal as a risk block, not as a lack of money', () => {
+    const groupOf = (reason: DeclineReason) => DECLINE_GROUPS.find((g) => g.reasons.includes(reason))?.id;
+    expect(groupOf('CREDIT_RISK')).toBe('RISK');
+    expect(groupOf('FUNDS')).toBe('NSF');
   });
 
   it('leads with the costliest problem and links it to its chapter (fraud → Chapter 2)', () => {

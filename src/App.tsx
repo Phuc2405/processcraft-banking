@@ -12,6 +12,7 @@ import { LanguageToggle } from './components/shell/LanguageToggle';
 import { SmallScreenBanner } from './components/shell/SmallScreenBanner';
 import { tr, useLocale } from './i18n/locale';
 import { uiStore, useUiStore } from './store/uiStore';
+import { useAcademyStore } from './store/academyStore';
 import { audioSupported, bindAudioFX } from './utils/audioFX';
 import { ProcessCanvas } from './components/canvas/ProcessCanvas';
 import { EvaluationPanel } from './components/evaluation/EvaluationPanel';
@@ -95,7 +96,7 @@ function TopBar({ view, onView }: { view: View; onView: (v: View) => void }) {
     { id: 'lab', label: tr({ en: 'Build Lab', vi: 'Phòng dựng quy trình' }), hint: tr({ en: 'Build each process yourself from the parts and get graded', vi: 'Tự dựng từng quy trình từ các thành phần và được chấm điểm' }) },
   ];
   return (
-    <header className="flex h-12 w-full shrink-0 flex-row flex-nowrap items-center justify-between gap-1.5 whitespace-nowrap border-b border-slate-800 bg-slate-950 px-3 [&>*]:shrink-0 [&_button]:whitespace-nowrap">
+    <header className="flex min-h-12 w-full min-w-0 shrink-0 flex-row flex-wrap items-center justify-between gap-x-1.5 gap-y-1 whitespace-nowrap border-b border-slate-800 bg-slate-950 px-3 py-1.5 [&>*]:shrink-0 [&_button]:whitespace-nowrap" data-testid="app-header">
       <div className="flex items-center gap-2">
         <span className="grid h-7 w-7 place-items-center rounded-md bg-gradient-to-br from-lime-300 to-sky-500 text-[13px] font-black text-slate-950" aria-hidden="true">
           P
@@ -123,7 +124,7 @@ function TopBar({ view, onView }: { view: View; onView: (v: View) => void }) {
       <SwitchModeButton />
       <SearchBar onBeforeGo={() => view !== 'bank' && onView('bank')} />
       <KnowledgeShortcuts />
-      <div className="flex items-center gap-1.5">
+      <div className="flex max-w-full flex-wrap items-center justify-end gap-1.5">
         {view === 'bank' && <AcademySplitToggle />}
         {view === 'bank' && <AcademyButton />}
         {view === 'bank' && <AmlButton />}
@@ -133,11 +134,19 @@ function TopBar({ view, onView }: { view: View; onView: (v: View) => void }) {
         {view === 'lab' && <ModeToggle />}
         <SoundToggle />
         {/* Lifted over the map's overlays and the Academy, Rule Lab and report windows (z-40 to z-50), so the language can always be changed; the windows above it (workspace, Knowledge Base) carry their own. */}
-        <div className="relative z-[60]" data-testid="global-language">
-          <LanguageToggle />
-        </div>
+        <GlobalLanguage />
       </div>
     </header>
+  );
+}
+
+/** The header's language switch. While the Academy is maximized it carries its own inside its header's control row, so this one steps aside instead of floating over it. */
+function GlobalLanguage() {
+  const academyMax = useAcademyStore((s) => s.isMaximized && s.isSplitScreenOpen);
+  return (
+    <div className={`relative z-[60] shrink-0 ${academyMax ? 'invisible' : ''}`} aria-hidden={academyMax || undefined} data-testid="global-language">
+      <LanguageToggle />
+    </div>
   );
 }
 
@@ -251,7 +260,7 @@ export default function App() {
   }, []);
 
   return (
-    <div key={locale} lang={locale} className="flex h-screen min-w-[1180px] flex-col bg-[#060912] text-slate-100">
+    <div key={locale} lang={locale} className="flex h-screen w-full min-w-0 flex-col overflow-x-hidden bg-[#060912] text-slate-100">
       <SmallScreenBanner />
       <TopBar view={view} onView={choose} />
       {view === 'bank' ? <LivingBank /> : <BuildLab />}

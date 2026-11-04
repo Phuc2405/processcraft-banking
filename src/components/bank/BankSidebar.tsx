@@ -199,7 +199,8 @@ export function BankSidebar({ collapsed, onToggle }: { collapsed: boolean; onTog
   }
 
   return (
-    <aside className="flex w-[286px] shrink-0 flex-col border-r border-slate-800 bg-slate-950" aria-label={t('Bank overview')} data-testid="bank-sidebar" data-collapsed="false">
+    // On a phone the open panel floats over the map instead of pushing it to a sliver; the collapsed rail stays in the flow.
+    <aside className="flex w-[286px] max-w-[85vw] shrink-0 flex-col border-r border-slate-800 bg-slate-950 max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-[55] max-md:shadow-2xl" aria-label={t('Bank overview')} data-testid="bank-sidebar" data-collapsed="false">
       <div className="flex items-center gap-1 border-b border-slate-800 p-2" role="tablist">
         {tabs.map((t) => (
           <button

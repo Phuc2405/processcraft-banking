@@ -1,6 +1,6 @@
 import { beatMs, SPEEDS } from '../../sim/clock';
 import type { Weather } from '../world/atmosphere';
-import { DeskStatusFeed, type BankSource } from './deskStatus';
+import { DeskStatusFeed, type BankSource, type DeskOverlay } from './deskStatus';
 import { EntityFactory } from './EntityFactory';
 import { WorldEngine } from './WorldEngine';
 
@@ -15,8 +15,9 @@ export class SimulationEngine {
   constructor(
     readonly bank: BankClockSource,
     private readonly factory: EntityFactory = new EntityFactory(),
+    people?: DeskOverlay,
   ) {
-    this.desks = new DeskStatusFeed(bank);
+    this.desks = new DeskStatusFeed(bank, people);
   }
 
   /** How long the beat now showing stays on screen before the next is due, in real milliseconds (null while paused). */

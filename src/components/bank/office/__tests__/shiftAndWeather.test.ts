@@ -7,7 +7,7 @@ import { fadeToward, WEATHER_BLEND_S } from '../../../../engine/world/atmosphere
 import { MIST_BANKS, MIST_CLIP } from '../Environment3D';
 import { servedExit } from '../../../../engine/world/evacuation';
 import { arriveRoute, arrivalMinute, arrivalState, leaveRoute, STAFF_ARRIVAL } from '../../../../engine/simulation/staff';
-import { ATM_STATIONS, atmBooth, CAR_PARK_FOOTWAY_X, deskPose, EYE_POLAR, ISO_POLAR, KERB_Z, MAIN_GATE, queueSlots, ROAD_END, STREET, WALK_IN_DESKS, type V2 } from '../../../../engine/plan/layout3d';
+import { ATM_STATIONS, atmBooth, deskPose, EYE_POLAR, ISO_POLAR, KERB_Z, MAIN_GATE, queueSlots, ROAD_END, STREET, WALK_IN_DESKS, type V2 } from '../../../../engine/plan/layout3d';
 import { LOT, LOT_SIDE } from '../../../../engine/world/parking';
 import { PARK } from '../../../../engine/world/parkPlan';
 import { ParkCrowd, PARK_MEMBERS, PARK_PACE, PARK_STAY, wantsPark } from '../../../../engine/world/parkLife';
@@ -54,7 +54,8 @@ describe('served at a counter or an ATM: finish, turn, walk away', () => {
     for (const id of WALK_IN_DESKS) {
       const out = servedExit(id);
       expect(out[0]).toEqual(queueSlots(id, 1)[0]);
-      expect(out.at(-1)![0]).toBe(CAR_PARK_FOOTWAY_X);
+      // Off the far end of the street, whichever way out they take.
+      expect(Math.abs(out.at(-1)![0])).toBeGreaterThan(STREET.halfWidth);
       expect(pathLength(out)).toBeGreaterThan(5);
     }
     for (const id of ATM_STATIONS) {

@@ -122,7 +122,9 @@ export function useSmartZoom(camera: SmartZoomCamera): StageRect | null {
   cam.current = camera;
   const wasActive = useRef(false);
   const fitKey = Math.round(camera.fit * 100);
-  // Last target flown to: the same cluster at the same fit is never re-launched.
+  // The inspector takes the map's right side: the cluster is framed again in what is left, so a desk at the edge is not hidden under it.
+  const inspectorOpen = useBankStore((s) => s.selection.kind !== 'none');
+  // Last target flown to: the same cluster at the same fit and free area is never re-launched.
   const flown = useRef('');
 
   // A new cluster (preset click) halts the current glide before paint.
@@ -134,7 +136,7 @@ export function useSmartZoom(camera: SmartZoomCamera): StageRect | null {
     const c = cam.current;
     const ms = prefersReducedMotion() ? 0 : SMART_ZOOM.ms;
     if (rect) {
-      const target = `${key}@${fitKey}`;
+      const target = `${key}@${fitKey}@${inspectorOpen}`;
       if (flown.current === target) return;
       const vp = c.viewport();
       if (!vp) return;
@@ -146,7 +148,7 @@ export function useSmartZoom(camera: SmartZoomCamera): StageRect | null {
       flown.current = '';
       c.home(ms);
     }
-  }, [rect, fitKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [rect, fitKey, inspectorOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Search jump: one place, tighter. Re-runs on refit so a jump made before the map mounted still lands.
   const nav = useNavStore((s) => s.target);

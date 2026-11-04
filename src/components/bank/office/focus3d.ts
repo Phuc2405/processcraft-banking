@@ -1,4 +1,4 @@
-import { focusScope, type OpsSubProcessId } from '../../../sim/retailOps';
+import { focusScope, type DemoGroupId } from '../../../sim/demoGroups';
 import type { PlaceId } from '../../../sim/topology';
 import type { FlowId } from '../../../types/viewport';
 import { LANES, type V2 } from '../../../engine/plan/layout3d';
@@ -28,14 +28,14 @@ export function neighbours(place: PlaceId): ReadonlySet<PlaceId> {
 }
 
 /** The opacity a desk (or kiosk) is drawn at: full when it is in focus, faded otherwise. A pointed-at desk wins over a scenario. */
-export function deskFocus(place: PlaceId, hover: PlaceId | null, flow: FlowId | null, sub: OpsSubProcessId | null = null): number {
+export function deskFocus(place: PlaceId, hover: PlaceId | null, flow: FlowId | null, sub: DemoGroupId | null = null): number {
   if (hover) return neighbours(hover).has(place) ? 1 : DIM.hover;
   if (flow) return focusScope(flow, sub).places.has(place) ? 1 : DIM.flow;
   return 1;
 }
 
 /** The lanes lit now: the pointed-at desk's own, else the guided scenario's; and how much the others fade. */
-export function litLanes(hover: PlaceId | null, flow: FlowId | null, sub: OpsSubProcessId | null = null): { lanes: ReadonlySet<string>; dim: number } {
+export function litLanes(hover: PlaceId | null, flow: FlowId | null, sub: DemoGroupId | null = null): { lanes: ReadonlySet<string>; dim: number } {
   if (hover) return { lanes: new Set(LANES.filter((l) => l.from === hover || l.to === hover).map((l) => l.id)), dim: LANE_DIM };
   if (flow) return { lanes: focusScope(flow, sub).wires, dim: DIM.flow };
   return { lanes: new Set(), dim: 1 };
@@ -44,7 +44,7 @@ export function litLanes(hover: PlaceId | null, flow: FlowId | null, sub: OpsSub
 export type BadgeFocus = 'lit' | 'dim' | 'plain' | 'faded';
 
 /** How a lane's condition badge shows. */
-export function badgeFocus(l: { id?: string; from: PlaceId; to: PlaceId }, hover: PlaceId | null, flow: FlowId | null = null, sub: OpsSubProcessId | null = null): BadgeFocus {
+export function badgeFocus(l: { id?: string; from: PlaceId; to: PlaceId }, hover: PlaceId | null, flow: FlowId | null = null, sub: DemoGroupId | null = null): BadgeFocus {
   if (hover !== null) return l.from === hover || l.to === hover ? 'lit' : 'dim';
   if (flow !== null) return l.id !== undefined && focusScope(flow, sub).wires.has(l.id) ? 'plain' : 'faded';
   return 'plain';

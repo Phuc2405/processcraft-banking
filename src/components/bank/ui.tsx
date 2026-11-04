@@ -31,6 +31,7 @@ export const KIND_LABEL: Record<PacketKind, string> = {
   TELLER: 'Teller cash',
   SWIFT: 'SWIFT remittance',
   DISPUTE: 'Dispute claim',
+  CREDIT_OPS: 'Credit & savings',
   SETTLEMENT: 'Settlement record',
 };
 

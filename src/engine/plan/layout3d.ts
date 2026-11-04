@@ -230,25 +230,43 @@ export const ROPE_END = 1.25;
 /** Where people walk down the car park on the branch's left (as world x): the footway between its inner row of bays and the drive. */
 export const CAR_PARK_FOOTWAY_X = -(FLOOR_SLAB.w / 2 + 3.5);
 
-/** The walk from a parked car to a side door in the left wall. */
-export function carParkApproach(door: V2, k: number): V2[] {
-  const hz = FLOOR_SLAB.d / 2;
-  const z = Math.min(hz - 0.6, Math.max(-hz - 1.0, door[1] + (k % 2 ? -2.2 : 2.2)));
-  return [
-    [CAR_PARK_FOOTWAY_X, z],
-    [CAR_PARK_FOOTWAY_X, door[1]],
-    [-FLOOR_SLAB.w / 2 - 0.1, door[1]],
-  ];
+/**
+ * Nobody appears or vanishes on the map: everyone on foot comes from, and goes to, somewhere real. These are the far ends of the
+ * pavement, past the drawn street on either side (as an ATM customer walks off: atmExitPath), on its walking line.
+ */
+export const STREET_OFF = 7;
+export const streetEnd = (side: -1 | 1, k = 0): V2 => [side * (STREET.halfWidth + STREET_OFF), WALKWAY_Z + (k % 2 ? 0.25 : -0.25)];
+
+/** From the pavement's left end, along it and into the car park's footway at its front (a walker's own lane, `k`, keeps two apart). */
+export const streetToFootway = (k = 0): V2[] => {
+  const end = streetEnd(-1, k);
+  return [end, [CAR_PARK_FOOTWAY_X, end[1]]];
+};
+
+/** The walk to a side door in the left wall, down the car park's footway: from `from` (a parked car's door, parking.ts alightPath), or from the street. */
+export function carParkApproach(door: V2, k: number, from: readonly V2[] = streetToFootway(k)): V2[] {
+  return [...from, [CAR_PARK_FOOTWAY_X, door[1]], [-FLOOR_SLAB.w / 2 - 0.1, door[1]]];
 }
 
+/** The way in at the grand main entrance: from an end of the pavement, through the gate and along the front aisle. */
+export const mainGateApproach = (k = 0): V2[] => {
+  const end = streetEnd(k % 2 ? 1 : -1, k);
+  return [end, [MAIN_GATE.x, end[1]], [MAIN_GATE.x, FRONT_AISLE_Z]];
+};
+
+/** Where a counter's customer comes from: a parked car (its door's walk to the footway), the main gate, or by default the street and the side door. */
+export type ArrivalOrigin = { car: readonly V2[] } | 'gate' | 'street';
+
 /** The way a customer walks to the back of the queue, never through a rope, a post, a desk or a booth's glass. */
-export function arrivalPath(id: StationId, queued: number): V2[] {
+export function arrivalPath(id: StationId, queued: number, origin: ArrivalOrigin = 'street'): V2[] {
   const door = entrancePoint(id);
   const slots = queueSlots(id, Math.max(1, Math.min(QUEUE_VISIBLE, queued + 1)));
   const tail = slots[slots.length - 1] as V2;
   const mouth = queueMouth(id);
-  if (STATIONS[id].kind === 'ATM') return [[door[0], mouth.outside[1]], mouth.outside, mouth.inside, tail];
-  return [...carParkApproach(door, queued), door, [LEFT_WALK_X, door[1]], [LEFT_WALK_X, FRONT_AISLE_Z], [tail[0], FRONT_AISLE_Z], tail];
+  if (STATIONS[id].kind === 'ATM') return [streetEnd(-1, queued), [door[0], mouth.outside[1]], mouth.outside, mouth.inside, tail];
+  if (origin === 'gate') return [...mainGateApproach(queued), [tail[0], FRONT_AISLE_Z], tail];
+  const approach = carParkApproach(door, queued, origin === 'street' ? undefined : origin.car);
+  return [...approach, door, [LEFT_WALK_X, door[1]], [LEFT_WALK_X, FRONT_AISLE_Z], [tail[0], FRONT_AISLE_Z], tail];
 }
 
 /** The walking line along the pavement: between the ATM booths' fronts and the street lamps at the kerb. */
@@ -336,7 +354,7 @@ export function laneAt(points: readonly V2[], d: number): { x: number; z: number
 
 /** When a move starts and how long its hop takes, in milliseconds. The same timing the 2D map gives its travellers. */
 export function hopTiming(at: number, beatMs: number): { delayMs: number; durationMs: number } {
-  return { delayMs: Math.round(at * beatMs * 0.55), durationMs: Math.round(Math.max(240, Math.min(720, beatMs * 0.5))) };
+  return { delayMs: Math.round(at * beatMs * 0.55), durationMs: Math.round(Math.max(320, Math.min(1100, beatMs * 0.5))) };
 }
 
 // Camera

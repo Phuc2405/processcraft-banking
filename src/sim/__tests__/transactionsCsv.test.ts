@@ -158,6 +158,7 @@ describe('the Master Transactions CSV', () => {
       QR: 'VIETQR_NAPAS247',
       TELLER: 'TELLER_CASH',
       SWIFT: 'SWIFT_REMITTANCE',
+      CREDIT_OPS: 'CREDIT_OPERATION',
       DISPUTE: 'DISPUTE_CLAIM',
     });
   });
