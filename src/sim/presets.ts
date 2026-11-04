@@ -5,6 +5,7 @@ import type { FlowId } from '../types/viewport';
 import type { BankRules } from './rules';
 import type { CheckoutKind, Customer, DeclineReason, ExtendedContext } from './types';
 import { opsActionById, type OpsActionId } from './retailOps';
+import { DEFAULT_STP, opsStpVerdict, stpRoute, type StpConfig } from './stpEngine';
 import { scenarioById } from './scenarios';
 import { audToVnd, buildVietQr } from './amlEngine';
 import { activeLocale } from '../i18n/localeCore';
@@ -231,6 +232,7 @@ const OPS_SCENARIO: Readonly<Partial<Record<OpsActionId, string>>> = {
   'bill-nsf-51': 'preset-bill-nsf',
   'bill-timeout-68': 'preset-bill-timeout',
   'fee-collect-fail': 'preset-fee-collect-fail',
+  'fee-annual-waived': 'preset-fee-waived',
   'wallet-name-mismatch': 'preset-wallet-name-mismatch',
   'bnpl-decline-cic': 'preset-bnpl-cic',
   'waterfall-nsf': 'preset-waterfall-nsf',
@@ -260,6 +262,7 @@ const CREDIT_OPS: Readonly<Partial<Record<OpsActionId, { decline: DeclineReason 
   'bill-nsf-51': { decline: 'FUNDS', note: 'The account cannot cover the bill: the direct debit is returned (RC 51).' },
   'bill-timeout-68': { decline: 'TIMEOUT', note: 'The biller did not answer in time: the hold is reversed (RC 68).' },
   'fee-collect-fail': { decline: 'FUNDS', note: 'No balance and no overdraft line: the fee is not collected (RC 51).' },
+  'fee-annual-waived': { decline: null, note: 'Premium spending tier: the annual fee is waived and nothing posts.' },
   'wallet-name-mismatch': { decline: 'A2A_INVALID', note: 'The wallet is not linked to its holder’s own account: refused.' },
   'bnpl-decline-cic': { decline: 'CREDIT_RISK', note: 'Bad debt on the credit bureau (CIC group 3): refused.' },
   'waterfall-nsf': { decline: 'FUNDS', note: 'Nothing collected on the due date: the debt turns overdue.' },
@@ -276,17 +279,22 @@ const CREDIT_OPS: Readonly<Partial<Record<OpsActionId, { decline: DeclineReason 
  * which is not a payment. The bank has no fee channel, so a card fee runs as an authorisation of the fee's amount on a funded account.
  * A credit operation carries the scenario's amount, not `postedCents`: a returned $250 instalment posts only its $15 NSF fee, but $250 is what was declined.
  */
-export function opsCustomer(id: OpsActionId, postedCents?: number): Customer | null {
+export function opsCustomer(id: OpsActionId, postedCents?: number, stp: StpConfig = DEFAULT_STP): Customer | null {
   const scenarioId = OPS_SCENARIO[id];
   const scenario = scenarioId ? scenarioById(scenarioId) : null;
   if (!scenario) return null;
   const amount = postedCents ?? scenario.amountCents;
   const make = (kind: CheckoutKind, p: BankingPayload, extra: Partial<Customer> = {}): Customer => ({ id: 'preset', kind, scenario: scenario.id, minute: 0, payload: p, otpCompletes: true, ...extra });
-  const credit = CREDIT_OPS[id];
-  if (credit) return make('CREDIT_OPS', payload(scenario.amountCents, { channel: 'IN_APP', availableBalance: opsActionById(id).customerCents ?? 90_000 }), { ext: { subject: SUBJECT, creditOps: { route: opsActionById(id).route, label: scenario.title, note: credit.note, decline: credit.decline } } });
+  const def = opsActionById(id);
+  const route = stpRoute(id, def.route, stp);
+  // A case the STP engine takes (other than Pay-in-4, which the live underwriting path routes itself) walks the STP path as a posted operation.
+  const verdict = opsStpVerdict(id, stp);
+  const straight = verdict?.route === 'STP' && id !== 'bnpl-approve-400';
+  const credit = CREDIT_OPS[id] ?? (straight ? { decline: null, note: `Straight-through processing (${verdict!.action}): no desk, posted to the GL in real time.` } : undefined);
+  if (credit) return make('CREDIT_OPS', payload(scenario.amountCents, { channel: 'IN_APP', availableBalance: def.customerCents ?? 90_000 }), { ext: { subject: SUBJECT, creditOps: { route: [...route], label: scenario.title, note: straight ? `${credit.note} STP: no desk, posted in real time.` : credit.note, decline: credit.decline, ...(straight && !route.includes('STP_ENGINE') ? { kioskStp: true } : {}) } } });
   switch (id) {
     case 'bnpl-approve-400':
-      return make('BNPL', payload(scenario.amountCents, { channel: 'ECOMMERCE', availableBalance: 90_000, rawCvv: '123', bnpl: { underwritingScore: 720, downPaymentMinor: 10_000 } }));
+      return make('BNPL', payload(scenario.amountCents, { channel: 'ECOMMERCE', availableBalance: 90_000, rawCvv: '123', bnpl: { underwritingScore: 720, downPaymentMinor: 10_000, dtiPct: 23, cicGroup: 1 } }));
     case 'bill-electric-85':
       return make('POS', payload(scenario.amountCents, { channel: 'POS', availableBalance: 90_000 }));
     case 'fee-annual-45':

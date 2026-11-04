@@ -186,7 +186,7 @@ export class ProcessRunner {
     this.spawnRoot();
   }
 
-  // ── public API ─────────────────────────────────────────────────────────────
+  // public API
 
   get isDone(): boolean {
     return this.finished;
@@ -251,7 +251,7 @@ export class ProcessRunner {
     };
   }
 
-  // ── setup ──────────────────────────────────────────────────────────────────
+  // setup
 
   private spawnRoot(): void {
     const start = this.graph.nodes.find((n) => this.kindOf(n).type === 'EVENT_START');
@@ -289,7 +289,7 @@ export class ProcessRunner {
     return token;
   }
 
-  // ── node metadata ──────────────────────────────────────────────────────────
+  // node metadata
 
   /** Type, capability, latency and config come from the catalog when the node's definition is known. */
   private kindOf(node: ProcessNode): NodeKind {
@@ -324,7 +324,7 @@ export class ProcessRunner {
     return this.nodes.get(nodeId)?.label ?? nodeId;
   }
 
-  // ── scheduling ─────────────────────────────────────────────────────────────
+  // scheduling
 
   /** Removes and returns the ready token with the smallest virtual clock (ties: oldest first). */
   private takeNext(): SimulationToken | null {
@@ -336,7 +336,7 @@ export class ProcessRunner {
     return this.ready.splice(best, 1)[0]!;
   }
 
-  // ── events and anomalies ───────────────────────────────────────────────────
+  // events and anomalies
 
   private emit(event: RunEvent): void {
     this.eventLog.push(event);
@@ -377,7 +377,7 @@ export class ProcessRunner {
     this.addAnomaly('DEAD_END', message, { nodeId: node.id });
   }
 
-  // ── execution ──────────────────────────────────────────────────────────────
+  // execution
 
   private execute(token: SimulationToken): ExecutionStep | null {
     const node = token.currentNodeId !== null ? this.nodes.get(token.currentNodeId) : undefined;
@@ -485,7 +485,7 @@ export class ProcessRunner {
     this.emit({ type: 'TOKEN_FORKED', tokenId: token.id, nodeId: node.id, childTokenIds: children.map((c) => c.id) });
   }
 
-  // ── node types ─────────────────────────────────────────────────────────────
+  // node types
 
   private runTask(token: SimulationToken, node: ProcessNode, kind: NodeKind, step: ExecutionStep): void {
     const handler = kind.capability ? CAPABILITY_HANDLERS[kind.capability] : undefined;
@@ -708,7 +708,7 @@ export class ProcessRunner {
     this.emit({ type: 'TOKEN_COMPLETED', tokenId: token.id, nodeId: node.id, outcome: outcome as Outcome, reasonCode: reason });
   }
 
-  // ── finishing ──────────────────────────────────────────────────────────────
+  // finishing
 
   /** Nothing can move. Anything still waiting at a join is stuck for good. */
   private finalize(): void {

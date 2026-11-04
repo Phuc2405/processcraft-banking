@@ -3,6 +3,7 @@
 import { activeLocale } from '../i18n/localeCore';
 import { LESSONS, type ProcessId } from './learning';
 import { DEFAULT_RULES, type BankRules } from './rules';
+import { decideStp, DEFAULT_STP } from './stpEngine';
 import { STATIONS, WIRES, edgeId, isStation, type DepartmentId, type PlaceId, type StationId } from './topology';
 import { buildWalkthrough, type WalkStep, type Walkthrough } from './walkthrough';
 
@@ -31,6 +32,7 @@ export const SPOTLIGHT_DEFAULT_EXAMPLE: Record<ProcessId, string> = {
   D: 'variance',
   E: 'split',
   F: 'vip',
+  G: 'straight',
 };
 
 /** Where a payment ends up, by the last box of its path. */
@@ -69,6 +71,18 @@ const END_PLACE: Record<string, PlaceId> = {
 const PLACE_OVERRIDE: Partial<Record<ProcessId, Record<string, PlaceId>>> = {
   D: { n_start: 'RECON' },
 };
+
+/** Chapter 7: the boxes the STP engine takes over when an example meets every STP rule (it underwrites and posts in one stop). */
+const STP_LANE_BOXES = new Set(['n_bnpl', 'n_xor_plan', 'n_ledger_dp', 'n_xor_funds']);
+
+/** Whether an example of a process goes straight through under the default STP rules. */
+function onStpLane(process: ProcessId, exampleId: string): boolean {
+  if (process !== 'G') return false;
+  const p = LESSONS.G.examples.find((e) => e.id === exampleId)?.payload;
+  if (!p?.bnpl) return false;
+  const { dtiPct, cicGroup } = p.bnpl;
+  return decideStp({ product: 'BNPL', amountCents: p.amount, ekyc: 'PASS', ...(dtiPct !== undefined ? { dtiPct } : {}), ...(cicGroup !== undefined ? { cicGroup } : {}) }, DEFAULT_STP).route === 'STP';
+}
 
 /** Where the token starts when the story begins somewhere other than the first desk. */
 const ORIGIN: Partial<Record<ProcessId, PlaceId>> = { D: 'OUT_APPROVED' };
@@ -110,7 +124,8 @@ export function wiresOfRoute(route: readonly PlaceId[]): string[] {
 
 // The plan
 
-function resolvePlace(process: ProcessId, step: WalkStep, previous: PlaceId | null): PlaceId {
+function resolvePlace(process: ProcessId, step: WalkStep, previous: PlaceId | null, stpLane: boolean): PlaceId {
+  if (stpLane && STP_LANE_BOXES.has(step.nodeId)) return 'STP_ENGINE';
   if (step.place) return step.place;
   const override = PLACE_OVERRIDE[process]?.[step.nodeId];
   if (override) return override;
@@ -132,10 +147,11 @@ export function spotPlan(process: ProcessId, exampleId: string, rules: Partial<B
 
   const walk = buildWalkthrough(process, exampleId, rules);
   const origin = ORIGIN[process] ?? null;
+  const stpLane = onStpLane(process, walk.exampleId);
   const steps: SpotStep[] = [];
   let previous: PlaceId | null = origin;
   for (const step of walk.steps) {
-    const place = resolvePlace(process, step, previous);
+    const place = resolvePlace(process, step, previous, stpLane);
     const route = previous ? routeBetween(previous, place) : [place];
     steps.push({ step, place, route });
     previous = place;

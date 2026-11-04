@@ -1,5 +1,6 @@
 {
-  "academy/AcademySplitLayout.tsx": 23,
+  "academy/AcademyPanel.tsx": 20,
+  "academy/AcademySplitLayout.tsx": 3,
   "academy/AcademyStudy.tsx": 33,
   "academy/LessonView.tsx": 30,
   "bank/BankMap.tsx": 3,

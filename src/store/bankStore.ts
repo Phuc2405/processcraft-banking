@@ -9,20 +9,21 @@ import { cleanChaos, NO_CHAOS, type ChaosConfig } from '../engine/chaos';
 import { LESSONS, type ProcessId } from '../sim/learning';
 import { DAY_END, DAY_START, DEFAULT_SPEED_INDEX, EOD_START, SLOWEST_SPEED_INDEX, SPEEDS, WORK_END, WORK_START } from '../sim/clock';
 import { clampRules, DEFAULT_RULES, rulesEqual, type BankRules } from '../sim/rules';
+import { clampStp, type StpConfig } from '../sim/stpEngine';
 import { SPOTLIGHT_DEFAULT_EXAMPLE, spotPlan } from '../sim/spotlightPlan';
 import type { TermMode } from '../sim/terms';
 import { flowPlaces } from '../sim/guidedFlows';
 import { STATIONS, type DepartmentId, type PlaceId, type StationId } from '../sim/topology';
 import type { BankView, Customer, PacketTrace } from '../sim/types';
 import type { QuizAnswer } from '../types/tour';
-import { addToTally, advanceIncident, buildTaskCase, caseJournal, nextRetailSeq, RETAIL_TASK, type RetailScenarioId, CHALLENGE, clampCrisisBatch, CRISIS_BATCH, crisisJournalLines, crisisOver, comboXp, STAFF_XP_PER_CORRECT, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, openingLedger, postJournal, recordCareerDecision, rollCrisis, roleForStation, ROLE_STATION, startIncident, type ActiveIncident, type IncidentId, type BadgeId, type CareerProgress, type ChallengeTally, type JournalEntry, type LedgerLine, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffScene, type StaffTaskNo, vaultReplenishment, workingTask } from '../sim/staffRoleplay';
+import { addToTally, advanceIncident, buildTaskCase, caseJournal, nextRetailSeq, RETAIL_TASK, type RetailScenarioId, CHALLENGE, clampCrisisBatch, CRISIS_BATCH, crisisJournalLines, crisisOver, comboXp, STAFF_XP_PER_CORRECT, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, isOverride, openingLedger, postJournal, recordCareerDecision, rollCrisis, roleForStation, ROLE_STATION, startIncident, type ActiveIncident, type IncidentId, type BadgeId, type CareerProgress, type ChallengeTally, type JournalEntry, type LedgerLine, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffScene, type StaffTaskNo, vaultReplenishment, workingTask } from '../sim/staffRoleplay';
 import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
 import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
 import { compareDays, type Comparison } from '../sim/whatIf';
 import { focusScope, type DemoGroupId } from '../sim/demoGroups';
 import type { FlowScope } from '../sim/guidedFlows';
-import { browserStorage, clampInspectorWidth, clearBank, loadAuditLog, loadBank, loadCareer, loadPrefs, loadRetailLedger, saveAuditLog, saveCareer, saveRetailLedger, loadUiPrefs, saveBank, savePrefs, saveUiPrefs, type BankPrefs, type BankSaveResult, type KeyValueStorage, type LabelMode, type UiPrefs, type ViewMode } from './bankPersistence';
+import { browserStorage, clampInspectorWidth, clearBank, loadAuditLog, loadBank, loadCareer, loadPrefs, loadRetailLedger, saveAuditLog, saveCareer, saveRetailLedger, loadUiPrefs, loadStp, saveBank, savePrefs, saveStp, saveUiPrefs, type BankPrefs, type BankSaveResult, type KeyValueStorage, type LabelMode, type UiPrefs, type ViewMode } from './bankPersistence';
 
 export type { ProcessId };
 /** The six chapters of the Academy, in the order of the Course Catalog. */
@@ -128,6 +129,8 @@ export interface AuditEntry {
   expert: boolean;
   /** Expert mode, Decision Support advice revealed. */
   assisted: boolean;
+  /** The analyst approved against the bank's checks (a flagged or referred case): feeds the per-analyst override KPIs. */
+  override?: boolean;
 }
 
 /** The audit trail keeps the latest decisions, across sessions (it is saved beside the ledger). */
@@ -391,6 +394,10 @@ export interface BankState {
   chaos: ChaosConfig;
   /** Switches faults on or off. They apply to the running bank at once and to every replay of the day. */
   setChaos(next: Partial<ChaosConfig>): void;
+  /** The Straight-Through Processing rules (the STP drawer). */
+  stp: StpConfig;
+  /** Changes the STP rules: live for cases arriving from now on, kept across replays and reloads. */
+  setStp(next: Partial<StpConfig>): void;
   /** Raises a chargeback on a card purchase from the live ledger (2110 back to 2010). */
   disputeTransaction(txId: string): DisputeResult;
   /** Sends one hand-made customer into the bank now (the AML desk's test transfer). Returns its id, or null after closing time. */
@@ -431,12 +438,14 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
   let ui: UiPrefs = loadUiPrefs(storage);
   const seed = saved?.seed ?? options.seed ?? DEFAULT_SEED;
   const initialChaos: ChaosConfig = cleanChaos({ ...NO_CHAOS, ...options.chaos });
+  const initialStp: StpConfig = loadStp(storage);
   const makeSim = (): BankSimulation =>
     new BankSimulation({
       seed,
       day: saved?.day ?? 1,
       rules: saved?.rules ?? DEFAULT_RULES,
       chaos: initialChaos,
+      stp: initialStp,
       ...(saved ? { carry: saved.carry, history: saved.history } : {}),
     });
   const sim = makeSim();
@@ -489,9 +498,11 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
     let staffResume = false;
 
     /** Appends a decision to the audit trail. */
-    const audit = (log: readonly AuditEntry[], d: Pick<AuditEntry, 'station' | 'role' | 'caseId' | 'amountCents' | 'latencySec' | 'slaSec' | 'expert' | 'assisted'>, r: StaffDecisionResult, at: string): AuditEntry[] => {
+    const audit = (log: readonly AuditEntry[], d: Pick<AuditEntry, 'station' | 'role' | 'caseId' | 'amountCents' | 'latencySec' | 'slaSec' | 'expert' | 'assisted' | 'override'>, r: StaffDecisionResult, at: string): AuditEntry[] => {
+      const { override, ...rest } = d;
       const entry: AuditEntry = {
-        ...d,
+        ...rest,
+        ...(override ? { override: true } : {}),
         seq: (log[log.length - 1]?.seq ?? 0) + 1,
         shift: get().auditShift,
         at,
@@ -507,7 +518,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
     /** The one way a decision reaches the books: its journal (if it moves money) is posted and its audit row is appended in the same step, with the same timestamp, and both are saved. */
     const book = (
       s: Pick<BankState, 'retailLedger' | 'auditLog'>,
-      d: Pick<AuditEntry, 'station' | 'role' | 'caseId' | 'amountCents' | 'latencySec' | 'slaSec' | 'expert' | 'assisted'>,
+      d: Pick<AuditEntry, 'station' | 'role' | 'caseId' | 'amountCents' | 'latencySec' | 'slaSec' | 'expert' | 'assisted' | 'override'>,
       r: StaffDecisionResult,
     ): Pick<BankState, 'retailLedger' | 'auditLog'> => {
       const at = now().toISOString();
@@ -549,6 +560,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         day,
         rules: s.sim.rules,
         chaos: s.chaos,
+        stp: s.stp,
         carry: startCarry,
         history: s.sim.snapshot().history.filter((r) => r.day < day),
       });
@@ -735,7 +747,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         const staffIncident = advanced && crisisOver(advanced, s.staffCrisisBatch, s.staffCrisisStream) ? rollFor(s.staffDesk, s.staffIncidentMode, advanced.id) : advanced;
         const { career, unlocked } = recordCareerDecision(s.career, { role, drill: head.drill, expected: result.expected, decision, correct: result.correct, latencySec, expert, xp: next.xp - prev.xp });
         saveCareer(storage, career);
-        const { retailLedger, auditLog } = book(s, { station: head.station, role, caseId, amountCents: head.amountCents, latencySec, slaSec, expert, assisted }, result);
+        const { retailLedger, auditLog } = book(s, { station: head.station, role, caseId, amountCents: head.amountCents, latencySec, slaSec, expert, assisted, override: isOverride(head, decision, result.statusCode) }, result);
         set({ staffShift: { ...s.staffShift, [role]: next }, staffTaskSeq: s.retailFocus && s.staffTask === RETAIL_TASK && !crisis ? nextRetailSeq(role, s.staffTaskSeq + 1, s.retailFocus) : s.staffTaskSeq + 1, staffIncident, career, retailLedger, auditLog, ...(unlocked.length ? { badgeUnlocks: [...s.badgeUnlocks, ...unlocked] } : {}) });
         return result;
       },
@@ -767,11 +779,22 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           ...bookCombo(prev, result.correct),
           last: result,
         };
-        const { retailLedger, auditLog } = book(s, { station: desk, role, caseId: packetId, amountCents: reviewed?.amountCents ?? 0, latencySec, slaSec, expert: false, assisted: false }, result);
+        const { retailLedger, auditLog } = book(s, { station: desk, role, caseId: packetId, amountCents: reviewed?.amountCents ?? 0, latencySec, slaSec, expert: false, assisted: false, override: reviewed ? isOverride(reviewed, decision, result.statusCode) : false }, result);
         refresh({ staffShift: { ...s.staffShift, [role]: next }, retailLedger, auditLog });
         return result;
       },
       chaos: initialChaos,
+      stp: initialStp,
+
+      setStp: (next) => {
+        const stp = clampStp({ ...get().stp, ...next });
+        get().sim.setStp(stp);
+        saveStp(storage, stp);
+        set({ stp });
+        refresh();
+        // A what-if on screen was played under the old STP rules.
+        if (get().comparison) get().runComparison(get().comparisonDays);
+      },
 
       setChaos: (next) => {
         const s = get();
@@ -884,7 +907,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
 
       resetBank: () => {
         clearBank(storage);
-        const fresh = new BankSimulation({ seed: get().seed, chaos: get().chaos });
+        const fresh = new BankSimulation({ seed: get().seed, chaos: get().chaos, stp: get().stp });
         startCarry = fresh.carryState();
         set({
           ...endTour(false),
@@ -1235,6 +1258,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
             baseRules: cur.sim.rules,
             tweakedRules: cur.draftRules,
             carry: cur.sim.carryState(),
+            stp: cur.stp,
           });
           set({ comparison, comparisonStatus: 'done' });
           const again = waiting;
@@ -1248,9 +1272,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
     };
   });
 
-  // Every way the bank stops playing (Pause, a reset or replay of today, the next day, a tour taking the clock, the day closing)
-  // freezes the people at the counters too: only a solo demo run ending by itself lets them finish their business. One rule here,
-  // so no path that sets playing:false can leave figures (and the 3D world's clock with them) running behind a paused bank.
+  // Any stop of play (pause, reset, replay, next day, tour, day close) freezes the counter visitors; only a solo demo ending lets them finish.
   store.subscribe((s, prev) => {
     if (prev.playing && !s.playing && !prev.solo) deskVisitStore.getState().freeze();
   });

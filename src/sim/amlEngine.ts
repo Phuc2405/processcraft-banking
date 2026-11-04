@@ -1,4 +1,4 @@
-/** Phase 8: the checkpoint interceptor for the extended channels. onboarding eKYC ──────────────────────────────────────────────▶ AML screen ─▶ CASA (account opened) VietQR QR gateway ─▶ FacePay (> $400) ─▶ FDS (+ AML screen) ─▶ AML desk? ─▶ CASA SWIFT ISO 20022 gateway ─▶ FacePay (> $400) ─▶ FDS (+ AML screen) ─▶ AML desk? ─▶ CASA teller cash teller counter (+ AML screen, CTR) ─▶ AML desk? ─▶ CASA claim disputes desk ─▶ CASA (refund) or declined Every checkpoint is a pure function of the customer, so a day can be replayed exactly and the tests read the same verdicts the map shows. */
+/** The checkpoint interceptor for the extended channels. eKYC: AML screen, then CASA. VietQR and SWIFT: FacePay (over $400), FDS with an AML screen, the AML desk if flagged, then CASA. Teller cash: AML screen and CTR, the AML desk if flagged. Disputes: refund to CASA or decline. Every checkpoint is a pure function of the customer, so a day replays exactly and the tests read the same verdicts the map shows. */
 
 import { nameSimilarity } from '../engine/aml';
 import { BIC_PATTERN } from '../engine/iso20022';
@@ -480,7 +480,8 @@ function planDispute(c: Customer): RoutePlan {
 function planCreditOps(c: Customer): RoutePlan {
   const { route, label, note, decline } = c.ext!.creditOps!;
   const last = route[route.length - 1] as 'OUT_APPROVED' | 'OUT_DECLINED';
-  const stops = route.slice(0, -1).map((place, i) => stop(place, i === 0 ? 'GATE' : 'WORK', label, note, i === 0 || place === 'SAVINGS_DESK' ? { at: 'CREDIT_OPS' } : undefined, 0.5, MS.POSTING));
+  // The STP engine books its own counters (straight-through or fast-fail), so it never carries the credit-ops checkpoint.
+  const stops = route.slice(0, -1).map((place, i) => stop(place, i === 0 ? 'GATE' : 'WORK', label, note, place !== 'STP_ENGINE' && (i === 0 || place === 'SAVINGS_DESK') ? { at: 'CREDIT_OPS' } : undefined, place === 'STP_ENGINE' ? 0.2 : 0.5, MS.POSTING));
   return plan([...stops, end(last, decline ? 'Declined' : 'Done', note)], decline ? 'DECLINED' : 'APPROVED', decline ?? 'CREDIT_OPS_POSTED', decline, []);
 }
 

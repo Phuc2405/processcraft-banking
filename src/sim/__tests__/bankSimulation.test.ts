@@ -311,12 +311,13 @@ describe('temporary cover', () => {
 
   it('go home at the end of the day', () => {
     const sim = new BankSimulation({ seed: SEED });
-    const before = sim.snapshot().stations.SEC_3DS.workers.length;
-    sim.addCover('SEC_3DS');
+    // The debit desk, not the OTP desk: on a flash-sale day the OTP cluster scales itself out (OTP_SURGE_THREADS).
+    const before = sim.snapshot().stations.LEDGER_DEBIT.workers.length;
+    sim.addCover('LEDGER_DEBIT');
     sim.runToEndOfDay();
     sim.nextDay();
     const v = sim.snapshot();
-    expect(v.stations.SEC_3DS.workers).toHaveLength(before);
+    expect(v.stations.LEDGER_DEBIT.workers).toHaveLength(before);
     expect(v.kpis.coverCostCents).toBe(0);
   });
 

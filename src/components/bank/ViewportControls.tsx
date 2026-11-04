@@ -82,7 +82,7 @@ function ViewportControlsView() {
   if (kickoff) return null;
   return (
     <div ref={box} className={`pointer-events-none absolute top-3 z-40 w-max ${covered ? 'hidden' : 'flex'} -translate-x-1/2 flex-col items-center transition-[left] duration-200 ease-out`} style={{ left: `calc(50% - ${Math.round(rightInset / 2)}px)`, maxWidth: `calc(100% - ${rightInset + 16}px)` }} data-testid="viewport-controls">
-      <div className={`pointer-events-auto flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-2xl border border-slate-800 p-1.5 px-3 shadow-2xl ${solid ? 'bg-slate-900/95' : 'bg-slate-950/90 backdrop-blur-md'}`} role="toolbar" aria-label={t('Viewport')}>
+      <div className={`pointer-events-auto flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-2xl border border-slate-800 p-1.5 px-3 shadow-2xl ${solid ? 'bg-slate-900/95' : 'bg-slate-950/90 backdrop-blur-md'}`} role="toolbar" aria-label={t('Viewport')}>
         <SegmentedToggle<Scope> label={t('Scope')} value={scope} options={SCOPE_OPTIONS()} onChange={setScope} testId="scope" stateKey="scope" title={t(SCOPE_TITLE)} />
         <span className="h-5 w-px bg-slate-800" aria-hidden="true" />
         <SegmentedToggle<Dimension> label={t('Dimension')} value={dimension} options={DIMENSION_OPTIONS()} onChange={chooseDimension} testId="dim" stateKey="dimension" />

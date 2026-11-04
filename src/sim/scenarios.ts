@@ -145,6 +145,7 @@ export const PRESET_SCENARIOS: readonly Scenario[] = [
   s('CREDIT_OPS', 'preset-bill-nsf', '🎯', 'Electric Bill Returned', 85, 0, 0, true),
   s('CREDIT_OPS', 'preset-bill-timeout', '🎯', 'Electric Bill, Biller Timeout', 85, 0, 0, true),
   s('CREDIT_OPS', 'preset-fee-collect-fail', '🎯', 'Annual Fee Not Collected', 45, 0, 0, true),
+  s('CREDIT_OPS', 'preset-fee-waived', '🎯', 'Annual Fee Waived (Premium)', 45, 0, 0, true),
   s('CREDIT_OPS', 'preset-wallet-name-mismatch', '🎯', 'Wallet Cash-in, Not Own Name', 100, 0, 0, true),
   s('CREDIT_OPS', 'preset-bnpl-cic', '🎯', 'Pay-in-4 with Bad Bureau Record', 400, 0, 0, true),
   s('CREDIT_OPS', 'preset-waterfall-nsf', '🎯', 'Debt Repayment Returned', 120, 0, 0, true),

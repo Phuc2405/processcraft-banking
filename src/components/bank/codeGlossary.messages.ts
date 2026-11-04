@@ -2,7 +2,7 @@ import { defineMessages } from '../../utils/i18nHelper';
 
 /** Plain-language meanings for the raw codes the desks, the core ledger and the audit report print: desk IDs, status codes, GL accounts and banking acronyms. */
 export const codeGlossaryMessages = defineMessages('codeGlossary', {
-  // ── Zoom and pointer ───────────────────────────────────────────────────
+  // Zoom and pointer
   zoomLabel: { en: 'Preview zoom', vi: 'Thu phóng bản xem trước' },
   zoomOut: { en: '➖ Zoom out', vi: '➖ Thu nhỏ' },
   zoomIn: { en: '➕ Zoom in', vi: '➕ Phóng to' },
@@ -20,7 +20,7 @@ export const codeGlossaryMessages = defineMessages('codeGlossary', {
   acronymsExplained: { en: 'Acronyms explained', vi: 'Giải thích từ viết tắt' },
   ruleLabel: { en: 'Rule: ', vi: 'Quy tắc: ' },
 
-  // ── Desks (station IDs) ────────────────────────────────────────────────────
+  // Desks (station IDs)
   desk_AML_DESK: { en: 'Anti-Money-Laundering (AML) review desk', vi: 'Quầy Phòng chống rửa tiền (AML)' },
   desk_DISPUTE_DESK: { en: 'Transaction dispute & chargeback desk', vi: 'Quầy Xử lý Tra soát & Tranh chấp Giao dịch' },
   desk_BNPL: { en: 'Buy-now-pay-later (Pay-in-4) credit desk', vi: 'Quầy Tín dụng Mua trước trả sau (BNPL)' },
@@ -29,7 +29,7 @@ export const codeGlossaryMessages = defineMessages('codeGlossary', {
   desk_SEC_FDS: { en: 'Fraud detection (FDS) desk', vi: 'Quầy Phát hiện gian lận (FDS)' },
   desk_GATE_SWIFT: { en: 'Cross-border SWIFT payments desk', vi: 'Quầy Thanh toán quốc tế SWIFT' },
 
-  // ── Status codes: desk approvals ───────────────────────────────────────────
+  // Status codes: desk approvals
   status_AML_RELEASED: { en: 'Held payment released after the AML check', vi: 'Đã giải tỏa giao dịch sau khi kiểm tra AML' },
   status_DISPUTE_REFUNDED: { en: 'Dispute refund paid to the customer', vi: 'Đã hoàn tiền tra soát cho khách hàng thành công' },
   status_BNPL_APPROVED: { en: 'Pay-in-4 plan approved', vi: 'Đã duyệt khoản trả góp BNPL' },
@@ -38,7 +38,7 @@ export const codeGlossaryMessages = defineMessages('codeGlossary', {
   status_FDS_CLEAR: { en: 'Fraud check passed', vi: 'Không phát hiện gian lận' },
   status_PACS008_ACCEPTED: { en: 'International transfer accepted and sent', vi: 'Đã chấp nhận và chuyển lệnh chuyển tiền quốc tế' },
 
-  // ── Status codes: desk refusals ────────────────────────────────────────────
+  // Status codes: desk refusals
   status_AML_STR_BLOCKED: { en: 'Blocked and reported as suspicious (STR filed)', vi: 'Đã chặn và báo cáo giao dịch đáng ngờ (STR)' },
   status_AML_SANCTION_MATCH: { en: 'Blocked: name on a sanctions list', vi: 'Đã chặn: trùng danh sách cấm vận' },
   status_AML_FUNNEL_FROZEN: { en: 'Funds frozen: money-mule funnel account', vi: 'Đã phong tỏa: tài khoản trung chuyển tiền (money mule)' },
@@ -63,7 +63,7 @@ export const codeGlossaryMessages = defineMessages('codeGlossary', {
   status_NOSTRO_LIMIT_HOLD: { en: 'Transfer held: not enough in the foreign account', vi: 'Tạm giữ lệnh: tài khoản Nostro không đủ số dư' },
   status_CORRESPONDENT_SANCTIONED: { en: 'Transfer refused: partner bank under sanctions', vi: 'Từ chối chuyển tiền: ngân hàng đại lý bị cấm vận' },
 
-  // ── Status codes: retail operations ────────────────────────────────────────
+  // Status codes: retail operations
   status_FEE_POSTED: { en: 'Fee charged to the account', vi: 'Đã thu phí từ tài khoản' },
   status_FEE_HELD_OVER_LIMIT: { en: 'Fee not charged: over the limit', vi: 'Chưa thu phí: vượt hạn mức' },
   status_DD_PAID: { en: 'Automatic bill payment paid', vi: 'Đã thanh toán hóa đơn tự động' },
@@ -85,6 +85,12 @@ export const codeGlossaryMessages = defineMessages('codeGlossary', {
   status_WATERFALL_REALLOCATED: { en: 'Repayment re-split: fees, then interest, then principal', vi: 'Đã phân bổ lại: phí phạt, rồi lãi, rồi gốc' },
   status_TD_BROKEN_DEMAND_RATE: { en: 'Savings closed early at the lower rate', vi: 'Tất toán sổ tiết kiệm trước hạn, hưởng lãi không kỳ hạn' },
   status_TD_INTEREST_RECALCULATED: { en: 'Savings interest recalculated', vi: 'Đã tính lại lãi tiết kiệm' },
+  status_STP_LIMIT_RAISED: { en: 'STP auto-approve limit raised', vi: 'Đã nâng hạn mức tự duyệt STP' },
+  status_STP_LIMIT_HELD: { en: 'STP limit kept: default risk too high', vi: 'Giữ hạn mức STP: rủi ro vỡ nợ quá cao' },
+  status_STP_OVERRIDE_APPROVED: { en: 'STP exception approved by manual override', vi: 'Đã duyệt ngoại lệ STP thủ công' },
+  status_STP_EXCEPTION_REFUSED: { en: 'STP exception refused by the underwriter', vi: 'Chuyên viên từ chối ngoại lệ STP' },
+  status_STP_RELEASED: { en: 'False positive cleared: released back to STP', vi: 'Báo động giả: giải phóng về luồng STP' },
+  status_AML_SANCTION_BLOCKED: { en: 'Sanctions match confirmed: blocked and reported', vi: 'Xác nhận trùng cấm vận: phong tỏa và báo cáo' },
   status_TD_LIEN_MARKED: { en: 'Savings locked as loan security', vi: 'Đã phong tỏa sổ tiết kiệm làm tài sản bảo đảm' },
   status_TD_LTV_EXCEEDED: { en: 'Loan refused: too large for the savings pledged', vi: 'Từ chối vay: vượt tỷ lệ cho vay trên tài sản bảo đảm' },
   status_COLLATERAL_LIQUIDATED: { en: 'Pledged savings used to repay the loan', vi: 'Đã xử lý tài sản bảo đảm để thu nợ' },
@@ -102,7 +108,7 @@ export const codeGlossaryMessages = defineMessages('codeGlossary', {
   status_CLEARING_SUSPENSE_PARKED: { en: 'Unmatched amount parked in the holding account', vi: 'Đã treo khoản chưa khớp vào tài khoản treo' },
   status_CLEARING_MATCHED: { en: 'Interbank records matched', vi: 'Đã khớp đối soát liên ngân hàng' },
 
-  // ── Status codes: live-queue decline reasons ───────────────────────────────
+  // Status codes: live-queue decline reasons
   status_FUNDS: { en: 'Refused: not enough money', vi: 'Từ chối: không đủ số dư' },
   status_DCVV_EXPIRED: { en: 'Refused: card security code expired', vi: 'Từ chối: mã bảo mật thẻ đã hết hạn' },
   status_DCVV_MISMATCH: { en: 'Refused: wrong card security code', vi: 'Từ chối: sai mã bảo mật thẻ' },
@@ -120,7 +126,7 @@ export const codeGlossaryMessages = defineMessages('codeGlossary', {
   status_BIOMETRIC_AUTH_REQUIRED: { en: 'Refused: face check needed for a large transfer', vi: 'Từ chối: cần xác thực khuôn mặt cho giao dịch lớn' },
   status_QR_PAYLOAD_INVALID: { en: 'Refused: QR code invalid', vi: 'Từ chối: mã QR không hợp lệ' },
 
-  // ── GL accounts in plain words ─────────────────────────────────────────────
+  // GL accounts in plain words
   glPlain_ATM_CASH: { en: 'Cash inside the ATMs', vi: 'Tiền mặt trong máy ATM' },
   glPlain_VAULT_CASH: { en: 'Cash kept in the branch vault', vi: 'Tiền mặt cất trong kho quỹ chi nhánh' },
   glPlain_TILL_CASH: { en: 'Cash in the teller’s drawer', vi: 'Tiền mặt trong ngăn kéo giao dịch viên' },
@@ -152,7 +158,7 @@ export const codeGlossaryMessages = defineMessages('codeGlossary', {
   glPlain_GOV_ASSET_RECOVERY: { en: 'Criminal money the FIU ordered seized, owed to the state', vi: 'Tiền phạm tội FIU ra lệnh tịch thu, phải nộp cho Nhà nước' },
   glPlain_REGULATORY_PENALTY_EXPENSE: { en: 'Fines the regulator charged the bank', vi: 'Tiền phạt cơ quan quản lý áp cho ngân hàng' },
 
-  // ── Banking acronyms and terms ─────────────────────────────────────────────
+  // Banking acronyms and terms
   term_CTR: { en: 'Cash Transaction Report: large cash transaction (> $10,000) reported to the regulator', vi: 'Báo cáo giao dịch tiền mặt giá trị lớn (> $10,000)' },
   term_STR: { en: 'Suspicious Transaction Report: possible money laundering or structuring reported to the regulator', vi: 'Báo cáo giao dịch nghi vấn rửa tiền / chia nhỏ khoản tiền' },
   term_SLA: { en: 'Service Level Agreement: the time allowed to finish a review', vi: 'Cam kết mức độ dịch vụ: thời gian tối đa để xử lý một hồ sơ' },

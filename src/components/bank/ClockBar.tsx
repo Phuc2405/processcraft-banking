@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, 
 import { DAY_END, DAY_START, formatClock, PHASES, SPEEDS, speedNameText, type Phase } from '../../sim/clock';
 import { eventText } from '../../sim/traffic';
 import { SKIP_TARGETS, useBankStore } from '../../store/bankStore';
-import { LedgerButton } from './LedgerDrawer';
+import { ledgerUi } from '../../data/ledgerCopy';
 import { fractionToMinute, keyStep, minuteToFraction, SEGMENT_WIDTH } from './timeline';
 
 const PHASE_STYLE: Record<Phase, { chip: string; bar: string; label: string }> = {
@@ -362,3 +362,27 @@ export function ClockBar() {
   );
 }
 
+/** The header button that opens the drawer. The dot says at a glance whether the day's books agree. */
+export function LedgerButton() {
+  const open = useBankStore((s) => s.ledgerOpen);
+  const toggle = useBankStore((s) => s.toggleLedger);
+  const lines = useBankStore((s) => s.view.ledger.lines);
+  const balanced = useBankStore((s) => s.view.ledger.trial.balanced);
+  const ui = ledgerUi().bank;
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-pressed={open}
+      title={ui.buttonTitle}
+      data-testid="bank-ledger-toggle"
+      className={`flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium ring-1 transition ${open ? 'bg-slate-700 text-white ring-slate-500' : 'text-slate-300 ring-slate-700 hover:bg-slate-800'}`}
+    >
+      <span className={`h-2 w-2 rounded-full ${balanced ? 'bg-emerald-400' : 'bg-rose-400'}`} aria-hidden="true" />
+      {ui.button}
+      <span className="tabular-nums text-slate-500" data-testid="bank-ledger-count">
+        {lines}
+      </span>
+    </button>
+  );
+}

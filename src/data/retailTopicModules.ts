@@ -243,6 +243,35 @@ export const TOPIC_MODULES: Readonly<Record<string, readonly TopicModule[]>> = {
       keywords: ['nfc', 'c06', 'liveness', 'mule', 'tai khoan trung gian', 'cps 234', 'edd'],
     }),
   ],
+  'retail-stp': [
+    written('retail-stp-detail', {
+      iso: [
+        { hop: 'Merchant → Bank', message: 'Pay-in-4 request (pain.001 / API)', meaning: L('The basket, the customer and the instalment plan asked for.', 'Giỏ hàng, khách hàng và kế hoạch trả góp được đề nghị.') },
+        { hop: 'Bank → Credit bureau', message: 'CIC group enquiry', meaning: L('The worst debt group the customer has anywhere.', 'Nhóm nợ xấu nhất của khách tại mọi tổ chức.') },
+        { hop: 'STP engine → Core', message: 'Real-time GL posting', meaning: L('Dr instalment principal and CASA down payment / Cr interbank to the shop.', 'Nợ gốc trả góp và CASA trả trước / Có liên ngân hàng cho cửa hàng.') },
+        { hop: 'Screening → AML desk', message: 'AML_SANCTION_MATCH hold', meaning: L('An STP payment stopped for a person to clear.', 'Lệnh STP bị dừng để người xử lý.') },
+      ],
+      sop: [
+        L('Fast-fail at the gate: bad eKYC, a high-risk device, CIC group 3 to 5.', 'Loại sớm tại cổng: eKYC lỗi, thiết bị rủi ro cao, CIC nhóm 3 đến 5.'),
+        L('Run the STP rules: amount, DTI, CIC group 1, sanctions screen.', 'Chạy quy tắc STP: số tiền, DTI, CIC nhóm 1, sàng lọc cấm vận.'),
+        L('All pass: post to the GL in real time, no desk.', 'Đạt hết: hạch toán sổ cái tức thì, không qua quầy.'),
+        L('Any breach: route to the desk with its flags (STP fallback).', 'Vi phạm bất kỳ: chuyển về quầy kèm cờ lý do (STP fallback).'),
+        L('Desk decides on evidence and logs every override.', 'Quầy quyết định dựa trên bằng chứng và ghi vết mọi lần duyệt ngoại lệ.'),
+      ],
+      redFlags: [
+        L('STR climbing while expected bad debt climbs too: the rules are too loose.', 'STR tăng trong khi nợ xấu dự kiến cũng tăng: quy tắc quá lỏng.'),
+        L('Overrides with no recorded reason, or one underwriter overriding far more than peers.', 'Duyệt ngoại lệ không ghi lý do, hoặc một chuyên viên duyệt ngoại lệ nhiều bất thường.'),
+        L('Thresholds changed under queue pressure with no risk sign-off.', 'Thay đổi ngưỡng dưới áp lực hàng chờ mà không có phê duyệt rủi ro.'),
+      ],
+      rules: [
+        { source: L('ISO 20022 (pacs / pain / camt)', 'ISO 20022 (pacs / pain / camt)'), rule: L('Structured payment data that a rule engine can decide on without a person.', 'Dữ liệu thanh toán có cấu trúc giúp bộ quy tắc quyết định mà không cần người.') },
+        { source: L('SBV Circular 31/2024/TT-NHNN', 'Thông tư 31/2024/TT-NHNN'), rule: L('The five debt groups the CIC check reads; groups 3 to 5 are bad debt.', 'Năm nhóm nợ mà bước kiểm tra CIC đọc; nhóm 3 đến 5 là nợ xấu.') },
+        { source: L('NCCP Act 2009 · AUSTRAC AML/CTF Act', 'Luật NCCP 2009 · Luật AML/CTF của AUSTRAC'), rule: L('Responsible lending still applies to an automated approval; sanctions and IFTI duties still apply to an STP payment.', 'Cho vay có trách nhiệm vẫn áp dụng cho duyệt tự động; nghĩa vụ cấm vận và IFTI vẫn áp dụng cho lệnh STP.') },
+      ],
+      diagrams: [],
+      keywords: ['stp', 'straight-through', 'str', 'override', 'fallback', 'fast-fail', 'iso 20022', 'cic'],
+    }),
+  ],
 };
 
 /** The teller counter has no queue scenario, so its flow and decision tree are written here. */

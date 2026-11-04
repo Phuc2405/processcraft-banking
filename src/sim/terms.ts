@@ -153,6 +153,11 @@ const EN: TermBook = {
       short: 'Money Laundering Review',
       tip: 'Compliance officers look at payments the system held as suspicious, report them to the regulator, and freeze money linked to sanctioned people.',
     },
+    STP_ENGINE: {
+      plain: 'Automatic Processing Engine (STP)',
+      short: 'Auto-Processing STP',
+      tip: 'A computer that approves simple, low-risk cases on its own in a split second, so nobody has to queue at a desk for them.',
+    },
     SAVINGS_DESK: {
       plain: 'Savings & Term Deposit Desk',
       short: 'Savings Desk',
@@ -393,6 +398,11 @@ const VI: TermBook = {
       short: 'Rà soát rửa tiền',
       tip: 'Chuyên viên tuân thủ xem các giao dịch bị hệ thống giữ lại vì đáng ngờ, báo cáo cơ quan quản lý và phong tỏa tiền liên quan tới người bị cấm vận.',
     },
+    STP_ENGINE: {
+      plain: 'Trạm xử lý tự động STP',
+      short: 'Xử lý tự động STP',
+      tip: 'Máy tính tự duyệt các hồ sơ đơn giản, rủi ro thấp chỉ trong tích tắc, nên không ai phải xếp hàng chờ quầy.',
+    },
     SAVINGS_DESK: {
       plain: 'Quầy tiết kiệm',
       short: 'Quầy tiết kiệm',
@@ -545,6 +555,7 @@ const EXPERT_STATION_VI: Readonly<Record<StationId, { name: string; blurb: strin
   SEC_FACEPAY: { name: 'Xác thực Sinh trắc học FacePay', blurb: 'Mọi giao dịch chuyển tiền trên $400 (10 triệu VND) phải được xác thực bằng khuôn mặt, đối chiếu với sinh trắc học đã đăng ký khi mở tài khoản.' },
   SEC_FDS: { name: 'Hệ thống FDS & Dấu chân Thiết bị', blurb: 'Hệ thống phát hiện gian lận chấm điểm thiết bị và hành vi: IP bất thường, điện thoại đã root/jailbreak, tấn công dò BIN. Đồng thời chạy sàng lọc AML tự động.' },
   AML_DESK: { name: 'Bàn tra soát AML & Danh sách đen', blurb: 'Chuyên viên tuân thủ rà soát các giao dịch bị giữ: lập STR hoặc giải phóng, và xác nhận các trường hợp trùng danh sách cấm vận OFAC/PEP trước khi phong tỏa tiền.' },
+  STP_ENGINE: { name: 'Trạm xử lý tự động STP (Core Banking Engine)', blurb: 'Xử lý thẳng (STP): kiểm tra eKYC, DTI, nhóm nợ CIC, hạn mức và sàng lọc AML trong vài mili giây, rồi hạch toán vào sổ cái mà không cần con người. Hồ sơ ngoài quy tắc quay về quầy thủ công.' },
   SAVINGS_DESK: { name: 'Quầy Tiết kiệm', blurb: 'Tất toán tiền gửi có kỳ hạn, tính lại tiền lãi từ lãi suất hợp đồng về lãi suất không kỳ hạn khi tất toán sớm.' },
   COLLATERAL_VAULT: { name: 'Kho Tài sản bảo đảm', blurb: 'Quản lý phong tỏa tiền gửi cầm cố: phong tỏa khi vỡ nợ, rồi xử lý theo thứ tự cấn trừ để thu hồi nợ xấu.' },
   DISPUTE_DESK: { name: 'Quầy Tra soát Khiếu nại & Đòi tiền', blurb: 'Chuyên viên xử lý khiếu nại của khách: tra soát thẻ (chargeback), hoàn trả pacs.004 và lệch tiền ATM, trong thời hạn của tổ chức thẻ.' },

@@ -26,7 +26,7 @@ describe('the Academy store', () => {
 
   it('ignores chapters and levels that do not exist', () => {
     const a = createAcademyStore({ storage: null });
-    a.getState().setChapter(7 as never);
+    a.getState().setChapter(8 as never);
     a.getState().setLevel('9.9');
     a.getState().completeLesson('0.0');
     expect(a.getState()).toMatchObject({ activeChapterId: 1, activeLevelId: null, completedLessons: {} });

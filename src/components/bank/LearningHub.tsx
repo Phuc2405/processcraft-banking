@@ -317,7 +317,7 @@ function Lessonview({ lesson }: { lesson: Lesson }) {
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_392px] gap-0">
-      {/* ── Left: the story ─────────────────────────────────────────────── */}
+      {/* Left: the story */}
       <div className="min-h-0 space-y-4 overflow-y-auto p-5" data-testid="hub-left">
         <div>
           <div className="text-[13px] font-semibold uppercase tracking-wider" style={{ color: lesson.accent }}>
@@ -507,7 +507,7 @@ function Lessonview({ lesson }: { lesson: Lesson }) {
         </Panel>
       </div>
 
-      {/* ── Right: experiment ───────────────────────────────────────────── */}
+      {/* Right: experiment */}
       <div className="min-h-0 space-y-4 overflow-y-auto border-l border-slate-800 bg-slate-950/60 p-4" data-testid="hub-right">
         <Panel title={t('Tweak the rules')} testId="dials">
           <div className="space-y-2.5">

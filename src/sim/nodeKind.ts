@@ -1,8 +1,8 @@
-/** How each of the 26 map stations is presented: a machine run by server threads, or a desk run by people. */
+/** How each of the 27 map stations is presented: a machine run by server threads, or a desk run by people. */
 
 import type { StationId } from './topology';
 
-/** The 16 stations a bank runs on servers: gateways, the security and biometric checks, the FDS, the core ledger and the ATM. */
+/** The 17 stations a bank runs on servers: gateways, the security and biometric checks, the FDS, the core ledger, the STP engine and the ATM. */
 export const AUTOMATED_NODES = [
   'GATE_VIRTUAL',
   'GATE_POS',
@@ -20,6 +20,7 @@ export const AUTOMATED_NODES = [
   'SEC_FACEPAY',
   'SEC_FDS',
   'GATE_SWIFT',
+  'STP_ENGINE',
 ] as const satisfies readonly StationId[];
 
 /** The 8 desks people still run: underwriting, the night back office, the teller counter, AML compliance and disputes. */
@@ -48,7 +49,8 @@ export type NodeFamily =
   | 'aml'
   | 'dispute'
   | 'swift'
-  | 'savings';
+  | 'savings'
+  | 'stp';
 
 export const NODE_FAMILY: Readonly<Record<StationId, NodeFamily>> = {
   GATE_VIRTUAL: 'gateway',
@@ -77,6 +79,7 @@ export const NODE_FAMILY: Readonly<Record<StationId, NodeFamily>> = {
   SAVINGS_DESK: 'savings',
   COLLATERAL_VAULT: 'savings',
   GATE_SWIFT: 'swift',
+  STP_ENGINE: 'stp',
 };
 
 const GREEK = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot', 'Golf', 'Hotel'] as const;

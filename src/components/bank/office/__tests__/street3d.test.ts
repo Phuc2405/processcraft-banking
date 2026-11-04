@@ -535,7 +535,10 @@ describe('a desk’s description keeps clear of its own badges', () => {
 describe('the 3D toolbar', () => {
   it('groups the menu with the time, weather and view controls in one centred row', () => {
     const office = src['../Office3D.tsx']!;
-    expect(office).toContain("export const TOOLBAR_CLASS = 'pointer-events-none absolute left-0 z-[45] flex w-full flex-row flex-nowrap items-center justify-center gap-3 px-2';");
+    expect(office).toContain("export const TOOLBAR_CLASS = 'pointer-events-none absolute left-0 z-[45] flex w-full flex-row flex-nowrap items-center justify-center gap-2 px-2';");
+    // Under 1280px of free map the time, weather and labels fold into one display-options popover.
+    expect(office).toContain('export const TOOLBAR_OPTIONS_PX = 1280;');
+    expect(office).toContain('<DisplayOptions labelMode={labelMode}');
     expect(office).not.toContain('ml-auto flex shrink-0 flex-nowrap');
     expect(office).toContain('<SubProcessMenu />');
     expect(office).toContain('data-testid="office-toolbar-right"');

@@ -20,9 +20,9 @@ const ids = (lesson: Lesson, key: GraphKey = lesson.graph): { nodes: Set<string>
 };
 
 describe('lessons: what is on the page', () => {
-  it('has the six chapters of the Course Catalog, strictly in order, under the titles of the brief', () => {
-    expect(LESSON_LIST.map((l) => l.id)).toEqual(['A', 'B', 'C', 'D', 'E', 'F']);
-    expect(LESSON_LIST.map((l) => l.chapter)).toEqual([1, 2, 3, 4, 5, 6]);
+  it('has the seven chapters of the Course Catalog, strictly in order, under the titles of the brief', () => {
+    expect(LESSON_LIST.map((l) => l.id)).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
+    expect(LESSON_LIST.map((l) => l.chapter)).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(LESSONS.A.title).toBe('Virtual Card Tokenisation & dCVV Masking');
     expect(LESSONS.B.title).toBe('3-D Secure 2.x Risk Engine (Frictionless vs Challenge OTP)');
     expect(LESSONS.C.title).toBe('BNPL Pay-in-4 Underwriting & Card Fallback');
@@ -127,6 +127,11 @@ describe('walkthroughs: the real diagram decides', () => {
     ['C', 'lowdown', 'APPROVED', 'Approved: paid in full by card'],
     ['C', 'dpfail', 'DECLINED', 'Declined: down payment declined'],
     ['C', 'bothfail', 'DECLINED', 'Declined: not enough money'],
+    ['G', 'straight', 'APPROVED', 'Approved: Pay-in-4'],
+    ['G', 'dti', 'APPROVED', 'Approved: Pay-in-4'],
+    ['G', 'large', 'APPROVED', 'Approved: Pay-in-4'],
+    ['G', 'group2', 'APPROVED', 'Approved: paid in full by card'],
+    ['G', 'nofunds', 'DECLINED', 'Declined: down payment declined'],
     ['D', 'clean', 'APPROVED', 'Settled'],
     ['D', 'dust', 'APPROVED', 'Settled'],
     ['D', 'variance', 'ROUTED_TO_SUSPENSE', 'Parked in suspense: amount variance'],

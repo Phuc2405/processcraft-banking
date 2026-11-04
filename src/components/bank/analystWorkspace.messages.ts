@@ -2,7 +2,7 @@ import { defineMessages } from '../../utils/i18nHelper';
 
 /** The Staff Roleplay Workspace: role briefs, the 28-task matrix (titles, SOPs, scenes), scenario stories, risk and benefit cards, field tooltips and the consequence overlay. */
 export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
-  // ── Shell ──────────────────────────────────────────────────────────────────
+  // Shell
   enterRoleplay: { en: '🎭 Enter Staff Roleplay', vi: '🎭 Vào vai nhân viên' },
   enterMonitor: { en: '⚙️ System Monitor', vi: '⚙️ Giám sát hệ thống' },
   enterExceptions: { en: '🔍 Review Exception Cases', vi: '🔍 Kiểm duyệt ngoại lệ' },
@@ -21,7 +21,7 @@ export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
   modeStandardHint: { en: 'Plain-language stories and rules, made for beginners.', vi: 'Câu chuyện và quy tắc bằng ngôn ngữ đời thường, dành cho người mới.' },
   modeExpertHint: { en: 'Banking jargon, ISO 20022 codes, strict SLA and regulatory references.', vi: 'Thuật ngữ ngân hàng, mã ISO 20022, SLA nghiêm ngặt và trích dẫn quy định.' },
 
-  // ── Panel A ────────────────────────────────────────────────────────────────
+  // Panel A
   missionBrief: { en: 'Mission brief', vi: 'Nhiệm vụ' },
   slaTarget: { en: 'Try to decide within {sec} seconds', vi: 'Cố gắng quyết định trong {sec} giây' },
   slaTargetExp: { en: 'SLA ≤ {sec}s per review (P95), every breach is logged', vi: 'SLA ≤ {sec} giây mỗi hồ sơ (P95), mọi lần vượt đều được ghi nhận' },
@@ -32,7 +32,7 @@ export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
   },
   regTitle: { en: 'Regulatory reference', vi: 'Căn cứ quy định' },
 
-  // ── Panel B: scenario card ─────────────────────────────────────────────────
+  // Panel B: scenario card
   personaTitle: { en: '👤 Customer & story', vi: '👤 Khách hàng & câu chuyện' },
   triggerTitle: { en: '📌 When does this happen?', vi: '📌 Khi nào xảy ra?' },
   payloadTitle: { en: '🔎 Payload data', vi: '🔎 Dữ liệu giao dịch' },
@@ -55,7 +55,7 @@ export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
   yes: { en: 'Yes', vi: 'Có' },
   no: { en: 'No', vi: 'Không' },
 
-  // ── Personas (names stay as written, the job is localized) ─────────────────
+  // Personas (names stay as written, the job is localized)
   persona_0_job: { en: 'café owner', vi: 'chủ quán cà phê' },
   persona_1_job: { en: 'software engineer', vi: 'kỹ sư phần mềm' },
   persona_2_job: { en: 'nurse on night shifts', vi: 'y tá trực ca đêm' },
@@ -65,7 +65,7 @@ export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
   persona_6_job: { en: 'rideshare driver', vi: 'tài xế xe công nghệ' },
   persona_7_job: { en: 'small-business accountant', vi: 'kế toán doanh nghiệp nhỏ' },
 
-  // ── Scenes: story, then why it reached a human (Standard / Expert) ─────────
+  // Scenes: story, then why it reached a human (Standard / Expert)
   scene_aml_OFAC_story: {
     en: '{name} is sending {amount} to a supplier overseas. The beneficiary name looks a lot like a name on a government sanctions list.',
     vi: '{name} đang chuyển {amount} cho một nhà cung cấp ở nước ngoài. Tên người nhận rất giống một cái tên trong danh sách cấm vận của chính phủ.',
@@ -235,7 +235,7 @@ export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
     vi: 'Điện ISO 20022 pacs.008 FIToFICustomerCreditTransfer chuyển đi. Kiểm tra tiêu đề và ngân hàng trung gian (BIC, EndToEndId, loại tiền quyết toán) trước khi giải ngân từ tài khoản nostro AUD.',
   },
 
-  // ── Risk & benefit, per role (Standard / Expert) ───────────────────────────
+  // Risk & benefit, per role (Standard / Expert)
   risk_aml_approveStd: { en: 'Letting dirty money through can mean huge fines and the bank losing its licence.', vi: 'Để lọt tiền bẩn có thể khiến ngân hàng bị phạt rất nặng và mất giấy phép.' },
   risk_aml_approveExp: { en: 'Breach of sanctions and AML/CTF obligations: civil penalties, enforceable undertakings and correspondent de-risking.', vi: 'Vi phạm nghĩa vụ cấm vận và AML/CTF: phạt dân sự, cam kết cưỡng chế và bị ngân hàng đại lý cắt quan hệ.' },
   risk_aml_rejectStd: { en: 'An honest customer\'s money is stuck, they complain, and they may leave the bank.', vi: 'Tiền của khách trung thực bị kẹt, họ khiếu nại và có thể rời bỏ ngân hàng.' },
@@ -279,7 +279,7 @@ export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
   risk_swift_benefitStd: { en: 'Money arrives first time, on time.', vi: 'Tiền đến đúng nơi, đúng hạn ngay lần đầu.' },
   risk_swift_benefitExp: { en: 'High straight-through processing rate and a reconciled nostro.', vi: 'Tỷ lệ xử lý tự động cao và tài khoản nostro được đối soát.' },
 
-  // ── Panel C ────────────────────────────────────────────────────────────────
+  // Panel C
   actionsTitle: { en: 'Decision', vi: 'Quyết định' },
   approve: { en: '🟢 Approve', vi: '🟢 Cho qua' },
   reject: { en: '🔴 Reject & Block', vi: '🔴 Phong tỏa' },
@@ -300,7 +300,7 @@ export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
   shiftLatency: { en: 'Avg {sec}s per review', vi: 'Trung bình {sec} giây mỗi hồ sơ' },
   objectiveMet: { en: '[ ✅ SHIFT OBJECTIVE MET ]', vi: '[ ✅ ĐÃ ĐẠT MỤC TIÊU CA ]' },
 
-  // ── Roles ──────────────────────────────────────────────────────────────────
+  // Roles
   role_aml_title: { en: 'AML Compliance Officer', vi: 'Chuyên viên Tuân thủ AML' },
   role_aml_briefStd: { en: 'You are the bank\'s money detective. Let honest people through and stop anyone hiding where money really came from.', vi: 'Bạn là thám tử tiền tệ của ngân hàng. Cho người trung thực đi qua và chặn kẻ che giấu nguồn gốc đồng tiền.' },
   role_aml_brief: {
@@ -353,7 +353,7 @@ export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
 
 
 
-  // ── Payload field headers ──────────────────────────────────────────────────
+  // Payload field headers
   field_strScore: { en: 'STR risk score', vi: 'Điểm rủi ro STR' },
   field_watchlist: { en: 'OFAC / PEP watchlist', vi: 'Danh sách OFAC / PEP' },
   field_nameScore: { en: 'Sanctions name score', vi: 'Điểm trùng tên cấm vận' },
@@ -394,7 +394,7 @@ export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
   field_invalidField: { en: 'Invalid field', vi: 'Trường không hợp lệ' },
   field_nostro: { en: 'Nostro / vostro balance', vi: 'Số dư nostro / vostro' },
 
-  // ── Field tooltips (Standard / Expert) ─────────────────────────────────────
+  // Field tooltips (Standard / Expert)
   tip_strScore_std: { en: 'How suspicious the payment looks, from 0 to 100. Higher means more worrying.', vi: 'Mức độ đáng ngờ của giao dịch, từ 0 đến 100. Càng cao càng đáng lo.' },
   tip_strScore_exp: { en: 'Composite Suspicious Transaction Report score: typology weight plus name-screening score.', vi: 'Điểm tổng hợp Báo cáo giao dịch đáng ngờ: trọng số loại hình cộng điểm sàng lọc tên.' },
   tip_watchlist_std: { en: 'Is this person on a list of people banks must not pay, or close to a powerful official?', vi: 'Người này có trong danh sách ngân hàng không được trả tiền, hoặc thân cận quan chức quyền lực không?' },
@@ -474,7 +474,7 @@ export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
   tip_nostro_std: { en: 'The bank\'s own money kept at a bank overseas, used to pay abroad.', vi: 'Tiền của ngân hàng gửi ở ngân hàng nước ngoài, dùng để thanh toán quốc tế.' },
   tip_nostro_exp: { en: 'Available balance on the correspondent nostro (GL 1430) funding outward MT103/pacs.008.', vi: 'Số dư khả dụng trên tài khoản nostro đại lý (TK 1430) dùng cho điện chuyển đi MT103/pacs.008.' },
 
-  // ── Payload values ─────────────────────────────────────────────────────────
+  // Payload values
   val_watchOfac: { en: 'OFAC match', vi: 'Trùng OFAC' },
   val_watchPep: { en: 'PEP', vi: 'Người có ảnh hưởng chính trị (PEP)' },
   val_watchNone: { en: 'No match', vi: 'Không trùng' },
@@ -1002,7 +1002,7 @@ export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
   grade_B: { en: "Good. Accurate enough, but speed or a few errors held you back.", vi: "Khá. Đủ chính xác, nhưng tốc độ hoặc vài lỗi đã kéo bạn lại." },
   grade_C: { en: "Passable. Review the SOP steps before your next shift.", vi: "Đạt mức tối thiểu. Hãy ôn lại các bước SOP trước ca tiếp theo." },
   grade_F: { en: "Not yet. Too few cases or too many errors, so practise in Standard mode first.", vi: "Chưa đạt. Quá ít hồ sơ hoặc quá nhiều lỗi, hãy luyện tập ở chế độ Đơn giản trước." },
-  // ── Combo multiplier & audio ───────────────────────────────────────────────
+  // Combo multiplier & audio
   comboHot: { en: '🔥 Combo x1.5', vi: '🔥 Chuỗi x1.5' },
   comboZone: { en: '⚡ IN THE ZONE (Combo x2.0)', vi: '⚡ CỰC CHÁY (Chuỗi x2.0)' },
   comboStreak: { en: '{n} in a row', vi: '{n} lần đúng liên tiếp' },
@@ -1192,7 +1192,7 @@ export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
   incident_SWIFT_NOSTRO_CRUNCH_rule: { en: 'Hold the message and request nostro liquidity rebalancing.', vi: 'Tạm giữ điện & gửi yêu cầu cân bằng thanh khoản Nostro.' },
   incident_SWIFT_NOSTRO_CRUNCH_alert: { en: '💧 NOSTRO CRUNCH', vi: '💧 CẠN THANH KHOẢN NOSTRO' },
 
-  // ── Career progression & operational badges ────────────────────────────────
+  // Career progression & operational badges
   careerKicker: { en: 'Career', vi: 'Sự nghiệp' },
   careerLevel: { en: 'Lv. {n}', vi: 'Cấp {n}' },
   careerNext: { en: '{xp} / {next} XP to {rank}', vi: '{xp} / {next} XP để lên {rank}' },
@@ -1230,14 +1230,14 @@ export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
   badge_perfectAuditor_toast: { en: '{target} flawless Expert shifts. The regulators would sign off on every file.', vi: '{target} ca Chuyên nghiệp không một lỗi. Thanh tra sẽ ký duyệt mọi hồ sơ của bạn.' },
   unlockKicker: { en: '🎉 Badge unlocked!', vi: '🎉 Mở khóa thành tựu!' },
   unlockClose: { en: 'Awesome!', vi: 'Tuyệt vời!' },
-  // ── Phase 10: retail banking operations (Task 5 at every desk) and the double-entry core ledger ─────────
+  // Phase 10: retail banking operations (Task 5 at every desk) and the double-entry core ledger
   task_ekyc_5_title: { en: 'Retail ops: annual fees, auto-pay & eKYC risk profiling', vi: 'Nghiệp vụ bán lẻ: Phí thường niên, thanh toán tự động & xếp hạng rủi ro eKYC' },
   task_fds_5_title: { en: 'Retail ops: cashback & loyalty points', vi: 'Nghiệp vụ bán lẻ: Hoàn tiền & điểm thưởng' },
   task_cashier_5_title: { en: 'Retail ops: ATM cassette & term-deposit breaks', vi: 'Nghiệp vụ bán lẻ: Hộp tiền ATM & tất toán tiết kiệm trước hạn' },
   task_dispute_5_title: { en: 'Retail ops: ATM cash jam & swallowed card', vi: 'Nghiệp vụ bán lẻ: ATM kẹt tiền & nuốt thẻ' },
   task_swift_5_title: { en: 'Retail ops: interbank ATM fees, clearing breaks & FX volatility holds', vi: 'Nghiệp vụ bán lẻ: Phí ATM liên ngân hàng, lệch bù trừ & tạm giữ điện khi tỷ giá biến động' },
-  task_bnpl_5_title: { en: 'Retail ops: repayment waterfall, TD collateral & NPL provisioning', vi: 'Nghiệp vụ bán lẻ: Thứ tự cấn trừ nợ, cầm cố tiền gửi & phân loại nợ xấu' },
-  task_aml_5_title: { en: 'Retail ops: e-wallets & instant QR', vi: 'Nghiệp vụ bán lẻ: Ví điện tử & QR tức thời' },
+  task_bnpl_5_title: { en: 'Retail ops: repayment waterfall, TD collateral, NPL provisioning & STP', vi: 'Nghiệp vụ bán lẻ: Thứ tự cấn trừ nợ, cầm cố tiền gửi, phân loại nợ xấu & STP' },
+  task_aml_5_title: { en: 'Retail ops: e-wallets, instant QR & STP sanctions holds', vi: 'Nghiệp vụ bán lẻ: Ví điện tử, QR tức thời & STP bị chặn do cấm vận' },
   taskRetailNote: {
     en: 'Retail operations queue: every decision posts a balanced Debit/Credit journal to the core ledger (📒).',
     vi: 'Hàng chờ nghiệp vụ bán lẻ: mỗi quyết định tự động hạch toán một bút toán Nợ/Có cân đối vào sổ cái lõi (📒).',
@@ -1385,6 +1385,14 @@ export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
   rptSec2: { en: 'II. Summary', vi: 'II. Tổng hợp' },
   rptRate: { en: 'Compliance rate', vi: 'Tỷ lệ tuân thủ' },
   rptAvgSla: { en: 'Average SLA time', vi: 'Thời gian xử lý trung bình' },
+  rptOverrideTitle: { en: 'Override KPIs per analyst', vi: 'Chỉ số duyệt ngoại lệ theo chuyên viên' },
+  rptOverrideSeat: { en: 'Analyst (desk · shift)', vi: 'Chuyên viên (quầy · ca)' },
+  rptOverrideShift: { en: 'shift {n}', vi: 'ca {n}' },
+  rptOverrideDecisions: { en: 'Decisions', vi: 'Quyết định' },
+  rptOverrideCount: { en: 'Overrides', vi: 'Duyệt ngoại lệ' },
+  rptOverrideBad: { en: 'Against SOP', vi: 'Trái SOP' },
+  rptOverrideRate: { en: 'Override rate', vi: 'Tỷ lệ ngoại lệ' },
+  rptOverrideAlert: { en: 'Above {pct}%: second-line review', vi: 'Trên {pct}%: kiểm soát tuyến 2 rà soát' },
   rptSec3: { en: 'III. Detailed audit log', vi: 'III. Chi tiết nhật ký kiểm toán' },
   rptColNo: { en: 'No.', vi: 'STT' },
   rptSec4: { en: 'IV. Conclusion & sign-off', vi: 'IV. Kết luận & xác nhận' },
@@ -1646,6 +1654,20 @@ export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
   tip_tdBalance_std: { en: 'Savings the customer offers as security.', vi: 'Khoản tiết kiệm khách dùng làm tài sản bảo đảm.' },
   tip_tdBalance_exp: { en: 'Principal of the term deposit offered as cash collateral.', vi: 'Số tiền gốc của tiền gửi có kỳ hạn dùng làm tài sản bảo đảm.' },
   field_ltv: { en: 'Loan-to-value', vi: 'Tỷ lệ cho vay/tài sản (LTV)' },
+  tip_stpQueue_std: { en: 'How many Pay-in-4 applications are waiting for a person.', vi: 'Số hồ sơ trả góp đang chờ người xử lý.' },
+  tip_stpQueue_exp: { en: 'Depth of the manual appraisal queue: the pressure behind the tuning request.', vi: 'Độ sâu hàng chờ thẩm định thủ công: áp lực đằng sau đề nghị tinh chỉnh.' },
+  tip_stpCurrentLimit_std: { en: 'The largest plan the machine approves on its own today.', vi: 'Khoản trả góp lớn nhất máy tự duyệt hôm nay.' },
+  tip_stpCurrentLimit_exp: { en: 'The live STP amount threshold (bnplMaxCents).', vi: 'Ngưỡng số tiền STP đang áp dụng (bnplMaxCents).' },
+  tip_stpProposedLimit_std: { en: 'The new automatic limit being asked for.', vi: 'Hạn mức tự duyệt mới được đề xuất.' },
+  tip_stpProposedLimit_exp: { en: 'The proposed STP threshold; only this dial changes.', vi: 'Ngưỡng STP đề xuất; chỉ tham số này thay đổi.' },
+  tip_projectedDefault_std: { en: 'How many of the newly automatic plans are expected to go unpaid.', vi: 'Tỷ lệ khoản mới được tự duyệt dự kiến không trả được.' },
+  tip_projectedDefault_exp: { en: 'Projected PD of the newly eligible band; the appetite is 3%.', vi: 'PD dự kiến của nhóm mới đủ điều kiện; khẩu vị rủi ro là 3%.' },
+  tip_stpFlags_std: { en: 'Why the machine passed this case to a person.', vi: 'Lý do máy chuyển hồ sơ này cho người xử lý.' },
+  tip_stpFlags_exp: { en: 'The STP rule breaches carried with the fallback case.', vi: 'Các vi phạm quy tắc STP đi kèm hồ sơ fallback.' },
+  tip_dobMatch_std: { en: 'Whether the customer’s birthday is the listed person’s.', vi: 'Ngày sinh của khách có trùng người trong danh sách không.' },
+  tip_dobMatch_exp: { en: 'A secondary identifier: a DOB mismatch clears most fuzzy name hits.', vi: 'Định danh phụ: ngày sinh không khớp loại trừ phần lớn trùng tên mờ.' },
+  tip_iftiDocs_std: { en: 'Whether the transfer papers are complete.', vi: 'Hồ sơ chuyển tiền có đầy đủ không.' },
+  tip_iftiDocs_exp: { en: 'The IFTI report data AUSTRAC requires for an international funds transfer.', vi: 'Dữ liệu báo cáo IFTI AUSTRAC yêu cầu cho chuyển tiền quốc tế.' },
   tip_ltv_std: { en: 'Overdraft asked for, as a share of the savings.', vi: 'Hạn mức thấu chi xin cấp, tính theo % khoản tiết kiệm.' },
   tip_ltv_exp: { en: 'Requested limit ÷ collateral value; the cap is 90% for TD-backed overdrafts.', vi: 'Hạn mức đề nghị ÷ giá trị tài sản bảo đảm; trần 90% với thấu chi cầm cố tiền gửi.' },
   field_lienStatus: { en: 'Lien status', vi: 'Tình trạng phong tỏa' },
@@ -1994,6 +2016,62 @@ export const analystWorkspaceMessages = defineMessages('analystWorkspace', {
   risk_retail_CLEARING_BREAK_rejectExp: { en: 'An unreconciled break: the settlement account is misstated and the customer is never refunded.', vi: 'Lệch không được xử lý: tài khoản thanh toán bị sai lệch và khách không được hoàn tiền.' },
   risk_retail_CLEARING_BREAK_benefitStd: { en: 'Every cent is accounted for at the end of the day.', vi: 'Mọi đồng tiền đều được đối soát vào cuối ngày.' },
   risk_retail_CLEARING_BREAK_benefitExp: { en: 'Breaks are isolated in GL 2912, so the settlement account reconciles to NAPAS.', vi: 'Các khoản lệch được cô lập ở TK 2912, tài khoản thanh toán khớp với NAPAS.' },
+  retail_STP_TUNING_title: { en: 'STP policy tuning (Risk Officer)', vi: 'Tinh chỉnh chính sách STP (Chuyên viên Rủi ro)' },
+  scene_retail_STP_TUNING_story: { en: 'Flash sale: the Pay-in-4 desk is overflowing. You are asked to raise the STP limit to {amount} for {name}’s portfolio.', vi: 'Flash Sale: Quầy thẩm định BNPL quá tải. Bạn được đề nghị nâng hạn mức STP lên {amount} cho danh mục của {name}.' },
+  scene_retail_STP_TUNING_triggerStd: { en: 'A higher automatic limit empties the queue, but more risky plans get approved without a person looking.', vi: 'Hạn mức tự duyệt cao hơn làm hết hàng chờ, nhưng nhiều khoản rủi ro được duyệt mà không ai xem.' },
+  scene_retail_STP_TUNING_triggerExp: { en: 'Threshold tuning under queue pressure: STR rises with the limit; the projected default rate must stay inside the 3% risk appetite.', vi: 'Tinh chỉnh ngưỡng dưới áp lực hàng chờ: STR tăng theo hạn mức; tỷ lệ vỡ nợ dự kiến phải nằm trong khẩu vị rủi ro 3%.' },
+  retail_STP_TUNING_sopStd_1: { en: 'Read how long the queue is and what limit is proposed.', vi: 'Đọc độ dài hàng chờ và hạn mức được đề xuất.' },
+  retail_STP_TUNING_sopStd_2: { en: 'Keep the DTI cap where it is: change one dial at a time.', vi: 'Giữ nguyên trần DTI: mỗi lần chỉ chỉnh một tham số.' },
+  retail_STP_TUNING_sopStd_3: { en: 'Expected defaults 3% or less → approve the raise. Above 3% → keep the old limit.', vi: 'Vỡ nợ dự kiến từ 3% trở xuống → duyệt nâng hạn mức. Trên 3% → giữ hạn mức cũ.' },
+  retail_STP_TUNING_sopExp_1: { en: 'Confirm the change is to the amount limit only ($200 → $500); DTI cap stays 23%.', vi: 'Xác nhận chỉ thay đổi hạn mức số tiền ($200 → $500); trần DTI giữ 23%.' },
+  retail_STP_TUNING_sopExp_2: { en: 'Compare the projected PD of the newly eligible band with the 3% appetite.', vi: 'So sánh PD dự kiến của nhóm hồ sơ mới đủ điều kiện với khẩu vị 3%.' },
+  retail_STP_TUNING_sopExp_3: { en: 'Inside appetite → raise and log the change (STP_LIMIT_RAISED). Outside → hold (STP_LIMIT_HELD) and add underwriter cover instead.', vi: 'Trong khẩu vị → nâng và ghi vết thay đổi (STP_LIMIT_RAISED). Ngoài khẩu vị → giữ (STP_LIMIT_HELD) và bổ sung chuyên viên thay thế.' },
+  risk_retail_STP_TUNING_approveStd: { en: 'Many risky plans go through with no one checking them.', vi: 'Nhiều khoản rủi ro được duyệt mà không ai kiểm tra.' },
+  risk_retail_STP_TUNING_approveExp: { en: 'Default exposure above appetite is automated at machine speed; provisioning and the NPL ratio climb.', vi: 'Rủi ro vỡ nợ vượt khẩu vị bị tự động hóa ở tốc độ máy; dự phòng và tỷ lệ nợ xấu tăng.' },
+  risk_retail_STP_TUNING_rejectStd: { en: 'Customers keep waiting even though the change was safe.', vi: 'Khách tiếp tục chờ dù thay đổi là an toàn.' },
+  risk_retail_STP_TUNING_rejectExp: { en: 'A safe STR gain is refused: queue SLA breaches and lost Pay-in-4 merchant fees.', vi: 'Từ chối mức tăng STR an toàn: vi phạm SLA hàng chờ và mất phí BNPL từ cửa hàng.' },
+  risk_retail_STP_TUNING_benefitStd: { en: 'The queue empties and the risk stays where the bank wants it.', vi: 'Hàng chờ được giải tỏa và rủi ro vẫn nằm trong mức ngân hàng mong muốn.' },
+  risk_retail_STP_TUNING_benefitExp: { en: 'Higher STR inside risk appetite, with the policy change on the audit trail.', vi: 'STR cao hơn trong khẩu vị rủi ro, thay đổi chính sách được lưu vết kiểm toán.' },
+  retail_STP_EXCEPTION_title: { en: 'STP fallback: manual override (Credit Underwriter)', vi: 'STP fallback: duyệt ngoại lệ (Chuyên viên Thẩm định)' },
+  scene_retail_STP_EXCEPTION_story: { en: '{name}’s {amount} Pay-in-4 dropped out of the STP pipeline and is waiting at your desk.', vi: 'Hồ sơ trả góp {amount} của {name} rơi khỏi luồng STP và đang chờ tại quầy của bạn.' },
+  scene_retail_STP_EXCEPTION_triggerStd: { en: 'The machine only says yes to easy cases. This one broke its rules, so a person decides.', vi: 'Máy chỉ tự duyệt hồ sơ dễ. Hồ sơ này vi phạm quy tắc của máy, nên con người quyết định.' },
+  scene_retail_STP_EXCEPTION_triggerExp: { en: 'STP exception: AMOUNT_OVER_LIMIT and DTI_OVER_LIMIT flags; the policy limit (45% DTI) still applies to a manual override.', vi: 'Ngoại lệ STP: cờ AMOUNT_OVER_LIMIT và DTI_OVER_LIMIT; giới hạn chính sách (DTI 45%) vẫn áp dụng cho duyệt ngoại lệ.' },
+  retail_STP_EXCEPTION_sopStd_1: { en: 'Read why the machine sent the case to you.', vi: 'Đọc lý do máy chuyển hồ sơ cho bạn.' },
+  retail_STP_EXCEPTION_sopStd_2: { en: 'Check the credit history: debt group and late payments.', vi: 'Kiểm tra lịch sử tín dụng: nhóm nợ và số lần trễ hạn.' },
+  retail_STP_EXCEPTION_sopStd_3: { en: 'Group 1 and no late payments → approve. Otherwise → refuse.', vi: 'Nhóm 1 và không trễ hạn → duyệt. Ngược lại → từ chối.' },
+  retail_STP_EXCEPTION_sopExp_1: { en: 'Inspect the STP exception flags; DTI 24% is over the 23% STP cap but under the 45% policy limit.', vi: 'Xem cờ ngoại lệ STP; DTI 24% vượt trần STP 23% nhưng dưới giới hạn chính sách 45%.' },
+  retail_STP_EXCEPTION_sopExp_2: { en: 'Pull the CIC report: any group 2 or worse, or late payments, blocks an override.', vi: 'Tra cứu CIC: nhóm 2 trở lên hoặc có trễ hạn thì không được duyệt ngoại lệ.' },
+  retail_STP_EXCEPTION_sopExp_3: { en: 'Override approve (STP_OVERRIDE_APPROVED): Dr 1320 / Dr 2010 down payment / Cr 1113; log the reason. Else STP_EXCEPTION_REFUSED.', vi: 'Duyệt ngoại lệ (STP_OVERRIDE_APPROVED): Nợ 1320 / Nợ 2010 trả trước / Có 1113; ghi lý do. Ngược lại STP_EXCEPTION_REFUSED.' },
+  risk_retail_STP_EXCEPTION_approveStd: { en: 'A customer with a poor record gets more debt.', vi: 'Khách có lịch sử xấu được cho vay thêm.' },
+  risk_retail_STP_EXCEPTION_approveExp: { en: 'An override against CIC evidence: elevated PD and an override the audit will flag.', vi: 'Duyệt ngoại lệ trái với dữ liệu CIC: PD cao và bị kiểm toán gắn cờ.' },
+  risk_retail_STP_EXCEPTION_rejectStd: { en: 'A good customer is turned away for nothing.', vi: 'Một khách hàng tốt bị từ chối vô lý.' },
+  risk_retail_STP_EXCEPTION_rejectExp: { en: 'A clean exception refused: lost income and the fallback queue grows.', vi: 'Từ chối ngoại lệ sạch: mất thu nhập và hàng chờ ngoại lệ dài thêm.' },
+  risk_retail_STP_EXCEPTION_benefitStd: { en: 'People decide the cases the machine should not.', vi: 'Con người quyết định những hồ sơ máy không nên tự quyết.' },
+  risk_retail_STP_EXCEPTION_benefitExp: { en: 'Exceptions are worked on evidence, and every override is on the audit trail.', vi: 'Ngoại lệ được xử lý dựa trên bằng chứng, mọi lần duyệt ngoại lệ đều được lưu vết.' },
+  retail_STP_SANCTION_title: { en: 'STP sanctions interruption (AML Compliance Officer)', vi: 'STP bị chặn do cấm vận (Chuyên viên Tuân thủ AML)' },
+  scene_retail_STP_SANCTION_story: { en: 'An automated SWIFT transfer of {amount} for {name} was stopped mid-STP by AML_SANCTION_MATCH.', vi: 'Lệnh SWIFT tự động {amount} của {name} bị dừng giữa luồng STP do AML_SANCTION_MATCH.' },
+  scene_retail_STP_SANCTION_triggerStd: { en: 'The name looks like one on a sanctions list. Check whether it is really the same person before the money moves.', vi: 'Tên trông giống một người trong danh sách cấm vận. Kiểm tra có đúng là cùng một người không trước khi chuyển tiền.' },
+  scene_retail_STP_SANCTION_triggerExp: { en: 'Fuzzy sanctions hit inside an STP pipeline: verify date of birth, country and the IFTI documentation (AUSTRAC) to clear a false positive.', vi: 'Trùng mờ danh sách cấm vận trong luồng STP: xác minh ngày sinh, quốc gia và hồ sơ IFTI (AUSTRAC) để loại trừ báo động giả.' },
+  retail_STP_SANCTION_sopStd_1: { en: 'Compare the date of birth with the listed person.', vi: 'So sánh ngày sinh với người trong danh sách.' },
+  retail_STP_SANCTION_sopStd_2: { en: 'Check the transfer papers are complete and the country is not sanctioned.', vi: 'Kiểm tra hồ sơ chuyển tiền đầy đủ và quốc gia không bị cấm vận.' },
+  retail_STP_SANCTION_sopStd_3: { en: 'Different person and papers in order → release. Same person → block and report.', vi: 'Khác người và hồ sơ đầy đủ → giải phóng. Cùng một người → phong tỏa và báo cáo.' },
+  retail_STP_SANCTION_sopExp_1: { en: 'A name score alone is not a match: test the DOB and the nationality against the list entry.', vi: 'Điểm trùng tên chưa phải là trùng khớp: đối chiếu ngày sinh và quốc tịch với bản ghi trong danh sách.' },
+  retail_STP_SANCTION_sopExp_2: { en: 'Verify the IFTI report data (ordering and beneficiary customer, purpose) is complete.', vi: 'Xác minh dữ liệu báo cáo IFTI (người chuyển, người hưởng, mục đích) đầy đủ.' },
+  retail_STP_SANCTION_sopExp_3: { en: 'False positive → Release to STP (STP_RELEASED): Dr 2010 / Cr Nostro. True match → Block & Report: Dr 2010 / Cr frozen assets, SMR to AUSTRAC, no tipping-off.', vi: 'Báo động giả → Giải phóng về STP (STP_RELEASED): Nợ 2010 / Có Nostro. Trùng thật → Phong tỏa & Báo cáo: Nợ 2010 / Có tài sản phong tỏa, gửi SMR cho AUSTRAC, không tiết lộ cho khách.' },
+  risk_retail_STP_SANCTION_approveStd: { en: 'Money reaches a sanctioned person.', vi: 'Tiền đến tay người bị cấm vận.' },
+  risk_retail_STP_SANCTION_approveExp: { en: 'A sanctions breach: regulatory penalty and a reportable failure of the screening control.', vi: 'Vi phạm cấm vận: bị xử phạt và là lỗi kiểm soát sàng lọc phải báo cáo.' },
+  risk_retail_STP_SANCTION_rejectStd: { en: 'An innocent customer’s money is frozen.', vi: 'Tiền của một khách hàng vô tội bị phong tỏa.' },
+  risk_retail_STP_SANCTION_rejectExp: { en: 'A false positive blocked: an unjustified freeze, a complaint and a broken STP SLA.', vi: 'Phong tỏa nhầm báo động giả: phong tỏa không có căn cứ, khiếu nại và vi phạm SLA STP.' },
+  risk_retail_STP_SANCTION_benefitStd: { en: 'Real matches are stopped and everyone else is paid on time.', vi: 'Trùng thật bị chặn, mọi người khác được chuyển tiền đúng hạn.' },
+  risk_retail_STP_SANCTION_benefitExp: { en: 'False positives return to STP within SLA; true matches are frozen and reported.', vi: 'Báo động giả trở lại STP trong SLA; trùng thật bị phong tỏa và báo cáo.' },
+  field_stpQueue: { en: 'BNPL appraisal queue', vi: 'Hàng chờ thẩm định BNPL' },
+  field_stpCurrentLimit: { en: 'Current STP limit', vi: 'Hạn mức STP hiện tại' },
+  field_stpProposedLimit: { en: 'Proposed STP limit', vi: 'Hạn mức STP đề xuất' },
+  field_projectedDefault: { en: 'Projected default rate', vi: 'Tỷ lệ vỡ nợ dự kiến' },
+  field_stpFlags: { en: 'STP exception flags', vi: 'Cờ ngoại lệ STP' },
+  field_dobMatch: { en: 'Date of birth matches the list', vi: 'Ngày sinh trùng danh sách' },
+  field_iftiDocs: { en: 'IFTI documentation complete', vi: 'Hồ sơ IFTI đầy đủ' },
+  val_stpFlagsAmountDti: { en: 'Amount over limit · DTI over cap', vi: 'Vượt hạn mức · DTI vượt trần' },
   retail_NPL_PROVISION_title: { en: 'NPL debt grouping & loss provisioning', vi: 'Phân loại nợ xấu & trích lập dự phòng' },
   scene_retail_NPL_PROVISION_story: { en: 'The month-end run proposes a debt group and a provision for {name}’s loan of {amount}.', vi: 'Đợt chạy cuối tháng đề xuất nhóm nợ và số trích lập dự phòng cho khoản vay {amount} của {name}.' },
   scene_retail_NPL_PROVISION_triggerStd: { en: 'Every month the bank sorts its loans into five groups by how late they are, and sets money aside for the bad ones.', vi: 'Hằng tháng ngân hàng xếp các khoản vay vào năm nhóm theo mức độ trễ hạn và trích lập tiền dự phòng cho các khoản xấu.' },

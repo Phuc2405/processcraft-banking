@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { BankingPayload } from '../../types/processLearning';
 import { buildGraphs, planCheckout, planSettlement, routeIsWired } from '../processes';
 import { DEFAULT_RULES, clampRules } from '../rules';
+import { DEFAULT_STP } from '../stpEngine';
 import { generateDay } from '../traffic';
 import type { CheckoutKind, Customer } from '../types';
 
@@ -156,10 +157,21 @@ describe('Pay-in-4 route', () => {
   const bnpl = (score: number, down: number, over: Partial<BankingPayload> = {}) => base({ amount: 20_000, bnpl: { underwritingScore: score, downPaymentMinor: down }, ...over });
 
   it('an eligible plan collects only the down payment', () => {
-    const plan = planCheckout(customer('BNPL', bnpl(700, 5000)), graphs);
+    const plan = planCheckout(customer('BNPL', bnpl(700, 5000)), graphs, { ...DEFAULT_STP, enabled: false });
     expect(places(plan)).toEqual(['GATE_ECOM', 'BNPL', 'LEDGER_DEBIT', 'OUT_APPROVED']);
     expect(plan.bnpl).toBe('ELIGIBLE');
     expect(plan.heldCents).toBe(5000);
+  });
+
+  it('goes straight through the STP engine when it is inside the STP rules, with the same outcome and ledger lines', () => {
+    const c = customer('BNPL', bnpl(700, 5000));
+    const manual = planCheckout(c, graphs, { ...DEFAULT_STP, enabled: false });
+    const stp = planCheckout({ ...c, payload: { ...c.payload, bnpl: { ...c.payload.bnpl!, dtiPct: 20, cicGroup: 1 } } }, graphs);
+    expect(places(stp)).toEqual(['GATE_ECOM', 'STP_ENGINE', 'OUT_APPROVED']);
+    expect(routeIsWired(stp.stops)).toBe(true);
+    expect(stp.outcome).toBe(manual.outcome);
+    expect(stp.ledger).toEqual(manual.ledger);
+    expect(stp.heldCents).toBe(manual.heldCents);
   });
 
   it('a weak score falls back to a normal payment of the full amount', () => {

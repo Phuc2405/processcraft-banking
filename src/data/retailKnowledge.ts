@@ -178,12 +178,26 @@ export const RETAIL_GUIDES: readonly RetailGuide[] = [
     scenarios: ['EKYC_RISK'],
     keywords: ['ekyc', 'kyc', 'risk profiling', 'xep hang rui ro', 'pep', 'cccd', 'chip', 'liveness', 'mo tai khoan'],
   },
+  {
+    id: 'retail-stp',
+    title: L('12. STP operations: threshold tuning, exceptions & sanctions holds', '12. Vận hành STP: tinh chỉnh ngưỡng, ngoại lệ & chặn cấm vận'),
+    intro: L(
+      'The STP engine approves simple cases on its own. People tune its thresholds, work the cases it hands back, and clear the payments the sanctions screen stops mid-pipeline.',
+      'Trạm STP tự duyệt các hồ sơ đơn giản. Con người tinh chỉnh ngưỡng, xử lý hồ sơ máy trả về, và giải quyết các lệnh bị sàng lọc cấm vận chặn giữa luồng.',
+    ),
+    foundation: L(
+      'STP auto-approves when amount ≤ the limit, DTI ≤ the cap, eKYC PASS and CIC group 1; CIC 3-5 is fast-failed at the gate. A threshold change is a risk-appetite decision (projected default ≤ 3%). An override is logged with its reason. A sanctions hit is cleared on DOB, nationality and the IFTI data; a true match is frozen and reported (SMR) without tipping-off.',
+      'STP tự duyệt khi số tiền ≤ hạn mức, DTI ≤ trần, eKYC ĐẠT và CIC nhóm 1; CIC 3-5 bị loại sớm tại cổng. Thay đổi ngưỡng là quyết định khẩu vị rủi ro (vỡ nợ dự kiến ≤ 3%). Duyệt ngoại lệ phải ghi lý do. Trùng cấm vận được loại trừ dựa trên ngày sinh, quốc tịch và dữ liệu IFTI; trùng thật bị phong tỏa và báo cáo (SMR) mà không tiết lộ cho khách.',
+    ),
+    scenarios: ['STP_TUNING', 'STP_EXCEPTION', 'STP_SANCTION'],
+    keywords: ['stp', 'straight-through', 'xu ly tu dong', 'xu ly thang', 'override', 'ngoai le', 'fallback', 'nguong', 'threshold', 'ifti', 'sanction'],
+  },
 ];
 
-/** The teller counter: the twelfth topic of the catalog, with no queue scenario of its own. */
+/** The teller counter: the thirteenth topic of the catalog, with no queue scenario of its own. */
 export const TELLER_GUIDE: RetailGuide = {
   id: 'retail-teller-vault',
-  title: L('12. OTC teller cash & the $50,000 till limit', '12. Tiền mặt tại quầy & hạn mức ngăn kéo $50,000'),
+  title: L('13. OTC teller cash & the $50,000 till limit', '13. Tiền mặt tại quầy & hạn mức ngăn kéo $50,000'),
   intro: L(
     'Cash paid in at the counter goes into the teller’s till and credits the customer. Once a till goes over its limit, the surplus goes to the vault before the next customer is served.',
     'Tiền mặt nộp tại quầy vào ngăn kéo của giao dịch viên và ghi có cho khách. Khi ngăn kéo vượt hạn mức, phần dư được chuyển về kho quỹ trước khi phục vụ khách tiếp theo.',

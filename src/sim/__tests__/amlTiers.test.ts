@@ -316,8 +316,8 @@ describe('the bank’s clock follows up without the desk', () => {
 });
 
 describe('the retail tab and the search', () => {
-  it('covers the 11 retail themes and every queue scenario, on both levels, with an SOP flow and a decision tree each', () => {
-    expect(RETAIL_GUIDES).toHaveLength(11);
+  it('covers the 12 retail themes and every queue scenario, on both levels, with an SOP flow and a decision tree each', () => {
+    expect(RETAIL_GUIDES).toHaveLength(12);
     expect(UNGUIDED_SCENARIOS).toEqual([]);
     const basic = renderToStaticMarkup(createElement(RetailArticle, { view: 'basic' }));
     const advanced = renderToStaticMarkup(createElement(RetailArticle, { view: 'advanced' }));

@@ -38,7 +38,7 @@ const FROZEN: EdgeCase = { code: '62', title: 'Frozen card', detail: 'The custom
 const NSF: EdgeCase = { code: '51', title: 'Insufficient funds', detail: 'The available balance (balance minus existing holds) is below the amount.' };
 
 export const LESSON_CONTENT: Readonly<Record<string, LessonContent>> = {
-  // ── Chapter 1 · First Swipes ───────────────────────────────────────────────
+  // Chapter 1 · First Swipes
   '1.1': {
     realWorldScenario: 'Buying a $5 flat white at a Brisbane café by tapping a contactless Visa Debit card on the counter terminal.',
     stepByStepFlow: [
@@ -89,7 +89,7 @@ export const LESSON_CONTENT: Readonly<Record<string, LessonContent>> = {
     edgeCasesAndErrors: [NSF, FROZEN, { code: '61', title: 'Daily limit reached', detail: 'The money is there, but the card’s daily spending limit is used up.' }],
   },
 
-  // ── Chapter 2 · Virtual Card & 3DS Routing ───────────────────────────────────
+  // Chapter 2 · Virtual Card & 3DS Routing
   '2.1': {
     realWorldScenario: 'Ordering $89 of sneakers online with a virtual card saved in a shopping app.',
     stepByStepFlow: [
@@ -144,7 +144,7 @@ export const LESSON_CONTENT: Readonly<Record<string, LessonContent>> = {
     ],
   },
 
-  // ── Chapter 3 · Card-Testing & Fraud Detection ───────────────────────────────
+  // Chapter 3 · Card-Testing & Fraud Detection
   '3.1': {
     realWorldScenario: 'A bot tries 40 payments of $1 in two minutes on a charity donation page, each with a different stolen card.',
     stepByStepFlow: [
@@ -185,7 +185,7 @@ export const LESSON_CONTENT: Readonly<Record<string, LessonContent>> = {
     ],
   },
 
-  // ── Chapter 4 · BNPL & Installment Approvals ─────────────────────────────────
+  // Chapter 4 · BNPL & Installment Approvals
   '4.1': {
     realWorldScenario: 'Buying a $400 pair of headphones and choosing Pay-in-4 at checkout instead of paying all at once.',
     stepByStepFlow: [
@@ -223,7 +223,7 @@ export const LESSON_CONTENT: Readonly<Record<string, LessonContent>> = {
     ],
   },
 
-  // ── Chapter 5 · Account-to-Account & ISO 20022 ───────────────────────────────
+  // Chapter 5 · Account-to-Account & ISO 20022
   '5.1': {
     realWorldScenario: 'A friend sends $120 for concert tickets by PayID, and it lands in seconds.',
     stepByStepFlow: [
@@ -276,7 +276,7 @@ export const LESSON_CONTENT: Readonly<Record<string, LessonContent>> = {
     ],
   },
 
-  // ── Chapter 6 · Overnight EOD Clearing & Settlement ──────────────────────────
+  // Chapter 6 · Overnight EOD Clearing & Settlement
   '6.1': {
     realWorldScenario: 'By 11 pm the café has 380 approved taps for the day, all still only promises.',
     stepByStepFlow: [
@@ -326,6 +326,48 @@ export const LESSON_CONTENT: Readonly<Record<string, LessonContent>> = {
     edgeCasesAndErrors: [
       { code: '68', title: 'Timeout leaves a ghost', detail: 'A timed-out payment was approved at the bank but never reached the terminal; reconciliation finds and reverses it.' },
       { code: null, title: 'Duplicate clearing record', detail: 'The same sale cleared twice; one is reversed.' },
+    ],
+  },
+  '7.1': {
+    realWorldScenario: 'A shopper picks Pay-in-4 for a $400 basket. Income $3,000, DTI 23%, eKYC passed, CIC group 1: the plan is approved before the checkout page finishes loading.',
+    stepByStepFlow: [
+      { actor: MERCHANT, action: 'Sends the Pay-in-4 request to the bank’s e-commerce gate.' },
+      { actor: CORE, action: 'The STP engine runs the rules: amount ≤ $500, DTI ≤ 23%, eKYC PASS, CIC group 1.' },
+      { actor: LEDGER, action: 'Posts to the general ledger in real time: the shop is paid in full and the customer pays $100 down from CASA.' },
+      { actor: CUSTOMER, action: 'Sees “Approved” with no queue and no human touch.' },
+    ],
+    whyItMatters: 'Every case that goes straight through frees an underwriter for the cases that need judgement. STP changes the path and the wait, never the journal.',
+    edgeCasesAndErrors: [
+      { code: null, title: 'STP switched off', detail: 'The bank-wide switch is off: the same case queues at the appraisal desk, with the same outcome later.' },
+      { code: '05', title: 'Rule breached', detail: 'Any one rule failing sends the case to the desk; STP never declines a borderline case on its own.' },
+    ],
+  },
+  '7.2': {
+    realWorldScenario: 'Flash sale: 40 Pay-in-4 applications are waiting at the appraisal desk. As Credit Risk Officer you raise the STP limit from $200 to $500, keeping the DTI cap at 23%.',
+    stepByStepFlow: [
+      { actor: OPS, action: 'Reads the BNPL queue and today’s STR in the ⚡ STP drawer.' },
+      { actor: CREDIT, action: 'Raises one dial (the amount limit), not two at once.' },
+      { actor: CORE, action: 'New arrivals inside the wider limit go straight through; the queue drains.' },
+      { actor: CREDIT, action: 'Watches expected bad debt next to the STR before touching the DTI cap.' },
+    ],
+    whyItMatters: 'A threshold is a risk appetite written as a number. A wider limit buys speed with default exposure, so it is tuned with evidence, not under queue pressure alone.',
+    edgeCasesAndErrors: [
+      { code: null, title: 'Two dials at once', detail: 'Raising the limit and the DTI cap together hides which one moved the default rate.' },
+      { code: null, title: 'Vanity STR', detail: 'A 100% STR with rising bad debt means the rules are too loose, not that the bank is efficient.' },
+    ],
+  },
+  '7.3': {
+    realWorldScenario: 'A $650 Pay-in-4 at DTI 24% drops out of STP. As Credit Underwriter you open the exception: flags “amount over limit” and “DTI over cap”, CIC history clean.',
+    stepByStepFlow: [
+      { actor: CORE, action: 'Flags the case (AMOUNT_OVER_LIMIT, DTI_OVER_LIMIT) and routes it to the appraisal desk.' },
+      { actor: CREDIT, action: 'Checks the CIC history and verified income, still under the 45% policy limit.' },
+      { actor: CREDIT, action: 'Approves by manual override, or refuses; the override is logged with the reason.' },
+      { actor: RISK, action: 'Bad debt (CIC group 3-5) never got this far: it was fast-failed at the gate.' },
+    ],
+    whyItMatters: 'Automation handles the rule; people handle the exception. A clean fallback path with visible flags is what makes it safe to automate the rest.',
+    edgeCasesAndErrors: [
+      { code: '05', title: 'CIC group 3 at the gate', detail: 'Fast-failed before the desk: no underwriter slot is used.' },
+      { code: null, title: 'Override without a reason', detail: 'An override with no recorded reason fails audit, whatever the outcome.' },
     ],
   },
 };

@@ -75,7 +75,7 @@ export const GUIDED_FLOWS: Readonly<Record<FlowId, FlowDef>> = {
     blurb: 'A card tapped at a shop terminal: the bank checks the account and answers in well under a second. Also bill payments and card fees.',
     steps: [
       step('pos_terminal', ['GATE_POS'], 'POS Terminal Gate', 'The shop terminal sends the tap or swipe to the bank.', 'Receives the ISO 8583 0100 authorisation request from the acquirer.'),
-      step('casa_desk', ['LEDGER_DEBIT'], 'Debit CASA', 'Checks there is enough money and locks the amount for the shop.', 'Available-balance check, then an authorisation hold: Dr CASA Hold / Cr Card Clearing Payable. Retail ops book: bill paid Dr 2010 / Cr 1113; card fee Cr 4520, any shortfall Dr 1310 Overdraft.'),
+      step('casa_desk', ['LEDGER_DEBIT', 'STP_ENGINE'], 'Debit CASA', 'Checks there is enough money and locks the amount for the shop. A card fee the balance covers is collected by the STP engine with no desk.', 'Available-balance check, then an authorisation hold: Dr CASA Hold / Cr Card Clearing Payable. Retail ops book: bill paid Dr 2010 / Cr 1113; card fee Cr 4520 (auto-debited by STP when CASA covers it), any shortfall Dr 1310 Overdraft.'),
       step('auth_engine', ['OUT_APPROVED', 'OUT_DECLINED'], 'Authorisation Answer', 'The terminal shows Approved or Declined.', 'Returns the 0110 response: RC 00 approved, or RC 51 insufficient funds (a returned bill also posts the $15 NSF fee to 4510).'),
     ],
   },
@@ -90,7 +90,7 @@ export const GUIDED_FLOWS: Readonly<Record<FlowId, FlowDef>> = {
       step('token_vault', ['SEC_VAULT', 'SEC_DCVV'], 'Token Vault & dCVV', 'Swaps the stand-in card number for the real one and checks the one-time code.', 'Detokenises DPAN → FPAN and validates the dynamic CVV inside its time window.'),
       step('fraud_desk', ['SEC_3DS'], '3DS Risk Desk', 'Scores the risk: low risk goes straight through, medium risk gets a code.', 'Risk-based authentication: frictionless below the threshold, challenge in the band, reject above it.'),
       step('otp_service', ['CUSTOMER_OTP'], 'SMS One-Time Code', 'The customer types the code from their phone, or gives up.', 'OTP challenge (CReq/CRes). A completed challenge moves fraud liability to the issuer.'),
-      step('auth_engine', ['BNPL', 'LEDGER_DEBIT', 'LEDGER_CREDIT', 'OUT_APPROVED', 'OUT_DECLINED'], 'Authorisation Engine', 'Checks the money is there, locks it, and answers the website. Pay-in-4 and credit questions go to the BNPL desk.', 'Funds check and auth hold on the CASA or credit line, then the 0110 response code. BNPL desk: DTI over 45% is refused; repayments follow the penalty, interest, principal waterfall.'),
+      step('auth_engine', ['STP_ENGINE', 'BNPL', 'LEDGER_DEBIT', 'LEDGER_CREDIT', 'OUT_APPROVED', 'OUT_DECLINED'], 'Authorisation Engine', 'Checks the money is there, locks it, and answers the website. Small, clean Pay-in-4 cases go straight through the STP engine; the rest go to the BNPL desk.', 'Funds check and auth hold on the CASA or credit line, then the 0110 response code. STP: amount ≤ the STP limit, DTI ≤ the STP cap, eKYC PASS and CIC group 1 auto-approve; CIC group 3-5 is fast-failed. BNPL desk: DTI over 45% is refused; repayments follow the penalty, interest, principal waterfall.'),
     ],
   },
   3: {
@@ -137,10 +137,10 @@ export const GUIDED_FLOWS: Readonly<Record<FlowId, FlowDef>> = {
     accent: '#84cc16',
     blurb: 'Cash over the branch counter: notes counted, fakes caught, every cash transaction over $10,000 reported, and a till over its $50,000 limit sent to the vault. Also term deposits and collateral.',
     steps: [
-      step('teller_counter', ['TELLER_CASH'], 'Teller Counter', 'The teller counts the notes, checks for fakes and that the till has enough cash.', 'Note count against the till (GL 1012), suspect serials recorded (TELLER_SUSPECT_NOTE), CTR filed at $10,000 or more. A till over $50,000 locks the counter until the surplus is moved to the vault (Dr 1011 vault / Cr 1011 till).'),
+      step('teller_counter', ['TELLER_CASH', 'GATE_ATM', 'ATM_CASH'], 'Teller Counter & Smart Kiosk', 'The teller counts the notes, checks for fakes and that the till has enough cash.', 'Note count against the till (GL 1012), suspect serials recorded (TELLER_SUSPECT_NOTE), CTR filed at $10,000 or more. A till over $50,000 locks the counter until the surplus is moved to the vault (Dr 1011 vault / Cr 1011 till).'),
       step('aml_screen', ['AML_DESK'], 'AML Review', 'Cash split into pieces just under the reporting line is held for an analyst.', 'Structuring (smurfing) detection: deposits ≥ 80% of the CTR line that sum past it are STR_PENDING.'),
       step('casa_posting', ['LEDGER_DEBIT', 'OUT_APPROVED', 'OUT_DECLINED'], 'Customer CASA', 'The account is credited, or debited for the cash handed over.', 'Dr 1012 Teller Vault Cash / Cr 2010 Customer CASA for a deposit; the reverse for a withdrawal.'),
-      step('savings_collateral', ['SAVINGS_DESK', 'COLLATERAL_VAULT'], 'Savings & Collateral', 'Term deposits are closed here, and pledged savings are frozen when a loan defaults.', 'Early closure falls to the 0.1% demand rate; Dr 2021 / Cr 2022 freezes collateral; liquidation pays the debt in waterfall order.'),
+      step('savings_collateral', ['SAVINGS_DESK', 'COLLATERAL_VAULT', 'STP_ENGINE'], 'Savings & Collateral', 'Term deposits are closed here, and pledged savings are frozen when a loan defaults. A clean deposit under $50,000 renews or pays out at maturity through STP.', 'Early closure falls to the 0.1% demand rate; at maturity an unpledged deposit under $50,000 auto-renews or liquidates by STP; Dr 2021 / Cr 2022 freezes collateral; liquidation pays the debt in waterfall order.'),
     ],
   },
   7: {

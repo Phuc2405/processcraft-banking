@@ -29,19 +29,22 @@ export const OFFICE_PLACE_BOX: Record<PlaceId, PlaceBox> = {
   GATE_ATM: card(580, 890 + WING_SHIFT),
   ATM_CASH: card(780, 890 + WING_SHIFT),
   CUSTOMER_OTP: { cx: 500, cy: 312, w: 150, h: 62 },
-  OUT_DECLINED: { cx: 1000, cy: 150, w: 110, h: 100 },
+  // Declined is 12 units slimmer on the right than Approved (same left edge), freeing the corridor east of it for three decline lanes 9 apart.
+  OUT_DECLINED: { cx: 994, cy: 150, w: 98, h: 100 },
   OUT_APPROVED: { cx: 1000, cy: 354, w: 110, h: 100 },
   OUT_SETTLED: { cx: 985, cy: 728, w: 110, h: 92 },
   ...bandBoxes(BAND_ROW_3D),
   // Phase 2/4: the free right-hand side of the wing; nothing else on the frozen plan moves.
   SAVINGS_DESK: card(980, BAND_ROW_3D),
   COLLATERAL_VAULT: card(980, BAND_ROW_3D + 140),
+  // The STP engine's server cabinet, under the credit line in an extended core-ledger room.
+  STP_ENGINE: card(780, 530),
 };
 
 export const OFFICE_DEPT_BOX: Record<DepartmentId, DeptBox> = {
   GATES: { x: 10, y: 36, w: 180, h: 550 },
   SECURITY: { x: 208, y: 36, w: 384, h: 396 },
-  LEDGER: { x: 688, y: 160, w: 184, h: 280 },
+  LEDGER: { x: 688, y: 160, w: 184, h: 430 },
   BNPL: { x: 208, y: 460, w: 184, h: 140 },
   EOD: { x: 10, y: 646, w: 1060, h: 140 },
   ATM: { x: 480, y: 826 + WING_SHIFT, w: 400, h: 142 },
@@ -55,10 +58,10 @@ const OFFICE_ROUTES: Record<string, RouteSpec> = {
   // Virtual cards
   'GATE_VIRTUAL>SEC_VAULT': R(['r'], ['l']),
   'SEC_VAULT>SEC_DCVV': R(['r'], ['l']),
-  'SEC_VAULT>OUT_DECLINED': R(['t', 60], ['t', -15], { via: [[360, 8], [985, 8]], labelAt: [450, 8] }),
+  'SEC_VAULT>OUT_DECLINED': R(['t', 60], ['t', -15], { via: [[360, 8], [979, 8]], labelAt: [450, 8] }),
   'SEC_DCVV>LEDGER_DEBIT': R(['r', -10], ['l', -32], { bendX: 616 }),
   'SEC_DCVV>LEDGER_CREDIT': R(['r', 10], ['l', -32], { bendX: 628 }),
-  'SEC_DCVV>OUT_DECLINED': R(['t', 60], ['t', 15], { via: [[560, 20], [1015, 20]], labelAt: [650, 20] }),
+  'SEC_DCVV>OUT_DECLINED': R(['t', 60], ['t', 15], { via: [[560, 20], [1009, 20]], labelAt: [650, 20] }),
   // Card present
   'GATE_POS>LEDGER_DEBIT': R(['r'], ['l', 6], { labelAt: [250, 242] }),
   'GATE_POS>LEDGER_CREDIT': R(['r', 8], ['l', -12], { bendX: 640 }),
@@ -76,6 +79,9 @@ const OFFICE_ROUTES: Record<string, RouteSpec> = {
   // Pay-in-4
   'BNPL>LEDGER_DEBIT': R(['r', -14], ['l', 28], { bendX: 676, labelAt: [520, 528] }),
   'BNPL>LEDGER_CREDIT': R(['r', 6], ['l', 28], { bendX: 684 }),
+  'GATE_ECOM>STP_ENGINE': R(['t', 40], ['l', -24], { via: [[140, 452], [692, 452], [692, 506]], quiet: true }),
+  'STP_ENGINE>OUT_APPROVED': R(['r', -16], ['b', 30], { via: [[1030, 514]], quiet: true }),
+  'STP_ENGINE>OUT_DECLINED': R(['r', 16], ['r', 20], { via: [[1057, 546], [1057, 170]], quiet: true }),
   // Ledger
   'LEDGER_DEBIT>OUT_APPROVED': R(['r', 10], ['l', -14], { bendX: 905 }),
   'LEDGER_DEBIT>OUT_DECLINED': R(['r', -10], ['l', -10], { bendX: 895 }),
@@ -96,7 +102,7 @@ const OFFICE_ROUTES: Record<string, RouteSpec> = {
   // A jam climbs to the suspense desk up the aisle between the compliance wing and the ledger trunk.
   'ATM_CASH>SUSPENSE': R(['t', 50], ['b', 70]),
   // The Phase 8 wing: declines take a lane of their own beside the 3DS and ATM lane up the right-hand side.
-  ...bandRoutes(BAND_ROW_3D, (y) => ({ via: [[1058, y], [1058, 180]], to: ['r', 30] })),
+  ...bandRoutes(BAND_ROW_3D, (y) => ({ via: [[1048, y], [1048, 180]], to: ['r', 30] })),
 };
 
 export const OFFICE_WIRES: Wire[] = buildWires(OFFICE_PLACE_BOX, OFFICE_ROUTES);

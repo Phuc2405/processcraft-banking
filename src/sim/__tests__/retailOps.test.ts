@@ -65,7 +65,7 @@ describe('the eight guided flows carry the six sub-processes', () => {
 
   it('merges the core presets and the retail actions into one bar per flow, group by group, happy paths first', () => {
     const ids = (f: 1 | 2 | 3 | 6 | 7 | 8) => demoActionsFor(f).map((a) => a.id);
-    expect(ids(1)).toEqual(['pos-20', 'pos-500', 'bill-electric-85', 'bill-nsf-51', 'bill-timeout-68', 'fee-card-10', 'fee-annual-45', 'fee-collect-fail', 'autopay-loan-250', 'autopay-nsf-250']);
+    expect(ids(1)).toEqual(['pos-20', 'pos-500', 'bill-electric-85', 'bill-nsf-51', 'bill-timeout-68', 'fee-card-10', 'fee-annual-waived', 'fee-annual-45', 'fee-collect-fail', 'autopay-loan-250', 'autopay-nsf-250']);
     expect(ids(2)).toEqual(['token-45', 'otp-250', '3ds-timeout', 'token-51', 'otp-locked', 'bnpl-approve-400', 'card-late-fee', 'bnpl-decline-dti', 'bnpl-decline-cic', 'waterfall-120', 'waterfall-50', 'waterfall-nsf', 'risk-cure', 'risk-migrate-95dpd', 'risk-migrate-group5']);
     expect(ids(3)).toEqual(['cdm-200', 'atm-withdraw-100', 'atm-51', 'atm-61', 'cassette-refill', 'cassette-low', 'atm-jam-200']);
     expect(ids(6)).toEqual(['teller-12k', 'teller-smurf', 'teller-51', 'teller-frozen', 'teller-deposit-5000', 'teller-exceed-limit', 'teller-counterfeit', 'td-mature-close', 'td-break-10k', 'td-break-pledged', 'td-break-id-mismatch', 'collateral-release', 'collateral-lock', 'collateral-liquidate', 'collateral-shortfall']);
@@ -133,7 +133,7 @@ describe('the eight guided flows carry the six sub-processes', () => {
   });
 
   it('narrows the bar and the lit path to a chosen sub-process', () => {
-    expect(demoActionsFor(1, 'card-fees').map((a) => a.id)).toEqual(['fee-card-10', 'fee-annual-45', 'fee-collect-fail']);
+    expect(demoActionsFor(1, 'card-fees').map((a) => a.id)).toEqual(['fee-card-10', 'fee-annual-waived', 'fee-annual-45', 'fee-collect-fail']);
     expect(groupScope('cassette-jam').places.has('SUSPENSE')).toBe(true);
     expect(groupScope('atm-napas').places.has('SUSPENSE')).toBe(false);
     expect(groupScope('card-auth').places.has('GATE_POS')).toBe(true);
@@ -672,7 +672,7 @@ describe('the knowledge', () => {
 
 describe('one retail catalog', () => {
   it('gives every topic all seven modules', () => {
-    expect(RETAIL_TOPICS).toHaveLength(12);
+    expect(RETAIL_TOPICS).toHaveLength(13);
     for (const g of RETAIL_TOPICS) {
       const mods = TOPIC_MODULES[g.id]!;
       expect(mods?.length, g.id).toBeGreaterThan(0);
@@ -787,10 +787,10 @@ describe('English terminology', () => {
 });
 
 describe('the Academy keeps its chapters and takes the quiz', () => {
-  it('has the five reference tabs in the Knowledge Base, the regulatory registry included', () => {
+  it('has the six reference tabs in the Knowledge Base, the STP article and the regulatory registry included', () => {
     const tabs = renderToStaticMarkup(createElement(KnowledgeTabs, { tab: 'core', onTab: () => undefined }));
-    expect(tabs.match(/role="tab"/g)).toHaveLength(5);
-    for (const id of ['core', 'aml', 'retail', 'flashcards', 'legal']) expect(tabs).toContain(`kb-tab-${id}`);
+    expect(tabs.match(/role="tab"/g)).toHaveLength(6);
+    for (const id of ['core', 'aml', 'stp', 'retail', 'flashcards', 'legal']) expect(tabs).toContain(`kb-tab-${id}`);
     expect(tabs).not.toContain('kb-tab-quiz');
   });
 

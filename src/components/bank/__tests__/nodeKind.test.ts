@@ -9,9 +9,9 @@ import { useNodeCopy } from '../useNodeCopy';
 
 afterEach(() => setActiveLocale('en'));
 
-describe('26-node classification', () => {
-  it('splits every station into 16 automated and 10 human, with no overlap', () => {
-    expect(AUTOMATED_NODES).toHaveLength(16);
+describe('27-node classification', () => {
+  it('splits every station into 17 automated (the STP engine included) and 10 human, with no overlap', () => {
+    expect(AUTOMATED_NODES).toHaveLength(17);
     expect(HUMAN_NODES).toHaveLength(10);
     expect(new Set([...AUTOMATED_NODES, ...HUMAN_NODES])).toEqual(new Set(STATION_IDS));
   });

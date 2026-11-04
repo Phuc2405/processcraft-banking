@@ -55,6 +55,8 @@ import {
   type RetailLedger,
   type RetailScenarioId,
   tallyAccuracy,
+  overrideKpis,
+  OVERRIDE_ALERT_PCT,
   type ChallengeGrade,
   type ChallengeTally,
   ROLE_ICON,
@@ -1621,6 +1623,7 @@ export function AuditReport({ log, m: tm, issued, view = 'advanced', system = nu
   const basic = view === 'basic';
   const plain = (code: string): string => nfc(gl.plain(code));
   const sum = auditSummary(log, system ?? []);
+  const overrides = overrideKpis(log);
   const desks = [...[...new Set(log.map((e) => e.role))].map((r) => m(k(`role_${r}_title`))), ...(system?.length ? [m('rptSystemDesk')] : [])].join(', ') || '—';
   const issues = sum.compliance.SLA_BREACH + sum.compliance.SOP_BREACH;
   const cell = 'border border-black px-2 py-1 align-top';
@@ -1695,6 +1698,38 @@ export function AuditReport({ log, m: tm, issued, view = 'advanced', system = nu
           {row(m('rptAvgSla'), `${sum.avgSlaSec}s`)}
         </tbody>
       </table>
+
+      {showPlayer && overrides.length > 0 && (
+        <>
+          <h3 className="mt-3 font-bold">{m('rptOverrideTitle')}</h3>
+          <table className="mt-1 w-full border-collapse" data-testid="audit-overrides">
+            <thead>
+              <tr>
+                <th className={cell}>{m('rptOverrideSeat')}</th>
+                <th className={cell}>{m('rptOverrideDecisions')}</th>
+                <th className={cell}>{m('rptOverrideCount')}</th>
+                <th className={cell}>{m('rptOverrideBad')}</th>
+                <th className={cell}>{m('rptOverrideRate')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {overrides.map((o) => (
+                <tr key={`${o.role}#${o.shift}`} data-testid={`audit-override-${o.role}-${o.shift}`} data-alert={o.alert ? 'yes' : 'no'}>
+                  <td className={cell}>
+                    {m(k(`role_${o.role}_title`))} · {m('rptOverrideShift', { n: o.shift })}
+                  </td>
+                  <td className={num}>{o.decisions}</td>
+                  <td className={num}>{o.overrides}</td>
+                  <td className={num}>{o.badOverrides}</td>
+                  <td className={num} title={o.alert ? m('rptOverrideAlert', { pct: OVERRIDE_ALERT_PCT }) : undefined}>
+                    {o.ratePct}%{o.alert ? ' ⚠' : ''}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
 
       <h2 className="mt-3 font-bold uppercase">{m('rptSec3')}</h2>
       {!showPlayer ? null : log.length === 0 ? (

@@ -41,7 +41,8 @@ describe('guided flows', () => {
 
   it('lights the wires between lit places, and the departments of lit desks', () => {
     const s1 = flowScope(1);
-    expect([...s1.wires].sort()).toEqual(['GATE_POS>LEDGER_DEBIT', 'LEDGER_DEBIT>OUT_APPROVED', 'LEDGER_DEBIT>OUT_DECLINED']);
+    // The STP engine collects card fees the balance covers, so its two outcome wires light with flow 1.
+    expect([...s1.wires].sort()).toEqual(['GATE_POS>LEDGER_DEBIT', 'LEDGER_DEBIT>OUT_APPROVED', 'LEDGER_DEBIT>OUT_DECLINED', 'STP_ENGINE>OUT_APPROVED', 'STP_ENGINE>OUT_DECLINED']);
     expect([...s1.departments].sort()).toEqual(['GATES', 'LEDGER']);
     expect(flowScope(3).wires.has('GATE_ATM>ATM_CASH')).toBe(true);
     // Every lit desk in a flow is reachable by a wire from another lit place of the flow, so no lit desk floats alone.

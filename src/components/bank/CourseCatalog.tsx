@@ -6,6 +6,7 @@ import { LESSONS } from '../../sim/learning';
 import { lessonOf } from '../../sim/learningVi';
 import { spotPlan } from '../../sim/spotlightPlan';
 import { useBankStore } from '../../store/bankStore';
+import { uiStore } from '../../store/uiStore';
 import { useTerms } from './useTerms';
 
 /** The Academy: one button in the header and the Course Catalog it opens. */
@@ -33,7 +34,7 @@ export function AcademyButton() {
       title={
         live
           ? tr({ en: `Academy: you are in Chapter ${live.number}. Open the Course Catalog.`, vi: `Học viện: bạn đang ở Chương ${live.number}. Mở danh mục khóa học.` })
-          : t('Academy: six guided chapters on how a bank moves money')
+          : t('Academy: seven guided chapters on how a bank moves money')
       }
       data-testid="academy-button"
       data-active={live ? live.id : undefined}
@@ -59,11 +60,18 @@ function ChapterCard({ chapter, first }: { chapter: Chapter; first: boolean }) {
   const terms = useTerms();
   const startChapter = useBankStore((s) => s.startChapter);
   const openHub = useBankStore((s) => s.openHub);
+  const closeAcademy = useBankStore((s) => s.closeAcademy);
   const tour = useBankStore((s) => s.spotlight);
   const rules = useBankStore((s) => s.view.rules);
   const here = tour?.process === chapter.id ? tour : null;
   const total = here ? spotPlan(here.process, here.exampleId, rules).steps.length : 0;
   const hasDials = LESSONS[chapter.id].knobs.length > 0;
+  // Chapter 7's dials are the STP thresholds, so its lab is the STP drawer.
+  const openLab = (): void => {
+    if (chapter.id !== 'G') return openHub(chapter.id);
+    closeAcademy();
+    uiStore.getState().open('stp');
+  };
   return (
     <li className="flex" data-testid={`chapter-card-${chapter.id}`} data-chapter={chapter.number} data-live={here ? 'yes' : 'no'}>
       <article className="flex w-full flex-col rounded-2xl border bg-slate-900/70 p-4 transition hover:bg-slate-900" style={{ borderColor: here ? chapter.accent : '#334155', boxShadow: here ? `0 0 0 1px ${chapter.accent}66, 0 0 28px ${chapter.accent}22` : undefined }}>
@@ -108,12 +116,12 @@ function ChapterCard({ chapter, first }: { chapter: Chapter; first: boolean }) {
             className="flex-1 whitespace-nowrap rounded-lg px-3 py-2 text-[14.5px] font-bold text-slate-950 transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             style={{ background: chapter.accent }}
           >
-            {here ? t('Restart Chapter') : t('Start Chapter')} ▶
+            {here ? t('Restart Chapter') : t('Start Chapter')} ➔
           </button>
           {hasDials && (
             <button
               type="button"
-              onClick={() => openHub(chapter.id)}
+              onClick={openLab}
               data-testid={`chapter-lab-${chapter.id}`}
               title={t('Change the bank’s rules and see what the same day would have looked like')}
               className="whitespace-nowrap rounded-lg px-2.5 py-2 text-[14px] font-medium text-slate-200 ring-1 ring-slate-700 transition hover:bg-slate-800"
@@ -163,7 +171,7 @@ export function CourseCatalog() {
               {t('Course Catalog')}
             </h2>
             <p className="mt-1 max-w-[720px] text-[14.5px] leading-relaxed text-slate-400">
-              {t('Six chapters, best taken in order. Each one is a guided tour of the bank at a quarter of normal speed: the parts that do not matter fade back, and at every decision the tour asks you what happens next.')}
+              {t('Seven chapters, best taken in order. Each one is a guided tour of the bank at a quarter of normal speed: the parts that do not matter fade back, and at every decision the tour asks you what happens next.')}
             </p>
           </div>
           <button type="button" onClick={close} aria-label={t('Close the Course Catalog')} data-testid="academy-close" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white">

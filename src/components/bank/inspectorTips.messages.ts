@@ -4,7 +4,7 @@ import { defineMessages } from '../../utils/i18nHelper';
 export const tipMessages = defineMessages('inspectorTips', {
   atThisDesk: { en: 'At this desk', vi: 'Tại quầy này' },
 
-  // ── Live stats ──────────────────────────────────────────────────────────────
+  // Live stats
   queue: { en: 'Items waiting for a free worker at this desk right now, oldest first.', vi: 'Số mục đang chờ một người hoặc tiến trình rảnh tại quầy này, mục cũ nhất đứng đầu.' },
   queue_gateway: { en: 'API requests from terminals, checkouts and banking apps that have arrived but not been parsed yet.', vi: 'Các yêu cầu API từ máy POS, trang thanh toán và ứng dụng ngân hàng đã đến nhưng chưa được đọc.' },
   queue_token: { en: 'Card tokens waiting to be looked up in the vault and their dynamic codes checked.', vi: 'Các token thẻ chờ tra cứu trong kho và kiểm tra mã động.' },
@@ -22,6 +22,7 @@ export const tipMessages = defineMessages('inspectorTips', {
   queue_fds: { en: 'Payments waiting for a device and pattern score before they may continue.', vi: 'Các giao dịch chờ chấm điểm thiết bị và hành vi trước khi được đi tiếp.' },
   queue_aml: { en: 'Payments held as STR_PENDING, or frozen on a sanctions hit, waiting for an analyst.', vi: 'Các giao dịch bị giữ ở trạng thái STR_PENDING, hoặc bị phong tỏa do trùng cấm vận, chờ chuyên viên.' },
   queue_savings: { en: 'Term deposits to close and pledged savings waiting for a lien decision.', vi: 'Tiền gửi có kỳ hạn chờ tất toán và tiền gửi cầm cố chờ quyết định phong tỏa.' },
+  queue_stp: { en: 'Cases waiting milliseconds for the rule engine: a queue here means the cluster needs more threads, never a person.', vi: 'Hồ sơ chờ vài mili giây cho bộ quy tắc: hàng đợi ở đây nghĩa là cụm máy cần thêm luồng, không phải thêm người.' },
   queue_dispute: { en: 'Customer claims (chargebacks, pacs.004 returns, ATM mismatches) waiting for a specialist.', vi: 'Khiếu nại của khách (tra soát thẻ, hoàn trả pacs.004, lệch tiền ATM) chờ chuyên viên.' },
   queue_swift: { en: 'Outward pacs.008 remittances waiting for format checks and FX conversion.', vi: 'Các điện chuyển tiền đi pacs.008 chờ kiểm tra định dạng và quy đổi ngoại tệ.' },
 
@@ -48,6 +49,7 @@ export const tipMessages = defineMessages('inspectorTips', {
   errors_fds: { en: 'A device scored high-risk and stopped: FDS_HIGH_RISK_DEVICE.', vi: 'Một thiết bị bị chấm rủi ro cao và bị chặn: FDS_HIGH_RISK_DEVICE.' },
   errors_aml: { en: 'A review reopened after a wrong decision, which costs an analyst a second pass.', vi: 'Một lần rà soát phải mở lại do quyết định sai, khiến chuyên viên phải xem lần hai.' },
   errors_savings: { en: 'An interest recalculation or a lien that had to be corrected.', vi: 'Một lần tính lại lãi hoặc phong tỏa phải sửa lại.' },
+  errors_stp: { en: 'A case the rules fast-failed at the gate (bad eKYC, FDS high-risk device, CIC group 3 to 5).', vi: 'Hồ sơ bị bộ quy tắc loại sớm tại cổng (eKYC lỗi, thiết bị FDS rủi ro cao, CIC nhóm 3 đến 5).' },
   errors_dispute: { en: 'A claim decided against the wrong evidence and reworked.', vi: 'Một khiếu nại được quyết định dựa trên bằng chứng sai và phải làm lại.' },
   errors_swift: { en: 'A pacs.008 rejected for a missing EndToEndId, a truncated BIC or a bad currency.', vi: 'Một điện pacs.008 bị từ chối do thiếu EndToEndId, mã BIC bị cắt hoặc loại tiền sai.' },
   capacityMachine: {
@@ -64,7 +66,7 @@ export const tipMessages = defineMessages('inspectorTips', {
   lines: { en: 'Counters only this desk keeps: what it holds on the ledger, or how its checks came out today.', vi: 'Các bộ đếm riêng của quầy này: khoản đang giữ trên sổ cái, hoặc kết quả các lần kiểm tra hôm nay.' },
   pending: { en: 'The live first-in, first-out list of payloads waiting here, with how long each has waited.', vi: 'Danh sách vào trước ra trước của các giao dịch đang chờ tại đây, kèm thời gian mỗi mục đã chờ.' },
 
-  // ── Phase 8 desk metrics (stats line `tip` → `line_<tip>`) ─────────────────
+  // Phase 8 desk metrics (stats line `tip` → `line_<tip>`)
   line_posted: { en: 'Money the extended flows moved straight on the CASA ledger: accounts opened, QR and SWIFT debits, teller cash and refunds.', vi: 'Tiền các luồng mở rộng hạch toán thẳng trên sổ cái CASA: mở tài khoản, ghi nợ QR và SWIFT, tiền mặt tại quầy và hoàn tiền.' },
   line_ocr: {
     en: 'Biometric matching starts with OCR: the CCCD’s name, number and date of birth are read and compared with what the customer typed. Below 90% the card is treated as fake.',
@@ -145,7 +147,7 @@ export const tipMessages = defineMessages('inspectorTips', {
   line_swiftInvalid: { en: 'Messages refused before any money moved. A refund of a settled transfer travels back as a pacs.004 payment return.', vi: 'Các điện bị từ chối trước khi tiền di chuyển. Khoản đã quyết toán khi hoàn lại sẽ đi ngược dưới dạng điện hoàn trả pacs.004.' },
   line_swiftValue: { en: 'AUD value sent abroad today through the correspondent nostro accounts (GL 1430), after FX conversion.', vi: 'Giá trị AUD gửi ra nước ngoài hôm nay qua tài khoản nostro tại ngân hàng đại lý (TK 1430), sau khi quy đổi ngoại tệ.' },
 
-  // ── Worker ──────────────────────────────────────────────────────────────────
+  // Worker
   load: { en: 'CPU / thread load, 0–100. Above 60 the thread starts dropping requests, which come back as retries.', vi: 'Mức tải CPU / luồng, 0–100. Trên 60 luồng bắt đầu rớt yêu cầu, và chúng quay lại thành lượt chạy lại.' },
   fatigue: { en: 'Accumulated fatigue, 0–100. Above 60 mistakes start at random and each one has to be redone.', vi: 'Độ mệt tích lũy, 0–100. Trên 60 lỗi bắt đầu xuất hiện ngẫu nhiên và mỗi lỗi phải làm lại.' },
   paceMachine: { en: 'Throughput right now as a share of the thread’s full bandwidth.', vi: 'Thông lượng hiện tại so với băng thông tối đa của luồng.' },

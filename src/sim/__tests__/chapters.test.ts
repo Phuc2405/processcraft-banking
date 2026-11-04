@@ -6,9 +6,9 @@ import { spotPlan } from '../spotlightPlan';
 describe('the Course Catalog', () => {
   const list = chapters();
 
-  it('lists six chapters, strictly progressive, under the titles of the brief', () => {
-    expect(list.map((c) => c.number)).toEqual([1, 2, 3, 4, 5, 6]);
-    expect(list.map((c) => c.id)).toEqual(['A', 'B', 'C', 'D', 'E', 'F']);
+  it('lists seven chapters, strictly progressive, under the titles of the brief', () => {
+    expect(list.map((c) => c.number)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(list.map((c) => c.id)).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
     expect(list.map((c) => c.title)).toEqual([
       'Virtual Card Tokenisation & dCVV Masking',
       '3-D Secure 2.x Risk Engine (Frictionless vs Challenge OTP)',
@@ -16,6 +16,7 @@ describe('the Course Catalog', () => {
       'EOD 3-Way Reconciliation & Suspense Accounting',
       'Instant Account-to-Account Transfers (A2A & pacs.008)',
       'AML Screening & Chargeback Dispute Resolution',
+      'STP Automation & Credit Risk Operations',
     ]);
   });
 

@@ -118,6 +118,7 @@ export type OpsActionId =
   | 'bill-nsf-51'
   | 'bill-timeout-68'
   | 'fee-collect-fail'
+  | 'fee-annual-waived'
   | 'wallet-name-mismatch'
   | 'bnpl-decline-cic'
   | 'waterfall-nsf'
@@ -406,6 +407,16 @@ export const OPS_ACTIONS: readonly OpsActionDef[] = [
     hint: L('A debit card with $0 and no overdraft line: the fee cannot be collected, it is tracked off-book and retried, and the card renewal waits.', 'Thẻ ghi nợ có $0 và không có hạn mức thấu chi: không thu được phí, phí được theo dõi ngoại bảng để thu lại sau, và việc gia hạn thẻ bị treo.'),
     route: ['GATE_POS', 'LEDGER_DEBIT', 'OUT_DECLINED'],
     customerCents: 0,
+  },
+  {
+    id: 'fee-annual-waived',
+    sub: 'card-fees',
+    icon: '⚡',
+    variant: 'success',
+    label: L('Annual Fee, Premium Cardholder (Waived)', 'Phí thường niên, chủ thẻ hạng cao (Miễn phí)'),
+    hint: L('$12,000 spent on the card this year: the $45 annual fee is waived, so no fee income posts and the balance is untouched.', 'Chi tiêu $12,000 qua thẻ trong năm: miễn $45 phí thường niên, nên không ghi nhận thu phí và số dư giữ nguyên.'),
+    route: ['GATE_POS', 'LEDGER_DEBIT', 'OUT_APPROVED'],
+    customerCents: 60_000,
   },
   {
     id: 'wallet-name-mismatch',
@@ -786,6 +797,8 @@ export function runOpsAction(book: OpsBook, id: OpsActionId, at: string): { book
       return { book, outcome: { action: id, status: 'DECLINED', rc: '68', message: L('No answer from the biller in time (RC 68): the hold is reversed automatically, nothing posts, and the customer may pay again.', 'Nhà cung cấp không phản hồi kịp (RC 68): khoản tạm giữ được tự động đảo, không ghi nhận gì, và khách có thể thanh toán lại.'), journal: null, customer: { before: available, after: available }, facts: [L('An unanswered request is never booked: the bank checks the status before anyone retries, so the bill is never paid twice.', 'Yêu cầu không có phản hồi thì không hạch toán: ngân hàng tra soát trạng thái trước khi thử lại, nên hóa đơn không bao giờ bị trả hai lần.')] } };
     case 'fee-collect-fail':
       return { book, outcome: { action: id, status: 'DECLINED', rc: '51', message: L('The fee cannot be collected: no balance and no overdraft line. It is tracked off the books and retried, and the card renewal waits.', 'Không thu được phí: không có số dư và không có hạn mức thấu chi. Phí được theo dõi ngoại bảng để thu lại, và việc gia hạn thẻ bị treo.'), journal: null, customer: { before: available, after: available }, facts: [L('A debit card may not be pushed below zero for a fee without an overdraft agreement.', 'Không được trừ phí làm thẻ ghi nợ âm tiền nếu không có thỏa thuận thấu chi.')] } };
+    case 'fee-annual-waived':
+      return { book, outcome: { action: id, status: 'APPROVED', rc: '00', message: L('Fee waived for the premium spending tier: no fee is charged, so nothing posts to fee income and the balance is untouched.', 'Miễn phí cho hạng chi tiêu cao: không thu phí, nên không ghi nhận thu phí và số dư giữ nguyên.'), journal: null, customer: { before: available, after: available }, facts: [L('A waived fee was never earned: booking it as income and writing it off would overstate both revenue and expenses.', 'Phí được miễn chưa từng phát sinh thu nhập: ghi thu rồi xóa sẽ thổi phồng cả doanh thu lẫn chi phí.')] } };
     case 'wallet-name-mismatch':
       return { book, outcome: { action: id, status: 'DECLINED', rc: '57', message: L('Refused: the wallet holder and the account holder are different people, and a wallet may only be funded from its holder’s own account.', 'Từ chối: chủ ví và chủ tài khoản là hai người khác nhau, mà ví chỉ được nạp từ tài khoản chính chủ.'), journal: null, customer: { before: available, after: available } } };
     case 'bnpl-decline-cic': {

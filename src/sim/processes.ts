@@ -20,6 +20,7 @@ import type {
 } from '../types/processLearning';
 import { planExtended } from './amlEngine';
 import type { BankRules } from './rules';
+import { bnplCreditProfile, decideStp, DEFAULT_STP, STP_FLAG_TEXT, type StpConfig } from './stpEngine';
 import { hasWire, type PlaceId, type StationId } from './topology';
 import type { Customer, DeclineReason, RoutePlan, Stop } from './types';
 
@@ -367,7 +368,29 @@ function planAtm(customer: Customer): RoutePlan {
   return plan([pinStop, cash, end('OUT_APPROVED', 'Cash out', `${out.note} The customer was debited ${formatAud(amount)}.`)], { outcome: 'APPROVED', reasonCode: 'CASH_DISPENSED', decline: null });
 }
 
-export function planCheckout(customer: Customer, graphs: BankGraphs): RoutePlan {
+/**
+ * Pay-in-4 under the STP rules. A CIC bad-debt applicant is fast-failed at the gate; a clean, approved case skips the
+ * underwriting desk and the ledger desks through the STP engine. The outcome and the ledger lines are the manual plan's own,
+ * so STP changes the path and the wait, never the books.
+ */
+function bnplStp(customer: Customer, manual: RoutePlan, stp: StpConfig): RoutePlan {
+  const { dtiPct, cicGroup } = bnplCreditProfile(customer.id, customer.payload.bnpl);
+  const v = decideStp({ product: 'BNPL', amountCents: customer.payload.amount, ekyc: 'PASS', dtiPct, cicGroup }, stp);
+  const gate = manual.stops[0]!;
+  const engine = (label: string, note: string, facts: Stop['facts'] = {}): Stop => ({ place: 'STP_ENGINE', kind: 'SYSTEM', nodeId: null, label, capability: 'CORE_LEDGER_CHECK', durationMs: 40, note, facts, weight: 0.2 });
+  const out = (place: 'OUT_APPROVED' | 'OUT_DECLINED', label: string, note: string): Stop => ({ place, kind: 'OUTCOME', nodeId: null, label, capability: null, durationMs: 0, note, facts: {}, weight: 0 });
+  if (v.route === 'REJECT') {
+    const note = `${STP_FLAG_TEXT.CIC_BAD_DEBT.en}: CIC group ${cicGroup}, refused at the gate before any underwriter is used.`;
+    return { ...manual, stops: [gate, engine('STP fast-fail', note), out('OUT_DECLINED', 'Declined', note)], outcome: 'DECLINED', reasonCode: 'CIC_BAD_DEBT', decline: 'CREDIT_RISK', heldCents: 0, bnpl: 'INELIGIBLE', ledger: [] };
+  }
+  if (v.route !== 'STP' || manual.outcome !== 'APPROVED' || manual.bnpl !== 'ELIGIBLE') return manual;
+  const facts = Object.assign({}, ...manual.stops.map((s) => s.facts)) as Stop['facts'];
+  const last = manual.stops[manual.stops.length - 1]!;
+  const note = `STP auto-approved: DTI ${dtiPct}%, CIC group 1, eKYC passed. Posted to the GL in real time.`;
+  return { ...manual, stops: [gate, engine('STP auto-underwriting', note, facts), { ...last, note: `${last.note} ${note}` }], latencyMs: gate.durationMs + 40 };
+}
+
+export function planCheckout(customer: Customer, graphs: BankGraphs, stp: StpConfig = DEFAULT_STP): RoutePlan {
   const { payload } = customer;
 
   switch (customer.kind) {
@@ -410,11 +433,12 @@ export function planCheckout(customer: Customer, graphs: BankGraphs): RoutePlan 
 
     case 'BNPL': {
       const w = walk(graphs.bnpl, payload, 'GATE_ECOM');
-      return finish(w.stops, w.result, w.facts, {
+      const manual = finish(w.stops, w.result, w.facts, {
         latencyMs: w.latencyMs,
         passes: 1,
         decline: () => (w.facts.bnplDecision === 'ELIGIBLE' ? 'DOWN_PAYMENT' : 'FUNDS'),
       });
+      return bnplStp(customer, manual, stp);
     }
 
     case 'ECOM': {

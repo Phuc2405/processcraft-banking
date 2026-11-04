@@ -3,6 +3,7 @@
 import { BankSimulation, type BankSimOptions } from './bankSimulation';
 import { compareReports, type KpiComparisonRow } from './kpis';
 import { changedRules, clampRules, RULE_KEYS, type BankRules } from './rules';
+import { clampStp, type StpConfig } from './stpEngine';
 import type { CarryState, DayEvent, DayKpis, DayReport, StationId } from './types';
 
 /** Plays one whole day without drawing anything. */
@@ -42,6 +43,8 @@ export interface CompareArgs {
   carry?: CarryState;
   /** Temporary cover to book on the first day only (the other days are not covered). */
   cover?: Partial<Record<StationId, number>>;
+  /** The STP rules both runs play under (the bank's live config); defaults when absent. */
+  stp?: Partial<StpConfig>;
 }
 
 function addDeep<T>(a: T, b: T): T {
@@ -64,8 +67,8 @@ export function sumReports(reports: readonly DayReport[]): DayReport {
   return { day: first.day, event: first.event, rules: first.rules, kpis, close: last.close, ...(last.nightShift ? { nightShift: last.nightShift } : {}), ...(first.book && last.book ? { book: { ...last.book, reservesStartCents: first.book.reservesStartCents, customersStart: first.book.customersStart, signups: reports.reduce((n, r) => n + (r.book?.signups ?? 0), 0), churned: reports.reduce((n, r) => n + (r.book?.churned ?? 0), 0) } } : {}) };
 }
 
-function playDays(seed: number, startDay: number, count: number, rules: BankRules, carry: CarryState | undefined, cover: CompareArgs['cover']): DayReport[] {
-  const sim = new BankSimulation({ seed, day: startDay, rules, ...(carry ? { carry } : {}), ...(cover ? { cover } : {}), headless: true });
+function playDays(seed: number, startDay: number, count: number, rules: BankRules, carry: CarryState | undefined, cover: CompareArgs['cover'], stp: StpConfig): DayReport[] {
+  const sim = new BankSimulation({ seed, day: startDay, rules, stp, ...(carry ? { carry } : {}), ...(cover ? { cover } : {}), headless: true });
   const out: DayReport[] = [];
   for (let i = 0; i < count; i++) {
     out.push(sim.runToEndOfDay());
@@ -80,14 +83,15 @@ const memo = new Map<string, DayReport[]>();
 export function compareDays(args: CompareArgs): Comparison {
   const count = Math.max(1, Math.min(10, Math.floor(args.count ?? 1)));
   const tweaked = clampRules({ ...args.baseRules, ...args.tweakedRules });
+  const stp = clampStp(args.stp);
   const key = (rules: BankRules): string =>
-    JSON.stringify([args.seed, args.startDay, count, RULE_KEYS.map((k) => rules[k]), args.carry?.suspense.length ?? 0, args.carry?.backlog.length ?? 0, args.cover ?? null]);
+    JSON.stringify([args.seed, args.startDay, count, RULE_KEYS.map((k) => rules[k]), args.carry?.suspense.length ?? 0, args.carry?.backlog.length ?? 0, args.cover ?? null, stp]);
 
   const run = (rules: BankRules): DayReport[] => {
     const k = key(rules);
     const cached = memo.get(k);
     if (cached) return cached;
-    const reports = playDays(args.seed, args.startDay, count, rules, args.carry, args.cover);
+    const reports = playDays(args.seed, args.startDay, count, rules, args.carry, args.cover, stp);
     if (memo.size >= 12) memo.delete(memo.keys().next().value as string);
     memo.set(k, reports);
     return reports;

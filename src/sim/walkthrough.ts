@@ -418,7 +418,7 @@ export function buildWalkthrough(lessonId: ProcessId, exampleId: string, rulesIn
     return { outcome: result.outcome, reason: result.reasonCode, finalFacts };
   };
 
-  // ── Lesson-specific shape ────────────────────────────────────────────────── Only the four checkout diagrams are planned across the floor.
+  // Lesson-specific shape: only the four checkout diagrams are planned across the floor.
   const checkoutKind: CheckoutKind = example.kind === 'VIRTUAL' || example.kind === 'ECOM' || example.kind === 'BNPL' || example.kind === 'A2A' ? example.kind : 'POS';
   const customer: Customer = { id: payload.txId, kind: checkoutKind, scenario: '', minute: 0, payload, otpCompletes: example.otpCompletes ?? false };
 

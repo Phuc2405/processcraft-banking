@@ -1,5 +1,6 @@
 /** Saving the living bank. */
 
+import { clampStp, type StpConfig } from '../sim/stpEngine';
 import { isFlowId, isScope, type FlowId, type Scope } from '../types/viewport';
 import type { CardType, Id } from '../types/processLearning';
 import { emptyKpis } from '../sim/kpis';
@@ -322,6 +323,27 @@ export function saveUiPrefs(storage: KeyValueStorage | null, prefs: UiPrefs): vo
   }
 }
 
+// STP rules: the drawer's dials, kept across reloads and replays
+
+export const STP_KEY = `processcraft:v${STORAGE_VERSION}:stp`;
+
+export function loadStp(storage: KeyValueStorage | null): StpConfig {
+  try {
+    const raw = storage ? storage.getItem(STP_KEY) : null;
+    return clampStp(raw ? (JSON.parse(raw) as Partial<StpConfig>) : null);
+  } catch {
+    return clampStp(null);
+  }
+}
+
+export function saveStp(storage: KeyValueStorage | null, cfg: StpConfig): void {
+  try {
+    storage?.setItem(STP_KEY, JSON.stringify(cfg));
+  } catch {
+    // The dials still work for this session.
+  }
+}
+
 // Career: lifetime XP, badges and the streaks that lead to them
 
 export const CAREER_KEY = `processcraft:v${STORAGE_VERSION}:career`;
@@ -483,6 +505,7 @@ function decodeAuditEntry(v: unknown): AuditEntry | null {
     compliance: o.compliance as AuditEntry['compliance'],
     expert: o.expert === true,
     assisted: o.assisted === true,
+    ...(o.override === true ? { override: true } : {}),
   };
 }
 

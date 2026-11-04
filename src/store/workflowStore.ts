@@ -504,7 +504,7 @@ export function createWorkflowStore(config: WorkflowStoreConfig = {}): WorkflowS
       spotlight: null,
       ...CLEAN_RUN,
 
-      // ── loading ──────────────────────────────────────────────────────────
+      // loading
 
       loadChallenge: (levelId) => {
         const level = levels.find((l) => l.id === levelId);
@@ -536,7 +536,7 @@ export function createWorkflowStore(config: WorkflowStoreConfig = {}): WorkflowS
         set({ nodes, edges, ...invalidate(), lastEvaluationResult: null, notice: null });
       },
 
-      // ── editing ──────────────────────────────────────────────────────────
+      // editing
 
       addNode: (definitionId, position) => {
         const s = get();
@@ -685,7 +685,7 @@ export function createWorkflowStore(config: WorkflowStoreConfig = {}): WorkflowS
         });
       },
 
-      // ── React Flow callbacks ─────────────────────────────────────────────
+      // React Flow callbacks
 
       onNodesChange: (changes) => {
         const s = get();
@@ -748,7 +748,7 @@ export function createWorkflowStore(config: WorkflowStoreConfig = {}): WorkflowS
 
       dismissNotice: () => set({ notice: null }),
 
-      // ── grading ──────────────────────────────────────────────────────────
+      // grading
 
       getProcessGraph,
 
@@ -759,7 +759,7 @@ export function createWorkflowStore(config: WorkflowStoreConfig = {}): WorkflowS
         return result;
       },
 
-      // ── playback ─────────────────────────────────────────────────────────
+      // playback
 
       selectTest: (testCaseId) => {
         const test = get().level.testSuite.find((t) => t.id === testCaseId);

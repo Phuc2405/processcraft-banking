@@ -182,7 +182,7 @@ export function Flashcard({ card, lit: on }: { card: OpsFlashcard; lit: boolean 
             {m('flashcardHeader')}
           </span>
           <span className="mt-1 self-start break-words rounded-full border border-slate-700 bg-slate-900 px-2 py-0.5 text-[10.5px] font-semibold text-slate-400" data-testid="flashcard-sub">
-            {pick(sub.title, locale)}
+            {pick(card.tag ?? sub.title, locale)}
           </span>
           <span className="mt-2 line-clamp-6 flex-1 break-words text-[15px] font-semibold leading-snug text-slate-50" title={pick(card.front, locale)}>
             {pick(card.front, locale)}
@@ -204,6 +204,7 @@ export function Flashcard({ card, lit: on }: { card: OpsFlashcard; lit: boolean 
                   </span>
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5 pl-0.5">
                     <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">{m(point.title)}</span>
+                    {point.tier === 'journal' && card.entry && <span className="break-words text-[12.5px] leading-snug text-slate-100">{pick(card.entry, locale)}</span>}
                     {point.tier === 'journal' ? (
                       card.lines.length > 0 ? (
                         <span className="min-w-0 pl-1">

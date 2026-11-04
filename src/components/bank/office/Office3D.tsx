@@ -172,8 +172,60 @@ function WeatherControls({ compact }: { compact: boolean }) {
   );
 }
 
+/** Under 1280px of free map the time, weather and label controls fold into one "⚙️ Display options" popover, so the row never covers the desks. */
+export const TOOLBAR_OPTIONS_PX = 1280;
+
+/** The folded display options: the time of day, every weather choice and the label mode, in one popover. */
+function DisplayOptions({ labelMode, onLabels }: { labelMode: 'always' | 'hover'; onLabels: () => void }) {
+  const choice = useWeather((s) => s.choice);
+  const weather = useWeather((s) => s.weather);
+  const part = useBankStore((s) => atmosphereAt(s.view.minute).part);
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const row = 'block w-full px-3 py-1.5 text-left text-[12px]';
+  return (
+    <div className="relative shrink-0" data-testid="office-display-options" data-weather={weather} data-choice={choice}>
+      <button
+        ref={trigger}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        title={t('Time of day, weather and labels')}
+        data-testid="office-display-options-button"
+        className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-white bg-white/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-slate-700 shadow-md hover:bg-white"
+      >
+        <span aria-hidden="true">⚙️</span>
+        {t('Display options')}
+        <span aria-hidden="true" className="text-slate-400">
+          ▾
+        </span>
+      </button>
+      {open && (
+        <AdaptivePopover anchor={trigger} onClose={() => setOpen(false)} width={280} label={t('Display options')} testId="office-display-options-list" className="border-slate-200 bg-white py-1 shadow-xl">
+          <li role="presentation" className="px-3 pb-1 pt-0.5 text-[10.5px] font-bold uppercase tracking-wide text-slate-400" data-testid="office-daypart" data-part={part}>
+            {t(DAY_PART_LABEL[part])}
+          </li>
+          {CHOICES.map((c) => (
+            <li key={c} role="option" aria-selected={c === choice} data-weather-option={c}>
+              <button type="button" onClick={() => weatherStore.getState().choose(c)} title={t(WEATHER_HINT[c])} className={`${row} ${c === choice ? 'bg-sky-50 font-semibold text-sky-800' : 'text-slate-700 hover:bg-slate-50'}`}>
+                {t(WEATHER_LABEL[c])}
+              </button>
+            </li>
+          ))}
+          <li role="option" aria-selected={labelMode === 'hover'} className="mt-1 border-t border-slate-100 pt-1">
+            <button type="button" onClick={onLabels} data-testid="office-labels" className={`${row} font-semibold text-slate-700 hover:bg-slate-50`}>
+              🏷 {t('Labels:')} {labelMode === 'always' ? t('Always Show') : t('Hover Only')}
+            </button>
+          </li>
+        </AdaptivePopover>
+      )}
+    </div>
+  );
+}
+
 /** The 3D office's one row of controls, under the viewport dock: a single cluster centred in the free map, the sub-process menu first, then the time, weather and view controls. Only the controls catch the pointer, so the map can still be dragged either side of them. Above the map's banners and cards (z-40), under every modal (z-50 and up). */
-export const TOOLBAR_CLASS = 'pointer-events-none absolute left-0 z-[45] flex w-full flex-row flex-nowrap items-center justify-center gap-3 px-2';
+export const TOOLBAR_CLASS = 'pointer-events-none absolute left-0 z-[45] flex w-full flex-row flex-nowrap items-center justify-center gap-2 px-2';
 
 /** Under this width the row shrinks its words to icons (the full words are in their tooltips), so it stays on one line. */
 export const TOOLBAR_FULL_PX = 900;
@@ -246,12 +298,13 @@ function Office3DView() {
   const rightInset = useRightInset();
   const mapW = useTopBand((s) => s.mapW);
   const tight = mapW > 0 && mapW - rightInset < TOOLBAR_FULL_PX;
+  const folded = mapW > 0 && mapW - rightInset < TOOLBAR_OPTIONS_PX;
   const covered = useInspectorCovers();
   const wraps = mapW > 0 && mapW - rightInset < TOOLBAR_WRAP_PX;
   const kickoff = useBankStore(floatingBarsHiddenOf);
   const showMenu = useBankStore((s) => s.scope === 'beginner' && s.spotlight === null) && !kickoff;
   const toolbar = useRef<HTMLDivElement>(null);
-  useMeasuredBox(toolbar, (b) => topBand.setState({ toolbar: b }), [toolbarTop, tight, wraps, labelMode, touring, showMenu, kickoff, covered]);
+  useMeasuredBox(toolbar, (b) => topBand.setState({ toolbar: b }), [toolbarTop, tight, folded, wraps, labelMode, touring, showMenu, kickoff, covered]);
   const legendRight = useBankStore((s) => 76 + (s.selection.kind !== 'none' ? s.inspectorWidth : 0));
 
   if (lost) return <Unavailable reason="The graphics context was lost." onBack={back} />;
@@ -326,8 +379,8 @@ function Office3DView() {
             <SubProcessMenu />
           </div>
         )}
-        <div className="pointer-events-auto flex shrink-0 flex-nowrap items-center gap-1.5" data-testid="office-toolbar-right">
-          {!kickoff && <WeatherControls compact={tight} />}
+        <div className="pointer-events-auto flex shrink-0 flex-nowrap items-center gap-2" data-testid="office-toolbar-right">
+          {!kickoff && (folded ? <DisplayOptions labelMode={labelMode} onLabels={() => setLabelMode(labelMode === 'always' ? 'hover' : 'always')} /> : <WeatherControls compact={tight} />)}
         <button
           type="button"
           onClick={() => setResetKey((n) => n + 1)}
@@ -338,6 +391,7 @@ function Office3DView() {
         >
           {tight ? '↺' : t('Reset view')}
         </button>
+        {!folded && (
         <button
           type="button"
           onClick={() => setLabelMode(labelMode === 'always' ? 'hover' : 'always')}
@@ -348,6 +402,7 @@ function Office3DView() {
         >
           {tight ? '🏷' : `${t('Labels:')} ${labelMode === 'always' ? t('Always Show') : t('Hover Only')}`}
         </button>
+        )}
         </div>
       </div>
       {/* The weather keeps changing in random mode even while its controls stand aside (a tour's kickoff card). */}

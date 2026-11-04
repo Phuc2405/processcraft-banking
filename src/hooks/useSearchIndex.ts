@@ -14,6 +14,7 @@ import { RETAIL_FLASHCARDS } from '../data/retailFlashcards';
 import { REG_DOCUMENTS } from '../data/regulatoryRegistry';
 import { CORE_LEDGER_ARTICLE, isIntermediate } from '../data/knowledgeBase';
 import { AML_ARTICLE } from '../data/amlKnowledge';
+import { STP_ARTICLE } from '../data/stpKnowledge';
 import { RETAIL_TOPICS } from '../data/retailKnowledge';
 import { TOPIC_MODULES } from '../data/retailTopicModules';
 import { pick } from '../i18n/locale';
@@ -211,6 +212,17 @@ export function knowledgeEntries(locale: Locale): SearchEntry[] {
       label: pick(sec.title, locale),
       detail: aml,
       keys: fold([...LOCALES_BOTH.flatMap((l) => [pick(sec.title, l), sec.rule ? pick(sec.rule, l) : '']), ...sec.keywords].join(' | ')),
+      action: { kind: 'knowledge', anchor: sec.id },
+    });
+  }
+  const stp = pick(STP_ARTICLE.title, locale);
+  for (const sec of STP_ARTICLE.sections) {
+    out.push({
+      id: `kb:section:${sec.id}`,
+      category: 'kb',
+      label: pick(sec.title, locale),
+      detail: stp,
+      keys: fold([...LOCALES_BOTH.flatMap((l) => [pick(sec.title, l), 'rule' in sec && sec.rule ? pick(sec.rule, l) : '']), 'STP', 'straight-through', 'xu ly tu dong', 'STR'].join(' | ')),
       action: { kind: 'knowledge', anchor: sec.id },
     });
   }

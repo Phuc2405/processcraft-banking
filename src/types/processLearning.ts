@@ -201,6 +201,10 @@ export interface BnplContext {
   /** 0 to 1000. */
   underwritingScore: number;
   downPaymentMinor: MinorUnits;
+  /** Debt service-to-income with the new plan, in percent. Derived from the score when absent. */
+  dtiPct?: number;
+  /** The worst debt group on the credit bureau (CIC), 1 to 5. */
+  cicGroup?: 1 | 2 | 3 | 4 | 5;
 }
 
 /** The ISO 20022 pacs.008 (FIToFICustomerCreditTransfer) fields an account-to-account payment arrives with, plus the state of the gateway at the moment it arrives. */

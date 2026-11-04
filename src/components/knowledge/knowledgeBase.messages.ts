@@ -8,6 +8,7 @@ export const knowledgeBaseMessages = defineMessages('knowledgeBase', {
   tabsLabel: { en: 'Knowledge Base categories', vi: 'Danh mục kiến thức' },
   tabCore: { en: '📒 Core ledger', vi: '📒 Sổ cái lõi' },
   tabAml: { en: '🛡️ AML compliance', vi: '🛡️ Tuân thủ AML' },
+  tabStp: { en: '⚡ STP automation', vi: '⚡ Xử lý tự động STP' },
   goldenRule: { en: '⭐ Golden rule', vi: '⭐ Nguyên tắc vàng' },
   tabRetail: { en: '🏦 Retail operations', vi: '🏦 Nghiệp vụ bán lẻ' },
   tabFlashcards: { en: '🃏 Flashcards', vi: '🃏 Thẻ ghi nhớ' },

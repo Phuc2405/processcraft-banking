@@ -33,6 +33,7 @@ import { describeWork, IDLE_TEXT } from './narration';
 import { buildGraphs, planCheckout, planSettlement, type BankGraphs } from './processes';
 import { clamp, hashSeed, Rng } from './prng';
 import { clampRules, DEFAULT_RULES, type BankRules } from './rules';
+import { clampStp, straightThroughRate, type StpConfig } from './stpEngine';
 import { BOT_SCENARIO_ID, scenarioLabelEn } from './scenarios';
 import { isExtendedKind } from './amlEngine';
 import { declineResponseCode } from './isoMessages';
@@ -86,6 +87,7 @@ import type {
   StationStats,
   StationStatus,
   StationView,
+  StpTally,
   SuspenseItem,
   WorkerView,
 } from './types';
@@ -163,7 +165,12 @@ export interface BankSimOptions {
   headless?: boolean;
   /** Chaos Monkey faults and the scripted day 2 / day 3 scenarios. Off unless given. */
   chaos?: Partial<ChaosConfig>;
+  /** The Straight-Through Processing rules. The defaults unless given. */
+  stp?: Partial<StpConfig>;
 }
+
+/** Extra fraud & OTP threads the cluster spins up by itself on a flash-sale day: no cover cost, no fatigue. */
+export const OTP_SURGE_THREADS = 2;
 
 /** The result of disputing a payment from the ledger. */
 export interface DisputeResult {
@@ -199,6 +206,7 @@ export class BankSimulation {
   dayOver = false;
 
   private rulesNow: BankRules;
+  private stpNow: StpConfig;
   private graphs: BankGraphs;
   private traffic!: DayTraffic;
   private stations!: Record<StationId, StationState>;
@@ -260,6 +268,7 @@ export class BankSimulation {
     this.headless = options.headless === true;
     this.rulesNow = clampRules({ ...DEFAULT_RULES, ...options.rules });
     this.graphs = buildGraphs(this.rulesNow);
+    this.stpNow = clampStp(options.stp);
     this.history = [...(options.history ?? [])].slice(-HISTORY_LIMIT);
 
     const roster = rosterFor(this.seed);
@@ -319,6 +328,15 @@ export class BankSimulation {
     this.graphs = buildGraphs(rules);
   }
 
+  get stp(): StpConfig {
+    return { ...this.stpNow };
+  }
+
+  /** Changes the STP rules. Like the policy dials, they apply to cases that arrive from now on. */
+  setStp(next: Partial<StpConfig>): void {
+    this.stpNow = clampStp({ ...this.stpNow, ...next });
+  }
+
   /** The Chaos Monkey settings in force. */
   get chaos(): ChaosConfig {
     return { ...this.chaosConfig };
@@ -335,6 +353,25 @@ export class BankSimulation {
       const what = { posOutage: 'POS station outage', hsmFailure: '3DS HSM cryptography failure', congestion: 'Network congestion', fatigueSpike: 'Staff fatigue spike' }[k as Exclude<keyof ChaosConfig, 'scriptedDays'>];
       this.log(on ? 'crit' : 'ok', null, on ? `Chaos Monkey: ${what} injected.` : `Chaos Monkey: ${what} cleared.`, { notable: true });
     }
+  }
+
+  /** An automated node scales itself out for the day: temporary threads at no cover cost. */
+  private autoScale(id: StationId, n: number): void {
+    const st = this.stations[id];
+    for (let i = 0; i < n; i++) {
+      const seed = workerSeed(this.seed, id, st.workers.length, this.takenNames, true);
+      st.workers.push({ seed, fatigue: 0, freeAt: 0, busyMin: 0, busyShare: 0, items: 0, activity: null, activityTick: -99, temp: true });
+    }
+    this.log('info', id, `Flash sale: ${STATIONS[id].name} auto-scaled by ${n} threads (${st.workers.length} on duty) to keep the OTP queue clear.`, { notable: true });
+  }
+
+  /** Today's straight-through numbers: the STP engine against the Pay-in-4 desk it relieves. */
+  stpTally(): StpTally {
+    const e = this.stations.STP_ENGINE.counters;
+    const b = this.stations.BNPL.counters;
+    const straight = e.stp ?? 0;
+    const manual = (b.plans ?? 0) + (b.fallback ?? 0);
+    return { straight, fastFail: e.fastFail ?? 0, manual, rate: straightThroughRate(straight, manual) };
   }
 
   /** Books a temporary worker on a desk for the rest of the day. Costs money. Returns false when the desk cannot take another. */
@@ -557,6 +594,7 @@ export class BankSimulation {
     }
     const e = this.traffic.event;
     this.log('info', null, `Day ${this.day}: ${e.title}. ${e.blurb}`, { notable: true });
+    if (this.chaosScenario === 'FLASH_SURGE' || e.id === 'PROMO') this.autoScale('SEC_3DS', OTP_SURGE_THREADS);
     if (this.chaosScenario === 'FLASH_SURGE') {
       this.log('crit', null, `Day ${this.day} scenario: FLASH SALE. Expect ${SURGE_MULTIPLIER}x the usual customers, a congested network and 504 gateway timeouts. Status inquiries will chase every timed-out payment.`, { notable: true });
     } else if (this.chaosScenario === 'BOTNET') {
@@ -681,7 +719,7 @@ export class BankSimulation {
 
   private admit(incoming: Customer): Packet {
     const customer = this.chaosTriage(incoming);
-    const plan = planCheckout(customer, this.graphs);
+    const plan = planCheckout(customer, this.graphs, this.stpNow);
     const { payload } = customer;
     const p: Packet = {
       id: customer.id,
@@ -1161,6 +1199,18 @@ export class BankSimulation {
         }
         break;
 
+      case 'STP_ENGINE':
+        if (p.plan.outcome === 'DECLINED') {
+          bump(st, 'fastFail');
+          st.errors++;
+          if (sample('stpFail', 0.25)) this.log('warn', st.id, `STP fast-fail: ${this.what(p)} refused at the gate (${p.plan.reasonCode}). No underwriter slot used.`, { packetId: p.id, notable: true });
+        } else {
+          bump(st, 'stp');
+          bump(st, 'stpCents', p.amountCents);
+          if (sample('stpOk', 0.08)) this.log('ok', st.id, `STP auto-approved ${this.what(p)} in milliseconds: no queue, no human touch.`, { packetId: p.id, notable: true });
+        }
+        break;
+
       case 'BNPL':
         if (f.bnplDecision === 'ELIGIBLE') {
           bump(st, 'plans');
@@ -1355,6 +1405,12 @@ export class BankSimulation {
         break;
       case 'CREDIT_OPS':
         bump(st, 'cases');
+        if (p.ext?.creditOps?.kioskStp) {
+          const engine = this.stations.STP_ENGINE;
+          bump(engine, 'stp');
+          bump(engine, 'kiosk');
+          bump(engine, 'stpCents', p.amountCents);
+        }
         break;
     }
   }
@@ -2005,6 +2061,16 @@ export class BankSimulation {
           { label: st.id === 'LEDGER_CREDIT' ? 'Over the limit' : 'Not enough funds', value: n('declined'), tone: c('declined') > 0 ? 'warn' : undefined },
           ...(st.id === 'LEDGER_DEBIT' ? [{ label: 'Direct postings', value: n('posted'), tip: 'posted' }] : []),
         ];
+      case 'STP_ENGINE': {
+        const str = this.stpTally().rate;
+        return [
+          { label: 'Straight-through', value: `${n('stp')} · ${money('stpCents')}` },
+          ...(c('kiosk') > 0 ? [{ label: 'Of which Smart Kiosk cash', value: n('kiosk') }] : []),
+          { label: 'Fast-failed at the gate', value: n('fastFail'), tone: c('fastFail') > 0 ? 'warn' : undefined },
+          { label: 'Straight-through rate (STR)', value: `${Math.round(str * 100)}%` },
+          { label: 'Rules', value: this.stpNow.enabled ? `≤ ${formatAud(this.stpNow.bnplMaxCents)} · DTI ≤ ${this.stpNow.maxDtiPct}%` : 'STP off' },
+        ];
+      }
       case 'BNPL':
         return [
           { label: 'Plans approved', value: n('plans') },
@@ -2274,6 +2340,7 @@ export class BankSimulation {
       dayOver: this.dayOver,
       event: this.traffic.event,
       rules: { ...this.rulesNow },
+      stp: this.stpTally(),
       stations,
       externals,
       moves: sampleMoves(this.beatMoves, MAX_MOVES),

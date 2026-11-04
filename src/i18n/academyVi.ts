@@ -20,7 +20,7 @@ const FROZEN: EdgeCase = { code: '62', title: 'Thẻ bị khóa', detail: 'Khác
 const NSF: EdgeCase = { code: '51', title: 'Không đủ số dư', detail: 'Số dư khả dụng (số dư trừ các khoản đang khoanh giữ) thấp hơn số tiền giao dịch.' };
 
 export const LESSON_CONTENT_VI: Readonly<Record<string, LessonContent>> = {
-  // ── Chương 1 · Lần quẹt đầu tiên ─────────────────────────────────────────────
+  // Chương 1 · Lần quẹt đầu tiên
   '1.1': {
     realWorldScenario: 'Mua một ly flat white $5 ở quán cà phê tại Brisbane bằng cách chạm thẻ Visa Debit không tiếp xúc vào máy POS trên quầy.',
     stepByStepFlow: [
@@ -71,7 +71,7 @@ export const LESSON_CONTENT_VI: Readonly<Record<string, LessonContent>> = {
     edgeCasesAndErrors: [NSF, FROZEN, { code: '61', title: 'Vượt hạn mức giao dịch ngày', detail: 'Tiền vẫn còn, nhưng hạn mức chi tiêu trong ngày của thẻ đã dùng hết.' }],
   },
 
-  // ── Chương 2 · Thẻ ảo & định tuyến 3DS ──────────────────────────────────────
+  // Chương 2 · Thẻ ảo & định tuyến 3DS
   '2.1': {
     realWorldScenario: 'Đặt mua đôi giày thể thao $89 trên mạng bằng thẻ ảo đã lưu trong ứng dụng mua sắm.',
     stepByStepFlow: [
@@ -126,7 +126,7 @@ export const LESSON_CONTENT_VI: Readonly<Record<string, LessonContent>> = {
     ],
   },
 
-  // ── Chương 3 · Dò thẻ & phát hiện gian lận ──────────────────────────────────
+  // Chương 3 · Dò thẻ & phát hiện gian lận
   '3.1': {
     realWorldScenario: 'Một con bot thử 40 giao dịch $1 trong hai phút trên trang quyên góp từ thiện, mỗi lần với một thẻ bị đánh cắp khác nhau.',
     stepByStepFlow: [
@@ -167,7 +167,7 @@ export const LESSON_CONTENT_VI: Readonly<Record<string, LessonContent>> = {
     ],
   },
 
-  // ── Chương 4 · BNPL & duyệt trả góp ─────────────────────────────────────────
+  // Chương 4 · BNPL & duyệt trả góp
   '4.1': {
     realWorldScenario: 'Mua tai nghe $400 và chọn Trả 4 kỳ tại trang thanh toán thay vì trả một lần.',
     stepByStepFlow: [
@@ -205,7 +205,7 @@ export const LESSON_CONTENT_VI: Readonly<Record<string, LessonContent>> = {
     ],
   },
 
-  // ── Chương 5 · Chuyển tiền nhanh tài khoản (A2A) & ISO 20022 ─────────────────────────────────
+  // Chương 5 · Chuyển tiền nhanh tài khoản (A2A) & ISO 20022
   '5.1': {
     realWorldScenario: 'Một người bạn chuyển $120 tiền vé xem hòa nhạc qua PayID, và tiền đến trong vài giây.',
     stepByStepFlow: [
@@ -258,7 +258,7 @@ export const LESSON_CONTENT_VI: Readonly<Record<string, LessonContent>> = {
     ],
   },
 
-  // ── Chương 6 · Bù trừ & quyết toán cuối ngày ────────────────────────────────
+  // Chương 6 · Bù trừ & quyết toán cuối ngày
   '6.1': {
     realWorldScenario: 'Đến 11 giờ đêm quán cà phê có 380 lần chạm thẻ được duyệt trong ngày, tất cả vẫn chỉ là lời hứa.',
     stepByStepFlow: [
@@ -310,6 +310,48 @@ export const LESSON_CONTENT_VI: Readonly<Record<string, LessonContent>> = {
       { code: null, title: 'Bản ghi bù trừ bị trùng', detail: 'Cùng một giao dịch được bù trừ hai lần; một bản bị đảo.' },
     ],
   },
+  '7.1': {
+    realWorldScenario: 'Khách chọn trả góp 4 kỳ cho giỏ hàng $400. Thu nhập $3,000, DTI 23%, eKYC đạt, CIC nhóm 1: khoản trả góp được duyệt trước khi trang thanh toán kịp tải xong.',
+    stepByStepFlow: [
+      { actor: MERCHANT, action: 'Gửi yêu cầu trả góp 4 kỳ tới cổng thương mại điện tử của ngân hàng.' },
+      { actor: CORE, action: 'Trạm STP chạy quy tắc: số tiền ≤ $500, DTI ≤ 23%, eKYC ĐẠT, CIC nhóm 1.' },
+      { actor: LEDGER, action: 'Hạch toán tức thì vào sổ cái: cửa hàng nhận đủ tiền và khách trả trước $100 từ CASA.' },
+      { actor: CUSTOMER, action: 'Thấy “Đã duyệt” mà không phải xếp hàng, không cần con người can thiệp.' },
+    ],
+    whyItMatters: 'Mỗi hồ sơ đi thẳng giải phóng một chuyên viên thẩm định cho những hồ sơ cần phán đoán. STP thay đổi đường đi và thời gian chờ, không thay đổi bút toán.',
+    edgeCasesAndErrors: [
+      { code: null, title: 'STP bị tắt', detail: 'Công tắc toàn hệ thống đang tắt: cùng hồ sơ đó xếp hàng tại quầy thẩm định, kết quả như nhau nhưng chậm hơn.' },
+      { code: '05', title: 'Vi phạm quy tắc', detail: 'Chỉ cần một quy tắc không đạt là hồ sơ về quầy; STP không tự từ chối hồ sơ nằm sát ngưỡng.' },
+    ],
+  },
+  '7.2': {
+    realWorldScenario: 'Flash Sale: 40 hồ sơ trả góp đang chờ tại quầy thẩm định. Trong vai Chuyên viên Rủi ro Tín dụng, bạn nâng hạn mức STP từ $200 lên $500, giữ trần DTI 23%.',
+    stepByStepFlow: [
+      { actor: OPS, action: 'Đọc hàng chờ BNPL và STR hôm nay trong ngăn kéo ⚡ STP.' },
+      { actor: CREDIT, action: 'Chỉ chỉnh một tham số (hạn mức số tiền), không chỉnh hai cùng lúc.' },
+      { actor: CORE, action: 'Hồ sơ mới nằm trong hạn mức rộng hơn đi thẳng; hàng chờ giảm dần.' },
+      { actor: CREDIT, action: 'Theo dõi nợ xấu dự kiến cùng STR trước khi động tới trần DTI.' },
+    ],
+    whyItMatters: 'Ngưỡng là khẩu vị rủi ro viết thành con số. Hạn mức rộng hơn đổi tốc độ lấy rủi ro vỡ nợ, nên phải tinh chỉnh bằng bằng chứng, không chỉ vì áp lực hàng chờ.',
+    edgeCasesAndErrors: [
+      { code: null, title: 'Chỉnh hai tham số cùng lúc', detail: 'Nâng cả hạn mức và trần DTI làm không rõ tham số nào khiến tỷ lệ vỡ nợ thay đổi.' },
+      { code: null, title: 'STR ảo', detail: 'STR 100% mà nợ xấu tăng nghĩa là quy tắc quá lỏng, không phải ngân hàng hiệu quả.' },
+    ],
+  },
+  '7.3': {
+    realWorldScenario: 'Hồ sơ trả góp $650 với DTI 24% rơi khỏi luồng STP. Trong vai Chuyên viên Thẩm định, bạn mở ngoại lệ: cờ “vượt hạn mức” và “DTI vượt trần”, lịch sử CIC sạch.',
+    stepByStepFlow: [
+      { actor: CORE, action: 'Gắn cờ hồ sơ (AMOUNT_OVER_LIMIT, DTI_OVER_LIMIT) và chuyển về quầy thẩm định.' },
+      { actor: CREDIT, action: 'Kiểm tra lịch sử CIC và thu nhập đã xác minh, vẫn dưới ngưỡng chính sách 45%.' },
+      { actor: CREDIT, action: 'Duyệt ngoại lệ (manual override) hoặc từ chối; lần duyệt ngoại lệ được ghi vết kèm lý do.' },
+      { actor: RISK, action: 'Nợ xấu (CIC nhóm 3-5) không bao giờ tới bước này: đã bị loại sớm tại cổng.' },
+    ],
+    whyItMatters: 'Tự động hóa xử lý quy tắc; con người xử lý ngoại lệ. Một luồng quay về thủ công rõ ràng, có cờ lý do, là điều giúp tự động hóa phần còn lại an toàn.',
+    edgeCasesAndErrors: [
+      { code: '05', title: 'CIC nhóm 3 tại cổng', detail: 'Bị loại sớm trước khi đến quầy: không tốn chỗ của chuyên viên.' },
+      { code: null, title: 'Duyệt ngoại lệ không lý do', detail: 'Duyệt ngoại lệ không ghi lý do sẽ không qua kiểm toán, dù kết quả thế nào.' },
+    ],
+  },
 };
 
 /** Vietnamese title and goal of every Academy level, keyed by level id ("2.3"). */
@@ -336,6 +378,9 @@ export const LEVEL_TEXT_VI: Readonly<Record<string, { title: string; goal: strin
   '6.2': { title: 'Bù trừ theo lô', goal: 'Lúc 23:00 các giao dịch trong ngày được đóng gói vào một tệp bù trừ.' },
   '6.3': { title: 'Quyết toán với tổ chức thẻ', goal: 'Visa bù trừ ròng xem ai nợ ai, tiền dịch chuyển, và các khoản khoanh giữ thành bút toán thật trong sổ cái.' },
   '6.4': { title: 'Đối soát 3 bên', goal: 'Sổ cái, tệp bù trừ và bộ chuyển mạch phải khớp nhau. Khớp thì quyết toán; lệch thì chờ trong tài khoản treo để người xử lý.' },
+  '7.1': { title: 'Làn xử lý thẳng', goal: 'Hồ sơ trả góp nhỏ, sạch bỏ qua quầy thẩm định: trạm STP kiểm tra eKYC, DTI, CIC và hạn mức rồi hạch toán trong vài mili giây.' },
+  '7.2': { title: 'Tinh chỉnh ngưỡng', goal: 'Nâng hạn mức STP hoặc trần DTI làm giảm hàng chờ thủ công nhưng mở rộng rủi ro vỡ nợ. Mỗi lần một tham số, theo dõi STR và nợ xấu cùng lúc.' },
+  '7.3': { title: 'Quay về thủ công & loại sớm', goal: 'Hồ sơ ngoài quy tắc quay về quầy kèm cờ lý do để duyệt ngoại lệ; nợ xấu (CIC 3-5) bị từ chối ngay tại cổng.' },
 };
 
 /** Vietnamese chapter titles and topics, keyed by chapter id. */
@@ -346,6 +391,7 @@ export const CHAPTER_TEXT_VI: Readonly<Record<number, { title: string; topic: st
   4: { title: 'BNPL & duyệt trả góp', topic: 'Thẩm định & kiểm tra tín dụng' },
   5: { title: 'Chuyển tiền nhanh tài khoản (Account-to-Account / A2A) & ISO 20022', topic: 'Nộp tiền CDM & thanh khoản' },
   6: { title: 'Bù trừ & quyết toán cuối ngày', topic: 'Bút toán sổ cái ngân hàng lõi' },
+  7: { title: 'Bài 7: Vận hành Tự động hóa STP & Quản trị Rủi ro Tín dụng', topic: 'Xử lý thẳng, ngưỡng tự duyệt, quay về thủ công' },
 };
 
 /** Vietnamese knowledge-track names, keyed by track id. */
@@ -382,6 +428,7 @@ export const GLOSSARY_VI: Readonly<Record<string, { term: string; definition: st
   basel: { term: 'Hệ số an toàn vốn Basel', definition: 'Basel III yêu cầu ngân hàng giữ vốn tối thiểu so với tài sản có rủi ro: ít nhất 4.5% vốn cổ phần phổ thông, 6% vốn cấp 1 và 8% tổng vốn, cộng thêm 2.5% đệm bảo toàn vốn.' },
   'bank-run': { term: 'Kiểm tra sức chịu đựng rút tiền ồ ạt', definition: 'Rút tiền ồ ạt là khi nhiều người gửi tiền rút cùng lúc. Kiểm tra sức chịu đựng giả định một phần tiền gửi rời đi và xem tài sản thanh khoản còn đủ bù đắp, ví dụ hệ số khả năng chi trả (LCR) giữ ở mức từ 100% trở lên trong 30 ngày.' },
   aml: { term: 'Phòng chống rửa tiền trong ba bước', definition: '1) KYC: nhận biết khách hàng khi họ mở tài khoản. 2) Giám sát: theo dõi giao dịch theo quy tắc, như nhiều giao dịch sát dưới một ngưỡng. 3) Báo cáo: gửi báo cáo giao dịch đáng ngờ (SAR) cho cơ quan quản lý, tại Úc là báo cáo vấn đề đáng ngờ cho AUSTRAC, mà không báo động cho khách hàng.' },
+  stp: { term: 'Xử lý thẳng (STP)', definition: 'Hồ sơ được bộ quy tắc Core Banking xử lý trọn vẹn mà không cần con người: eKYC, DTI, CIC, hạn mức và sàng lọc cấm vận được kiểm tra trong vài mili giây và bút toán hạch toán thẳng vào sổ cái. Hồ sơ ngoài quy tắc quay về quầy.' },
 };
 
 type Four = readonly [string, string, string, string];
@@ -411,4 +458,8 @@ export const QUIZ_VI: Readonly<Record<string, { prompt: string; options: Four; e
   '6-c': { prompt: 'Theo Basel III, hệ số tổng vốn tối thiểu trước các khoản đệm là bao nhiêu?', options: ['2%', '4.5%', '8%', '20%'], explanation: 'Tổng vốn phải ít nhất 8% tài sản có rủi ro, trong đó 4.5% vốn cổ phần phổ thông và 6% vốn cấp 1.' },
   '6-d': { prompt: 'Kiểm tra sức chịu đựng rút tiền ồ ạt kiểm tra điều gì?', options: ['Máy ATM có sạch không', 'Tài sản thanh khoản có đủ bù một làn sóng rút tiền đột ngột', 'Khách gõ PIN nhanh thế nào', 'Phí có công bằng không'], explanation: 'Nó giả định một phần tiền gửi rời đi và kiểm tra đệm thanh khoản vẫn đủ bù.' },
   '6-e': { prompt: 'Thứ tự đúng của ba bước AML là gì?', options: ['Báo cáo, giám sát, nhận biết khách hàng', 'Giám sát, nhận biết khách hàng, báo cáo', 'Nhận biết khách hàng, giám sát, báo cáo', 'Nhận biết khách hàng, báo cáo, giám sát'], explanation: 'KYC khi khách gia nhập, giám sát trong lúc họ giao dịch, và báo cáo giao dịch đáng ngờ khi có điều bất thường.' },
+  '7-a': { prompt: 'Với quy tắc STP mặc định (hạn mức $500, trần DTI 23%), hồ sơ trả góp nào đi thẳng?', options: ['$650, DTI 20%, CIC nhóm 1', '$400, DTI 23%, CIC nhóm 1, eKYC đạt', '$300, DTI 18%, CIC nhóm 2', '$200, DTI 15%, eKYC thất bại'], explanation: 'Mọi quy tắc phải đạt: số tiền ≤ $500, DTI ≤ 23%, eKYC ĐẠT và CIC nhóm 1. Chỉ hồ sơ $400 đạt cả bốn.' },
+  '7-b': { prompt: 'Hàng chờ BNPL quá tải trong Flash Sale. Bước đầu tiên an toàn nhất là gì?', options: ['Tắt STP', 'Nâng hạn mức một nấc rồi theo dõi STR và nợ xấu dự kiến', 'Nâng cùng lúc hạn mức và trần DTI', 'Duyệt tay toàn bộ hàng chờ'], explanation: 'Mỗi lần một tham số cho thấy điều gì làm tỷ lệ vỡ nợ thay đổi; tắt STP chỉ làm hàng chờ dài thêm.' },
+  '7-c': { prompt: 'Hồ sơ có CIC nhóm 4 tại cổng trực tuyến. Điều gì xảy ra?', options: ['Đi thẳng qua STP', 'Chờ tại quầy BNPL', 'Bị loại sớm tại cổng, trước mọi quầy', 'Chuyển sang quầy AML'], explanation: 'Nợ xấu (nhóm 3 đến 5) bị từ chối ngay khi tiếp nhận, nên không chiếm chỗ của chuyên viên thẩm định.' },
+  '7-d': { prompt: 'Tỷ lệ xử lý thẳng (STR) đo điều gì?', options: ['Tỷ lệ hồ sơ đã quyết định được hạch toán không cần con người', 'Tốc độ hạch toán sổ cái', 'Tỷ lệ hồ sơ bị từ chối', 'Tỷ lệ vỡ nợ'], explanation: 'STR = số hồ sơ đi thẳng ÷ tổng hồ sơ đã quyết định; đọc cùng tỷ lệ vỡ nợ.' },
 };

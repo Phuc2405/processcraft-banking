@@ -5,7 +5,7 @@ import { sampleFor, sampleForLevel } from '../academySamples';
 
 describe('the knowledge tracks', () => {
   it('group the six chapters into three tracks, each chapter in exactly one', () => {
-    expect(ACADEMY_TRACKS.map((t) => t.chapters)).toEqual([[1, 2], [3, 4], [5, 6]]);
+    expect(ACADEMY_TRACKS.map((t) => t.chapters)).toEqual([[1, 2], [3, 4], [5, 6, 7]]);
     for (const c of ACADEMY_CHAPTERS) expect(ACADEMY_TRACKS.filter((t) => t.chapters.includes(c.id))).toHaveLength(1);
     expect(trackOfChapter(4).title).toBe('Operations');
   });

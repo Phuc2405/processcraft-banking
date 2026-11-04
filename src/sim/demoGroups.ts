@@ -13,6 +13,7 @@ import { planCheckout, buildGraphs } from './processes';
 import { PRESETS, presetCustomer, type PresetDef } from './presets';
 import { OPS_ACTIONS, opsSubProcess, type OpsActionDef, type OpsSubProcessId } from './retailOps';
 import { DEFAULT_RULES } from './rules';
+import { stpPlaces } from './stpEngine';
 import { edgeId, isStation, STATIONS, WIRES, type DepartmentId, type PlaceId } from './topology';
 
 const L = (en: string, vi: string): Localized<string> => ({ en, vi });
@@ -95,7 +96,7 @@ export function groupMembers(id: DemoGroupId): readonly GroupMember[] {
 }
 
 /** The desks a button's payment crosses: a retail action's route, or a preset's route under the default rules. */
-export const memberPlaces = (m: GroupMember): readonly PlaceId[] => (m.source === 'ops' ? m.def.route : presetPlaces(m.def));
+export const memberPlaces = (m: GroupMember): readonly PlaceId[] => (m.source === 'ops' ? stpPlaces(m.def.id, m.def.route) : presetPlaces(m.def));
 
 /** The desks a preset's payment crosses under the default rules (the night cycle, which is not a payment, lights its whole flow). */
 function presetPlaces(def: PresetDef): readonly PlaceId[] {

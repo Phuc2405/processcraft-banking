@@ -32,6 +32,43 @@ export const isAutomatedDesk = (role: StaffRoleId): boolean => isAutomatedNode(R
 /** A held case the bank's checks flagged: a field breaches the SOP, or the right answer is to refuse it. */
 export const isExceptionCase = (c: Pick<StaffCase, 'expected' | 'fields'>): boolean => c.expected === 'REJECT' || c.fields.some((f) => f.flag);
 
+/** An approval against the bank's own checks: the case was flagged or referred, or the status code is an explicit override. */
+export const isOverride = (c: Pick<StaffCase, 'expected' | 'fields'>, decision: StaffDecision, statusCode: string): boolean =>
+  decision === 'APPROVE' && (isExceptionCase(c) || statusCode.includes('OVERRIDE'));
+
+/** Above this override rate an analyst's approvals get a second-line review (the retail topic 12 red flag). */
+export const OVERRIDE_ALERT_PCT = 20;
+
+export interface OverrideKpi {
+  /** One analyst seat: a desk role in one shift. */
+  role: StaffRoleId;
+  shift: number;
+  decisions: number;
+  overrides: number;
+  /** Overrides the SOP says were wrong. */
+  badOverrides: number;
+  ratePct: number;
+  alert: boolean;
+}
+
+/** Override-rate KPIs per analyst (desk and shift), from the audit trail. Seats with no decisions are left out. */
+export function overrideKpis(log: ReadonlyArray<{ role: StaffRoleId; shift: number; override?: boolean; compliance: string }>): OverrideKpi[] {
+  const seats = new Map<string, OverrideKpi>();
+  for (const e of log) {
+    const key = `${e.role}#${e.shift}`;
+    const k = seats.get(key) ?? { role: e.role, shift: e.shift, decisions: 0, overrides: 0, badOverrides: 0, ratePct: 0, alert: false };
+    k.decisions += 1;
+    if (e.override) {
+      k.overrides += 1;
+      if (e.compliance === 'SOP_BREACH') k.badOverrides += 1;
+    }
+    k.ratePct = Math.round((k.overrides / k.decisions) * 1000) / 10;
+    k.alert = k.ratePct > OVERRIDE_ALERT_PCT;
+    seats.set(key, k);
+  }
+  return [...seats.values()].sort((a, b) => a.shift - b.shift || a.role.localeCompare(b.role));
+}
+
 /** How a desk is entered: a person's shift on a human desk; on a system, monitoring, or reviewing the exceptions it flagged. */
 export type DeskEntry = 'roleplay' | 'monitor' | 'exceptions';
 export const deskEntry = (role: StaffRoleId, exceptions: number): DeskEntry => (!isAutomatedDesk(role) ? 'roleplay' : exceptions > 0 ? 'exceptions' : 'monitor');
@@ -1309,6 +1346,10 @@ export const RETAIL_SCENARIOS = [
   'NPL_PROVISION',
   'FX_VOLATILITY',
   'EKYC_RISK',
+  // STP: the risk officer tunes the thresholds, the underwriter works an STP fallback, the AML analyst clears an STP sanctions hold.
+  'STP_TUNING',
+  'STP_EXCEPTION',
+  'STP_SANCTION',
 ] as const;
 export type RetailScenarioId = (typeof RETAIL_SCENARIOS)[number];
 export type RetailScene = `retail_${RetailScenarioId}`;
@@ -1320,8 +1361,8 @@ export const RETAIL_DESK: Readonly<Record<StaffRoleId, readonly RetailScenarioId
   cashier: ['ATM_LOW_CASH', 'TD_EARLY_BREAK'],
   dispute: ['ATM_JAM', 'CARD_CAPTURED'],
   swift: ['ATM_INTERBANK', 'CLEARING_BREAK', 'FX_VOLATILITY'],
-  bnpl: ['DEBT_WATERFALL', 'TD_PLEDGE', 'TD_LIQUIDATION', 'NPL_PROVISION'],
-  aml: ['WALLET', 'RTP_QR'],
+  bnpl: ['DEBT_WATERFALL', 'TD_PLEDGE', 'TD_LIQUIDATION', 'NPL_PROVISION', 'STP_TUNING', 'STP_EXCEPTION'],
+  aml: ['WALLET', 'RTP_QR', 'STP_SANCTION'],
 };
 
 /** Thresholds and tariffs the retail SOPs quote (analystWorkspace.messages.ts `retail_<id>_sop*`). */
@@ -1349,6 +1390,8 @@ export const RETAIL_SOP = {
   fxVolatilityPct: 2,
   /** eKYC risk profiling: a score at or above this is high risk (EDD), as is any PEP match or high-risk country. */
   highRiskScore: 70,
+  /** STP tuning: the projected Pay-in-4 default rate the risk appetite accepts for a wider STP limit (%). */
+  stpDefaultAppetitePct: 3,
 } as const;
 
 /** The SBV's five debt groups (Circular 11/2021/TT-NHNN): from days past due, and the specific provision rate of each. */
@@ -1754,6 +1797,62 @@ function retailDrill(scenario: RetailScenarioId, id: string, hit: boolean): Reta
         ],
         // Risk profiling moves no money: the decision is logged as a memo.
         data: { codes: ['RISK_TIER_ACCEPTED', 'RISK_TIER_ESCALATED_EDD'], approve: [], reject: [] },
+      };
+    }
+    case 'STP_TUNING': {
+      const projected = hit ? b('pd', 4, 9) : b('pd', 1, S.stpDefaultAppetitePct);
+      return {
+        amountCents: 50_000,
+        expected,
+        fields: [
+          { key: 'stpQueue', value: num(b('q', 40, 120)) },
+          { key: 'stpCurrentLimit', value: cash(20_000) },
+          { key: 'stpProposedLimit', value: cash(50_000) },
+          { key: 'dti', value: pct(23) },
+          { key: 'projectedDefault', value: pct(projected), flag: projected > S.stpDefaultAppetitePct },
+        ],
+        // A policy change moves no money: the decision is logged as a memo.
+        data: { codes: ['STP_LIMIT_RAISED', 'STP_LIMIT_HELD'], approve: [], reject: [] },
+      };
+    }
+    case 'STP_EXCEPTION': {
+      const amount = 65_000;
+      const late = hit ? b('late', 2, 4) : 0;
+      return {
+        amountCents: amount,
+        expected,
+        fields: [
+          { key: 'stpFlags', value: msg('stpFlagsAmountDti') },
+          { key: 'dti', value: pct(24) },
+          { key: 'debtGroup', value: msg(hit ? 'nplGroup2' : 'nplGroup1'), flag: hit },
+          { key: 'latePayments', value: num(late), flag: hit },
+        ],
+        data: {
+          codes: ['STP_OVERRIDE_APPROVED', 'STP_EXCEPTION_REFUSED'],
+          approve: journal(
+            [
+              ['LOAN_PRINCIPAL', (amount * 3) / 4],
+              ['CASA', amount / 4],
+            ],
+            [['INTERBANK_SETTLEMENT', amount]],
+          ),
+          reject: [],
+        },
+      };
+    }
+    case 'STP_SANCTION': {
+      const amount = b('amt', 50, 900) * 10_000;
+      return {
+        amountCents: amount,
+        expected,
+        fields: [
+          { key: 'holdReason', value: msg('holdOFAC') },
+          { key: 'nameScore', value: pct(hit ? b('name', 95, 99) : b('name', 86, 92)) },
+          { key: 'dobMatch', value: bool(hit), flag: hit },
+          { key: 'iftiDocs', value: bool(!hit), flag: hit },
+          { key: 'beneficiaryCountry', value: code(hit ? pickOf(id, 'c', ['IR', 'KP', 'SY']) : pickOf(id, 'c', ['SG', 'JP', 'AU'])), flag: hit },
+        ],
+        data: { codes: ['STP_RELEASED', 'AML_SANCTION_BLOCKED'], approve: journal([['CASA', amount]], [['NOSTRO', amount]]), reject: journal([['CASA', amount]], [['FROZEN_ASSETS', amount]]) },
       };
     }
     case 'CLEARING_BREAK': {

@@ -236,7 +236,17 @@ const EN: FailBook = {
     n_end_merchant: ['The provisional credit is taken back from the cardholder without telling them, and they dispute the bank’s statement.'],
     n_end_barred: ['A customer who was in time is told they were too late, because the clock started on the wrong day.'],
   },
-
+  G: {
+    n_start: [
+      'The credit bureau answers late or empty. If the gate reads “no data” as group 1, bad debt slips into the STP lane.',
+      'A failed biometric eKYC is not fast-failed: the case takes an underwriter’s slot only to be refused.',
+    ],
+    n_bnpl: [
+      'The STP limit is raised too fast. The queue clears, but expected bad debt climbs before anyone notices.',
+      'The DTI cap is too tight. STR is low and the Pay-in-4 desk drowns in clean cases on a flash-sale day.',
+      'Underwriters override too often. The override rate is not tracked per analyst, so the STP rules stop meaning anything.',
+    ],
+  },
 };
 
 const VI: FailBook = {
@@ -470,11 +480,27 @@ const VI: FailBook = {
     n_end_merchant: ['Khoản ghi có tạm thời bị thu lại từ chủ thẻ mà không báo trước, và họ khiếu nại sao kê của ngân hàng.'],
     n_end_barred: ['Khách còn trong hạn bị báo là quá hạn, vì đồng hồ bắt đầu tính từ sai ngày.'],
   },
+  G: {
+    n_start: [
+      'Dữ liệu CIC trả về chậm hoặc rỗng. Nếu cổng coi “không có dữ liệu” là nhóm 1, nợ xấu lọt vào làn STP.',
+      'eKYC sinh trắc học thất bại nhưng cổng không loại sớm: hồ sơ chiếm chỗ của chuyên viên chỉ để bị từ chối.',
+    ],
+    n_bnpl: [
+      'Hạn mức STP nâng quá nhanh. Hàng chờ thông thoáng, nhưng nợ xấu dự kiến tăng mà không ai kịp nhìn thấy.',
+      'Trần DTI đặt quá chặt. STR thấp, Quầy thẩm định BNPL ngập hồ sơ sạch vào ngày Flash Sale.',
+      'Chuyên viên duyệt ngoại lệ quá nhiều. Tỷ lệ ngoại lệ không được theo dõi theo từng người, nên quy tắc STP mất tác dụng.',
+    ],
+  },
 };
 
 export const FAIL_CASES: Localized<FailBook> = { en: EN, vi: VI };
 
+/** A chapter walked on another chapter's diagram borrows that chapter's fail cases for the boxes it does not word itself. */
+const SAME_DIAGRAM: Partial<Record<ProcessId, ProcessId>> = { G: 'C' };
+
 /** What can go wrong at one box of one process. An empty list when the box has nothing to say. */
 export function failCasesFor(process: ProcessId, nodeId: string): string[] {
-  return pick(FAIL_CASES)[process][nodeId] ?? [];
+  const book = pick(FAIL_CASES);
+  const twin = SAME_DIAGRAM[process];
+  return book[process][nodeId] ?? (twin ? book[twin][nodeId] : undefined) ?? [];
 }
