@@ -8,8 +8,8 @@
  *   BAY   ── TELLER   (the CIT hall's own handover to the till counter)
  */
 
-import type { CitDemo } from './citEngine';
-import { citChildLines } from './citRoute';
+import type { CitDemo, CitDirection } from './citEngine';
+import { citChildDirection, citChildLines } from './citRoute';
 import type { CashEndpoint, PlaceId } from './topology';
 import { CIT_FLOW, type FlowId } from '../types/viewport';
 
@@ -42,6 +42,17 @@ export const FLOW_WIRES: Readonly<Partial<Record<FlowId, readonly CashWire[]>>> 
 
 /** The bay ↔ teller handover belongs to the till run (the CIT hall hands the counter its float). */
 const childWires = (child: CitDemo): CashWire[] => [...citChildLines(child), ...(child === 'TELLER' ? (['BAY_TELLER'] as const) : [])];
+
+/**
+ * The direction each vault wire of a picked CIT child carries its cash, so the label reads that movement ("Xuất quỹ ➔ Hộc ATM" for an
+ * ATM top-up) before and while it runs. The SBV child follows the sheet's case toggle (`sbv`: a deposit leaves the vault, a
+ * withdrawal comes in). The bay ↔ teller handover has no vault side: it keeps its two-way label.
+ */
+export function routeDirs(child: CitDemo | null, sbv: CitDirection = 'OUT'): Readonly<Partial<Record<CashWire, CitDirection>>> {
+  if (!child) return {};
+  const dir = child === 'SBV' ? sbv : citChildDirection(child);
+  return Object.fromEntries(citChildLines(child).map((w) => [w, dir]));
+}
 
 /**
  * The lit wires: the active flow's (or the picked CIT child's), plus every wire of the hovered station. Null when nothing narrows the

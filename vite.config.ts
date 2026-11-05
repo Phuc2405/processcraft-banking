@@ -14,6 +14,9 @@ export default defineConfig({
         // React, React Flow and Zustand change far less often than the app: their own chunk stays cached across deploys.
         // The Vietnamese text tables and the analyst-workspace copy are chunks of their own, so the app chunk stays under the limit.
         codeSplitting: {
+          // A group holds the modules its test names, not everything they import: shared code stays where Rolldown would put it, so
+          // a group never swallows half the app (the retail-ops group once grew to 792 kB this way).
+          includeDependenciesRecursively: false,
           groups: [
             { name: 'vendor', test: /node_modules[\\/](react|react-dom|scheduler|zustand|use-sync-external-store|@xyflow|classcat|d3-[a-z]+)[\\/]/ },
             { name: 'i18n-vi', test: /[\\/]src[\\/](i18n[\\/](academyVi|challengeVi|catalogVi|feedVi|notesVi|reportVi|factsVi|simVi|viDictionary)\.ts|sim[\\/](learningVi|lessonExtras)\.ts)$/ },

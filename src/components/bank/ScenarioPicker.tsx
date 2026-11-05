@@ -14,13 +14,14 @@ export interface PickerItem {
 /**
  * The established dropdown pattern of the demo bar: a combobox naming the picked scenario that opens a keyboard-navigable list
  * (↑ ↓ Enter Esc), and whatever action sits beside it (Run / Cancel). Controlled: the caller owns the pick. Test ids from `testId`:
- * `<p>-selector` the row, `<p>-select` the combobox, `<p>-select-list` the list, `<p>-option-<id>` each choice.
+ * `<p>-selector` the row, `<p>-select` the combobox, `<p>-select-list` the list, `<p>-option-<id>` each choice. With `placeholder`,
+ * nothing is shown as picked until a choice is made (the trigger reads `label`): a navigator, not a setting.
  */
-export function ScenarioPicker({ items, picked, onPick, label, testId, direction = 'up', disabled = false, children }: { items: readonly PickerItem[]; picked: string; onPick: (id: string) => void; label: string; testId: string; direction?: 'up' | 'down'; disabled?: boolean; children?: ReactNode }) {
+export function ScenarioPicker({ items, picked, onPick, label, testId, direction = 'up', disabled = false, placeholder = false, children }: { items: readonly PickerItem[]; picked: string; onPick: (id: string) => void; label: string; testId: string; direction?: 'up' | 'down'; disabled?: boolean; placeholder?: boolean; children?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const listId = useId();
-  const chosen = items.find((a) => a.id === picked) ?? items[0];
+  const chosen = items.find((a) => a.id === picked) ?? (placeholder ? undefined : items[0]);
   const [active, setActive] = useState(0);
   useEffect(() => {
     if (open) setActive(Math.max(0, items.findIndex((a) => a.id === chosen?.id)));

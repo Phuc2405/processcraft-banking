@@ -3,6 +3,8 @@ import { defineMessages } from '../../utils/i18nHelper';
 /** The right-side sub-process info drawer. */
 export const subProcessInfoMessages = defineMessages('subProcessInfo', {
   label: { en: 'Sub-process info', vi: 'Thông tin quy trình con' },
+  labelParent: { en: 'Process info', vi: 'Thông tin quy trình' },
+  pickChild: { en: 'Open a sub-process (its sheet runs the demo)', vi: 'Chọn quy trình con (chạy demo tại trang của nó)' },
   open: { en: 'About this process', vi: 'Thông tin về quy trình này' },
   lesson: { en: 'Open this sub-process’s lesson in the Knowledge Base', vi: 'Mở bài học của quy trình này trong Thư viện kiến thức' },
   slaLive: { en: 'Live', vi: 'Thực tế' },
@@ -10,6 +12,7 @@ export const subProcessInfoMessages = defineMessages('subProcessInfo', {
   slaCit: { en: 'CIT run: {status}', vi: 'Chuyến CIT: {status}' },
   slaIdle: { en: 'no run in flight', vi: 'không có chuyến đang chạy' },
   close: { en: 'Close the sub-process info', vi: 'Đóng thông tin quy trình' },
+  showOnMapLocked: { en: 'A demo is running: the map shows it until it ends (or you cancel it).', vi: 'Đang chạy demo: bản đồ hiển thị demo cho đến khi kết thúc (hoặc bạn hủy).' },
   runScenario: { en: '▶ Run this scenario', vi: '▶ Chạy thử kịch bản này' },
   runNextDay: { en: 'today has closed: a 24/7 channel rolls into the next day', vi: 'hôm nay đã khép sổ: kênh 24/7 sẽ chuyển sang ngày mới' },
   mode_STP: { en: 'STP ⚡', vi: 'STP ⚡' },

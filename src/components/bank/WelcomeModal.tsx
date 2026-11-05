@@ -194,7 +194,7 @@ export function WelcomeModal({ onOpenAcademy, onChooseBank }: { onOpenAcademy: (
         <div className="bk-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 sm:px-5" data-testid="welcome-body">
           <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2" data-testid="welcome-modes">
             {WELCOME_MODES.map((mode) => (
-              <ModeCard key={mode.id} mode={mode} current={mode.isCurrent({ scope, academyOpen, staffDesk })} {...(mode.id === 'roleplay' ? { expanded: rolesOpen } : {})} onPick={guarded(() => mode.pick(actions))} m={m} />
+              <ModeCard key={mode.id} mode={mode} current={mode.isCurrent({ scope, academyOpen, staffDesk })} {...(mode.id === 'roleplay' ? { expanded: rolesOpen } : {})} onPick={mode.id === 'academy' ? () => mode.pick(actions) : guarded(() => mode.pick(actions))} m={m} />
             ))}
           </div>
           {rolesOpen && <RoleMenu onPick={startShift} m={m} />}

@@ -5,6 +5,7 @@ import { tr, useLocale } from '../../i18n/locale';
 import { useDeskVisited } from '../../store/deskVisitStore';
 import { acronymHint } from './codeGlossary';
 import { DeskCrowd2D } from './DeskCrowd2D';
+import { isolateMoves, useDemoLocked } from './DemoSession';
 import { DeskVisitors2D } from './DeskVisitors2D';
 import { t } from '../../i18n/t';
 import { feedText } from '../../i18n/feedVi';
@@ -795,7 +796,12 @@ function BankMapView() {
   // The node the Academy split view is teaching pulses like the learner's own payment does.
   const academyAt = useBankStore(academyFocusOf);
   // The learner's own payment goes first, so it is always one of the tokens that wear a badge.
-  const moves = useMemo(() => (presetId ? [...view.moves].sort((a, b) => Number(b.packetId === presetId) - Number(a.packetId === presetId)) : view.moves), [view.moves, presetId]);
+  // A running demo shows its own case alone: no other flow's packets, and no queues at the counters (DemoSession.isolateMoves).
+  const isolated = useDemoLocked();
+  const moves = useMemo(() => {
+    const own = isolateMoves(view.moves, isolated, presetId);
+    return presetId ? [...own].sort((a, b) => Number(b.packetId === presetId) - Number(a.packetId === presetId)) : own;
+  }, [view.moves, presetId, isolated]);
   const litMoves = useMemo(() => (flow ? moves.filter((m) => flow.scope.wires.has(m.edge)) : moves), [moves, flow]);
   const dimMoves = useMemo(() => (flow ? moves.filter((m) => !flow.scope.wires.has(m.edge)) : []), [moves, flow]);
 
@@ -857,7 +863,7 @@ function BankMapView() {
             {!focus && <HopLayer2D accent={flow?.accent} />}
             {!focus && <CashLines2D />}
             {!focus && <CitBay2D />}
-            {!focus && <DeskCrowd2D />}
+            {!focus && !isolated && <DeskCrowd2D />}
             {!focus && <DeskVisitors2D />}
             {focus && <SpotlightToken focus={focus} />}
             <SearchGlow />

@@ -1,17 +1,18 @@
 import { Html } from '@react-three/drei';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { BufferGeometry, CircleGeometry, Float32BufferAttribute, Line, LineBasicMaterial, Mesh, MeshBasicMaterial, RingGeometry, SphereGeometry, type Group } from 'three';
+import { BufferGeometry, CatmullRomCurve3, CircleGeometry, Float32BufferAttribute, Line, LineBasicMaterial, Mesh, MeshBasicMaterial, RingGeometry, SphereGeometry, TubeGeometry, Vector3, type Group } from 'three';
 import { deskPose } from '../../../engine/plan/layout3d';
 import { LOADING_DOOR, VAULT_DOOR } from '../../../engine/world/citRun';
 import type { CashEndpoint } from '../../../sim/topology';
 import { vaultPost, type CashDir, type VaultCashFlow } from '../../../sim/vaultFlows';
 import { activeFlowOf, citChildOf, useBankStore } from '../../../store/bankStore';
-import { CASH_WIRES, litWires, WIRE_ENDS, type CashWire, type WireNode } from '../../../sim/cashWires';
+import { CASH_WIRES, litWires, routeDirs, WIRE_ENDS, type CashWire, type WireNode } from '../../../sim/cashWires';
+import { useCitStore } from '../../../store/citStore';
 import { useWireHover } from '../../../store/wireHoverStore';
 import { CIT_FLOW } from '../../../types/viewport';
 import { useMessages } from '../../../utils/i18nHelper';
-import { citMessages, WIRE_LABEL } from '../../ops/cit.messages';
+import { citMessages, wireLabelKey } from '../../ops/cit.messages';
 import { useVaultFlows } from '../useVaultFlows';
 import { cursor } from './cursor';
 import { pickPlace } from './tourHooks';
@@ -95,19 +96,23 @@ export const VaultDoorStation = memo(function VaultDoorStation() {
 
 // The cash streams
 
-/** Each wire's direction, as on the 2D map: Xuất quỹ (Outflow ➔) / Nhập quỹ (Inflow 🡨) at the arc's top, live or (lit) both. */
-function WireLabels3D({ flows, route }: { flows: readonly VaultCashFlow[]; route: ReadonlySet<CashWire> | null }) {
+/** Each wire's label, as on the 2D map: the station it serves, and the direction cash moves (live, or a picked CIT child's), over the arc's top. */
+function WireLabels3D({ flows, route, dirs }: { flows: readonly VaultCashFlow[]; route: ReadonlySet<CashWire> | null; dirs: Readonly<Partial<Record<CashWire, CashDir>>> }) {
   const m = useMessages(citMessages);
   const live = new Map<CashWire, CashDir>(flows.map((f) => [f.endpoint, f.dir]));
   return (
     <>
       {CASH_WIRES.map((e) => {
-        const dir = live.get(e) ?? null;
-        if (!dir && !route?.has(e)) return null;
+        const moving = live.get(e) ?? null;
+        if (!moving && !route?.has(e)) return null;
+        const dir = moving ?? dirs[e] ?? null;
+        const tone = dir ? TONE[dir] : '#fde68a';
+        const [x, y, z] = wirePoint(e, 0.5);
         return (
-          <Html key={e} position={wirePoint(e, 0.5)} center zIndexRange={[11, 0]} style={{ pointerEvents: 'none' }}>
-            <div data-testid={`vault-wire-label-${e}`} data-dir={dir ?? 'both'} className="whitespace-nowrap rounded-md px-2 py-0.5 text-[10px] font-bold leading-tight" style={{ background: 'rgba(2,6,23,0.88)', color: dir ? TONE[dir] : '#fde68a', border: `1px solid ${dir ? TONE[dir] : '#fde68a'}66`, opacity: dir ? 1 : 0.85 }}>
-              {dir ? m(WIRE_LABEL[dir]) : `${m(WIRE_LABEL.OUT)} · ${m(WIRE_LABEL.IN)}`}
+          // Raised over the arc's top (LABEL_LIFT) so it never sits on the desks' own name badges below it.
+          <Html key={e} position={[x, y + LABEL_LIFT, z]} center zIndexRange={[11, 0]} style={{ pointerEvents: 'none' }}>
+            <div data-testid={`vault-wire-label-${e}`} data-dir={dir ?? 'both'} data-live={moving ? true : undefined} className="whitespace-nowrap rounded-md px-2 py-0.5 text-[10px] font-bold leading-tight" style={{ background: 'rgba(2,6,23,0.88)', color: tone, border: `1px solid ${tone}${moving ? 'cc' : '66'}`, boxShadow: moving ? `0 0 8px ${tone}66` : undefined, opacity: dir ? 1 : 0.85 }}>
+              {m(wireLabelKey(e, dir))}
             </div>
           </Html>
         );
@@ -115,6 +120,8 @@ function WireLabels3D({ flows, route }: { flows: readonly VaultCashFlow[]; route
     </>
   );
 }
+/** How far a wire's label floats over its arc's top, in metres. */
+export const LABEL_LIFT = 0.35;
 
 /** Where each endpoint is on the floor: the teller's counter, the ATM's cash bay, the loading door the CIT crew uses. */
 export function endpointXZ(e: CashEndpoint): readonly [number, number] {
@@ -216,6 +223,16 @@ function Stream({ flow, pool }: { flow: VaultCashFlow; pool: ObjectPool<Mesh> })
 /** Flyweight: the two Line objects (idle, lit) of each wire, shared by every mount; a still wire swaps between them, never allocating. */
 type StillLines = Readonly<Record<'idle' | 'lit', Line<BufferGeometry, LineBasicMaterial>>>;
 const STILL_LINE = Object.fromEntries(CASH_WIRES.map((w): [CashWire, StillLines] => [w, { idle: new Line(ARC_LINE[w], LINE_MAT.idle), lit: new Line(ARC_LINE[w], LINE_MAT.lit) }])) as Readonly<Record<CashWire, StillLines>>;
+/** A WebGL line is one pixel wide whatever its width, so a lit wire also wears a soft gold tube (one flyweight geometry per wire) that reads at any zoom. */
+export const LIT_TUBE_RADIUS = 0.045;
+const LIT_TUBE_MAT = new MeshBasicMaterial({ color: '#facc15', transparent: true, opacity: GLOW.live, depthWrite: false, toneMapped: false });
+const LIT_TUBE = Object.fromEntries(
+  CASH_WIRES.map((w): [CashWire, Mesh] => {
+    const pts: Vector3[] = [];
+    for (let i = 0; i <= ARC_STEPS; i++) pts.push(new Vector3(...wirePoint(w, i / ARC_STEPS)));
+    return [w, new Mesh(new TubeGeometry(new CatmullRomCurve3(pts), ARC_STEPS, LIT_TUBE_RADIUS, 6, false), LIT_TUBE_MAT)];
+  }),
+) as Readonly<Record<CashWire, Mesh>>;
 
 /**
  * Every wire (the vault to the teller, the ATM and the CIT bay, and the bay to the teller), still or lit, and the live streams over
@@ -236,10 +253,13 @@ export const VaultCashStreams3D = memo(function VaultCashStreams3D() {
   const child = useBankStore((s) => (activeFlowOf(s) === CIT_FLOW ? citChildOf(s) : null));
   const hover = useWireHover();
   const route = useMemo(() => litWires(flow, child, hover), [flow, child, hover]);
+  const sbv = useCitStore((s) => (s.sbvCase === 'DEPOSIT' ? 'OUT' : 'IN'));
+  const dirs = useMemo(() => routeDirs(child, sbv), [child, sbv]);
   return (
     <group name="vault-cash-streams" userData={{ flows: flows.map((f) => `${f.endpoint}:${f.dir}`), lit: route ? [...route] : [] }}>
-      <WireLabels3D flows={flows} route={route} />
+      <WireLabels3D flows={flows} route={route} dirs={dirs} />
       {CASH_WIRES.map((w) => (live.has(w) ? null : <primitive key={w} object={STILL_LINE[w][route?.has(w) ? 'lit' : 'idle']} />))}
+      {CASH_WIRES.map((w) => (route?.has(w) ? <primitive key={`tube-${w}`} object={LIT_TUBE[w]} /> : null))}
       {flows.map((f) => (
         <Stream key={`${f.endpoint}:${f.dir}`} flow={f} pool={pool} />
       ))}

@@ -109,6 +109,10 @@ function ShotCard({ s, m, sent, onRemove }: { s: Shot; m: M; sent: boolean; onRe
 
 type Failure = Extract<SubmitResult, { ok: false }>;
 
+/** A form field: its label row over a full-width control, stacked and left-aligned (no inline label beside a control). */
+export const FIELD = 'flex w-full min-w-0 flex-col items-stretch gap-1 text-left';
+export const FIELD_LABEL = 'block text-[12.5px] font-semibold uppercase tracking-wider text-slate-400';
+
 /** The feedback form: a type, a message, screenshot evidence and an optional reply address. Send posts it straight to the
  *  feedback service (VITE_FEEDBACK_ENDPOINT), screenshots attached; with no service configured, or if it fails, the
  *  user's email app opens instead. */
@@ -266,7 +270,8 @@ export function FeedbackModal({
         </div>
       }
     >
-      <fieldset className="space-y-3" disabled={sending} onPaste={sent || sending ? undefined : onPaste}>
+      {/* One column, left-aligned: each field is its label row over a full-width control (FIELD / FIELD_LABEL), never side by side. */}
+      <fieldset className="m-0 flex w-full min-w-0 flex-col gap-3 border-0 p-0 text-left" data-testid="feedback-form" disabled={sending} onPaste={sent || sending ? undefined : onPaste}>
         {sent ? (
           <div className="rounded-lg border border-sky-400/40 bg-sky-500/10 px-3 py-2" role="status" data-testid="feedback-sent">
             <p className="text-[14px] font-bold text-sky-50">{m('sentTitle')}</p>
@@ -274,14 +279,14 @@ export function FeedbackModal({
           </div>
         ) : (
           <>
-            <div>
-              <div className="text-[12.5px] font-semibold uppercase tracking-wider text-slate-400">{m('feedbackKind')}</div>
-              <div className="mt-1">
+            <div className={FIELD} data-testid="feedback-field-kind">
+              <div className={FIELD_LABEL}>{m('feedbackKind')}</div>
+              <div>
                 <SegmentedToggle<FeedbackKind> label={m('feedbackKind')} value={kind} options={KINDS.map((k) => ({ value: k, label: m(k) }))} onChange={setKind} testId="feedback-kind" stateKey="kind" />
               </div>
             </div>
-            <label className="block">
-              <span className="text-[12.5px] font-semibold uppercase tracking-wider text-slate-400">{m('feedbackLabel')}</span>
+            <label className={FIELD} data-testid="feedback-field-text">
+              <span className={FIELD_LABEL}>{m('feedbackLabel')}</span>
               <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
@@ -289,13 +294,13 @@ export function FeedbackModal({
                 autoFocus
                 placeholder={m('feedbackPlaceholder')}
                 data-testid="feedback-text"
-                className="mt-1 w-full resize-y rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-[14px] text-slate-100 placeholder:text-slate-500 focus:border-sky-400 focus:outline-none"
+                className="block w-full resize-y rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-[14px] text-slate-100 placeholder:text-slate-500 focus:border-sky-400 focus:outline-none"
               />
             </label>
             {tried && empty && <p className="text-[13px] text-rose-300">{m('feedbackEmpty')}</p>}
             <input type="text" name="_gotcha" value={gotcha} onChange={(e) => setGotcha(e.target.value)} tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" data-testid="feedback-gotcha" />
-            <label className="block">
-              <span className="text-[12.5px] font-semibold uppercase tracking-wider text-slate-400">{m('replyLabel')}</span>
+            <label className={FIELD} data-testid="feedback-field-reply">
+              <span className={FIELD_LABEL}>{m('replyLabel')}</span>
               <input
                 type="email"
                 value={replyTo}
@@ -303,12 +308,12 @@ export function FeedbackModal({
                 placeholder="you@example.com"
                 autoComplete="email"
                 data-testid="feedback-reply"
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-[14px] text-slate-100 placeholder:text-slate-600 focus:border-sky-400 focus:outline-none"
+                className="block w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-[14px] text-slate-100 placeholder:text-slate-600 focus:border-sky-400 focus:outline-none"
               />
-              {tried && badReply && <span className="mt-0.5 block text-[12.5px] text-rose-300">{m('replyInvalid')}</span>}
+              {tried && badReply && <span className="block text-[12.5px] text-rose-300">{m('replyInvalid')}</span>}
             </label>
-            <div>
-              <div className="text-[12.5px] font-semibold uppercase tracking-wider text-slate-400">{m('attachTitle')}</div>
+            <div className={FIELD} data-testid="feedback-field-attach">
+              <div className={FIELD_LABEL}>{m('attachTitle')}</div>
               <button
                 type="button"
                 onClick={() => picker.current?.click()}
@@ -321,7 +326,7 @@ export function FeedbackModal({
                 data-testid="feedback-dropzone"
                 data-over={over}
                 disabled={shots.length >= ATTACH_MAX}
-                className={`mt-1 flex w-full flex-col items-center gap-0.5 rounded-lg border-2 border-dashed px-3 py-3 text-center transition disabled:cursor-not-allowed disabled:opacity-50 ${over ? 'border-sky-300 bg-sky-500/10' : 'border-slate-600 hover:border-slate-400 hover:bg-slate-800/40'}`}
+                className={`flex w-full flex-col items-center gap-0.5 rounded-lg border-2 border-dashed px-3 py-3 text-center transition disabled:cursor-not-allowed disabled:opacity-50 ${over ? 'border-sky-300 bg-sky-500/10' : 'border-slate-600 hover:border-slate-400 hover:bg-slate-800/40'}`}
               >
                 <span className="text-[20px]" aria-hidden="true">
                   🖼️

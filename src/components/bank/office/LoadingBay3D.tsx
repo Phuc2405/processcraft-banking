@@ -240,6 +240,12 @@ function BayStation() {
     },
     [],
   );
+  // Pointing at the bay (its floor pad or its always-visible label) lights its gold wires to the vault and the teller, as on the 2D map.
+  const point = (on: boolean): void => {
+    setHover(on);
+    useWireHoverStore.getState().set(on ? 'BAY' : null);
+    cursor(on);
+  };
   const { x, z, len: bl, w: bw } = LOADING_BAY;
   return (
     <group position={[x, BAY_HIT_SIZE.y, z]} name="cit-bay-station" userData={{ lit }}>
@@ -254,19 +260,21 @@ function BayStation() {
         }}
         onPointerOver={(e) => {
           e.stopPropagation();
-          setHover(true);
-          // The CIT hall's gold wires (to the vault and the teller) light while it is pointed at, as on the 2D map.
-          useWireHoverStore.getState().set('BAY');
-          cursor(true);
+          point(true);
         }}
-        onPointerOut={() => {
-          setHover(false);
-          useWireHoverStore.getState().set(null);
-          cursor(false);
-        }}
+        onPointerOut={() => point(false)}
       />
       <Html position={[0, 3, 0]} center zIndexRange={[12, 0]}>
-        <button type="button" onClick={() => bankStore.getState().select({ kind: 'bay' })} title={m('bayOpen')} data-testid="cit-bay-label-3d" data-lit={lit} style={{ ...TAG_STYLE, cursor: 'pointer', color: selected || hover || lit ? '#fde68a' : '#cbd5e1', opacity: lit || selected || hover ? 1 : 0.7, outline: selected || lit ? '1px solid #facc15' : undefined }}>
+        <button
+          type="button"
+          onClick={() => bankStore.getState().select({ kind: 'bay' })}
+          onPointerEnter={() => point(true)}
+          onPointerLeave={() => point(false)}
+          title={m('bayOpen')}
+          data-testid="cit-bay-label-3d"
+          data-lit={lit}
+          style={{ ...TAG_STYLE, cursor: 'pointer', color: selected || hover || lit ? '#fde68a' : '#64748b', opacity: lit || selected || hover ? 1 : 0.4, filter: lit || selected || hover ? undefined : 'grayscale(1)', outline: selected || lit ? '1px solid #facc15' : undefined }}
+        >
           🚚 {m('bay')}
         </button>
       </Html>

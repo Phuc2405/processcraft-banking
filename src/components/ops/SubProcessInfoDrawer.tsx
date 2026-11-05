@@ -2,7 +2,9 @@ import { useState, type ReactNode } from 'react';
 import { regDocById } from '../../data/regulatoryRegistry';
 import { ACTORS, glLine, subProcessInfo, type ActorId, type InfoKey, type SubProcessInfo } from '../../data/subProcessRegistry';
 import { demoActionById } from '../../sim/demoActions';
-import { sheetDemo } from '../../sim/sheetDemo';
+import { childSheetsOf, sheetDemo } from '../../sim/sheetDemo';
+import { ScenarioPicker } from '../bank/ScenarioPicker';
+import type { FlowId } from '../../types/viewport';
 import { runDemoAnytime } from '../bank/retailOpsActions';
 import { GUIDED_FLOWS } from '../../sim/guidedFlows';
 import { isStation } from '../../sim/topology';
@@ -81,6 +83,26 @@ function RunScenario({ infoKey }: { infoKey: InfoKey }) {
   );
 }
 
+/**
+ * A parent flow sheet's sub-process selector (Flows 01-09): the dock's dropdown pattern listing the flow's child sheets. Picking one
+ * opens its sheet, where the run button is; it only navigates, so it stays open while a demo runs.
+ */
+function ChildSheetPicker({ flow }: { flow: FlowId }) {
+  const m = useMessages(subProcessInfoMessages);
+  const locale = useLocale();
+  const children = childSheetsOf(flow);
+  if (children.length === 0) return null;
+  const items = children.map((k) => {
+    const c = subProcessInfo(k);
+    return { id: k, icon: c.icon, label: pick(c.title, locale), hint: pick(c.overview, locale), dot: 'bg-sky-400' };
+  });
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5" data-testid="spi-child-picker" data-flow={flow}>
+      <ScenarioPicker items={items} picked="" onPick={(k) => bankStore.getState().select({ kind: 'subprocess', key: k as InfoKey })} label={m('pickChild')} testId="spi-child" direction="down" placeholder />
+    </div>
+  );
+}
+
 /** The drawer for the live store: closes and navigates through the bank. */
 export function SubProcessInfoDrawer({ infoKey }: { infoKey: InfoKey }) {
   const str = useBankStore((s) => s.view.stp.rate);
@@ -117,9 +139,12 @@ export function SubProcessInfoView({ info, liveStr, liveSla = null }: { info: Su
     if (isStation(info.place)) bank.select({ kind: 'station', id: info.place });
   };
   const duty = actor ? info.actors.find((a) => a.id === actor) : null;
+  // Reading stays open during a demo; only "show on map" (it switches the lit flow) waits for the run to end.
   const locked = useDemoLocked();
   // A sheet with one demo case carries its 📖 on the run row, so the header shows it only for the others.
   const singleCase = sheetDemo(info.key) !== null;
+  // A parent flow sheet (Flows 01-09): the process title and its sub-process selector, never a run button.
+  const parent = info.key.startsWith('flow-');
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-gradient-to-b from-slate-900/70 to-slate-950/80 backdrop-blur-xl" data-testid="subprocess-drawer" data-key={info.key} data-mode={info.mode}>
       <header className="shrink-0 border-b border-white/10 p-3.5" style={{ background: `linear-gradient(180deg, ${accent}26, transparent)` }}>
@@ -133,7 +158,7 @@ export function SubProcessInfoView({ info, liveStr, liveSla = null }: { info: Su
                 {m(`mode_${info.mode}`)}
               </span>
               <span className="text-[10.5px] font-semibold text-slate-400">
-                {GUIDED_FLOWS[info.flow].code} · {m('label')}
+                {GUIDED_FLOWS[info.flow].code} · {m(parent ? 'labelParent' : 'label')}
               </span>
             </div>
             <div className="mt-1 flex items-start gap-1.5">
@@ -149,11 +174,11 @@ export function SubProcessInfoView({ info, liveStr, liveSla = null }: { info: Su
         </div>
       </header>
       <div className="bk-scroll min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain p-3" data-testid="inspector-body">
-        <RunScenario infoKey={info.key} />
+        {parent ? <ChildSheetPicker flow={info.flow} /> : <RunScenario infoKey={info.key} />}
         {info.key === '09-cit-sbv' && <SbvCaseToggle />}
         <Section title={m('overview')} testId="overview">
           <p className="text-[12.5px] leading-relaxed text-slate-200">{pick(info.overview, locale)}</p>
-          <button type="button" onClick={showOnMap} data-testid="spi-show" className="mt-2 rounded-lg bg-white/10 px-2.5 py-1 text-[11.5px] font-semibold text-slate-100 hover:bg-white/15">
+          <button type="button" onClick={showOnMap} disabled={locked} title={locked ? m('showOnMapLocked') : undefined} data-testid="spi-show" className="mt-2 rounded-lg bg-white/10 px-2.5 py-1 text-[11.5px] font-semibold text-slate-100 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40">
             📍 {m('showOnMap')}
           </button>
         </Section>
@@ -238,7 +263,7 @@ export function SubProcessInfoView({ info, liveStr, liveSla = null }: { info: Su
             {info.related.map((k) => {
               const r = subProcessInfo(k);
               return (
-                <button key={k} type="button" onClick={() => go(k)} disabled={locked} data-testid={`spi-go-${k}`} className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-slate-200 ring-1 ring-white/15 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40">
+                <button key={k} type="button" onClick={() => go(k)} data-testid={`spi-go-${k}`} className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-slate-200 ring-1 ring-white/15 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40">
                   {r.icon} {r.code}
                 </button>
               );

@@ -30,6 +30,7 @@ import { motion } from '../../../engine/simulation/motion';
 import { DeskLine, StaffWalks, type Served, type StaffWalk } from '../../../engine/simulation/people';
 import { usePeopleVersion, useWorld } from './WorldProvider';
 import { ACCUMULATING, badgeMode, badgePills, lodShows, useLabelLod, type LabelLod } from './labelLod';
+import { useDemoLocked } from '../DemoSession';
 
 
 /** A glowing outline on the floor around a selected desk: four thin bars. */
@@ -353,6 +354,8 @@ function FileToken({ phase, tab }: { phase: number; tab: string }) {
 
 /** What waits at the front of a desk, drawn from the world engine's line (WorldEngine.line). */
 export function DeskQueue({ id }: { id: StationId }) {
+  // A running demo shows its own case alone: the desks' lines of other customers are hidden (the demo's visitor is DeskVisitors3D).
+  const isolated = useDemoLocked();
   const line = useWorld().line(id);
   usePeopleVersion((w) => w.line(id).version);
   const style = queueStyle(id);
@@ -368,7 +371,7 @@ export function DeskQueue({ id }: { id: StationId }) {
     });
   });
   return (
-    <>
+    <group visible={!isolated} name={`desk-queue-${id}`}>
       {Array.from({ length: shown }, (_, i) => {
         const who = processed + i + salt;
         return (
@@ -397,7 +400,7 @@ export function DeskQueue({ id }: { id: StationId }) {
       {line.served.map((s) => (
         <ServedCustomer key={s.key} id={id} s={s} line={line} />
       ))}
-    </>
+    </group>
   );
 }
 

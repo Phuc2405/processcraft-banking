@@ -1,14 +1,15 @@
 import { memo, useMemo } from 'react';
-import { CASH_WIRES, litWires, type CashWire } from '../../sim/cashWires';
+import { CASH_WIRES, litWires, routeDirs, type CashWire } from '../../sim/cashWires';
 import { useWireHover } from '../../store/wireHoverStore';
 import { activeFlowOf, citChildOf, useBankStore } from '../../store/bankStore';
 import { useHopPlayer } from '../../store/hopPlayerStore';
 import { CIT_FLOW } from '../../types/viewport';
-import { cashWireLabel, cashWirePath, STAGE } from '../../engine/plan/layout';
-import { citMessages, WIRE_LABEL } from '../ops/cit.messages';
-import { useMessages } from '../../utils/i18nHelper';
+import { cashWireLabel, cashWirePath, STAGE, WIRE_BADGE, wireBadgeWidth } from '../../engine/plan/layout';
+import { citMessages, wireLabelKey } from '../ops/cit.messages';
+import { message, useMessages } from '../../utils/i18nHelper';
+import { useCitStore } from '../../store/citStore';
 import type { CashEndpoint } from '../../sim/topology';
-import { vaultPost, type VaultCashFlow } from '../../sim/vaultFlows';
+import { vaultPost, type CashDir, type VaultCashFlow } from '../../sim/vaultFlows';
 import { useVaultFlows } from './useVaultFlows';
 
 /** One cash run along a line: how long the 💵 takes from end to end, in seconds. */
@@ -28,10 +29,13 @@ export const CashLines2D = memo(function CashLines2D() {
   const child = useBankStore((s) => (activeFlowOf(s) === CIT_FLOW ? citChildOf(s) : null));
   const hover = useWireHover();
   const route = useMemo(() => litWires(flow, child, hover), [flow, child, hover]);
+  // A picked CIT child's wires read its movement ("Xuất quỹ ➔ Hộc ATM"); the SBV child follows the sheet's case toggle.
+  const sbv = useCitStore((s) => (s.sbvCase === 'DEPOSIT' ? 'OUT' : 'IN'));
+  const dirs = useMemo(() => routeDirs(child, sbv), [child, sbv]);
   // While the hop player shows a CIT run, its own icon carries the cash hop by hop: the lines drop their looping 💵.
   const hop = useHopPlayer((s) => s.session?.kind === 'cit');
   const m = useMessages(citMessages);
-  return <CashLinesView flows={useVaultFlows()} route={route} hovered={hover !== null} hopIcon={hop} labels={{ OUT: m(WIRE_LABEL.OUT), IN: m(WIRE_LABEL.IN) }} />;
+  return <CashLinesView flows={useVaultFlows()} route={route} dirs={dirs} hovered={hover !== null} hopIcon={hop} label={(w, d) => m(wireLabelKey(w, d))} />;
 });
 
 /**
@@ -39,7 +43,7 @@ export const CashLines2D = memo(function CashLines2D() {
  * while idle; while cash moves, the line glows (just enough) in its direction's colour and a 💵 glides along it, OUT from the vault
  * (Cr 1111) or IN to it (Dr 1111). A lit wire (its flow is active, or a station it touches is hovered) glows softly; the rest dim.
  */
-export function CashLinesView({ flows, route = null, hovered = false, hopIcon = false, labels = DEFAULT_LABELS }: { flows: readonly VaultCashFlow[]; route?: ReadonlySet<CashWire> | null; hovered?: boolean; hopIcon?: boolean; labels?: Readonly<Record<'OUT' | 'IN', string>> }) {
+export function CashLinesView({ flows, route = null, dirs = {}, hovered = false, hopIcon = false, label = wireText }: { flows: readonly VaultCashFlow[]; route?: ReadonlySet<CashWire> | null; dirs?: Readonly<Partial<Record<CashWire, CashDir>>>; hovered?: boolean; hopIcon?: boolean; label?: WireText }) {
   const live = new Map<CashWire, VaultCashFlow>(flows.map((f) => [f.endpoint, f]));
   return (
     <svg className="pointer-events-none absolute inset-0 z-[11]" width={STAGE.width} height={STAGE.height} aria-hidden="true" data-testid="cash-lines">
@@ -60,7 +64,7 @@ export function CashLinesView({ flows, route = null, hovered = false, hopIcon = 
                 </text>
               </g>
             )}
-            {(f || lit) && <WireLabel e={e} dir={f?.dir ?? null} labels={labels} />}
+            {(f || lit) && <WireLabel e={e} dir={f?.dir ?? dirs[e] ?? null} live={Boolean(f)} label={label} />}
             {f && walkedOnFoot(f) && (
               <g key={`walk-${f.id}`} data-testid="cash-walker-TELLER" data-dir={f.dir}>
                 <animateMotion dur={`${CUSTODIAN_WALK_SECONDS}s`} repeatCount="indefinite" path={d} keyPoints={f.dir === 'OUT' ? '0;1' : '1;0'} keyTimes="0;1" calcMode="linear" />
@@ -85,27 +89,23 @@ export function CashLinesView({ flows, route = null, hovered = false, hopIcon = 
   );
 }
 
-/** The labels' fallback when none are passed (a static render): the English copy of cit.messages' wireOut / wireIn. */
-const DEFAULT_LABELS = { OUT: 'Outflow ➔', IN: '🡨 Inflow' } as const;
-
-/** The direction chips of a run too short for words: down / up along a vertical wire, right / left along a horizontal one. */
-const CHIP = { vertical: { OUT: '▼', IN: '▲', both: '⇅' }, horizontal: { OUT: '▶', IN: '◀', both: '⇄' } } as const;
-/** Label text: 9 px bold, about 5.4 px a character; the badge pads it 6 px each side. */
-const badgeWidth = (text: string): number => Math.round([...text].length * 5.4 + 12);
+/** A wire's label text: its station-specific copy (cit.messages wire_*), idle or in the direction cash moves. */
+type WireText = (w: CashWire, dir: CashDir | null) => string;
+const wireText: WireText = (w, dir) => message(citMessages, wireLabelKey(w, dir));
 
 /**
- * A wire's direction label, in a padded dark badge centred ON the wire (rotated along a vertical run), so it never reaches a card's
- * header: the live direction in its colour, or (an idle wire of the lit network) both directions, faint. A run too short for words
- * (vault ↔ bay) carries a glowing arrow chip instead.
+ * A wire's label, in a padded dark badge centred ON the wire (layout.cashWireLabel picks a run long enough for its words, so it never
+ * reaches a card's header): the station it serves and, while cash moves (or a picked CIT child will move it), that direction in its
+ * colour; idle, both ways, faint gold.
  */
-function WireLabel({ e, dir, labels }: { e: CashWire; dir: 'IN' | 'OUT' | null; labels: Readonly<Record<'OUT' | 'IN', string>> }) {
-  const { x, y, vertical, chip } = cashWireLabel(e);
+function WireLabel({ e, dir, live, label }: { e: CashWire; dir: CashDir | null; live: boolean; label: WireText }) {
+  const text = label(e, dir);
+  const w = wireBadgeWidth(text);
+  const { x, y, vertical } = cashWireLabel(e, w);
   const tone = dir ? TONE[dir] : '#fde68a';
-  const text = chip ? CHIP[vertical ? 'vertical' : 'horizontal'][dir ?? 'both'] : dir ? labels[dir] : `${labels.OUT} · ${labels.IN}`;
-  const w = chip ? 16 : badgeWidth(text);
   return (
-    <g transform={`translate(${x} ${y})${vertical && !chip ? ' rotate(-90)' : ''}`} data-testid={`cash-wire-label-${e}`} data-dir={dir ?? 'both'} data-chip={chip || undefined} opacity={dir ? 1 : 0.85}>
-      <rect x={-w / 2} y={-7.5} width={w} height={15} rx={chip ? 7.5 : 5} fill="#020617" fillOpacity={0.9} stroke={tone} strokeOpacity={0.55} strokeWidth={1} style={chip ? { filter: `drop-shadow(0 0 3px ${tone})` } : undefined} />
+    <g transform={`translate(${x} ${y})${vertical ? ' rotate(-90)' : ''}`} data-testid={`cash-wire-label-${e}`} data-dir={dir ?? 'both'} data-live={live || undefined} opacity={dir ? 1 : 0.85}>
+      <rect x={-w / 2} y={-WIRE_BADGE.h / 2} width={w} height={WIRE_BADGE.h} rx={5} fill="#020617" fillOpacity={0.92} stroke={tone} strokeOpacity={live ? 0.9 : 0.55} strokeWidth={live ? 1.4 : 1} style={live ? { filter: `drop-shadow(0 0 3px ${tone})` } : undefined} />
       <text y={3.2} textAnchor="middle" fontSize={9} fontWeight={800} fill={tone}>
         {text}
       </text>

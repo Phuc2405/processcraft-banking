@@ -13,7 +13,7 @@ import { formatAud } from '../../engine/money';
 import { retailOpsStore, useRetailOpsStore } from '../../store/retailOpsStore';
 import { useMessages } from '../../utils/i18nHelper';
 import { ScenarioPicker } from './ScenarioPicker';
-import { RunOrCancel, useDemoLocked } from './DemoSession';
+import { RunOrCancel } from './DemoSession';
 import { retailOpsMessages } from './retailOps.messages';
 import { opsStamp, runDemo } from './retailOpsActions';
 import { topBand, useInspectorCovers, useMeasuredBox, useRightInset, useTopBand } from './ViewportControls';
@@ -75,10 +75,9 @@ function DemoSelector({ actions }: { actions: readonly DemoAction[] }) {
   const [picked, setPicked] = useState<string>(actions[0]?.id ?? '');
   const chosen = actions.find((a) => a.id === picked) ?? actions[0];
   const { disabled, title } = useDemoState(chosen);
-  const locked = useDemoLocked();
   const items = actions.map((a) => ({ id: a.id, icon: a.icon, label: a.label(), hint: a.hint(), dot: DOT[a.variant] }));
   return (
-    <ScenarioPicker items={items} picked={chosen?.id ?? ''} onPick={setPicked} label={m('selectScenario')} testId="demo" disabled={locked}>
+    <ScenarioPicker items={items} picked={chosen?.id ?? ''} onPick={setPicked} label={m('selectScenario')} testId="demo">
       <RunOrCancel>
         <button type="button" onClick={() => chosen && runDemo(chosen.id)} disabled={disabled} title={title} data-testid="demo-run" className="shrink-0 whitespace-nowrap rounded-lg bg-emerald-500 px-3 py-1.5 text-[12px] font-bold text-emerald-950 shadow transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">
           ▶ {m('runDemo')}

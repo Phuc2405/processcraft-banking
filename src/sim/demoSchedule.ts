@@ -65,6 +65,18 @@ export function shiftSnap(id: DemoActionId, minute: number): ShiftSnap | null {
 
 export const slotLabel = (minute: number): string => formatClock(minute);
 
+/**
+ * The bank time a scenario plays at when it cannot use the live clock (a closed day's sandbox): its own designated slot, never a
+ * made-up "peak". The night batch at 23:00; counter work inside the day window (09:00-16:30), at the nearest edge to now; a 24/7
+ * channel at the time it is now (before the night batch starts, the last minute it takes payments).
+ */
+export function demoMinute(id: DemoActionId, minute: number): number {
+  const shift = shiftOf(id);
+  if (shift === 'eod') return EOD_START;
+  if (shift === 'day') return Math.min(Math.max(minute, WORK_START), COUNTER_LATE_SLOT);
+  return Math.min(minute, EOD_START - 1);
+}
+
 /** The desks people walk up to: the teller and the disputes desk, the savings and collateral desks, and the sidewalk machines. */
 const HUMAN_DESKS: ReadonlySet<PlaceId> = new Set<PlaceId>(['TELLER_CASH', 'DISPUTE_DESK', 'SAVINGS_DESK', 'COLLATERAL_VAULT']);
 const isHumanDesk = (p: PlaceId): boolean => HUMAN_DESKS.has(p) || (p in STATIONS && STATIONS[p as keyof typeof STATIONS].kind === 'ATM');

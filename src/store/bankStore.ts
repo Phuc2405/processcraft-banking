@@ -80,10 +80,13 @@ export interface LeftTour {
   answers: Record<number, QuizAnswer>;
 }
 
+/** A route the hop player replays on its own (a closed-day sandbox payment, the EoD demo's batch case). */
+export type DemoReplay = Pick<PacketTrace, 'id' | 'route'>;
+/** The EoD demo's one case: a settled payment packed into tonight's batch, cleared with Visa and matched three ways. */
+export const EOD_CASE_ROUTE = ['OUT_APPROVED', 'EOD_BATCH', 'EOD_VISA', 'RECON', 'OUT_SETTLED'] as const satisfies readonly PlaceId[];
+
 /** The seed every new bank starts with, so everyone's first week is the same lesson plan. */
 export const DEFAULT_SEED = 2026;
-/** The bank time a closed-day sandbox replay runs at: mid-morning, every desk open. */
-const SANDBOX_MINUTE = WORK_START + 60;
 
 /** One role's progress on today's shift objective in the Staff Roleplay Workspace. */
 export interface ShiftProgress {
@@ -350,9 +353,12 @@ export interface BankState {
   runPreset(id: PresetId): void;
   /** Sends any scripted customer into the bank and follows it in the inspector: what every demo button comes down to. */
   runDemoCustomer(customer: Customer): void;
-  /** A closed-day demo's replay: the payment run in a throwaway copy of today (nothing else moving), its route shown by the hop player. The bank's clock and books never move. */
-  sandboxTrace: PacketTrace | null;
-  runSandbox(customer: Customer): PacketTrace | null;
+  /**
+   * A demo the hop player replays on its own, nothing else moving: a closed day's payment run in a throwaway copy of today at its
+   * designated time, or the EoD demo's one batch case. The bank's clock and books never move for it.
+   */
+  sandboxTrace: DemoReplay | null;
+  runSandbox(customer: Customer, minute: number): DemoReplay | null;
   /** Stops the learner's demo where it is (Cancel demo): the clock paused, its payment and sandbox no longer followed. */
   clearDemo(): void;
   /**
@@ -1080,11 +1086,11 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         const s = get();
         if (!def || s.sim.dayOver) return;
         if (id === 'eod') {
-          // One stream: the earlier flows' demo payments are let go, the clock moves to 23:00 if it is not there, then the night cycle
-          // plays to the close (which pauses the bank). Nothing else is started on top of it.
+          // One case: the clock moves to the scenario's own 23:00 if it is not there and stays paused; the hop player walks a single
+          // batch item through clearing, settlement and reconciliation. The rest of the night batch waits for Play.
           leaveTour();
           if (s.sim.minute < EOD_START) s.sim.stepUntil(EOD_START);
-          refresh({ presetTxId: null, sandboxTrace: null, playing: true, solo: false, selection: { kind: 'none' } });
+          refresh({ presetTxId: null, sandboxTrace: { id: `eod${++sandboxRuns}`, route: [...EOD_CASE_ROUTE] }, playing: false, solo: false, selection: { kind: 'none' } });
           return;
         }
         const customer = presetCustomer(id, s.sim.rules);
@@ -1109,10 +1115,10 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         });
       },
 
-      runSandbox: (customer) => {
-        // Today from its own start, played (alone, nobody walking in) to mid-morning so every desk is staffed, then the one payment.
+      runSandbox: (customer, minute) => {
+        // Today from its own start, played alone (nobody walks in) to the scenario's own time (demoSchedule.demoMinute), then the one payment.
         const box = rebuildToday();
-        for (let i = 0; i < 2_000 && box.minute < SANDBOX_MINUTE && !box.dayOver; i++) box.step({ admit: false });
+        for (let i = 0; i < 2_000 && box.minute < minute && !box.dayOver; i++) box.step({ admit: false });
         const id = box.inject(customer);
         for (let i = 0; id && i < SOLO_BEAT_LIMIT && !box.traceOf(id)?.done; i++) box.step({ admit: false });
         const trace = id ? box.traceOf(id) : null;

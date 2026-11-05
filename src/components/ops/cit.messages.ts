@@ -80,8 +80,19 @@ export const citMessages = defineMessages('cit', {
   sbvCase: { en: 'SBV case', vi: 'Tình huống NHNN' },
   sbvCase_DEPOSIT: { en: '🟢 Deposit case', vi: '🟢 Case Nộp Tiền (Deposit)' },
   sbvCase_WITHDRAW: { en: '🔴 Withdrawal case', vi: '🔴 Case Rút Tiền (Withdrawal)' },
-  wireOut: { en: 'Outflow ➔', vi: 'Xuất quỹ (Outflow ➔)' },
-  wireIn: { en: '🡨 Inflow', vi: 'Nhập quỹ (Inflow 🡨)' },
+  // Each gold wire's label names the station it serves: idle (both ways) or the direction cash is moving now (sim/cashWires.ts).
+  wire_TELLER_idle: { en: 'Cash out/in ➔ Teller', vi: 'Xuất/Nhập quỹ ➔ Quầy GDV' },
+  wire_TELLER_OUT: { en: 'Cash out ➔ Teller', vi: 'Xuất quỹ ➔ Quầy GDV' },
+  wire_TELLER_IN: { en: 'Cash in ⬅ Teller', vi: 'Nhập quỹ ⬅ Quầy GDV' },
+  wire_ATM_idle: { en: 'Load/unload ➔ ATM cassettes', vi: 'Tiếp/Rút quỹ ➔ Hộc ATM' },
+  wire_ATM_OUT: { en: 'Cash out ➔ ATM', vi: 'Xuất quỹ ➔ Hộc ATM' },
+  wire_ATM_IN: { en: 'Cash in ⬅ ATM', vi: 'Nhập quỹ ⬅ Hộc ATM' },
+  wire_BAY_idle: { en: 'Transfer ➔ CIT hall', vi: 'Điều chuyển ➔ Sảnh CIT' },
+  wire_BAY_OUT: { en: 'Cash out ➔ CIT hall', vi: 'Xuất quỹ ➔ Sảnh CIT' },
+  wire_BAY_IN: { en: 'Cash in ⬅ CIT hall', vi: 'Nhập quỹ ⬅ Sảnh CIT' },
+  wire_BAY_TELLER_idle: { en: 'Deliver/collect ➔ Teller', vi: 'Nộp/Rút ➔ Quầy GDV' },
+  wire_BAY_TELLER_OUT: { en: 'Deliver ➔ Teller', vi: 'Giao quỹ ➔ Quầy GDV' },
+  wire_BAY_TELLER_IN: { en: 'Collect ⬅ Teller', vi: 'Nhận quỹ ⬅ Quầy GDV' },
   demoBusy: { en: 'CIT van in transit…', vi: 'Xe CIT đang vận chuyển...' },
   demoSolo: { en: 'Bank paused: this CIT run plays on its own, nothing else moves.', vi: 'Ngân hàng đang tạm dừng: chỉ chuyến CIT này chạy, mọi thứ khác đứng yên.' },
   drillTitle: { en: 'Drill: walk a CIT run through its states', vi: 'Bài tập: đưa một chuyến CIT qua từng trạng thái' },
@@ -94,4 +105,5 @@ export const citMessages = defineMessages('cit', {
 });
 
 /** The direction a cash wire's label names (2D and 3D): Xuất quỹ (Outflow ➔) for a refill out of the vault, Nhập quỹ (Inflow 🡨) for cash coming back. */
-export const WIRE_LABEL = { OUT: 'wireOut', IN: 'wireIn' } as const;
+/** A wire's label key: its station-specific text, idle (both ways) or in the direction cash moves (OUT = away from the vault / the hall). */
+export const wireLabelKey = (w: 'TELLER' | 'ATM' | 'BAY' | 'BAY_TELLER', dir: 'OUT' | 'IN' | null) => `wire_${w}_${dir ?? 'idle'}` as const;

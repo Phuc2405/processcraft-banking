@@ -33,7 +33,7 @@ import { citDemoBlock, dispatchCitDemo, type CitDemoBlock } from './citActions';
 import { pick, useLocale, useMessages } from '../../utils/i18nHelper';
 import { SectionTitle } from '../bank/ui';
 import { ScenarioPicker } from '../bank/ScenarioPicker';
-import { RunOrCancel, useDemoLocked } from '../bank/DemoSession';
+import { RunOrCancel } from '../bank/DemoSession';
 import { LessonLink } from './LessonLink';
 import { CIT_INFO_KEYS } from '../../data/subProcessKeys';
 import { citMessages } from './cit.messages';
@@ -94,11 +94,10 @@ export function useSbvNext(): { mode: SbvMode; reason: SbvReason; forced: boolea
   return { mode: sbvMode(t.direction), reason: t.reason, forced: t.forced === true };
 }
 
-/** The SBV sheet's case switch: 🟢 Case Nộp Tiền ↔ 🔴 Case Rút Tiền. The six sections and the next dispatch follow it; locked while a demo runs. */
+/** The SBV sheet's case switch: 🟢 Case Nộp Tiền ↔ 🔴 Case Rút Tiền. The six sections and the next dispatch follow it. Open during a demo: it only changes what is read (a run already dispatched keeps its own case). */
 export function SbvCaseToggle() {
   const m = useMessages(citMessages);
   const mode = useCitStore((s) => s.sbvCase);
-  const locked = useDemoLocked();
   const on = mode === 'WITHDRAW';
   return (
     <div className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-2" role="group" aria-label={m('sbvCase')} data-testid="sbv-toggle" data-mode={mode}>
@@ -108,7 +107,6 @@ export function SbvCaseToggle() {
         role="switch"
         aria-checked={on}
         aria-label={m('sbvCase')}
-        disabled={locked}
         onClick={() => citStore.getState().setSbvCase(on ? 'DEPOSIT' : 'WITHDRAW')}
         data-testid="sbv-toggle-switch"
         className={`relative h-5 w-10 shrink-0 rounded-full ring-1 transition disabled:cursor-not-allowed disabled:opacity-50 ${on ? 'bg-rose-500/60 ring-rose-300/60' : 'bg-emerald-500/60 ring-emerald-300/60'}`}
@@ -205,12 +203,11 @@ export function CitDockButton({ kind }: { kind: CitDemo }) {
 export function CitDemoPicker({ direction = 'up' }: { direction?: 'up' | 'down' }) {
   const m = useMessages(citMessages);
   const { block, stage } = useCitLock();
-  const locked = useDemoLocked();
   const [picked, setPicked] = useState<CitDemo>('ATM');
   const items = CIT_DEMOS.map((kind) => ({ id: kind, icon: DEMO_ICON[kind], label: m(`demoOption_${kind}`), hint: m(`demoHint_${kind}`), dot: 'bg-cyan-400' }));
   return (
     <div className="flex w-full min-w-0 flex-wrap items-center gap-1.5" role="group" aria-label={m('demoGroup')} data-testid="cit-demo-picker" data-block={block ?? 'none'} data-picked={picked}>
-      <ScenarioPicker items={items} picked={picked} onPick={(id) => setPicked(id as CitDemo)} label={m('pickScenario')} testId="cit-demo" direction={direction} disabled={locked}>
+      <ScenarioPicker items={items} picked={picked} onPick={(id) => setPicked(id as CitDemo)} label={m('pickScenario')} testId="cit-demo" direction={direction}>
         <RunOrCancel>
           <button type="button" onClick={() => dispatchCitDemo(picked)} disabled={block !== null} title={block ? m(`demoBlock_${block}`) : m(`demoHint_${picked}`)} data-testid="cit-demo-run" className="shrink-0 whitespace-nowrap rounded-lg bg-cyan-400 px-3 py-1.5 text-[12px] font-bold text-cyan-950 shadow transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-40">
             {m('runScenario')}

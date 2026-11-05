@@ -1,6 +1,6 @@
 import { demoActionById, demoBlocked, type DemoActionId } from '../../sim/demoActions';
 import { demoGroup, type DemoGroupId } from '../../sim/demoGroups';
-import { inWindow, modeOf, shiftOf, shiftSnap, slotLabel } from '../../sim/demoSchedule';
+import { demoMinute, inWindow, modeOf, shiftOf, shiftSnap, slotLabel } from '../../sim/demoSchedule';
 import { shiftQueueStore } from '../../store/shiftQueueStore';
 import { DESK_VISITS } from '../../sim/deskVisit';
 import { simStamp } from '../../sim/ledgerStreams';
@@ -51,7 +51,8 @@ function runPresetDemo(id: PresetId): void {
     retail.settleEod(opsStamp());
     retail.setLastTx(null);
     announce();
-    demoSessionStore.getState().start({ kind: 'eod' });
+    const replay = bankStore.getState().sandboxTrace;
+    if (replay) demoSessionStore.getState().start({ kind: 'sandbox', id: replay.id });
     return;
   }
   const trace = bankStore.getState().presetTrace;
@@ -136,20 +137,12 @@ export function executeDemo(id: DemoActionId): void {
  */
 export function runDemo(id: DemoActionId): void {
   if (demoLocked()) return;
-  let bank = bankStore.getState();
-  // A 24/7 digital channel (VietQR, FacePay, cards, 3DS, wallets, eKYC, instant transfers) is never refused for the hour. Even once
-  // today has closed at midnight it runs at once: the bank rolls into the next day (the clock restarts at 07:00) and serves it.
+  const bank = bankStore.getState();
+  // A 24/7 digital channel (VietQR, FacePay, cards, 3DS, wallets, eKYC, instant transfers) is never refused for the hour. Once today
+  // has closed it plays in the sandbox at the time it is: the clock never jumps (no roll into tomorrow's 07:00).
   if (shiftOf(id) === 'always' && bank.view.dayOver && id !== 'cassette-low' && id !== 'cassette-refill') {
-    bank.startNextDay();
-    bank = bankStore.getState();
-    notificationStore.getState().push({
-      tone: 'info',
-      icon: '🌙',
-      title: { en: 'Digital channel, 24/7', vi: 'Kênh số, 24/7' },
-      body: { en: 'Today had closed, so the bank rolled into the next day to serve this digital payment at once.', vi: 'Ngày hôm nay đã khép sổ, nên ngân hàng chuyển sang ngày mới để xử lý ngay giao dịch số này.' },
-      deferred: false,
-      source: `always:${id}`,
-    });
+    runSandboxDemo(id);
+    return;
   }
   const snap = shiftSnap(id, bank.view.minute);
   // A day that is over stops everything but a counter button, which can still replay today up to 16:30.
@@ -183,7 +176,7 @@ function runSandboxDemo(id: DemoActionId): void {
   const customer = presetById(id) ? presetCustomer(id as PresetId, bank.sim.rules) : opsCustomer(id as OpsActionId, undefined, bank.stp);
   const def = demoActionById(id);
   if (bank.scope !== 'beginner' || bank.flow !== def.flow) bank.setActiveFlow(def.flow);
-  const trace = customer ? bankStore.getState().runSandbox(customer) : null;
+  const trace = customer ? bankStore.getState().runSandbox(customer, demoMinute(id, bank.view.minute)) : null;
   if (trace) demoSessionStore.getState().start({ kind: 'sandbox', id: trace.id });
   notificationStore.getState().push({
     tone: 'info',
@@ -207,7 +200,7 @@ export function confirmShiftSnap(): void {
     bank.resetDay();
     bankStore.getState().skipTo(snap.target);
   } else if (id !== 'eod') {
-    // The night cycle moves the clock to 23:00 itself, and starts it playing.
+    // The EoD demo moves the clock to 23:00 itself (its designated slot), and stays paused.
     bank.skipTo(snap.target);
   }
   executeDemo(id);

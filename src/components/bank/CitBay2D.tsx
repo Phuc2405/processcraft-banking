@@ -94,7 +94,7 @@ export function CitBayView({ cit, live, lit = false, onOpen }: { cit: CitSnapsho
         data-status={moving?.status ?? 'IDLE'}
         data-lit={lit}
         data-wire-node="BAY"
-        className={`absolute z-20 rounded-xl border bg-slate-950/60 text-left transition hover:border-cyan-300 hover:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${lit ? 'border-solid border-cyan-300 shadow-[0_0_16px_rgba(34,211,238,0.45)]' : 'border-dashed border-slate-600/70 opacity-70'}`}
+        className={`absolute z-20 rounded-xl border bg-slate-950/60 text-left transition hover:border-cyan-300 hover:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${lit ? 'border-solid border-cyan-300 shadow-[0_0_16px_rgba(34,211,238,0.45)]' : 'border-dashed border-slate-700 opacity-40 grayscale hover:grayscale-0'}`}
         style={{ left: CIT_BAY.x, top: CIT_BAY.y, width: CIT_BAY.w, height: CIT_BAY.h }}
       >
         {/* Header and balance on rows of their own (BAY_ROWS), so the title never runs into the vault's figure. */}

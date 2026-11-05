@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SPEED_INDEX, EOD_START, WORK_START } from '../../sim/clock';
 import { memoryStorage, UI_PREFS_KEY, type KeyValueStorage } from '../bankPersistence';
-import { activeFlowOf, createBankStore, dataDepthOf, viewportOf } from '../bankStore';
+import { activeFlowOf, createBankStore, EOD_CASE_ROUTE, dataDepthOf, viewportOf } from '../bankStore';
 
 const make = (storage: KeyValueStorage | null = memoryStorage()) => createBankStore({ storage, now: () => new Date('2026-10-14T00:00:00Z'), seed: 7 });
 
@@ -119,11 +119,12 @@ describe('preset actions from the store', () => {
     expect(store.getState().presetTrace).toBeNull();
   });
 
-  it('runs the clock to the night cycle for the EOD preset', () => {
+  it('runs the clock to 23:00 for the EOD preset and shows one batch case, paused', () => {
     const store = make();
     store.getState().runPreset('eod');
     expect(store.getState().view.minute).toBe(EOD_START);
-    expect(store.getState().playing).toBe(true);
+    expect(store.getState().playing).toBe(false);
+    expect(store.getState().sandboxTrace?.route).toEqual([...EOD_CASE_ROUTE]);
   });
 });
 

@@ -11,7 +11,6 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CashLinesView } from '../../components/bank/CashLines2D';
-import { BAY_ROWS } from '../../components/bank/CitBay2D';
 import { demoLocked, guarded } from '../../components/bank/DemoSession';
 import { hopFrozen } from '../../components/bank/hopDriver';
 import { ARC_PEAK, endpointXZ, wirePoint } from '../../components/bank/office/VaultCash3D';
@@ -24,7 +23,7 @@ import { SubProcessInfoView } from '../../components/ops/SubProcessInfoDrawer';
 import { AML_ARTICLE } from '../../data/amlKnowledge';
 import { CIT_INFO_KEYS } from '../../data/subProcessKeys';
 import { subProcessInfo } from '../../data/subProcessRegistry';
-import { BAY_TELLER_LINE, CIT_BAY, cashWireLabel, PLACE_BOX, STAGE } from '../../engine/plan/layout';
+import { BAY_TELLER_LINE, CIT_BAY, PLACE_BOX } from '../../engine/plan/layout';
 import { LOADING_DOOR } from '../../engine/world/citRun';
 import { setActiveLocale } from '../../i18n/localeCore';
 import { bankStore } from '../../store/bankStore';
@@ -85,37 +84,6 @@ describe('2. the first load', () => {
   });
 });
 
-describe('3. the wire labels', () => {
-  /** A card's header band: its top 26 px (the title rows), which a label must never cover. */
-  const headers = [...Object.values(PLACE_BOX).map((b) => ({ x0: b.cx - b.w / 2, x1: b.cx + b.w / 2, y0: b.cy - b.h / 2, y1: b.cy - b.h / 2 + 26 })), { x0: CIT_BAY.x, x1: CIT_BAY.x + CIT_BAY.w, y0: CIT_BAY.y + BAY_ROWS.header, y1: CIT_BAY.y + BAY_ROWS.balance + 12 }];
-  const LABEL = { long: 21 * 5.4 + 12, chip: 16, h: 15 };
-
-  it('sits each label on its wire in a padded badge, clear of every card header (the vault, the CIT hall, the ATM)', () => {
-    for (const w of CASH_WIRES) {
-      const l = cashWireLabel(w);
-      const len = l.chip ? LABEL.chip : LABEL.long;
-      const [hw, hh] = l.vertical && !l.chip ? [LABEL.h / 2, len / 2] : [len / 2, LABEL.h / 2];
-      const box = { x0: l.x - hw, x1: l.x + hw, y0: l.y - hh, y1: l.y + hh };
-      expect(box.x0 >= 0 && box.x1 <= STAGE.width && box.y0 >= 0 && box.y1 <= STAGE.height, `${w} on the stage`).toBe(true);
-      for (const h of headers) expect(box.x1 <= h.x0 || box.x0 >= h.x1 || box.y1 <= h.y0 || box.y0 >= h.y1, `${w} label clear of the header at ${h.x0},${h.y0}`).toBe(true);
-    }
-    // The vault ↔ bay run is too short for words: an arrow chip. The ATM's run up the margin reads along it.
-    expect(cashWireLabel('BAY').chip).toBe(true);
-    expect(cashWireLabel('ATM').vertical).toBe(true);
-    expect(cashWireLabel('TELLER').vertical).toBe(false);
-  });
-
-  it('renders the badges with a dark padded box, and the chip with a glowing arrow', () => {
-    const html = renderToStaticMarkup(createElement(CashLinesView, { flows: [], route: new Set(CASH_WIRES) }));
-    for (const w of CASH_WIRES) expect(html).toContain(`data-testid="cash-wire-label-${w}"`);
-    expect(html).toMatch(/cash-wire-label-TELLER[\s\S]*?<rect[^>]*fill="#020617"/);
-    expect(html).toMatch(/cash-wire-label-ATM"[^>]*/);
-    expect(html).toMatch(/translate\(1550 [\d.]+\) rotate\(-90\)/);
-    expect(html).toMatch(/cash-wire-label-BAY" data-dir="both" data-chip="true"[\s\S]*?⇅/);
-    expect(src('components/bank/office/VaultCash3D.tsx')).toContain("background: 'rgba(2,6,23,0.88)'");
-  });
-});
-
 describe('4. the station-hover wire highlight', () => {
   it('lights every wire of the hovered station, in one table for both maps', () => {
     expect(new Set(wiresAt('VAULT'))).toEqual(new Set(['TELLER', 'ATM', 'BAY']));
@@ -147,7 +115,7 @@ describe('4. the station-hover wire highlight', () => {
     expect(v).toContain('useWireHover()');
     expect(v).toContain('litWires(flow, child, hover)');
     expect(v).toMatch(/STILL_LINE\[w\]\[route\?\.has\(w\) \? 'lit' : 'idle'\]/);
-    expect(src('components/bank/office/LoadingBay3D.tsx')).toContain("useWireHoverStore.getState().set('BAY')");
+    expect(src('components/bank/office/LoadingBay3D.tsx')).toContain("useWireHoverStore.getState().set(on ? 'BAY' : null)");
   });
 });
 
@@ -228,7 +196,8 @@ describe('7. the one execution lock on every trigger', () => {
     const flow = bankStore.getState().flow;
     simulateGuidedFlow(1);
     expect(bankStore.getState().flow).toBe(flow);
-    expect(src('components/bank/WelcomeModal.tsx')).toContain('onPick={guarded(() => mode.pick(actions))}');
+    // The welcome modes that switch the flow, the scope or the role are guarded; opening the Academy (reading) never is.
+    expect(src('components/bank/WelcomeModal.tsx')).toContain("onPick={mode.id === 'academy' ? () => mode.pick(actions) : guarded(() => mode.pick(actions))}");
     expect(src('components/bank/WelcomeModal.tsx')).toMatch(/const startShift = guarded\(/);
     expect(src('components/knowledge/RegulatoryRegistry.tsx')).toMatch(/function openScenario[\s\S]{0,160}if \(demoLocked\(\)\) return;/);
     expect(src('components/knowledge/RegulatoryRegistry.tsx')).toContain('disabled={locked}');

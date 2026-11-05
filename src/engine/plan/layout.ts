@@ -762,7 +762,8 @@ export const TIP_SIDE: Readonly<Record<PlaceId, TipSide>> = Object.fromEntries((
  * and straight down into the CIT loading bay under the vault.
  */
 /** The CIT loading bay card on the map's bottom-right edge, right under the Central Cash Vault. */
-export const CIT_BAY = { x: 1350, y: 900, w: 180, h: 166 } as const;
+/** 20 px under the vault (y 890), so the vault ↔ bay wire's label badge fits in the gap clear of both cards' text. */
+export const CIT_BAY = { x: 1350, y: 910, w: 180, h: 160 } as const;
 /** The bay card's off-site ends along its bottom row, left to right (CitBay2D draws them; the hop player parks its badge on them). */
 export const BAY_ENDPOINTS = ['ATM', 'HQ', 'SBV', 'CORP'] as const;
 export const bayEndpointAt = (i: number): Pt => [CIT_BAY.x + 18 + (i * (CIT_BAY.w - 36)) / (BAY_ENDPOINTS.length - 1), CIT_BAY.y + CIT_BAY.h - 14];
@@ -777,7 +778,7 @@ export const CASH_LINES: Readonly<Record<CashEndpoint, readonly Pt[]>> = (() => 
   return {
     TELLER: [[left, v.cy + 26], [CASH_CORRIDOR.x, v.cy + 26], [CASH_CORRIDOR.x, CASH_CORRIDOR.y], [teller.cx, CASH_CORRIDOR.y], [teller.cx, teller.cy + teller.h / 2]],
     ATM: [[right, v.cy - 20], [1550, v.cy - 20], [1550, atm.cy + 20], [atm.cx + atm.w / 2, atm.cy + 20]],
-    BAY: [[v.cx + 40, v.cy + v.h / 2], [v.cx + 40, 902]],
+    BAY: [[v.cx + 40, v.cy + v.h / 2], [v.cx + 40, CIT_BAY.y + 2]],
   };
 })();
 
@@ -794,31 +795,32 @@ export const BAY_TELLER_LINE: readonly Pt[] = (() => {
 /** Every gold wire's corners (cashWires.ts names them): the three vault lines, then the bay ↔ teller handover. */
 export const cashWirePoints = (w: CashWire): readonly Pt[] => (w === 'BAY_TELLER' ? BAY_TELLER_LINE : CASH_LINES[w]);
 
-/** A run shorter than this holds no words: its label is a direction chip on the wire. */
-const LABEL_MIN_RUN = 60;
+/** A wire label badge's height, and the clear run it wants either side of its words. */
+export const WIRE_BADGE = { h: 15, margin: 12, edge: 24 } as const;
+/** A label's width at 9 px bold: about 5.4 px a character, padded 6 px each side. */
+export const wireBadgeWidth = (text: string): number => Math.round([...text].length * 5.4 + 12);
 export interface CashWireLabel {
   x: number;
   y: number;
-  /** Rotated to read along a vertical run (it sits on the wire, so it never reaches a card's header beside it). */
+  /** Rotated to read along a vertical run (only when no horizontal run is long enough). */
   vertical: boolean;
-  /** Too short a run for words (vault ↔ bay): an arrow chip only, its words in the tooltip. */
-  chip: boolean;
 }
 /**
- * Where a wire's direction label sits: centred ON the middle of its longest run, inside a padded badge, so it never climbs into the
- * card headers above or beside the wire (the Central Cash Vault, the CIT hall, the ATM). A vertical run reads rotated along it.
+ * Where a wire's label sits, for a badge `width` px wide: centred ON the longest horizontal run that holds it with a margin either
+ * side (it never climbs into the card headers above or below the wire), else rotated along a vertical run that does, else (a run too
+ * short for words: the 20 px vault ↔ bay drop) level across the run's middle, kept inside the stage's right edge (the ATM wire).
  */
-export function cashWireLabel(w: CashWire): CashWireLabel {
+export function cashWireLabel(w: CashWire, width: number): CashWireLabel {
   const pts = cashWirePoints(w);
-  const len = (a: Pt, b: Pt): number => Math.hypot(b[0] - a[0], b[1] - a[1]);
-  let best: [Pt, Pt] = [pts[0]!, pts[1] ?? pts[0]!];
-  for (let i = 1; i < pts.length; i++) if (len(pts[i - 1]!, pts[i]!) > len(best[0], best[1])) best = [pts[i - 1]!, pts[i]!];
-  return { x: (best[0][0] + best[1][0]) / 2, y: (best[0][1] + best[1][1]) / 2, vertical: best[0][0] === best[1][0], chip: len(best[0], best[1]) < LABEL_MIN_RUN };
+  const runs = pts.slice(1).map((b, i) => ({ a: pts[i]!, b, len: Math.hypot(b[0] - pts[i]![0], b[1] - pts[i]![1]), vertical: b[0] === pts[i]![0] }));
+  const fits = (r: (typeof runs)[number]): boolean => r.len >= width + 2 * WIRE_BADGE.margin;
+  const longest = (list: typeof runs) => list.reduce<(typeof runs)[number] | null>((best, r) => (!best || r.len > best.len ? r : best), null);
+  const run = longest(runs.filter((r) => !r.vertical && fits(r))) ?? longest(runs.filter((r) => r.vertical && fits(r)));
+  if (run) return { x: (run.a[0] + run.b[0]) / 2, y: (run.a[1] + run.b[1]) / 2, vertical: run.vertical };
+  const mid = longest(runs)!;
+  const x = Math.min((mid.a[0] + mid.b[0]) / 2, STAGE.width - WIRE_BADGE.edge - width / 2);
+  return { x, y: (mid.a[1] + mid.b[1]) / 2, vertical: false };
 }
-export const cashLineLabelAt = (w: CashWire): Pt => {
-  const l = cashWireLabel(w);
-  return [l.x, l.y];
-};
 
 /** An SVG path through a wire's corners. */
 export const cashWirePath = (w: CashWire): string => cashWirePoints(w).map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(' ');

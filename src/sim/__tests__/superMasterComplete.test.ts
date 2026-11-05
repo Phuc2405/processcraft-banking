@@ -26,7 +26,7 @@ import { CIT_SHEETS, SBV_CASE_SHEETS, SBV_DOMAIN } from '../../data/subProcessCi
 import { CIT_INFO_KEYS } from '../../data/subProcessKeys';
 import { lessonAnchor } from '../../data/subProcessLessons';
 import { subProcessInfo } from '../../data/subProcessRegistry';
-import { cashLineLabelAt, STAGE } from '../../engine/plan/layout';
+import { cashWireLabel, STAGE } from '../../engine/plan/layout';
 import { LANE_EXIT } from '../../engine/world/parking';
 import { setActiveLocale } from '../../i18n/localeCore';
 import { bankStore, citChildOf } from '../../store/bankStore';
@@ -166,12 +166,12 @@ describe('4. the vault network, its wires and the Loading Bay', () => {
   it('draws the vault ↔ teller, ATM and bay wires with their direction in 2D', () => {
     const lit = renderToStaticMarkup(createElement(CashLinesView, { flows: [], route: new Set(CASH_ENDPOINTS) }));
     for (const e of CASH_ENDPOINTS) expect(lit).toContain(`data-testid="cash-wire-label-${e}"`);
-    expect(lit).toContain('Outflow ➔ · 🡨 Inflow');
+    expect(lit).toContain('Cash out/in ➔ Teller');
     const out = renderToStaticMarkup(createElement(CashLinesView, { flows: [{ id: 'x', endpoint: 'TELLER', dir: 'OUT', source: 'retail' } as never] }));
     expect(out).toContain('data-dir="OUT"');
-    expect(out).toContain('Outflow ➔');
+    expect(out).toContain('Cash out ➔ Teller');
     for (const e of CASH_ENDPOINTS) {
-      const [x, y] = cashLineLabelAt(e);
+      const { x, y } = cashWireLabel(e, 140);
       expect(x).toBeLessThan(STAGE.width);
       expect(y).toBeGreaterThan(0);
     }
@@ -196,7 +196,7 @@ describe('4. the vault network, its wires and the Loading Bay', () => {
     const bay3d = src('components/bank/office/LoadingBay3D.tsx');
     expect(bay3d).toContain('BAY_HIT_SIZE = { h: 0.06, y: 0.03 }');
     expect(bay3d).toMatch(/data-testid="cit-bay-label-3d"/);
-    expect(bay3d).toMatch(/<button type="button" onClick=\{\(\) => bankStore\.getState\(\)\.select\(\{ kind: 'bay' \}\)\}/);
+    expect(bay3d).toMatch(/onClick=\{\(\) => bankStore\.getState\(\)\.select\(\{ kind: 'bay' \}\)\}/);
     expect(opened).toBe(0);
   });
 
@@ -305,8 +305,8 @@ describe('7. the closed-day sandbox and the night van', () => {
   });
 });
 
-describe('8. the single-stream EoD', () => {
-  it('purges what earlier flows left on screen, then plays the night cycle alone', () => {
+describe('8. the single-case EoD', () => {
+  it('purges what earlier flows left on screen, then shows one batch case at 23:00, paused', () => {
     bankStore.getState().skipTo(AT);
     executeDemo('pos-20');
     expect(bankStore.getState().presetTxId).not.toBeNull();
@@ -318,11 +318,12 @@ describe('8. the single-stream EoD', () => {
     expect(vaultFlowStore.getState().retail).toHaveLength(0);
     executeDemo('eod');
     const s = bankStore.getState();
-    expect(s.view.minute).toBeGreaterThanOrEqual(EOD_START);
-    expect(s.playing).toBe(true);
+    expect(s.view.minute).toBe(EOD_START);
+    expect(s.playing).toBe(false);
     expect(s.solo).toBe(false);
     expect(s.presetTxId).toBeNull();
-    expect(demoSessionStore.getState().active).toEqual({ kind: 'eod' });
+    expect(s.sandboxTrace?.route).toEqual(['OUT_APPROVED', 'EOD_BATCH', 'EOD_VISA', 'RECON', 'OUT_SETTLED']);
+    expect(demoSessionStore.getState().active).toEqual({ kind: 'sandbox', id: s.sandboxTrace!.id });
   });
 });
 

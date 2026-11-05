@@ -27,8 +27,6 @@ export function demoRunning(run: DemoRun | null = demoSessionStore.getState().ac
     case 'cit':
       // Until it settles and the 3D van has driven off the bay (the dispatch lock), and the hop player has shown its last stop.
       return hop === `cit:${run.runId}` || citDemoBusy(citNow())?.order.id === run.runId || citStore.getState().van;
-    case 'eod':
-      return !bank.view.dayOver;
   }
 }
 
@@ -41,6 +39,13 @@ const subscribeAll = (fn: () => void): (() => void) => {
 /** Whether a demo is running now: the menus, the dock's pickers and the drawer's selectors are locked while it is. */
 export const demoLocked = (): boolean => demoRunning();
 export const useDemoLocked = (): boolean => useSyncExternalStore(subscribeAll, demoLocked, demoLocked);
+
+/**
+ * While a demo runs, only its own case is drawn (both maps): the simulation's other packets, the queues at the desks and the passers-by
+ * are hidden, so a learner watching a night batch or one teller withdrawal sees that case alone. `own` is the demo's payment, or null
+ * (a CIT run, a replay: the hop player draws those, so no simulation packet shows).
+ */
+export const isolateMoves = <M extends { packetId: string }>(moves: readonly M[], isolated: boolean, own: string | null): readonly M[] => (isolated ? moves.filter((m) => m.packetId === own) : moves);
 
 /**
  * The one execution-lock guard for a trigger that reaches the stores directly (the welcome window, the regulatory registry's scenario

@@ -44,6 +44,8 @@ const CHILD: Readonly<Record<CitDemo, { scenario: CitScenario; direction: CitDir
   TELLER: { scenario: 'TELLER', direction: 'IN' },
 };
 export const citChildStops = (demo: CitDemo): CitStopId[] => citStops(CHILD[demo].scenario, CHILD[demo].direction);
+/** A CIT child's usual direction: OUT of the vault (ATM top-up, SBV deposit) or IN to it (doorstep pickup, till return). */
+export const citChildDirection = (demo: CitDemo): CitDirection => CHILD[demo].direction;
 
 /** The gold cash lines a child uses: the vault ↔ bay line for a van, the vault ↔ ATM / teller line where the cash reaches a desk. */
 export function citChildLines(demo: CitDemo): CashEndpoint[] {

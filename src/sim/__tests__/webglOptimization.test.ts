@@ -246,10 +246,10 @@ describe('a demo run lights only its own path, on both maps', () => {
 });
 
 describe('“▶ Run this scenario” on every sub-process sheet', () => {
-  it('gives every sheet but the CIT overview a scenario, each a real button or CIT dispatch', () => {
+  it('gives every child sheet a scenario, each a real button or CIT dispatch; no parent flow sheet runs anything', () => {
     for (const k of INFO_KEYS) {
       const d = sheetDemo(k);
-      if (k === 'flow-9') {
+      if (k.startsWith('flow-')) {
         expect(d).toBeNull();
         continue;
       }
@@ -258,7 +258,7 @@ describe('“▶ Run this scenario” on every sub-process sheet', () => {
     }
     for (const kind of CIT_DEMOS) expect(sheetDemo(CIT_INFO_KEYS[kind])).toEqual({ kind: 'cit', demo: kind });
     expect(sheetDemo('aml-sanctions')).toEqual({ kind: 'action', id: 'swift-sanction' });
-    expect(sheetDemo('flow-1')).toEqual({ kind: 'action', id: 'pos-20' });
+    expect(sheetDemo('flow-1')).toBeNull();
     for (const g of ['card-auth', 'bill-pay', 'bnpl-credit', 'token-3ds'] as const) expect(sheetDemo(g)).toEqual({ kind: 'action', id: groupMembers(g)[0]!.def.id });
   });
 
