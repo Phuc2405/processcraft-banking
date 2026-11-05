@@ -1,6 +1,8 @@
 import { tr } from '../../i18n/locale';
 import { useBankStore } from '../../store/bankStore';
 import { uiStore } from '../../store/uiStore';
+import { useMessages } from '../../utils/i18nHelper';
+import { stpMessages } from './stp.messages';
 
 /** The header buttons of the ops overlays. They live apart from the overlays so the overlays can be loaded on demand. */
 
@@ -52,6 +54,25 @@ export function ChaosButton() {
         🐒
       </span>
       <span className="max-[1439px]:sr-only">{tr({ en: 'Chaos', vi: 'Sự cố' })}</span>
+    </button>
+  );
+}
+
+/** The header button that opens the STP drawer. Glows while STP is on. */
+export function StpButton() {
+  const m = useMessages(stpMessages);
+  const on = useBankStore((s) => s.stp.enabled);
+  return (
+    <button
+      type="button"
+      onClick={() => uiStore.getState().toggle('stp')}
+      data-testid="stp-button"
+      data-on={on}
+      title={m('buttonHint')}
+      className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[12px] font-semibold ring-1 transition ${on ? 'bg-violet-500/15 text-violet-100 ring-violet-400/60 hover:bg-violet-500/25' : 'bg-slate-900 text-slate-300 ring-slate-700 hover:bg-slate-800'}`}
+    >
+      <span aria-hidden="true">⚡</span>
+      <span className="max-[1439px]:sr-only">STP</span>
     </button>
   );
 }

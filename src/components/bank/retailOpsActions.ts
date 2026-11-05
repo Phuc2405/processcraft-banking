@@ -7,6 +7,7 @@ import { simStamp } from '../../sim/ledgerStreams';
 import { opsCustomer, presetById, type PresetId } from '../../sim/presets';
 import { formatAud } from '../../engine/money';
 import { opsAccount, type OpsActionId } from '../../sim/retailOps';
+import { opsStpVerdict } from '../../sim/stpEngine';
 import { notificationStore } from '../../store/notificationStore';
 import { bankStore } from '../../store/bankStore';
 import { deskVisitStore } from '../../store/deskVisitStore';
@@ -56,7 +57,7 @@ function runOpsDemo(id: OpsActionId): void {
   retail.runAction(id, opsStamp());
   const outcome = retailOpsStore.getState().last;
   const bank = bankStore.getState();
-  const customer = outcome?.status === 'BLOCKED' ? null : opsCustomer(id, outcome?.journal?.lines[0]?.dr);
+  const customer = outcome?.status === 'BLOCKED' ? null : opsCustomer(id, outcome?.journal?.lines[0]?.dr, bank.stp);
   if (!customer) {
     retail.setLastTx(null);
     announce();
@@ -64,8 +65,10 @@ function runOpsDemo(id: OpsActionId): void {
   }
   bank.runDemoCustomer(customer);
   retail.setLastTx(bankStore.getState().presetTxId);
-  // A savings or collateral case brings people to those desks, on both maps. A system flow never does: it is drawn on the wires only.
-  if (modeOf(id) === 'human') deskVisitStore.getState().start(id);
+  // A savings or collateral case brings people to those desks, on both maps. A system flow never does, nor a case the STP engine takes.
+  const route = opsStpVerdict(id, bank.stp)?.route;
+  const straight = route === 'STP' || route === 'REJECT';
+  if (modeOf(id) === 'human' && !straight) deskVisitStore.getState().start(id);
   // The 3D camera does not re-frame round the inspector, which would cover these far-right desks: the journal comes up as a toast and a click on the desk or payment opens the detail.
   if (DESK_VISITS[id] && bankStore.getState().viewMode === '3d') {
     bankStore.getState().clearSelection();

@@ -124,6 +124,47 @@ const TOPIC_CARDS: readonly RetailFlashcard[] = [
   },
 ];
 
+const STP_TAG = L('STP automation', 'Xử lý tự động STP');
+const STP_REF = L('SBV Circular 31/2024/TT-NHNN & the ISO 20022 e-payment message standard', 'Thông tư 31/2024/TT-NHNN & Tiêu chuẩn giao dịch điện tử ISO 20022');
+
+/** The STP cards: what straight-through processing is, how an exception falls back, and the fast-fail gate. */
+const STP_CARDS: readonly RetailFlashcard[] = [
+  {
+    id: 'retail-stp',
+    sub: 'bnpl-credit',
+    tag: STP_TAG,
+    front: L('What is STP (Straight-Through Processing)?', 'STP (Straight-Through Processing) là gì?'),
+    term: L('Straight-Through Processing', 'Straight-Through Processing - Xử lý thẳng'),
+    rule: L('Straight-Through Processing: a transaction processed 100% automatically, with no manual intervention.', 'Straight-Through Processing - Xử lý giao dịch tự động 100% không qua can thiệp thủ công.'),
+    entry: L('Debits and credits post automatically and instantly to the Core Banking general ledger (real-time GL posting).', 'Hạch toán Nợ/Có tự động tức thì vào sổ cái Core Banking (Real-time GL posting).'),
+    lines: exampleJournal('bnpl-approve-400'),
+    detail: L('Automatic checks of eKYC, the DTI score, risk limits and the AML sanctions list.', 'Kiểm tra tự động eKYC, điểm DTI, hạn mức rủi ro và danh sách cấm vận AML.'),
+    reference: STP_REF,
+  },
+  {
+    id: 'retail-stp-fallback',
+    sub: 'bnpl-credit',
+    tag: STP_TAG,
+    front: L('A $650 Pay-in-4 at DTI 24% drops out of STP. What happens?', 'Trả góp $650 với DTI 24% rơi khỏi STP. Điều gì xảy ra?'),
+    term: L('STP fallback (exception handling)', 'STP fallback (xử lý ngoại lệ)'),
+    rule: L('It breaks two rules (over the $500 limit, over the 23% DTI cap), so it queues at the BNPL appraisal desk with its flags.', 'Vi phạm hai quy tắc (vượt hạn mức $500, vượt trần DTI 23%), nên vào Quầy thẩm định BNPL kèm cờ lý do.'),
+    lines: [],
+    detail: L('The underwriter checks the CIC history and approves by manual override or refuses; the override is logged.', 'Chuyên viên kiểm tra lịch sử CIC rồi duyệt ngoại lệ hoặc từ chối; lần duyệt ngoại lệ được ghi vết.'),
+    reference: L('Simulator STP policy · NCCP responsible lending', 'Chính sách STP của mô phỏng · cho vay có trách nhiệm NCCP'),
+  },
+  {
+    id: 'retail-stp-fastfail',
+    sub: 'bnpl-credit',
+    tag: STP_TAG,
+    front: L('The credit bureau shows CIC group 3. Does the case reach the BNPL desk?', 'CIC cho thấy nhóm 3. Hồ sơ có đến Quầy thẩm định BNPL không?'),
+    term: L('Fast-fail at the ingestion gate', 'Loại sớm tại cổng tiếp nhận'),
+    rule: L('No: bad debt (CIC groups 3 to 5) is refused at the online gate, before any human slot is used.', 'Không: nợ xấu (CIC nhóm 3 đến 5) bị từ chối ngay tại cổng trực tuyến, trước khi chiếm chỗ của nhân viên.'),
+    lines: [],
+    detail: L('A failed biometric (BIOMETRIC_AUTH_FAILED) or a high-risk device (FDS_HIGH_RISK_DEVICE) is fast-failed the same way.', 'Sinh trắc học thất bại (BIOMETRIC_AUTH_FAILED) hoặc thiết bị rủi ro cao (FDS_HIGH_RISK_DEVICE) cũng bị loại sớm như vậy.'),
+    reference: L('SBV Circular 31/2024/TT-NHNN (debt groups)', 'Thông tư 31/2024/TT-NHNN (phân loại nợ)'),
+  },
+];
+
 /** Which sub-process teaches each audited acronym, and the demo journal that shows it posting. No journal means nothing posts for it. */
 const ACRONYM_CARD: Readonly<Record<(typeof AUDITED_ACRONYMS)[number], { sub: OpsSubProcessId; journal?: OpsActionId }>> = {
   TSDB: { sub: 'collateral', journal: 'collateral-lock' },
@@ -167,4 +208,4 @@ const ACRONYM_CARDS: readonly RetailFlashcard[] = AUDITED_ACRONYMS.map((key) => 
   };
 });
 
-export const RETAIL_FLASHCARDS: readonly RetailFlashcard[] = [...TOPIC_CARDS.map((c) => (FLASHCARD_DETAIL[c.id] ? { ...c, detail: FLASHCARD_DETAIL[c.id] } : c)), ...ACRONYM_CARDS];
+export const RETAIL_FLASHCARDS: readonly RetailFlashcard[] = [...TOPIC_CARDS.map((c) => (FLASHCARD_DETAIL[c.id] ? { ...c, detail: FLASHCARD_DETAIL[c.id] } : c)), ...STP_CARDS, ...ACRONYM_CARDS];

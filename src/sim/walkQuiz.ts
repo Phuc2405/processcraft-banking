@@ -53,6 +53,52 @@ const ledgerQuestion: Builder = (c) => ({
   branches: { n_end_approved: 0, n_end_declined: 1 },
 });
 
+const BNPL_EN: Record<string, Builder> = {
+  n_xor_plan: (c) => {
+    const bnpl = c.example.payload.bnpl;
+    const pct = bnpl ? Math.round((bnpl.downPaymentMinor / c.example.payload.amount) * 100) : 0;
+    return {
+      prompt: `The customer’s score is ${bnpl?.underwritingScore ?? '—'} (the minimum is ${c.rules.bnplMinScore}) and they are putting ${pct}% down (the minimum is ${c.rules.bnplMinDownPct}%). Is the plan approved?`,
+      options: ['Yes: collect the down payment and start the plan', 'No: fall back to paying the full price by card'],
+      branches: { n_ledger_dp: 0, n_ledger_card: 1 },
+    };
+  },
+  n_xor_funds: (c) => {
+    const planned = c.before?.step.nodeId === 'n_ledger_dp';
+    const bnpl = c.example.payload.bnpl;
+    return {
+      prompt: planned
+        ? `The plan was approved, so the ledger checked the down payment of ${bnpl ? money(bnpl.downPaymentMinor) : '—'}. The card holds ${c.carry('Card holds')}. How does the payment end?`
+        : `There is no plan, so the ledger checked the full ${c.carry('Amount')}. The card holds ${c.carry('Card holds')}. How does the payment end?`,
+      options: ['Approved: Pay-in-4 plan', 'Approved: paid in full by card', 'Declined: the down payment could not be taken', 'Declined: the card cannot cover the full price'],
+      branches: { n_end_bnpl: 0, n_end_card: 1, n_end_dp_declined: 2, n_end_card_declined: 3 },
+    };
+  },
+};
+
+const BNPL_VI: Record<string, Builder> = {
+  n_xor_plan: (c) => {
+    const bnpl = c.example.payload.bnpl;
+    const pct = bnpl ? Math.round((bnpl.downPaymentMinor / c.example.payload.amount) * 100) : 0;
+    return {
+      prompt: `Điểm của khách là ${bnpl?.underwritingScore ?? '—'} (tối thiểu ${c.rules.bnplMinScore}) và họ trả trước ${pct}% (tối thiểu ${c.rules.bnplMinDownPct}%). Kế hoạch có được duyệt không?`,
+      options: ['Có: thu khoản trả trước và bắt đầu kế hoạch', 'Không: chuyển sang trả đủ giá bằng thẻ'],
+      branches: { n_ledger_dp: 0, n_ledger_card: 1 },
+    };
+  },
+  n_xor_funds: (c) => {
+    const planned = c.before?.step.nodeId === 'n_ledger_dp';
+    const bnpl = c.example.payload.bnpl;
+    return {
+      prompt: planned
+        ? `Kế hoạch đã được duyệt, nên sổ cái kiểm tra khoản trả trước ${bnpl ? money(bnpl.downPaymentMinor) : '—'}. Thẻ có ${c.carry('Card holds')}. Giao dịch kết thúc thế nào?`
+        : `Không có kế hoạch, nên sổ cái kiểm tra đủ ${c.carry('Amount')}. Thẻ có ${c.carry('Card holds')}. Giao dịch kết thúc thế nào?`,
+      options: ['Duyệt: kế hoạch trả 4 kỳ', 'Duyệt: trả đủ bằng thẻ', 'Từ chối: không thu được khoản trả trước', 'Từ chối: thẻ không đủ trả toàn bộ giá'],
+      branches: { n_end_bnpl: 0, n_end_card: 1, n_end_dp_declined: 2, n_end_card_declined: 3 },
+    };
+  },
+};
+
 interface QuizBook {
   /** Per process, per gateway box. */
   builders: Record<ProcessId, Record<string, Builder>>;
@@ -91,28 +137,8 @@ const EN: QuizBook = {
       },
       n_xor_ledger: ledgerQuestion,
     },
-    C: {
-      n_xor_plan: (c) => {
-        const bnpl = c.example.payload.bnpl;
-        const pct = bnpl ? Math.round((bnpl.downPaymentMinor / c.example.payload.amount) * 100) : 0;
-        return {
-          prompt: `The customer’s score is ${bnpl?.underwritingScore ?? '—'} (the minimum is ${c.rules.bnplMinScore}) and they are putting ${pct}% down (the minimum is ${c.rules.bnplMinDownPct}%). Is the plan approved?`,
-          options: ['Yes: collect the down payment and start the plan', 'No: fall back to paying the full price by card'],
-          branches: { n_ledger_dp: 0, n_ledger_card: 1 },
-        };
-      },
-      n_xor_funds: (c) => {
-        const planned = c.before?.step.nodeId === 'n_ledger_dp';
-        const bnpl = c.example.payload.bnpl;
-        return {
-          prompt: planned
-            ? `The plan was approved, so the ledger checked the down payment of ${bnpl ? money(bnpl.downPaymentMinor) : '—'}. The card holds ${c.carry('Card holds')}. How does the payment end?`
-            : `There is no plan, so the ledger checked the full ${c.carry('Amount')}. The card holds ${c.carry('Card holds')}. How does the payment end?`,
-          options: ['Approved: Pay-in-4 plan', 'Approved: paid in full by card', 'Declined: the down payment could not be taken', 'Declined: the card cannot cover the full price'],
-          branches: { n_end_bnpl: 0, n_end_card: 1, n_end_dp_declined: 2, n_end_card_declined: 3 },
-        };
-      },
-    },
+    C: BNPL_EN,
+    G: BNPL_EN,
     D: {
       n_xor_recon: (c) => {
         const s = c.example.payload.settlement;
@@ -216,28 +242,8 @@ const VI: QuizBook = {
       },
       n_xor_ledger: ledgerQuestionVi,
     },
-    C: {
-      n_xor_plan: (c) => {
-        const bnpl = c.example.payload.bnpl;
-        const pct = bnpl ? Math.round((bnpl.downPaymentMinor / c.example.payload.amount) * 100) : 0;
-        return {
-          prompt: `Điểm của khách là ${bnpl?.underwritingScore ?? '—'} (tối thiểu ${c.rules.bnplMinScore}) và họ trả trước ${pct}% (tối thiểu ${c.rules.bnplMinDownPct}%). Kế hoạch có được duyệt không?`,
-          options: ['Có: thu khoản trả trước và bắt đầu kế hoạch', 'Không: chuyển sang trả đủ giá bằng thẻ'],
-          branches: { n_ledger_dp: 0, n_ledger_card: 1 },
-        };
-      },
-      n_xor_funds: (c) => {
-        const planned = c.before?.step.nodeId === 'n_ledger_dp';
-        const bnpl = c.example.payload.bnpl;
-        return {
-          prompt: planned
-            ? `Kế hoạch đã được duyệt, nên sổ cái kiểm tra khoản trả trước ${bnpl ? money(bnpl.downPaymentMinor) : '—'}. Thẻ có ${c.carry('Card holds')}. Giao dịch kết thúc thế nào?`
-            : `Không có kế hoạch, nên sổ cái kiểm tra đủ ${c.carry('Amount')}. Thẻ có ${c.carry('Card holds')}. Giao dịch kết thúc thế nào?`,
-          options: ['Duyệt: kế hoạch trả 4 kỳ', 'Duyệt: trả đủ bằng thẻ', 'Từ chối: không thu được khoản trả trước', 'Từ chối: thẻ không đủ trả toàn bộ giá'],
-          branches: { n_end_bnpl: 0, n_end_card: 1, n_end_dp_declined: 2, n_end_card_declined: 3 },
-        };
-      },
-    },
+    C: BNPL_VI,
+    G: BNPL_VI,
     D: {
       n_xor_recon: (c) => {
         const s = c.example.payload.settlement;

@@ -57,6 +57,7 @@ const SHIRT: Record<StationId, string> = {
   SAVINGS_DESK: '#047857',
   COLLATERAL_VAULT: '#065f46',
   GATE_SWIFT: '#c2410c',
+  STP_ENGINE: '#7c3aed',
 };
 
 export const ROLE: Record<StationId, string> = {
@@ -86,6 +87,7 @@ export const ROLE: Record<StationId, string> = {
   SAVINGS_DESK: 'Savings officer',
   COLLATERAL_VAULT: 'Collateral custodian',
   GATE_SWIFT: 'Gateway monitor, SWIFT',
+  STP_ENGINE: 'Server thread, STP engine',
 };
 
 /** A machine's name where a person's would be. */

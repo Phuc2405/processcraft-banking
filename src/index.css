@@ -732,6 +732,18 @@ body,
     0 0 16px color-mix(in srgb, var(--flow, #38bdf8) 32%, transparent);
 }
 
+/* The virtual STP node: a fast violet sweep each beat a case shoots straight through. */
+.bk-stp-pulse {
+  box-shadow: 0 0 0 1px rgb(167 139 250 / 0.8), 0 0 18px rgb(139 92 246 / 0.55);
+  animation: bk-stp-pulse-kf 0.45s ease-out 2;
+}
+@keyframes bk-stp-pulse-kf {
+  0% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bk-stp-pulse { animation: none; opacity: 0.6; }
+}
 .bk-flow-here {
   animation: bk-flow-here-kf 1.4s ease-in-out infinite;
 }
@@ -1048,5 +1060,16 @@ body[data-hover3d] .bk-office-canvas[data-grabbing] {
   .bk-visit-figure[data-phase] .bk-visit-body,
   .bk-visit-figure[data-phase='transact'] .bk-visit-bubble {
     animation: none;
+  }
+}
+
+/* Knowledge Base footer: on a narrow screen the disclaimer is held to two lines (its title attribute carries the full text). */
+@media (max-width: 767px) {
+  .kb-disclaimer {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }

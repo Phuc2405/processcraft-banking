@@ -1,4 +1,4 @@
-/** The six Learning Hub / guided-tour lessons in Vietnamese. */
+/** The seven Learning Hub / guided-tour lessons in Vietnamese. */
 
 import { activeLocale, type Locale } from '../i18n/localeCore';
 import { LESSONS, PROCESS_SHORT, type GraphKey, type Lesson, type LessonLayout, type ProcessId, type StepText } from './learning';
@@ -25,9 +25,43 @@ const SHORT_VI: Record<ProcessId, string> = {
   D: 'Đối soát cuối ngày',
   E: 'Chuyển khoản tức thì A2A',
   F: 'AML & Tra soát',
+  G: 'Tự động hóa STP',
 };
 
 const VI: Record<ProcessId, LessonWords> = {
+  G: {
+    title: 'Vận hành Tự động hóa STP & Quản trị Rủi ro Tín dụng',
+    subtitle: 'Cổng thương mại điện tử → Trạm STP (hoặc Quầy thẩm định BNPL khi có cờ) → Sổ cái',
+    intro: [
+      'Xử lý thẳng (STP) để quy tắc của Core Banking tự hoàn tất hồ sơ mà không cần con người. Với khoản trả góp nhỏ, trạm STP kiểm tra eKYC, tỷ lệ nợ trên thu nhập (DTI), CIC và số tiền trong vài mili giây, rồi tự hạch toán vào sổ cái.',
+      'Hồ sơ nằm ngoài quy tắc được chuyển về Quầy thẩm định BNPL kèm cờ lý do, nơi chuyên viên quyết định thủ công. Nợ xấu (CIC nhóm 3 đến 5) và eKYC lỗi không bao giờ tới quầy: chúng bị loại sớm ngay tại cổng. Tỷ lệ xử lý thẳng (STR) là phần hồ sơ không ai phải chạm tay.',
+    ],
+    steps: {
+      n_start: { title: 'Hồ sơ tới Cổng thương mại điện tử', what: 'Trang thanh toán gửi giỏ hàng, kết quả eKYC và dữ liệu CIC: DTI và nhóm nợ của khách.', why: 'Cổng chạy kiểm tra loại sớm trước. eKYC lỗi hoặc nợ xấu CIC bị từ chối ngay tại đây, trước mọi hàng chờ.' },
+      n_bnpl: { title: 'Tự động thẩm định: trạm STP hay quầy?', what: 'Trạm STP đối chiếu hồ sơ với quy tắc: số tiền ≤ $500, DTI ≤ 23%, eKYC đạt, CIC nhóm 1. Hồ sơ sạch được thẩm định ngay tại đây trong vài mili giây. Hồ sơ có bất kỳ cờ nào xếp hàng tại Quầy thẩm định BNPL, nơi chuyên viên chấm điểm và kiểm tra khoản trả trước thủ công.', why: 'Quy tắc là khẩu vị rủi ro của ngân hàng được viết ra. Mỗi hồ sơ quy tắc tự xử lý là một hồ sơ chuyên viên không phải làm, và đó là cách giải tỏa hàng chờ ngày Flash Sale.' },
+      n_xor_plan: { title: 'Quyết định: kế hoạch được duyệt?', what: 'Hồ sơ đủ điều kiện đi tới thu khoản trả trước. Còn lại chuyển sang thanh toán thẻ thông thường với đủ giá.', why: 'STP thay đổi ai quyết định và nhanh thế nào, không bao giờ thay đổi chính sách: cùng một hồ sơ nhận cùng câu trả lời trên làn nào cũng vậy.' },
+      n_ledger_dp: { title: 'Sổ cái: hạch toán khoản trả trước', what: 'Chỉ kỳ đầu tiên, một phần tư giỏ hàng, bị trừ vào thẻ liên kết. Trên làn STP, trạm tự hạch toán vào sổ cái theo thời gian thực.', why: 'Hạch toán GL tức thì là nửa sau của STP: không chờ lô, không nhập lại, không sai lệch để ca đêm phải truy.' },
+      n_ledger_card: { title: 'Sổ cái: trừ đủ giá', what: 'Không có kế hoạch: toàn bộ số tiền được kiểm tra trên thẻ.', why: 'Phương án dự phòng giữ đơn hàng mà không có rủi ro tín dụng.' },
+      n_xor_funds: { title: 'Quyết định: thẻ có đủ trả không?', what: 'Duyệt kế hoạch, duyệt thẻ dự phòng, hoặc một trong hai kết cục từ chối, tùy câu trả lời của sổ cái và kế hoạch.', why: 'Kết cục như nhau dù trạm hay người thẩm định; chỉ thời gian chờ khác nhau.' },
+      n_end_bnpl: { title: 'Đã duyệt: trả góp 4 kỳ', what: 'Kế hoạch bắt đầu. Một phần tư đã thu, ba phần còn lại sẽ đến hạn.', why: 'Trên làn STP việc này mất vài mili giây và được tính vào STR hôm nay.' },
+      n_end_card: { title: 'Đã duyệt: thẻ dự phòng', what: 'Khách trả đủ giá ngay hôm nay.', why: 'Giữ được đơn hàng mà không có rủi ro tín dụng.' },
+      n_end_dp_declined: { title: 'Từ chối: khoản trả trước', what: 'Kế hoạch được duyệt nhưng không thu được kỳ đầu tiên.', why: 'Không có tiền nào dịch chuyển và không có kế hoạch nào tồn tại.' },
+      n_end_card_declined: { title: 'Từ chối: thẻ', what: 'Không có kế hoạch, và thẻ cũng không đủ trả toàn bộ giá.', why: 'Đơn hàng bị mất.' },
+    },
+    labels: { bnpl: { e3: 'duyệt kế hoạch', e4: 'chuyển sang thẻ', e7: 'kế hoạch + đủ tiền', e8: 'đủ tiền (không kế hoạch)', e9: 'kế hoạch, thiếu tiền', e10: 'thiếu tiền' } },
+    examples: {
+      straight: { label: 'Khoản $240 sạch: xử lý thẳng', story: 'Điểm 720, giỏ hàng $240, trả trước 25%, DTI 18%, CIC nhóm 1, eKYC đạt. Đạt mọi quy tắc STP.', suggestion: 'Nâng điểm tối thiểu lên 730 và kế hoạch bị từ chối dù làn nào quyết định: STP không bao giờ bẻ cong chính sách.' },
+      dti: { label: 'DTI 27%: về quầy thủ công', story: 'Điểm 700, giỏ hàng $240, CIC nhóm 1, nhưng DTI 27% vượt trần STP 23%. Chuyên viên tiếp nhận.' },
+      large: { label: 'Khoản $650: vượt hạn mức STP', story: 'Điểm 710, DTI 20%, CIC nhóm 1, nhưng $650 vượt hạn mức tự duyệt $500, nên quầy quyết định.' },
+      nofunds: { label: 'Xử lý thẳng, nhưng thẻ thiếu tiền', story: 'Hồ sơ sạch (điểm 730, DTI 15%, CIC nhóm 1), nhưng thẻ liên kết chỉ có $30 cho khoản trả trước $60.' },
+      group2: { label: 'CIC nhóm 2: quầy từ chối kế hoạch', story: 'Điểm 560 và có khoản vay quá hạn trên CIC (nhóm 2). STP chuyển hồ sơ đi, và chuyên viên chuyển sang thanh toán thẻ.' },
+    },
+    takeaways: [
+      'STP quyết định ai thẩm định và nhanh thế nào, không bao giờ quyết định câu trả lời.',
+      'Chỉnh hạn mức STP hoặc trần DTI từng nấc một, và theo dõi cùng lúc STR và nợ xấu dự kiến.',
+      'Loại sớm kết thúc hồ sơ hỏng ngay tại cổng, nên nó không bao giờ chiếm chỗ của chuyên viên.',
+    ],
+  },
   A: {
     title: 'Mã hóa thẻ ảo (Tokenization) & Mã CVV động',
     subtitle: 'Cổng thẻ ảo → Kho token → dCVV → Sổ cái',

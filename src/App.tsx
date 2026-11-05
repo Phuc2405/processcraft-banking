@@ -1,5 +1,4 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { ReactFlowProvider } from '@xyflow/react';
 import { AcademySplitToggle } from './components/academy/AcademySplitLayout';
 import { LivingBank } from './components/bank/LivingBank';
 import { AcademyButton } from './components/bank/CourseCatalog';
@@ -7,25 +6,16 @@ import { ModeToggle } from './components/bank/ViewControls';
 import { WelcomeModal } from './components/bank/WelcomeModal';
 import { SearchBar } from './components/nav/SearchBar';
 import { SwitchModeButton } from './components/nav/SwitchModeButton';
-import { AmlButton, BenchmarkButton, ChaosButton } from './components/ops/OpsButtons';
+import { AmlButton, BenchmarkButton, ChaosButton, StpButton } from './components/ops/OpsButtons';
 import { LanguageToggle } from './components/shell/LanguageToggle';
 import { SmallScreenBanner } from './components/shell/SmallScreenBanner';
 import { tr, useLocale } from './i18n/locale';
 import { uiStore, useUiStore } from './store/uiStore';
 import { useAcademyStore } from './store/academyStore';
 import { audioSupported, bindAudioFX } from './utils/audioFX';
-import { ProcessCanvas } from './components/canvas/ProcessCanvas';
-import { EvaluationPanel } from './components/evaluation/EvaluationPanel';
-import { ChallengeBrief } from './components/sidebar/ChallengeBrief';
-import { NodePalette } from './components/sidebar/NodePalette';
-import { LabTourOverlay } from './components/education/LabWalkthrough';
-import { CURRICULUM } from './data/seedChallenges';
-import { levelTabLabel } from './data/curriculumCopy';
-import { localChallenge, stageText } from './i18n/challengeVi';
-import { stageAccent } from './data/curriculumTheme';
 import { bankStore } from './store/bankStore';
 import { labTourStore } from './store/labTourStore';
-import { relocalizeWorkflow, useWorkflowStore, workflowStore } from './store/workflowStore';
+import { relocalizeWorkflow, workflowStore } from './store/workflowStore';
 
 type View = 'bank' | 'lab';
 
@@ -37,6 +27,8 @@ import { AppFooter } from './components/shell/AuthorLink';
 const AmlPanel = lazy(() => import('./components/ops/AmlPanel').then((m) => ({ default: m.AmlPanel })));
 const PaymentBenchmarkModal = lazy(() => import('./components/ops/PaymentBenchmarkModal').then((m) => ({ default: m.PaymentBenchmarkModal })));
 const ChaosPanel = lazy(() => import('./components/ops/ChaosPanel').then((m) => ({ default: m.ChaosPanel })));
+const StpPanel = lazy(() => import('./components/ops/StpPanel').then((m) => ({ default: m.StpPanel })));
+const BuildLab = lazy(() => import('./components/lab/BuildLab').then((m) => ({ default: m.BuildLab })));
 const KnowledgeBaseModal = lazy(() => import('./components/knowledge/KnowledgeBaseModal').then((m) => ({ default: m.KnowledgeBaseModal })));
 
 function Overlays() {
@@ -47,6 +39,7 @@ function Overlays() {
       {overlay === 'aml' && <AmlPanel />}
       {overlay === 'benchmark' && <PaymentBenchmarkModal />}
       {overlay === 'chaos' && <ChaosPanel />}
+      {overlay === 'stp' && <StpPanel />}
       {overlay === 'knowledge' && <KnowledgeBaseModal />}
     </Suspense>
   );
@@ -129,6 +122,7 @@ function TopBar({ view, onView }: { view: View; onView: (v: View) => void }) {
         {view === 'bank' && <AcademyButton />}
         {view === 'bank' && <AmlButton />}
         {view === 'bank' && <BenchmarkButton />}
+        {view === 'bank' && <StpButton />}
         {view === 'bank' && <ChaosButton />}
         {/* In the Living Bank the scope, 2D/3D and data-depth switches live in the viewport dock over the map. */}
         {view === 'lab' && <ModeToggle />}
@@ -147,84 +141,6 @@ function GlobalLanguage() {
     <div className={`relative z-[60] shrink-0 ${academyMax ? 'invisible' : ''}`} aria-hidden={academyMax || undefined} data-testid="global-language">
       <LanguageToggle />
     </div>
-  );
-}
-
-/** The Academy's six stages, each with its levels. */
-function LevelBar() {
-  const levels = useWorkflowStore((s) => s.levels);
-  const current = useWorkflowStore((s) => s.level.id);
-
-  const switchTo = (levelId: string): void => {
-    if (levelId !== current) workflowStore.getState().loadChallenge(levelId);
-  };
-
-  return (
-    <nav aria-label={tr({ en: 'Levels', vi: 'Các cấp độ' })} className="flex shrink-0 items-stretch gap-3 overflow-x-auto border-b border-slate-800 bg-slate-950 px-4 py-1.5" data-testid="level-bar">
-      {CURRICULUM.map((stage) => {
-        const accent = stageAccent(stage.stage);
-        const inStage = stage.levelIds.flatMap((id) => {
-          const l = levels.find((x) => x.id === id);
-          return l ? [l] : [];
-        });
-        if (inStage.length === 0) return null;
-        const open = inStage.some((l) => l.id === current);
-        const text = stageText(stage);
-        return (
-          <section key={stage.stage} aria-label={tr({ en: `Stage ${stage.stage}: ${text.title}`, vi: `Giai đoạn ${stage.stage}: ${text.title}` })} title={text.blurb} data-testid={`stage-${stage.stage}`} data-open={open} className="flex shrink-0 flex-col gap-0.5 border-l pl-2.5 first:border-l-0 first:pl-0" style={{ borderColor: `${accent}44` }}>
-            <h2 className="whitespace-nowrap text-[9.5px] font-bold uppercase tracking-wider" style={{ color: open ? accent : '#64748b' }}>
-              {stage.stage}. {text.title}
-            </h2>
-            <div className="flex gap-1">
-              {inStage.map((l, i) => {
-                const active = l.id === current;
-                return (
-                  <button
-                    key={l.id}
-                    type="button"
-                    onClick={() => switchTo(l.id)}
-                    aria-current={active ? 'page' : undefined}
-                    title={tr({ en: `Level ${l.levelNumber}: ${l.title}`, vi: `Cấp ${l.levelNumber}: ${localChallenge(l).title}` })}
-                    data-testid={`level-tab-${l.levelNumber}`}
-                    className={`flex shrink-0 items-center whitespace-nowrap rounded-md px-2.5 py-1 text-[12px] font-medium transition ${active ? 'bg-slate-800 text-slate-50' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`}
-                    style={active ? { boxShadow: `inset 0 -2px 0 ${accent}` } : undefined}
-                  >
-                    <span className="mr-1.5 font-mono" style={{ color: active ? accent : '#64748b' }}>
-                      {stage.stage}.{i + 1}
-                    </span>
-                    <span>{levelTabLabel(l.id, l.title)}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        );
-      })}
-    </nav>
-  );
-}
-
-function BuildLab() {
-  return (
-    <ReactFlowProvider>
-      <div className="flex min-h-0 flex-1 flex-col" data-testid="build-lab">
-        <LevelBar />
-        <div className="flex min-h-0 flex-1">
-          <aside className="w-[310px] shrink-0 space-y-6 overflow-y-auto border-r border-slate-800 bg-slate-950 p-4">
-            <ChallengeBrief />
-            <hr className="border-slate-800" />
-            <NodePalette />
-          </aside>
-          <main className="relative flex min-w-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1">
-              <ProcessCanvas />
-            </div>
-            <EvaluationPanel />
-            <LabTourOverlay />
-          </main>
-        </div>
-      </div>
-    </ReactFlowProvider>
   );
 }
 
@@ -263,7 +179,13 @@ export default function App() {
     <div key={locale} lang={locale} className="flex h-screen w-full min-w-0 flex-col overflow-x-hidden bg-[#060912] text-slate-100">
       <SmallScreenBanner />
       <TopBar view={view} onView={choose} />
-      {view === 'bank' ? <LivingBank /> : <BuildLab />}
+      {view === 'bank' ? (
+        <LivingBank />
+      ) : (
+        <Suspense fallback={<div className="flex-1" data-testid="build-lab-loading" />}>
+          <BuildLab />
+        </Suspense>
+      )}
       <WelcomeModal
         onChooseBank={() => view !== 'bank' && choose('bank')}
         onOpenAcademy={() => {

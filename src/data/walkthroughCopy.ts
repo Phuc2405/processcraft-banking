@@ -89,6 +89,12 @@ const EN: WalkBook = {
         'This chapter has two stories. In the first, a long-standing customer sends $25,000.00 and the screening engine thinks his name looks like a sanctioned man’s. In the second, a cardholder says a purchase was not hers. Pick an example that starts with “AML:” or “Dispute:” to walk one or the other through the real diagram.',
       lookFor: ['The difference between a lead and a verdict.', 'Which evidence the analyst trusts.', 'Why the filing window is checked before the liability.'],
     },
+    G: {
+      chapter: 'Straight through: the case no person touches',
+      scene:
+        'It is flash-sale day and Customer An buys a $240 jacket on Pay-in-4. Her file is clean: eKYC passed, DTI 18%, CIC group 1. The bank’s STP engine can approve her in milliseconds without an underwriter, while the Pay-in-4 desk is buried under a queue. Which cases may skip the desk, and which must wait for a person?',
+      lookFor: ['The four rules a case must meet to go straight through.', 'What sends a case back to the desk, and what it carries with it.', 'Why the answer is the same on either lane.'],
+    },
   },
   ui: {
     tour: 'Learn & Explore',
@@ -162,6 +168,12 @@ const VI: WalkBook = {
       scene:
         'Chương này có hai câu chuyện. Trong câu chuyện thứ nhất, một khách hàng lâu năm chuyển $25,000.00 và hệ thống sàng lọc cho rằng tên anh giống một người trong danh sách cấm vận. Trong câu chuyện thứ hai, một chủ thẻ nói rằng một giao dịch không phải do cô thực hiện. Chọn ví dụ bắt đầu bằng “AML:” hoặc “Dispute:” để đi qua sơ đồ thật.',
       lookFor: ['Khác biệt giữa một nghi vấn và một kết luận.', 'Chuyên viên tin vào bằng chứng nào.', 'Vì sao thời hạn khiếu nại được kiểm tra trước trách nhiệm.'],
+    },
+    G: {
+      chapter: 'Xử lý thẳng: hồ sơ không ai chạm tay',
+      scene:
+        'Hôm nay là ngày Flash Sale và khách hàng An mua áo khoác $240 bằng trả góp 4 kỳ. Hồ sơ của cô sạch: eKYC đạt, DTI 18%, CIC nhóm 1. Trạm STP của ngân hàng có thể duyệt trong vài mili giây mà không cần chuyên viên, trong khi Quầy thẩm định BNPL đang ngập hàng chờ. Hồ sơ nào được bỏ qua quầy, và hồ sơ nào phải chờ người?',
+      lookFor: ['Bốn quy tắc một hồ sơ phải đạt để được xử lý thẳng.', 'Điều gì đưa hồ sơ về quầy, và nó mang theo những gì.', 'Vì sao câu trả lời như nhau trên làn nào cũng vậy.'],
     },
   },
   ui: {

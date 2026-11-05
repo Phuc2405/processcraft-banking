@@ -336,9 +336,7 @@ export const CORE_LEDGER_ARTICLE = {
   ] as const satisfies readonly ArticleFlow[],
 } as const;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Advanced view: formulas, the account taxonomy, buffer mechanics and the acronym lookup
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** Section 1: the equations and rules every journal obeys, each with what it means. */
 export const LEDGER_FORMULAS: readonly { formula: Localized<string>; meaning: Localized<string> }[] = [
@@ -639,9 +637,7 @@ export const flowAmount = (flow: ArticleFlow, line: FlowLine): number => line.am
 
 export type ArticleSectionId = (typeof CORE_LEDGER_ARTICLE.sections)[number]['id'];
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Where each account is used, read from the simulator's own postings
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** What posts to an account: the scenes (a drill, a retail scenario, or the crisis queue) and its most frequent journal. */
 export interface GlUsage {

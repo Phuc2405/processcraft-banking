@@ -1,6 +1,7 @@
 /** The shape of the bank: which departments exist, which desks are inside them, and which wires connect the desks. */
 
 import type { BankingCapability } from '../types/processLearning';
+import type { ProcessId } from './learning';
 
 export const STATION_IDS = [
   'GATE_VIRTUAL',
@@ -32,6 +33,8 @@ export const STATION_IDS = [
   // Phase 2/4: the term deposits and the collateral they can secure.
   'SAVINGS_DESK',
   'COLLATERAL_VAULT',
+  // The virtual STP node: the core banking engine deciding and posting cases with no human touch.
+  'STP_ENGINE',
 ] as const;
 export type StationId = (typeof STATION_IDS)[number];
 
@@ -71,7 +74,7 @@ export const DEPARTMENTS: Record<DepartmentId, DepartmentDef> = {
     name: 'Core Banking Ledger',
     blurb: 'Checks the money is there and places the hold: debit accounts and revolving credit lines.',
     accent: '#34d399',
-    stations: ['LEDGER_DEBIT', 'LEDGER_CREDIT'],
+    stations: ['LEDGER_DEBIT', 'LEDGER_CREDIT', 'STP_ENGINE'],
   },
   BNPL: {
     id: 'BNPL',
@@ -144,7 +147,7 @@ export interface StationDef {
   /** Only works while the bank is open (09:00-17:00). Everything else works whenever there is something to do. */
   openHoursOnly?: boolean;
   /** Which of the Academy chapters (A-F, in the order of the course catalog) happen at this desk. */
-  processes: Array<'A' | 'B' | 'C' | 'D' | 'E' | 'F'>;
+  processes: ProcessId[];
   /** A machine, not a team: it has no one to tire out and nobody to make a mistake. */
   automated?: boolean;
   /** Customers arrive as messages (from an app, a website's checkout or a shop's card terminal), not on foot. */
@@ -185,7 +188,7 @@ export const STATIONS: Record<StationId, StationDef> = {
     capability: 'DCVV_VERIFIER',
     minutesPerItem: 0.05,
     staff: 1,
-    processes: ['B', 'C'],
+    processes: ['B', 'C', 'G'],
     digital: true,
   },
   SEC_VAULT: {
@@ -218,7 +221,8 @@ export const STATIONS: Record<StationId, StationDef> = {
     kind: 'DESK',
     capability: 'THREE_DS_EVALUATOR',
     minutesPerItem: 1.6,
-    staff: 2,
+    // Four threads, not two: the OTP check was the upstream bottleneck of every online flow. A flash sale adds OTP_SURGE_THREADS more.
+    staff: 4,
     processes: ['B', 'F'],
   },
   LEDGER_DEBIT: {
@@ -231,7 +235,7 @@ export const STATIONS: Record<StationId, StationDef> = {
     minutesPerItem: 1.2,
     // Three, not two: every instant (A2A) transfer is checked here as well as the card payments, and with two people the desk ran flat out all day and the same clerk ended every day exhausted.
     staff: 3,
-    processes: ['A', 'B', 'C', 'E'],
+    processes: ['A', 'B', 'C', 'E', 'G'],
   },
   LEDGER_CREDIT: {
     id: 'LEDGER_CREDIT',
@@ -242,7 +246,7 @@ export const STATIONS: Record<StationId, StationDef> = {
     capability: 'CORE_LEDGER_CHECK',
     minutesPerItem: 1.4,
     staff: 2,
-    processes: ['A', 'B', 'C'],
+    processes: ['A', 'B', 'C', 'G'],
   },
   BNPL: {
     id: 'BNPL',
@@ -253,7 +257,7 @@ export const STATIONS: Record<StationId, StationDef> = {
     capability: 'BNPL_UNDERWRITER',
     minutesPerItem: 3.0,
     staff: 2,
-    processes: ['C'],
+    processes: ['C', 'G'],
   },
   EOD_BATCH: {
     id: 'EOD_BATCH',
@@ -441,6 +445,17 @@ export const STATIONS: Record<StationId, StationDef> = {
     openHoursOnly: true,
     processes: ['F'],
   },
+  STP_ENGINE: {
+    id: 'STP_ENGINE',
+    department: 'LEDGER',
+    name: 'STP Engine (Core Banking)',
+    blurb: 'Straight-Through Processing: checks eKYC, DTI, CIC group, limits and the AML screen in milliseconds, then posts to the general ledger with no human touch. Anything outside the rules falls back to its desk.',
+    kind: 'SYSTEM',
+    capability: 'CORE_LEDGER_CHECK',
+    minutesPerItem: 0.01,
+    staff: 4,
+    processes: ['C', 'G'],
+  },
   GATE_SWIFT: {
     id: 'GATE_SWIFT',
     department: 'BACKOFFICE',
@@ -472,6 +487,7 @@ export const SERVICE_ORDER: StationId[] = [
   'SEC_VAULT',
   'SEC_DCVV',
   'SEC_3DS',
+  'STP_ENGINE',
   'BNPL',
   'ATM_CASH',
   'SEC_FACEPAY',
@@ -499,6 +515,9 @@ export const WIRES: ReadonlyArray<readonly [PlaceId, PlaceId, string?]> = [
   ['GATE_POS', 'LEDGER_CREDIT', 'credit card'],
   ['GATE_ECOM', 'SEC_3DS', 'SMS OTP check'],
   ['GATE_ECOM', 'BNPL', 'BNPL instalments'],
+  ['GATE_ECOM', 'STP_ENGINE', 'STP fast lane'],
+  ['STP_ENGINE', 'OUT_APPROVED', 'STP auto-approved'],
+  ['STP_ENGINE', 'OUT_DECLINED', 'fast-fail'],
   ['GATE_A2A', 'LEDGER_DEBIT', 'pacs.008 valid'],
   ['GATE_A2A', 'OUT_DECLINED', 'invalid message'],
   ['GATE_ATM', 'ATM_CASH', 'PIN ok'],

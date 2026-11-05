@@ -8,7 +8,7 @@ export type Difficulty = 'Beginner' | 'Intermediate' | 'Advanced';
 
 export interface Chapter {
   id: ProcessId;
-  /** 1 to 6, strictly progressive. */
+  /** 1 to 7, strictly progressive. */
   number: number;
   title: string;
   difficulty: Difficulty;
@@ -35,6 +35,7 @@ const DIFFICULTY: Record<ProcessId, Difficulty> = {
   D: 'Advanced',
   E: 'Intermediate',
   F: 'Advanced',
+  G: 'Advanced',
 };
 
 /** One line each, in plain words. (The glossary leaves these alone: they contain no jargon.) */
@@ -45,6 +46,7 @@ const LAYMAN: Record<ProcessId, string> = {
   D: 'The night shift that checks every record agrees, and the holding box where the odd ones out wait for a human.',
   E: 'Sending money straight from one bank account to another in seconds, with one strict check before any money moves.',
   F: 'Spotting suspicious money, and settling who pays when a customer says “that charge is not mine”.',
+  G: 'An engine that approves small, clean loans in milliseconds with no human, a gate that turns bad debt away early, and rules tuned to clear a queue.',
 };
 
 const LAYMAN_VI: Record<ProcessId, string> = {
@@ -54,6 +56,7 @@ const LAYMAN_VI: Record<ProcessId, string> = {
   D: 'Ca đêm kiểm tra mọi bản ghi có khớp nhau không, và chiếc hộp chờ nơi những bản ghi lệch đợi con người xử lý.',
   E: 'Chuyển tiền thẳng từ tài khoản ngân hàng này sang tài khoản khác trong vài giây, với một bước kiểm tra nghiêm ngặt trước khi tiền di chuyển.',
   F: 'Phát hiện dòng tiền đáng ngờ, và phân xử ai phải trả khi khách nói “giao dịch này không phải của tôi”.',
+  G: 'Khám phá bộ máy xử lý giao dịch tự động xuyên suốt (STP), cơ chế cắt gạt rủi ro sớm (Fast-Fail eKYC/CIC) và cách tinh chỉnh chính sách STP để giải tỏa hàng chờ ngày Flash Sale.',
 };
 
 const DIFFICULTY_VI: Record<Difficulty, { label: string; hint: string }> = {
@@ -73,7 +76,7 @@ export const laymanText = (c: Pick<Chapter, 'id' | 'layman'>): string => (active
 
 const cache: { list: readonly Chapter[] | null } = { list: null };
 
-/** The six chapters, in order. */
+/** The seven chapters, in order. */
 export function chapters(): readonly Chapter[] {
   if (cache.list) return cache.list;
   cache.list = LESSON_LIST.map((lesson) => {

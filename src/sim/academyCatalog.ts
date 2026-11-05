@@ -1,4 +1,4 @@
-/** The Academy split view's catalog: six chapters, each a short run of levels. */
+/** The Academy split view's catalog: seven chapters, each a short run of levels. */
 
 import type { FlowId } from '../types/viewport';
 import { flowPlaces, GUIDED_FLOWS, type FlowNodeId, type FlowStep } from './guidedFlows';
@@ -9,7 +9,7 @@ import type { PlaceId } from './topology';
 
 export type { EdgeCase, FlowStepLine, LessonContent } from './academyLessons';
 
-export const CHAPTER_IDS = [1, 2, 3, 4, 5, 6] as const;
+export const CHAPTER_IDS = [1, 2, 3, 4, 5, 6, 7] as const;
 export type ChapterId = (typeof CHAPTER_IDS)[number];
 export const isChapterId = (v: unknown): v is ChapterId => typeof v === 'number' && (CHAPTER_IDS as readonly number[]).includes(v);
 
@@ -88,6 +88,11 @@ export const ACADEMY_CHAPTERS: readonly AcademyChapter[] = [
     { title: 'Scheme settlement', goal: 'Visa nets out who owes whom, the money moves, and the holds are turned into real postings in the ledger.', flow: 4, node: 'settlement_desk', place: 'EOD_VISA' },
     { title: '3-way reconciliation', goal: 'Ledger, clearing file and switch must agree. A match is settled; a break waits in the suspense account for a person.', flow: 4, node: 'reconciliation_desk', place: 'RECON' },
   ]),
+  chapter(7, 'STP Automation & Credit Risk Operations', 'Straight-through processing, thresholds, manual fallback', '#8b5cf6', 2, [
+    { title: 'The straight-through lane', goal: 'A small, clean Pay-in-4 case skips the appraisal desk: the STP engine checks eKYC, DTI, CIC and the limit and posts it in milliseconds.', flow: 2, node: 'auth_engine', place: 'STP_ENGINE' },
+    { title: 'Tuning the thresholds', goal: 'Raising the STP limit or the DTI cap drains the human queue and widens the default exposure. One dial at a time, watching STR and bad debt together.', flow: 2, node: 'auth_engine', place: 'STP_ENGINE' },
+    { title: 'Manual fallback and fast-fail', goal: 'A case outside the rules falls back to the desk with its flags for a manual override; bad debt (CIC 3-5) is refused at the gate.', flow: 2, node: 'auth_engine', place: 'BNPL' },
+  ]),
 ];
 
 // Knowledge tracks
@@ -127,7 +132,7 @@ export const ACADEMY_TRACKS: readonly AcademyTrack[] = [
     title: 'Deep Dive',
     blurb: 'Instant transfers, cash liquidity, message standards, the ledger, and how a bank stays safe and clean.',
     accent: '#38bdf8',
-    chapters: [5, 6],
+    chapters: [5, 6, 7],
     concepts: ['a2a-instant', 'cdm-liquidity', 'iso-20022', 'double-entry', 'alm', 'nim', 'basel', 'bank-run', 'aml'],
   },
 ];

@@ -6,6 +6,7 @@ import { DAY_END, DAY_START, EOD_START, WORK_END, WORK_START, beatMinutes } from
 import { scenariosFor } from './scenarios';
 import type { AtmSession, CheckoutKind, Customer, DayEvent, DayEventId, ExtendedContext, ExtendedKind, SettlementTruth } from './types';
 import { audToVnd, buildVietQr } from './amlEngine';
+import { bnplCreditProfile } from './stpEngine';
 import { activeLocale } from '../i18n/localeCore';
 
 // Days and their events
@@ -447,6 +448,7 @@ export function makeCustomer(seed: number, day: number, id: Id, kind: CheckoutKi
         [30, 12],
         [50, 6],
       ]);
+      const applied = { underwritingScore: score, downPaymentMinor: Math.ceil((amount * pct) / 100) };
       const payload: BankingPayload = {
         ...common,
         channel: 'ECOMMERCE',
@@ -454,7 +456,7 @@ export function makeCustomer(seed: number, day: number, id: Id, kind: CheckoutKi
         rawCvv: digits(rng, 3),
         riskScore: riskScoreFor(rng, fraud),
         ...fundsFor(rng, funding, event, fraud),
-        bnpl: { underwritingScore: score, downPaymentMinor: Math.ceil((amount * pct) / 100) },
+        bnpl: { ...applied, ...bnplCreditProfile(id, applied, fraud) },
       };
       return { id, kind, scenario: scenario.id, minute, payload, otpCompletes: true };
     }

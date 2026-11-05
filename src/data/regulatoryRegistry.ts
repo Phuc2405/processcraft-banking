@@ -238,7 +238,7 @@ export const REG_DOCUMENTS: readonly RegDocument[] = [
     status: L('Replaces Circular 19/2016 and its amendments.', 'Thay thế Thông tư 19/2016 và các văn bản sửa đổi.'),
     summary: L('Issuing and using debit, credit and prepaid cards: the card contract and its fees, authentication, limits, card locking, and the rights of the cardholder.', 'Phát hành và sử dụng thẻ ghi nợ, thẻ tín dụng, thẻ trả trước: hợp đồng và phí thẻ, xác thực, hạn mức, khóa thẻ, và quyền của chủ thẻ.'),
     keyPoints: [L('Card fees must be in the contract and disclosed beforehand; a debit card is not pushed below zero without an overdraft agreement.', 'Phí thẻ phải có trong hợp đồng và được công bố trước; thẻ ghi nợ không bị âm tiền nếu không có thỏa thuận thấu chi.'), L('Online card payments are authenticated, and repeated wrong codes lock the card.', 'Thanh toán thẻ trực tuyến phải xác thực, và nhập sai mã nhiều lần sẽ khóa thẻ.')],
-    scenarios: ['pos-20', 'pos-500', 'token-45', 'otp-250', 'otp-locked', '3ds-timeout', 'fee-card-10', 'fee-annual-45', 'fee-collect-fail', 'card-late-fee', 'atm-61'],
+    scenarios: ['pos-20', 'pos-500', 'token-45', 'otp-250', 'otp-locked', '3ds-timeout', 'fee-card-10', 'fee-annual-45', 'fee-collect-fail', 'fee-annual-waived', 'card-late-fee', 'atm-61'],
     tags: T('thẻ', 'card', 'phí thường niên', 'annual fee', 'phát hành thẻ', 'issuance', 'OTP', '3DS', 'khóa thẻ'),
   },
   {

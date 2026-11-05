@@ -92,6 +92,8 @@ export const PLACE_BOX: Record<PlaceId, PlaceBox> = {
   // Phase 2/4: a column of its own right of the night cycle: the vault feeds the savings desk, which posts straight to the ledger.
   SAVINGS_DESK: card(1440, 548),
   COLLATERAL_VAULT: card(1440, 688),
+  // The virtual STP node: a slim card in the corridor between the risk desk and Pay-in-4, so the fast lane skips both.
+  STP_ENGINE: { cx: 540, cy: 500, w: 150, h: 64 },
 };
 
 export interface DeptBox {
@@ -404,7 +406,7 @@ const ROUTES: Record<string, RouteSpec> = {
   'SEC_VAULT>OUT_DECLINED': R(['t', 60], ['t', -15], { via: [[360, 8], [985, 8]], labelAt: [450, 8] }),
   'SEC_DCVV>LEDGER_DEBIT': R(['r', -10], ['l', -32], { bendX: 616 }),
   'SEC_DCVV>LEDGER_CREDIT': R(['r', 10], ['l', -32], { bendX: 628 }),
-  'SEC_DCVV>OUT_DECLINED': R(['t', 60], ['t', 15], { via: [[560, 20], [1015, 20]], labelAt: [650, 20] }),
+  'SEC_DCVV>OUT_DECLINED': R(['t', 60], ['t', 15], { via: [[560, 30], [1015, 30]], labelAt: [650, 30] }),
   // Card present
   'GATE_POS>LEDGER_DEBIT': R(['r'], ['l', 6], { labelAt: [250, 242] }),
   'GATE_POS>LEDGER_CREDIT': R(['r', 8], ['l', -12], { bendX: 640 }),
@@ -426,8 +428,13 @@ const ROUTES: Record<string, RouteSpec> = {
     labelAt: [460, 446],
   }),
   // Pay-in-4
-  'BNPL>LEDGER_DEBIT': R(['r', -14], ['l', 28], { bendX: 676, labelAt: [520, 528] }),
-  'BNPL>LEDGER_CREDIT': R(['r', 6], ['l', 28], { bendX: 684 }),
+  'BNPL>LEDGER_DEBIT': R(['r', 14], ['l', 28], { bendX: 676, labelAt: [520, 556] }),
+  'BNPL>LEDGER_CREDIT': R(['r', 30], ['l', 28], { bendX: 684 }),
+  // STP: the fast lane runs just under the 3DS decline lane; approvals climb to Approved, fast-fails take the top corridor to Declined.
+  'GATE_ECOM>STP_ENGINE': R(['t', 40], ['l', -24], { via: [[140, 452], [450, 452], [450, 476]], quiet: true }),
+  'STP_ENGINE>OUT_APPROVED': R(['t', 50], ['b', -40], { via: [[590, 458], [960, 458]], labelAt: [780, 458] }),
+  // The top corridor holds three decline lanes 11px apart: token vault (y 8), STP fast-fail (y 19), dCVV (y 30).
+  'STP_ENGINE>OUT_DECLINED': R(['t', 60], ['t', -35], { via: [[600, 19], [965, 19]], quiet: true }),
   // Ledger
   'LEDGER_DEBIT>OUT_APPROVED': R(['r', 10], ['l', -14], { bendX: 905 }),
   'LEDGER_DEBIT>OUT_DECLINED': R(['r', -10], ['l', -10], { bendX: 895 }),

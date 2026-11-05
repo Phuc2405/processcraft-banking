@@ -466,6 +466,10 @@ export interface OpsFlashcard {
   /** The supplementary business rule or regulation (tier 3, above the reference). */
   detail?: Localized<string>;
   reference: Localized<string>;
+  /** The chip on the front, when the card is not about one sub-process (the STP cards). */
+  tag?: Localized<string>;
+  /** A line on the entry point, above the journal. */
+  entry?: Localized<string>;
 }
 
 const OPS_CARD_BASE: readonly OpsFlashcard[] = [

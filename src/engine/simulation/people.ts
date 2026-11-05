@@ -88,7 +88,7 @@ export class ArrivalWalks {
         // The newcomers are the line's last `count`; further back than the line drawn, they join unseen.
         const place = sv.queueLength - count + k;
         if (place >= QUEUE_VISIBLE) continue;
-        // One served the beat they came in (a quiet machine or counter) still walks up to it, does their business and goes: the line takes them as a late arrival. One at a time, and only with nobody else on the way there, so two never stand at the machine at once.
+        // Someone served on arrival still walks up and leaves as a late arrival, one at a time so two never stand at the machine at once.
         if (place < 0 && (walkUp || this.handoff.pending(id) > 0)) continue;
         const slot = this.freeSlot();
         if (slot < 0) break;

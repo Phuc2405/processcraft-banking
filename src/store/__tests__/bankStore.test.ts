@@ -124,7 +124,8 @@ describe('looking at things', () => {
 
   it('knows which processes a desk takes part in', () => {
     expect(processesAt('SEC_3DS')).toEqual(['B', 'F']);
-    expect(processesAt('LEDGER_DEBIT')).toEqual(['A', 'B', 'C', 'E']);
+    expect(processesAt('LEDGER_DEBIT')).toEqual(['A', 'B', 'C', 'E', 'G']);
+    expect(processesAt('STP_ENGINE')).toEqual(['C', 'G']);
     expect(processesAt('RECON')).toEqual(['D', 'F']);
     expect(processesAt('GATE_POS').length).toBeGreaterThan(0);
   });

@@ -110,6 +110,18 @@ const EN: Readonly<Record<string, LessonExtras>> = {
     keyTerms: [kt('3-way reconciliation', 'Comparing the ledger, the clearing file and the switch log for every payment.'), kt('Break', 'A record that does not match between the sources.'), kt('1910 Suspense', 'The holding account for breaks until a person finds the cause.')],
     exploreDeeper: [dt('Automated Matching Engines', 'How rules and fuzzy matching clear most breaks without a person.'), dt('Aged Suspense Reporting', 'Why regulators watch how long items sit in suspense.'), dt('SOX Controls over Reconciliation', 'The control evidence auditors expect for every reconciliation.')],
   },
+  '7.1': {
+    keyTerms: [kt('STP', 'Straight-Through Processing: a case posted from request to ledger with no human touch.'), kt('Rule engine', 'The code in the core banking system that applies the checks a clerk would.'), kt('Real-time GL posting', 'Debits and credits written to the general ledger the moment the case is decided.')],
+    exploreDeeper: [dt('Straight-Through Rate (STR)', 'The share of decided cases that needed no human, read next to the default rate.'), dt('Strategy Pattern in Rule Engines', 'One interchangeable rule set per product, so a new product is one more strategy.')],
+  },
+  '7.2': {
+    keyTerms: [kt('STP threshold', 'The largest amount the engine may approve on its own.'), kt('DTI cap', 'The highest debt-to-income ratio the engine may approve on its own.'), kt('Risk appetite', 'How much default exposure the bank accepts in exchange for speed.')],
+    exploreDeeper: [dt('Champion-Challenger Testing', 'Running a new threshold on a slice of traffic before rolling it out.'), dt('Model Risk Management', 'Why automated credit rules are validated, monitored and documented.')],
+  },
+  '7.3': {
+    keyTerms: [kt('STP fallback', 'A case that broke a rule and was routed to a person with its flags.'), kt('Manual override', 'An underwriter approving a case the rules did not, with the reason logged.'), kt('Fast-fail', 'Refusing a dead case at the gate before it takes a human slot.')],
+    exploreDeeper: [dt('Exception Queues and SLAs', 'How banks size and time the desks that work STP exceptions.'), dt('Credit Bureau Data (CIC)', 'What the debt groups mean and why groups 3 to 5 are a hard stop.'), dt('Audit Trails for Overrides', 'The evidence auditors expect for every manual approval.')],
+  },
 };
 
 const VI: Readonly<Record<string, LessonExtras>> = {
@@ -200,6 +212,18 @@ const VI: Readonly<Record<string, LessonExtras>> = {
   '6.4': {
     keyTerms: [kt('Đối soát 3 bên', 'So sánh sổ cái, tệp bù trừ và nhật ký bộ chuyển mạch cho từng giao dịch.'), kt('Sai lệch (break)', 'Bản ghi không khớp giữa các nguồn.'), kt('1910 Tài khoản treo', 'Tài khoản giữ các sai lệch cho tới khi có người tìm ra nguyên nhân.')],
     exploreDeeper: [dt('Công cụ khớp tự động', 'Quy tắc và khớp mờ xử lý phần lớn sai lệch mà không cần người.'), dt('Báo cáo tuổi tài khoản treo', 'Vì sao cơ quan quản lý theo dõi các mục nằm trong tài khoản treo bao lâu.'), dt('Kiểm soát SOX đối với đối soát', 'Bằng chứng kiểm soát mà kiểm toán viên yêu cầu cho mỗi lần đối soát.')],
+  },
+  '7.1': {
+    keyTerms: [kt('STP', 'Xử lý thẳng: hồ sơ đi từ yêu cầu tới sổ cái mà không cần con người can thiệp.'), kt('Bộ quy tắc', 'Đoạn mã trong Core Banking áp dụng các bước kiểm tra như nhân viên vẫn làm.'), kt('Hạch toán sổ cái tức thì', 'Bút toán Nợ/Có được ghi vào sổ cái ngay khi hồ sơ được quyết định.')],
+    exploreDeeper: [dt('Tỷ lệ xử lý thẳng (STR)', 'Tỷ lệ hồ sơ đã quyết định không cần con người, đọc cùng tỷ lệ vỡ nợ.'), dt('Mẫu Strategy trong bộ quy tắc', 'Mỗi sản phẩm một bộ quy tắc thay thế được, nên thêm sản phẩm là thêm một chiến lược.')],
+  },
+  '7.2': {
+    keyTerms: [kt('Ngưỡng STP', 'Số tiền lớn nhất bộ quy tắc được tự duyệt.'), kt('Trần DTI', 'Tỷ lệ nợ trên thu nhập cao nhất bộ quy tắc được tự duyệt.'), kt('Khẩu vị rủi ro', 'Mức rủi ro vỡ nợ ngân hàng chấp nhận để đổi lấy tốc độ.')],
+    exploreDeeper: [dt('Thử nghiệm Champion-Challenger', 'Chạy ngưỡng mới trên một phần lưu lượng trước khi áp dụng toàn bộ.'), dt('Quản trị rủi ro mô hình', 'Vì sao quy tắc tín dụng tự động phải được thẩm định, giám sát và lưu hồ sơ.')],
+  },
+  '7.3': {
+    keyTerms: [kt('STP fallback', 'Hồ sơ vi phạm quy tắc được chuyển cho người xử lý kèm cờ lý do.'), kt('Duyệt ngoại lệ', 'Chuyên viên duyệt hồ sơ mà quy tắc không duyệt, có ghi lại lý do.'), kt('Loại sớm', 'Từ chối hồ sơ “chết” ngay tại cổng trước khi chiếm chỗ của nhân viên.')],
+    exploreDeeper: [dt('Hàng chờ ngoại lệ và SLA', 'Ngân hàng tính quy mô và thời hạn cho quầy xử lý ngoại lệ STP ra sao.'), dt('Dữ liệu tín dụng CIC', 'Ý nghĩa các nhóm nợ và vì sao nhóm 3 đến 5 là điểm dừng cứng.'), dt('Vết kiểm toán cho duyệt ngoại lệ', 'Bằng chứng kiểm toán viên yêu cầu cho mỗi lần duyệt thủ công.')],
   },
 };
 

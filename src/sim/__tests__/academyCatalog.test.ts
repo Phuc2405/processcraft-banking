@@ -4,8 +4,8 @@ import { GUIDED_FLOW_NODES } from '../guidedFlows';
 import { STATIONS } from '../topology';
 
 describe('the Academy catalog', () => {
-  it('has the six chapters in order, each with levels numbered chapter.n', () => {
-    expect(ACADEMY_CHAPTERS.map((c) => c.id)).toEqual([1, 2, 3, 4, 5, 6]);
+  it('has the seven chapters in order, each with levels numbered chapter.n', () => {
+    expect(ACADEMY_CHAPTERS.map((c) => c.id)).toEqual([1, 2, 3, 4, 5, 6, 7]);
     for (const c of ACADEMY_CHAPTERS) {
       expect(c.levels.length).toBeGreaterThan(0);
       c.levels.forEach((l, i) => expect(l.id).toBe(`${c.id}.${i + 1}`));
@@ -28,7 +28,8 @@ describe('the Academy catalog', () => {
 
   it('walks the whole course with nextLevel', () => {
     expect(nextLevel('1.4')?.id).toBe('2.1');
-    expect(nextLevel('6.4')).toBeNull();
+    expect(nextLevel('6.4')?.id).toBe('7.1');
+    expect(nextLevel('7.3')).toBeNull();
     expect(levelById('9.9')).toBeNull();
     expect(levelById(null)).toBeNull();
   });

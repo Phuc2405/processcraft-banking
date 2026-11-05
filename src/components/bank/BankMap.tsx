@@ -40,6 +40,7 @@ import { DESK_HEAT, deskHeat, type DeskHeat } from '../../sim/deskHeat';
 import { useMessages } from '../../utils/i18nHelper';
 import { analystWorkspaceMessages } from './analystWorkspace.messages';
 import { deskBadgeMessages } from './deskBadge.messages';
+import { stpMessages } from '../ops/stp.messages';
 import { useDeskStatusLine } from './useSimulation';
 import { isOnShift } from '../../engine/simulation/deskActivity';
 
@@ -194,6 +195,61 @@ function DepartmentFrame({ id, focus, flow, terms }: { id: DepartmentId; focus: 
     </div>
   );
 }
+
+// The virtual STP node
+
+/** The STP engine: a slim, dashed "virtual" card with a high-speed pulse whenever a case shoots through, its live STP badge and STR. */
+const StpNodeCard = memo(function StpNodeCard({ sv, selected, focus, flow, flowHere, terms, tick }: { sv: StationView; selected: boolean; focus: Focus | null; flow: FlowFocus | null; flowHere: boolean; terms: Terms; tick: number }) {
+  const m = useMessages(stpMessages);
+  const select = useBankStore((s) => s.select);
+  const spotlightFocus = useBankStore((s) => s.spotlightFocus);
+  const tally = useBankStore((s) => s.view.stp);
+  const on = useBankStore((s) => s.stp.enabled);
+  const box = PLACE_BOX.STP_ENGINE;
+  const lit = focus ? focus.scope.places.has('STP_ENGINE') : false;
+  const flowLit = flow ? flow.scope.places.has('STP_ENGINE') : false;
+  const title = terms.stationTitle('STP_ENGINE');
+  const label = m('nodeLabel', { title, n: tally.straight, rate: Math.round(tally.rate * 100) });
+  return (
+    <div
+      className={`group absolute z-20 hover:z-[45] has-[:focus-visible]:z-[45] ${dimClass(focus, lit)} ${flowDim(flow, flowLit)}`}
+      style={{ left: box.cx - box.w / 2, top: box.cy - box.h / 2, width: box.w, height: box.h, ...neon(focus), ...flowVar(flow) }}
+      data-place="STP_ENGINE"
+      data-lit={focus ? lit : flow ? flowLit : undefined}
+    >
+      <button
+        type="button"
+        onClick={() => (focus ? spotlightFocus('STP_ENGINE') : select({ kind: 'station', id: 'STP_ENGINE' }))}
+        aria-pressed={selected}
+        aria-label={label}
+        title={label}
+        data-testid="station-STP_ENGINE"
+        data-stp-on={on}
+        className={`absolute inset-0 rounded-xl border border-dashed bg-gradient-to-br from-violet-950/80 to-[#0b1120] transition hover:border-violet-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${lit && focus ? 'bk-spot-lit' : flowLit ? 'bk-flow-lit' : on ? 'border-violet-400/70' : 'border-slate-600'} ${flowHere ? 'bk-flow-here' : ''} ${selected ? 'ring-2 ring-sky-400' : ''}`}
+      />
+      {sv.served > 0 && on && <span key={tick} aria-hidden="true" className="bk-stp-pulse pointer-events-none absolute inset-0 rounded-xl" />}
+      <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-1.5">
+        <div className="flex items-start gap-1">
+          <span aria-hidden="true" className={`text-[12px] leading-none ${on ? 'text-violet-300' : 'text-slate-500'}`}>
+            ⚡
+          </span>
+          <span className="line-clamp-2 text-[10.5px] font-semibold leading-[1.12] text-violet-100" data-testid="station-name-STP_ENGINE">
+            {terms.station('STP_ENGINE')}
+          </span>
+        </div>
+        <div className="flex items-end justify-between gap-1">
+          <span className="rounded-full bg-violet-500/25 px-1.5 py-px text-[10px] font-bold tabular-nums text-violet-100" data-testid="stp-badge" title={m('nodeBadgeHint')}>
+            STP {tally.straight}
+          </span>
+          <span className="text-[10px] font-semibold tabular-nums text-lime-300" data-testid="stp-str">
+            {on ? `STR ${Math.round(tally.rate * 100)}%` : m('off')}
+          </span>
+        </div>
+      </div>
+      {!focus && <HoverTip name={title} tip={terms.tip('STP_ENGINE')} caption={terms.caption('STP_ENGINE')} side={TIP_SIDE.STP_ENGINE} />}
+    </div>
+  );
+});
 
 // Desks
 
@@ -759,7 +815,11 @@ function BankMapView() {
             {!focus && <Travellers moves={litMoves} tick={view.tick} phase={view.phase} speedIndex={speedIndex} live={live} />}
             {!focus && dimMoves.length > 0 && <Travellers moves={dimMoves} tick={view.tick} phase={view.phase} speedIndex={speedIndex} live={live} className="opacity-15 grayscale" />}
             {STATION_LIST.map((def) => (
-              <StationCard key={def.id} id={def.id} sv={view.stations[def.id]} phase={view.phase} tick={view.tick} selected={selectedStation === def.id} accent={DEPARTMENTS[def.department].accent} focus={focus} flow={flow} flowHere={flowHereAt === def.id || academyAt === def.id} terms={terms} />
+              def.id === 'STP_ENGINE' ? (
+                <StpNodeCard key={def.id} sv={view.stations.STP_ENGINE} selected={selectedStation === def.id} focus={focus} flow={flow} flowHere={flowHereAt === def.id || academyAt === def.id} terms={terms} tick={view.tick} />
+              ) : (
+                <StationCard key={def.id} id={def.id} sv={view.stations[def.id]} phase={view.phase} tick={view.tick} selected={selectedStation === def.id} accent={DEPARTMENTS[def.department].accent} focus={focus} flow={flow} flowHere={flowHereAt === def.id || academyAt === def.id} terms={terms} />
+              )
             ))}
             {EXTERNALS.map((id) => (
               <ExternalNode key={id} id={id} focus={focus} flow={flow} flowHere={flowHereAt === id || academyAt === id} terms={terms} />

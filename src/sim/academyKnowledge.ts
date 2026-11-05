@@ -56,14 +56,13 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
   { id: 'basel', chapter: 6, term: 'Basel capital adequacy', definition: 'Basel III makes a bank hold minimum capital against its risk-weighted assets: at least 4.5% common equity, 6% Tier 1 and 8% total capital, plus a 2.5% conservation buffer on top.' },
   { id: 'bank-run', chapter: 6, term: 'Bank run stress test', definition: 'A bank run is many depositors withdrawing at once. A stress test assumes a share of deposits leaves and checks that liquid assets still cover it, for example the liquidity coverage ratio (LCR) staying at or above 100% over 30 days.' },
   { id: 'aml', chapter: 6, term: 'AML in three steps', definition: '1) KYC: know the customer when they join. 2) Monitoring: watch transactions against rules, such as many payments just under a limit. 3) Reporting: send a suspicious activity report (SAR) to the regulator, in Australia a suspicious matter report to AUSTRAC, without tipping off the customer.' },
+  { id: 'stp', chapter: 7, term: 'Straight-Through Processing (STP)', definition: 'A case processed end to end by the core banking rules with no human touch: eKYC, DTI, credit bureau, limits and the sanctions screen are checked in milliseconds and the entry posts straight to the ledger. Cases outside the rules fall back to a desk.' },
 ];
 
 export const glossaryFor = (chapter: ChapterId): readonly GlossaryEntry[] => GLOSSARY.filter((g) => g.chapter === chapter);
 export const glossaryEntry = (id: string): GlossaryEntry | null => GLOSSARY.find((g) => g.id === id) ?? null;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Quizzes
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface QuizQuestion {
   id: string;
@@ -112,6 +111,12 @@ export const QUIZZES: Readonly<Record<ChapterId, readonly QuizQuestion[]>> = {
     { id: '6-d', prompt: 'What does a bank-run stress test check?', options: ['Whether the ATMs are clean', 'Whether liquid assets cover a sudden wave of withdrawals', 'How fast customers type PINs', 'Whether fees are fair'], answer: 1, explanation: 'It assumes a share of deposits leaves and checks the liquidity buffer still covers it.' },
     { id: '6-e', prompt: 'What is the right order of the three AML steps?', options: ['Report, monitor, know the customer', 'Monitor, know the customer, report', 'Know the customer, monitor, report', 'Know the customer, report, monitor'], answer: 2, explanation: 'KYC when they join, monitoring while they bank, and a suspicious activity report when something looks wrong.' },
   ],
+  7: [
+    { id: '7-a', prompt: 'With the default STP rules ($500 limit, 23% DTI cap), which Pay-in-4 goes straight through?', options: ['$650 at DTI 20%, CIC group 1', '$400 at DTI 23%, CIC group 1, eKYC passed', '$300 at DTI 18%, CIC group 2', '$200 at DTI 15%, eKYC failed'], answer: 1, explanation: 'Every rule must hold: amount ≤ $500, DTI ≤ 23%, eKYC PASS and CIC group 1. Only the $400 case meets all four.' },
+    { id: '7-b', prompt: 'The BNPL queue is overflowing during a flash sale. What is the safest first move?', options: ['Switch STP off', 'Raise the amount limit one step and watch STR and expected bad debt', 'Raise the limit and the DTI cap together', 'Approve the whole queue by hand'], answer: 1, explanation: 'One dial at a time shows what moved the default rate; switching STP off would make the queue worse.' },
+    { id: '7-c', prompt: 'A case shows CIC group 4 at the online gate. What happens?', options: ['It goes straight through', 'It waits at the BNPL desk', 'It is fast-failed at the gate, before any desk', 'It is sent to the AML desk'], answer: 2, explanation: 'Bad debt (groups 3 to 5) is refused at ingestion, so it never takes an underwriter’s slot.' },
+    { id: '7-d', prompt: 'What does the Straight-Through Rate (STR) measure?', options: ['The share of decided cases posted with no human touch', 'How fast the ledger posts', 'The share of declined cases', 'The default rate'], answer: 0, explanation: 'STR = straight-through cases ÷ all decided cases; read it next to the default rate.' },
+  ],
 };
 
 const OPS_PREFIX = 'ops-';
@@ -142,9 +147,7 @@ export function gradeQuiz(chapter: ChapterId, answers: Readonly<Record<string, n
   return { score: questions.length - missed.length, total: questions.length, missed };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Language
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** A glossary entry with its term and definition in the active language. */
 export function localGlossary(entry: GlossaryEntry, locale: Locale = activeLocale()): GlossaryEntry {

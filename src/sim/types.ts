@@ -171,6 +171,8 @@ export interface CreditOpsContext {
   label: string;
   note: string;
   decline: DeclineReason | null;
+  /** Posted straight-through at the Smart Kiosk: the STP engine books it without the packet visiting its node. */
+  kioskStp?: boolean;
 }
 
 /** What one Phase 8 checkpoint decided. The engine writes it on the stop; the desk counters and the activity line read it. */
@@ -631,6 +633,14 @@ export interface NightShiftReport {
   finishedAt: number | null;
 }
 
+export interface StpTally {
+  straight: number;
+  fastFail: number;
+  manual: number;
+  /** straight / (straight + manual), 0-1. */
+  rate: number;
+}
+
 export interface DayReport {
   day: number;
   event: DayEvent;
@@ -681,6 +691,8 @@ export interface BankView {
   dayOver: boolean;
   event: DayEvent;
   rules: BankRules;
+  /** Straight-Through Processing today: cases the engine posted, cases it fast-failed, cases that fell back to the BNPL desk. */
+  stp: StpTally;
   stations: Record<StationId, StationView>;
   externals: Record<ExternalId, PlaceCount>;
   /** Payments sitting on a customer's phone, waiting for the OTP. */

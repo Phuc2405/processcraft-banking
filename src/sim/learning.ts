@@ -6,8 +6,8 @@ import { LESSON_E, LESSON_F } from './learningAcademy';
 import type { BankRules } from './rules';
 import type { PlaceId, StationId } from './topology';
 
-/** The six chapters of the Academy, in the order of the course catalog: chapter 1 is A, chapter 6 is F. */
-export type ProcessId = 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
+/** The seven chapters of the Academy, in the order of the course catalog: chapter 1 is A, chapter 7 is G. */
+export type ProcessId = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
 export type GraphKey = 'virtual' | 'ecom' | 'bnpl' | 'settle' | 'a2a' | 'aml' | 'dispute';
 
 export type DiagramKind = 'start' | 'task' | 'gateway' | 'end' | 'system' | 'phone' | 'account';
@@ -89,8 +89,8 @@ export interface Lesson {
   subtitle: string;
   /** The lesson's own diagram. An example may walk another one (see LessonExample.graph). */
   graph: GraphKey;
-  /** The chapter number in the Academy, 1 to 6, strictly in the order of the course. */
-  chapter: 1 | 2 | 3 | 4 | 5 | 6;
+  /** The chapter number in the Academy, 1 to 7, strictly in the order of the course. */
+  chapter: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   accent: string;
   /** The desks that take part, in the order a payment meets them. */
   desks: StationId[];
@@ -638,10 +638,91 @@ const LESSON_D: Lesson = {
   ],
 };
 
-export const LESSONS: Record<ProcessId, Lesson> = { A: LESSON_A, B: LESSON_B, C: LESSON_C, D: LESSON_D, E: LESSON_E, F: LESSON_F };
+// Process G: STP automation, walked on the Pay-in-4 diagram
+
+const stpCase = (score: number, amount: number, dtiPct: number, cicGroup: 1 | 2, availableBalance = 90_000): BankingPayload =>
+  payment({ amount, availableBalance, bnpl: { underwritingScore: score, downPaymentMinor: Math.ceil(amount / 4), dtiPct, cicGroup } });
+
+const LESSON_G: Lesson = {
+  id: 'G',
+  title: 'STP Automation & Credit Risk Operations',
+  subtitle: 'E-Commerce Gate → STP Engine (or the Pay-in-4 desk on a flag) → Ledger',
+  graph: 'bnpl',
+  chapter: 7,
+  accent: '#8b5cf6',
+  desks: ['GATE_ECOM', 'STP_ENGINE', 'BNPL', 'LEDGER_DEBIT', 'LEDGER_CREDIT'],
+  intro: [
+    'Straight-Through Processing (STP) lets the core banking rules finish a case with no human touch. For a small Pay-in-4 the STP engine checks eKYC, the debt-to-income ratio (DTI), the credit bureau (CIC) and the amount in milliseconds, then posts the entry to the ledger itself.',
+    'Anything outside the rules falls back to the Pay-in-4 appraisal desk with its flags, where an underwriter decides by hand. Bad debt (CIC groups 3 to 5) and a failed eKYC never reach a desk: they are fast-failed at the gate. The straight-through rate (STR) is the share of cases no person had to touch.',
+  ],
+  steps: {
+    n_start: { title: 'The application reaches the E-Commerce Gate', what: 'The checkout sends the basket, the eKYC result and the bureau facts: the customer’s DTI and CIC debt group.', why: 'The gate runs the fast-fail checks first. A failed eKYC or bad debt on CIC is refused here, before any queue.' },
+    n_bnpl: {
+      title: 'Auto-underwriting: STP engine or the desk?',
+      what: 'The STP engine compares the case with its rules: amount ≤ $500, DTI ≤ 23%, eKYC passed, CIC group 1. A clean case is underwritten right here in milliseconds. A case with any flag queues at the Pay-in-4 desk, where an underwriter runs the score and down-payment tests by hand.',
+      why: 'The rules are the bank’s risk appetite written down. Every case they settle is one an underwriter does not have to, which is what clears the queue on a flash-sale day.',
+    },
+    n_xor_plan: { title: 'Decision: plan approved?', what: 'An eligible case goes on to collect the down payment. Anything else falls back to an ordinary card payment of the full price.', why: 'STP changes who decides and how fast, never the policy: the same case gets the same answer on either lane.' },
+    n_ledger_dp: { title: 'Ledger: post the down payment', what: 'Only the first instalment, a quarter of the basket, is taken from the linked card. On the STP lane the engine posts it to the general ledger in real time.', why: 'Real-time GL posting is the second half of STP: no batch, no re-keying, no breaks for the night team to chase.' },
+    n_ledger_card: { title: 'Ledger: charge the full price', what: 'No plan: the whole amount is checked against the card.', why: 'The fallback keeps the sale without the credit risk.' },
+    n_xor_funds: { title: 'Decision: did the card cover it?', what: 'Plan approved, card fallback approved, or one of the two declines, depending on the ledger’s answer and on the plan.', why: 'The outcome is the same whether the engine or a person underwrote it; only the wait differs.' },
+    n_end_bnpl: { title: 'Approved: Pay-in-4', what: 'The plan is live. One quarter is collected, three are due.', why: 'On the STP lane this took milliseconds and counts toward today’s STR.' },
+    n_end_card: { title: 'Approved: card fallback', what: 'The customer pays the full price today.', why: 'The sale is kept without the credit risk.' },
+    n_end_dp_declined: { title: 'Declined: down payment', what: 'The plan was approved but the first instalment could not be taken.', why: 'No money moved and no plan exists.' },
+    n_end_card_declined: { title: 'Declined: card', what: 'No plan, and the card could not cover the full price either.', why: 'The sale is lost.' },
+  },
+  layout: LESSON_C.layout,
+  examples: [
+    {
+      id: 'straight',
+      label: 'A clean $240 plan: straight through',
+      story: 'Score 720, $240 basket, 25% down, DTI 18%, CIC group 1, eKYC passed. Every STP rule is met.',
+      kind: 'BNPL',
+      payload: stpCase(720, 24_000, 18, 1),
+      suggestion: { rules: { bnplMinScore: 730 }, text: 'Raise the minimum score to 730 and the plan is refused whichever lane decides it: STP never bends the policy.' },
+    },
+    {
+      id: 'dti',
+      label: 'DTI 27%: falls back to the desk',
+      story: 'Score 700, $240 basket, CIC group 1, but DTI 27% is over the 23% STP cap. An underwriter takes it.',
+      kind: 'BNPL',
+      payload: stpCase(700, 24_000, 27, 1),
+    },
+    {
+      id: 'large',
+      label: 'A $650 plan: over the STP limit',
+      story: 'Score 710, DTI 20%, CIC group 1, but $650 is over the $500 auto-approve limit, so the desk decides.',
+      kind: 'BNPL',
+      payload: stpCase(710, 65_000, 20, 1),
+    },
+    {
+      id: 'group2',
+      label: 'CIC group 2: the desk refuses the plan',
+      story: 'Score 560 with an overdue loan on the bureau (CIC group 2). STP refers it, and the underwriter falls back to a card payment.',
+      kind: 'BNPL',
+      payload: stpCase(560, 24_000, 21, 2),
+    },
+    {
+      id: 'nofunds',
+      label: 'Straight through, but the card is short',
+      story: 'A clean file (score 730, DTI 15%, CIC group 1), but the linked card holds $30 against a $60 down payment.',
+      kind: 'BNPL',
+      payload: stpCase(730, 24_000, 15, 1, 3_000),
+    },
+  ],
+  knobs: ['bnplMinScore', 'bnplMinDownPct'],
+  focusRows: ['bnplPlans', 'bnplLoss', 'approvedRate', 'approvedCents', 'net'],
+  takeaways: [
+    'STP decides who underwrites a case and how fast, never what the answer is.',
+    'Move the STP limit or the DTI cap one dial at a time, and watch the STR and the expected bad debt together.',
+    'Fast-fail ends a dead case at the gate, so it never takes an underwriter’s slot.',
+  ],
+};
+
+export const LESSONS: Record<ProcessId, Lesson> = { A: LESSON_A, B: LESSON_B, C: LESSON_C, D: LESSON_D, E: LESSON_E, F: LESSON_F, G: LESSON_G };
 
 /** The chapters in course order. */
-export const LESSON_LIST: readonly Lesson[] = [LESSON_A, LESSON_B, LESSON_C, LESSON_D, LESSON_E, LESSON_F];
+export const LESSON_LIST: readonly Lesson[] = [LESSON_A, LESSON_B, LESSON_C, LESSON_D, LESSON_E, LESSON_F, LESSON_G];
 
 export const exampleOf = (lesson: Lesson, exampleId: string): LessonExample | undefined => lesson.examples.find((e) => e.id === exampleId);
 
@@ -664,4 +745,5 @@ export const PROCESS_SHORT: Record<ProcessId, string> = {
   D: 'EOD Reconciliation',
   E: 'Instant A2A Transfers',
   F: 'AML & Chargebacks',
+  G: 'STP Automation',
 };

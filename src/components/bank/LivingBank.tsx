@@ -8,25 +8,29 @@ import { useAcademyStore } from '../../store/academyStore';
 import { AcademySplitLayout } from '../academy/AcademySplitLayout';
 import { GuidedBar, ResumeWalkthrough, WalkChip } from '../education/GuidedWalkthrough';
 import { WalkDock } from '../education/WalkDock';
-import { AnalystWorkspaceModal } from './AnalystWorkspaceModal';
 import { BankMap } from './BankMap';
 import { BankSidebar } from './BankSidebar';
 import { ClockBar } from './ClockBar';
 import { CourseCatalog } from './CourseCatalog';
 import { DayIntroBanner } from './DayIntroBanner';
-import { DayReportModal } from './DayReportModal';
 import { HudToasts } from './HudToasts';
 import { Inspector } from './Inspector';
-import { LedgerDrawer } from './LedgerDrawer';
-import { LearningHub } from './LearningHub';
 import { PresetDock } from './PresetDock';
 import { ShiftPrompt } from './ShiftPrompt';
 import { useBankClock } from './useBankClock';
 import { useTopBand, ViewportControls } from './ViewportControls';
 import { ZoomToolbar } from '../shell/ZoomToolbar';
 
-/** The 3D office is loaded only when someone asks for it: three.js is the heaviest thing in the app. */
 const Office3D = lazy(() => import('./office/Office3D'));
+const AnalystWorkspaceModal = lazy(() => import('./AnalystWorkspaceModal').then((m) => ({ default: m.AnalystWorkspaceModal })));
+const DayReportModal = lazy(() => import('./DayReportModal').then((m) => ({ default: m.DayReportModal })));
+const LedgerDrawer = lazy(() => import('./LedgerDrawer').then((m) => ({ default: m.LedgerDrawer })));
+const LearningHub = lazy(() => import('./LearningHub').then((m) => ({ default: m.LearningHub })));
+
+/** Mounts a lazy panel only while `open` is true, so its chunk is fetched the first time it opens. */
+function OnDemand({ open, children }: { open: boolean; children: ReactNode }) {
+  return open ? <Suspense fallback={null}>{children}</Suspense> : null;
+}
 
 /** Catches the 3D office failing to LOAD (as opposed to failing to draw, which Office3D handles itself). */
 class OfficeLoadBoundary extends Component<{ onBack: () => void; children: ReactNode }, { error: string | null }> {
@@ -124,6 +128,10 @@ export function LivingBank() {
   }, []);
   const viewMode = useBankStore((s) => s.viewMode);
   const setViewMode = useBankStore((s) => s.setViewMode);
+  const ledgerOpen = useBankStore((s) => s.ledgerOpen);
+  const reportOpen = useBankStore((s) => s.reportOpen);
+  const hubOpen = useBankStore((s) => s.hubOpen);
+  const staffDesk = useBankStore((s) => s.staffDesk);
   const [collapsed, setCollapsed] = useState(false);
   const choose = (next: boolean): void => {
     foldedForSplit.current = false;
@@ -166,7 +174,9 @@ export function LivingBank() {
               )}
               <ViewportControls />
               <ZoomToolbar />
-              <LedgerDrawer />
+              <OnDemand open={ledgerOpen}>
+                <LedgerDrawer />
+              </OnDemand>
               <PresetDock />
               <WalkChip />
               <ResumeWalkthrough />
@@ -179,11 +189,17 @@ export function LivingBank() {
           </main>
         </AcademySplitLayout>
       </div>
-      <DayReportModal />
+      <OnDemand open={reportOpen}>
+        <DayReportModal />
+      </OnDemand>
       <ShiftPrompt />
       <CourseCatalog />
-      <LearningHub />
-      <AnalystWorkspaceModal />
+      <OnDemand open={hubOpen}>
+        <LearningHub />
+      </OnDemand>
+      <OnDemand open={staffDesk !== null}>
+        <AnalystWorkspaceModal />
+      </OnDemand>
     </div>
   );
 }

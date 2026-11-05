@@ -189,6 +189,7 @@ export function stationProp(id: StationId): PropParts {
     case 'DISPUTE_DESK':
       return ledgerBook('#7c2d12');
     case 'GATE_SWIFT':
+    case 'STP_ENGINE':
       return network();
   }
 }

@@ -6,9 +6,8 @@ import { PARK_EXIT } from '../world/parkLife';
 
 /** The walking routes of a desk visit (sim/deskVisit.ts): the same queue and the same people, in the 2D stage's pixels and on the 3D floor. */
 
-// 3D: nobody appears at a door. Everyone walks in from the far end of the street and back off it: the savings and vault customers
-// through the park on the right and in at its side door, the appraisal counter's down the car park on the left, the counters' case
-// customers in at the main gate. A brisk 2.2 m/s outside keeps a demo's case at the counter soon after the button is pressed.
+// 3D: everyone walks in from the far end of the street (savings and vault via the right park's side door, appraisal via the left car park,
+// counter cases via the main gate). 2.2 m/s outside gets a demo case to the counter soon after the button is pressed.
 
 const SIDE_DOOR_Z = SIDE_DOORS_RIGHT[2]!;
 const OUTSIDE: Pt = [FLOOR_SLAB.w / 2 + 1.2, SIDE_DOOR_Z];
