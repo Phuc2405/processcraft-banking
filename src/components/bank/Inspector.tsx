@@ -26,6 +26,7 @@ import { useMessages, type Translate } from '../../utils/i18nHelper';
 import { analystWorkspaceMessages, type AnalystWorkspaceKey } from './analystWorkspace.messages';
 import { isAutomatedNode } from '../../sim/nodeKind';
 import { InfoTip } from './InfoTip';
+import { CitInspector } from '../ops/CitPanel';
 import { ServerRackGraphic } from './ServerRack';
 import { selfScaling, useNodeCopy, type NodeCopy } from './useNodeCopy';
 import { FatigueBar, fatigueLook, MachineFace, PacketGlyph, RUN_STATUS, SEVERITY_BOX, SEVERITY_DOT, SEVERITY_TEXT, SectionTitle, Sparkline, Stat, STATUS_DOT_CLASS, statusLabel, STATUS_TEXT_CLASS, WorkerFace, waitText, kindLabel } from './ui';
@@ -384,6 +385,8 @@ function StationPanel({ id }: { id: StationId }) {
         </div>
 
         {entry && <DeskEntryButton entry={entry} exceptions={exceptions} disabled={dayOver} onOpen={() => openStaffDesk(id)} ws={ws} />}
+
+        {id === 'COLLATERAL_VAULT' && <CitInspector />}
 
         {terms.beginner && modelForStation(id) && <MentalModelCard model={modelForStation(id)!} />}
 

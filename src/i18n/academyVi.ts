@@ -352,6 +352,22 @@ export const LESSON_CONTENT_VI: Readonly<Record<string, LessonContent>> = {
       { code: null, title: 'Duyệt ngoại lệ không lý do', detail: 'Duyệt ngoại lệ không ghi lý do sẽ không qua kiểm toán, dù kết quả thế nào.' },
     ],
   },
+  '7.4': {
+    realWorldScenario: 'Lúc 10:00 xe CIT nhận túi niêm phong $300,000 của WinMart. Trong vai thủ quỹ, bạn nhận túi tại sảnh giao nhận phụ, cùng thủ quỹ thứ hai kiểm niêm phong, kiểm đếm và hạch toán.',
+    stepByStepFlow: [
+      { actor: OPS, action: 'EN_ROUTE: xe ký nhận túi niêm phong tại khách hàng. Nợ 1131 Tiền đang chuyển / Có 4211 tiền gửi DN (tạm tính).' },
+      { actor: OPS, action: 'ARRIVED: hai thủ quỹ khác nhau đối chiếu số niêm phong với bảng kê và cùng ký (nguyên tắc 4 mắt).' },
+      { actor: OPS, action: 'IN_COUNT: mở túi kiểm đếm; tiền rách, bẩn được phân loại là không đủ tiêu chuẩn lưu thông.' },
+      { actor: LEDGER, action: 'DELIVERED: Nợ 1111 quỹ chính (đủ TC) và Nợ 1112 (không đủ TC) / Có 1131; nếu thiếu, ghi đảo một phần khoản Có tạm tính (Nợ 4211).' },
+      { actor: LEDGER, action: 'SETTLED: TK 1131 của chuyến này về 0.' },
+    ],
+    whyItMatters: 'Tiền trên đường không thuộc quầy nào, nên nó nằm ở TK 1131 cho đến khi được kiểm đếm. Một chuyến tất toán mà 1131 không về 0 nghĩa là tiền đã mất ở đâu đó giữa hai chữ ký.',
+    edgeCasesAndErrors: [
+      { code: null, title: 'Sai niêm phong', detail: 'Chuyến bị tạm giữ tại ARRIVED: lập biên bản và kiểm đếm toàn bộ dưới sự kiểm soát hai người, có đại diện khách hàng.' },
+      { code: null, title: 'Một thủ quỹ ký hai lần', detail: 'Kiểm tra 4 mắt không đạt và việc kiểm đếm không được bắt đầu.' },
+      { code: null, title: 'Tiền không đủ TC trong ATM', detail: 'Tiền không đủ tiêu chuẩn nằm ở TK 1112 đến chuyến nộp NHNN; không bao giờ nạp vào hộp tiền.' },
+    ],
+  },
 };
 
 /** Vietnamese title and goal of every Academy level, keyed by level id ("2.3"). */
@@ -380,6 +396,7 @@ export const LEVEL_TEXT_VI: Readonly<Record<string, { title: string; goal: strin
   '6.4': { title: 'Đối soát 3 bên', goal: 'Sổ cái, tệp bù trừ và bộ chuyển mạch phải khớp nhau. Khớp thì quyết toán; lệch thì chờ trong tài khoản treo để người xử lý.' },
   '7.1': { title: 'Làn xử lý thẳng', goal: 'Hồ sơ trả góp nhỏ, sạch bỏ qua quầy thẩm định: trạm STP kiểm tra eKYC, DTI, CIC và hạn mức rồi hạch toán trong vài mili giây.' },
   '7.2': { title: 'Tinh chỉnh ngưỡng', goal: 'Nâng hạn mức STP hoặc trần DTI làm giảm hàng chờ thủ công nhưng mở rộng rủi ro vỡ nợ. Mỗi lần một tham số, theo dõi STR và nợ xấu cùng lúc.' },
+  '7.4': { title: 'Vận chuyển tiền mặt (CIT) & kho quỹ', goal: 'Xe chở tiền di chuyển tiền giữa kho, ATM, Hội sở, khách hàng DN và NHNN. Mọi chuyến đi qua TK 1131 và phải đưa nó về 0 khi tất toán.' },
   '7.3': { title: 'Quay về thủ công & loại sớm', goal: 'Hồ sơ ngoài quy tắc quay về quầy kèm cờ lý do để duyệt ngoại lệ; nợ xấu (CIC 3-5) bị từ chối ngay tại cổng.' },
 };
 
@@ -428,6 +445,7 @@ export const GLOSSARY_VI: Readonly<Record<string, { term: string; definition: st
   basel: { term: 'Hệ số an toàn vốn Basel', definition: 'Basel III yêu cầu ngân hàng giữ vốn tối thiểu so với tài sản có rủi ro: ít nhất 4.5% vốn cổ phần phổ thông, 6% vốn cấp 1 và 8% tổng vốn, cộng thêm 2.5% đệm bảo toàn vốn.' },
   'bank-run': { term: 'Kiểm tra sức chịu đựng rút tiền ồ ạt', definition: 'Rút tiền ồ ạt là khi nhiều người gửi tiền rút cùng lúc. Kiểm tra sức chịu đựng giả định một phần tiền gửi rời đi và xem tài sản thanh khoản còn đủ bù đắp, ví dụ hệ số khả năng chi trả (LCR) giữ ở mức từ 100% trở lên trong 30 ngày.' },
   aml: { term: 'Phòng chống rửa tiền trong ba bước', definition: '1) KYC: nhận biết khách hàng khi họ mở tài khoản. 2) Giám sát: theo dõi giao dịch theo quy tắc, như nhiều giao dịch sát dưới một ngưỡng. 3) Báo cáo: gửi báo cáo giao dịch đáng ngờ (SAR) cho cơ quan quản lý, tại Úc là báo cáo vấn đề đáng ngờ cho AUSTRAC, mà không báo động cho khách hàng.' },
+  cit: { term: 'Tiền đang chuyển (CIT, TK 1131)', definition: 'Tiền trên đường giữa hai chữ ký: khi xuất ghi Nợ 1131 và Có nơi xuất, khi giao nhận ghi Nợ nơi nhận và Có 1131. Mọi chuyến đã tất toán đưa 1131 về 0; niêm phong được hai thủ quỹ kiểm tra (4 mắt) trước khi kiểm đếm.' },
   stp: { term: 'Xử lý thẳng (STP)', definition: 'Hồ sơ được bộ quy tắc Core Banking xử lý trọn vẹn mà không cần con người: eKYC, DTI, CIC, hạn mức và sàng lọc cấm vận được kiểm tra trong vài mili giây và bút toán hạch toán thẳng vào sổ cái. Hồ sơ ngoài quy tắc quay về quầy.' },
 };
 
@@ -461,5 +479,6 @@ export const QUIZ_VI: Readonly<Record<string, { prompt: string; options: Four; e
   '7-a': { prompt: 'Với quy tắc STP mặc định (hạn mức $500, trần DTI 23%), hồ sơ trả góp nào đi thẳng?', options: ['$650, DTI 20%, CIC nhóm 1', '$400, DTI 23%, CIC nhóm 1, eKYC đạt', '$300, DTI 18%, CIC nhóm 2', '$200, DTI 15%, eKYC thất bại'], explanation: 'Mọi quy tắc phải đạt: số tiền ≤ $500, DTI ≤ 23%, eKYC ĐẠT và CIC nhóm 1. Chỉ hồ sơ $400 đạt cả bốn.' },
   '7-b': { prompt: 'Hàng chờ BNPL quá tải trong Flash Sale. Bước đầu tiên an toàn nhất là gì?', options: ['Tắt STP', 'Nâng hạn mức một nấc rồi theo dõi STR và nợ xấu dự kiến', 'Nâng cùng lúc hạn mức và trần DTI', 'Duyệt tay toàn bộ hàng chờ'], explanation: 'Mỗi lần một tham số cho thấy điều gì làm tỷ lệ vỡ nợ thay đổi; tắt STP chỉ làm hàng chờ dài thêm.' },
   '7-c': { prompt: 'Hồ sơ có CIC nhóm 4 tại cổng trực tuyến. Điều gì xảy ra?', options: ['Đi thẳng qua STP', 'Chờ tại quầy BNPL', 'Bị loại sớm tại cổng, trước mọi quầy', 'Chuyển sang quầy AML'], explanation: 'Nợ xấu (nhóm 3 đến 5) bị từ chối ngay khi tiếp nhận, nên không chiếm chỗ của chuyên viên thẩm định.' },
+  '7-e': { prompt: 'Xe CIT xuất kho $50,000 đi tiếp quỹ ATM. Khi xuất hạch toán gì?', options: ['Nợ 1113 / Có 1111', 'Nợ 1131 / Có 1111', 'Nợ 1111 / Có 1131', 'Chưa hạch toán đến khi nạp ATM'], explanation: 'Tiền trên đường nằm ở TK 1131 Tiền đang chuyển; ATM (1113) chỉ được ghi Nợ khi nhận tiền, đồng thời tất toán 1131.' },
   '7-d': { prompt: 'Tỷ lệ xử lý thẳng (STR) đo điều gì?', options: ['Tỷ lệ hồ sơ đã quyết định được hạch toán không cần con người', 'Tốc độ hạch toán sổ cái', 'Tỷ lệ hồ sơ bị từ chối', 'Tỷ lệ vỡ nợ'], explanation: 'STR = số hồ sơ đi thẳng ÷ tổng hồ sơ đã quyết định; đọc cùng tỷ lệ vỡ nợ.' },
 };

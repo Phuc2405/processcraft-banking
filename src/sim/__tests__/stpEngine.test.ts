@@ -317,7 +317,7 @@ describe('the STP education suite', () => {
 
   it('adds lesson 7 to the Academy with an STP flashcard in the 4-part format', () => {
     const ch7 = ACADEMY_CHAPTERS.find((c) => c.id === 7)!;
-    expect(ch7.levels.map((l) => l.place)).toEqual(['STP_ENGINE', 'STP_ENGINE', 'BNPL']);
+    expect(ch7.levels.map((l) => l.place)).toEqual(['STP_ENGINE', 'STP_ENGINE', 'BNPL', 'COLLATERAL_VAULT']);
     const card = RETAIL_FLASHCARDS.find((c) => c.id === 'retail-stp')!;
     expect(card.tag?.vi).toBe('Xử lý tự động STP');
     expect(card.rule.vi).toBe('Straight-Through Processing - Xử lý giao dịch tự động 100% không qua can thiệp thủ công.');

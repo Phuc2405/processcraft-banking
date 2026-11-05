@@ -28,6 +28,11 @@ const GL_PLAIN_EN: Readonly<Record<string, string>> = {
   '2510': 'Frozen Suspicious Money',
   '2920': 'Currency Gain Hold',
   '5010': 'Fraud Losses',
+  // The CIT & vault book (citEngine.ts).
+  '1111': 'Vault Cash',
+  '1112': 'Unfit Notes for the Central Bank',
+  '1121': 'Deposits at the Central Bank',
+  '1131': 'Cash on the Road',
 };
 
 /** Vietnamese account names. The seven the course leans on most use the bank's exact wording. */
@@ -54,6 +59,10 @@ const GL_NAME_VI: Readonly<Record<string, string>> = {
   '2510': 'Tiền bị phong tỏa do nghi vấn rửa tiền (AML)',
   '2920': 'Tài khoản treo lãi chênh lệch tỷ giá',
   '5010': 'Chi phí tổn thất gian lận',
+  '1111': 'Quỹ tiền mặt tại kho',
+  '1112': 'Tiền không đủ tiêu chuẩn lưu thông chờ nộp NHNN',
+  '1121': 'Tiền gửi tại NHNN',
+  '1131': 'Tiền mặt đang chuyển (CIT)',
 };
 
 /** Plain names for every GL account, keyed by its four-digit code, per language. */

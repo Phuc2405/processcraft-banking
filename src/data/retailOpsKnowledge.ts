@@ -5,6 +5,7 @@
  * current text, not legal advice. Pure data, both languages.
  */
 
+import type { CitLine } from '../sim/citEngine';
 import { FLASHCARD_DETAIL } from './flashcardDetails';
 import type { Localized } from '../i18n/locale';
 import type { ChapterId } from '../sim/academyCatalog';
@@ -470,6 +471,8 @@ export interface OpsFlashcard {
   tag?: Localized<string>;
   /** A line on the entry point, above the journal. */
   entry?: Localized<string>;
+  /** A CIT & vault journal (its own book), shown when the card has no retail lines. */
+  cit?: readonly CitLine[];
 }
 
 const OPS_CARD_BASE: readonly OpsFlashcard[] = [

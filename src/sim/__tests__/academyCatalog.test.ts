@@ -29,7 +29,8 @@ describe('the Academy catalog', () => {
   it('walks the whole course with nextLevel', () => {
     expect(nextLevel('1.4')?.id).toBe('2.1');
     expect(nextLevel('6.4')?.id).toBe('7.1');
-    expect(nextLevel('7.3')).toBeNull();
+    expect(nextLevel('7.3')?.id).toBe('7.4');
+    expect(nextLevel('7.4')).toBeNull();
     expect(levelById('9.9')).toBeNull();
     expect(levelById(null)).toBeNull();
   });

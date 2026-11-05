@@ -10,6 +10,7 @@ import { message, useMessages } from '../../utils/i18nHelper';
 import { analystWorkspaceMessages, type AnalystWorkspaceKey } from '../bank/analystWorkspace.messages';
 import { retailOpsMessages } from '../bank/retailOps.messages';
 import { OpsLines } from '../bank/RetailOpsDock';
+import { CitLines } from '../ops/CitPanel';
 
 /** The rich parts of a retail article (message flow, step cards, journals, red flags, regulations), the account crosswalk, and the flashcard tab. */
 
@@ -209,6 +210,10 @@ export function Flashcard({ card, lit: on }: { card: OpsFlashcard; lit: boolean 
                       card.lines.length > 0 ? (
                         <span className="min-w-0 pl-1">
                           <OpsLines lines={card.lines} />
+                        </span>
+                      ) : card.cit?.length ? (
+                        <span className="min-w-0 pl-1">
+                          <CitLines lines={card.cit} />
                         </span>
                       ) : (
                         <span className="text-[12px] font-semibold text-slate-400">{m('noJournalPosts')}</span>

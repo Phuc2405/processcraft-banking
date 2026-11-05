@@ -122,6 +122,10 @@ const EN: Readonly<Record<string, LessonExtras>> = {
     keyTerms: [kt('STP fallback', 'A case that broke a rule and was routed to a person with its flags.'), kt('Manual override', 'An underwriter approving a case the rules did not, with the reason logged.'), kt('Fast-fail', 'Refusing a dead case at the gate before it takes a human slot.')],
     exploreDeeper: [dt('Exception Queues and SLAs', 'How banks size and time the desks that work STP exceptions.'), dt('Credit Bureau Data (CIC)', 'What the debt groups mean and why groups 3 to 5 are a hard stop.'), dt('Audit Trails for Overrides', 'The evidence auditors expect for every manual approval.')],
   },
+  '7.4': {
+    keyTerms: [kt('TK 1131 Cash in transit', 'Where cash lives between dispatch and the count; zero once the run settles.'), kt('4-eye principle', 'Two different custodians check every seal and both sign.'), kt('TK 1112 Unfit cash', 'Notes not fit for circulation, held for the SBV and never reloaded.')],
+    exploreDeeper: [dt('SBV Circular 01/2014/TT-NHNN', 'The rules for receiving, storing and transporting cash and valuables.'), dt('Cash Forecasting for ATMs', 'How banks size refills so machines neither run dry nor sit on idle cash.'), dt('CIT Insurance and Liability', 'Who carries the loss when cash goes missing on the road.')],
+  },
 };
 
 const VI: Readonly<Record<string, LessonExtras>> = {
@@ -224,6 +228,10 @@ const VI: Readonly<Record<string, LessonExtras>> = {
   '7.3': {
     keyTerms: [kt('STP fallback', 'Hồ sơ vi phạm quy tắc được chuyển cho người xử lý kèm cờ lý do.'), kt('Duyệt ngoại lệ', 'Chuyên viên duyệt hồ sơ mà quy tắc không duyệt, có ghi lại lý do.'), kt('Loại sớm', 'Từ chối hồ sơ “chết” ngay tại cổng trước khi chiếm chỗ của nhân viên.')],
     exploreDeeper: [dt('Hàng chờ ngoại lệ và SLA', 'Ngân hàng tính quy mô và thời hạn cho quầy xử lý ngoại lệ STP ra sao.'), dt('Dữ liệu tín dụng CIC', 'Ý nghĩa các nhóm nợ và vì sao nhóm 3 đến 5 là điểm dừng cứng.'), dt('Vết kiểm toán cho duyệt ngoại lệ', 'Bằng chứng kiểm toán viên yêu cầu cho mỗi lần duyệt thủ công.')],
+  },
+  '7.4': {
+    keyTerms: [kt('TK 1131 Tiền đang chuyển', 'Nơi tiền nằm từ lúc xuất đến lúc kiểm đếm; về 0 khi chuyến tất toán.'), kt('Nguyên tắc 4 mắt', 'Hai thủ quỹ khác nhau kiểm tra mọi niêm phong và cùng ký.'), kt('TK 1112 Tiền không đủ TC', 'Tiền không đủ tiêu chuẩn lưu thông, giữ chờ nộp NHNN và không bao giờ nạp lại.')],
+    exploreDeeper: [dt('Thông tư 01/2014/TT-NHNN', 'Quy định về giao nhận, bảo quản, vận chuyển tiền mặt và tài sản quý.'), dt('Dự báo tiền mặt cho ATM', 'Ngân hàng tính lượng tiếp quỹ để máy không cạn tiền cũng không tồn tiền nhàn rỗi.'), dt('Bảo hiểm và trách nhiệm CIT', 'Ai chịu tổn thất khi tiền bị mất trên đường vận chuyển.')],
   },
 };
 

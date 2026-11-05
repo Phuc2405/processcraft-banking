@@ -10,6 +10,7 @@ import { codeGlossaryMessages } from '../components/bank/codeGlossary.messages';
 import { ACRONYM_DETAILS, AUDITED_ACRONYMS } from './acronyms';
 import { FLASHCARD_DETAIL } from './flashcardDetails';
 import type { OpsFlashcard } from './retailOpsKnowledge';
+import { citExampleJournal, citOrder, type CitLine, type CitOrderInput } from '../sim/citEngine';
 
 const L = (en: string, vi: string): Localized<string> => ({ en, vi });
 
@@ -165,6 +166,85 @@ const STP_CARDS: readonly RetailFlashcard[] = [
   },
 ];
 
+const CIT_TAG = L('Vault & CIT', 'Kho quỹ & CIT');
+const CIT_REF = L('SBV Circular 01/2014/TT-NHNN (cash receipt, storage and transport)', 'Thông tư 01/2014/TT-NHNN (giao nhận, bảo quản, vận chuyển tiền mặt)');
+const citJournal = (i: CitOrderInput): readonly CitLine[] => citExampleJournal(citOrder(i));
+
+/** The CIT & vault cards: one per scenario, the fitness sort and the 4-eye seal. Journals come from the CIT engine. */
+const CIT_CARDS: readonly RetailFlashcard[] = [
+  {
+    id: 'retail-cit-atm',
+    sub: 'teller-vault',
+    tag: CIT_TAG,
+    front: L('An ATM drops under $10,000. What posts when the van refills it with $50,000?', 'ATM xuống dưới $10,000. Xe CIT tiếp quỹ $50,000 thì hạch toán gì?'),
+    term: L('ATM / CDM replenishment through cash in transit', 'Tiếp quỹ ATM / CDM qua tiền đang chuyển'),
+    rule: L('Two legs through 1131: the vault releases the cash into transit, and the ATM takes it in once the cassettes are loaded.', 'Hai vế qua TK 1131: kho xuất tiền vào vận chuyển, và ATM nhận khi hộp tiền đã nạp.'),
+    lines: [],
+    cit: citJournal({ scenario: 'ATM_CDM', direction: 'OUT', amountCents: 5_000_000 }),
+    detail: L('A full CDM deposit cassette comes back the other way (Dr 1131 / Cr 1113) and is sorted at the vault.', 'Hộp tiền nộp CDM đầy đi chiều ngược lại (Nợ 1131 / Có 1113) và được phân loại tại kho.'),
+    reference: CIT_REF,
+  },
+  {
+    id: 'retail-cit-branch',
+    sub: 'teller-vault',
+    tag: CIT_TAG,
+    front: L('Branch A ends the day $2M over its $5M vault limit. How does the excess reach HQ?', 'Chi nhánh A cuối ngày vượt hạn mức tồn quỹ $5M thêm $2M. Tiền thừa về Hội sở thế nào?'),
+    term: L('Branch ↔ central vault balancing', 'Điều chuyển tồn quỹ Chi nhánh ↔ Kho Trung ương'),
+    rule: L('Both vaults are 1111, at two locations: Cr 1111 branch into 1131, then Dr 1111 HQ out of 1131.', 'Cả hai kho đều là TK 1111, ở hai địa điểm: Có 1111 chi nhánh sang 1131, rồi Nợ 1111 Hội sở từ 1131.'),
+    lines: [],
+    cit: citJournal({ scenario: 'BRANCH_BALANCING', direction: 'OUT', amountCents: 200_000_000 }),
+    detail: L('A branch in deficit is the mirror: Cr 1111 HQ into 1131, then Dr 1111 branch.', 'Chi nhánh thiếu quỹ là chiều ngược lại: Có 1111 Hội sở sang 1131, rồi Nợ 1111 chi nhánh.'),
+    reference: CIT_REF,
+  },
+  {
+    id: 'retail-cit-doorstep',
+    sub: 'teller-vault',
+    tag: CIT_TAG,
+    front: L('The van collects WinMart’s $300,000 sealed bag. When is WinMart credited, and with what?', 'Xe CIT nhận túi niêm phong $300,000 của WinMart. Khi nào ghi Có cho WinMart, và bao nhiêu?'),
+    term: L('Doorstep banking: provisional credit, trued up at the count', 'Thu tiền tận nơi: ghi Có tạm tính, điều chỉnh theo kiểm đếm'),
+    rule: L('On pickup, provisionally (Cr 4211 against 1131). The vault count confirms it; a shortfall is reversed (Dr 4211).', 'Khi nhận túi, ghi Có tạm tính (Có 4211 đối ứng 1131). Kiểm đếm tại kho xác nhận; phần thiếu được ghi đảo (Nợ 4211).'),
+    lines: [],
+    cit: citJournal({ scenario: 'DOORSTEP', direction: 'IN', amountCents: 30_000_000 }),
+    detail: L('The bag stays sealed until two custodians open it at the vault; the client gets the count report.', 'Túi giữ nguyên niêm phong đến khi hai thủ quỹ mở tại kho; khách hàng nhận biên bản kiểm đếm.'),
+    reference: CIT_REF,
+  },
+  {
+    id: 'retail-cit-sbv',
+    sub: 'teller-vault',
+    tag: CIT_TAG,
+    front: L('The vault deposits $800,000 of surplus at the State Bank. What posts?', 'Kho nộp $800,000 tiền thừa vào NHNN. Hạch toán gì?'),
+    term: L('SBV cash deposit (and withdrawal)', 'Nộp (và rút) tiền mặt tại NHNN'),
+    rule: L('Dr 1131 / Cr 1111 when the van leaves, Dr 1121 / Cr 1131 when the SBV signs for it. A holiday withdrawal is the mirror: Cr 1121, then Dr 1111.', 'Nợ 1131 / Có 1111 khi xe xuất phát, Nợ 1121 / Có 1131 khi NHNN ký nhận. Rút tiền dịp lễ là chiều ngược lại: Có 1121, rồi Nợ 1111.'),
+    lines: [],
+    cit: citJournal({ scenario: 'SBV', direction: 'OUT', amountCents: 80_000_000 }),
+    detail: L('Unfit notes on 1112 travel with the deposit: Cr 1112 on dispatch, into 1121 on delivery.', 'Tiền không đủ TC tại 1112 được nộp kèm: Có 1112 khi xuất, vào 1121 khi giao nhận.'),
+    reference: CIT_REF,
+  },
+  {
+    id: 'retail-cit-unfit',
+    sub: 'teller-vault',
+    tag: CIT_TAG,
+    front: L('A $40,000 CDM cassette counts $1,000 of torn notes. Where do they go?', 'Hộp tiền CDM $40,000 có $1,000 tiền rách. Chuyển vào đâu?'),
+    term: L('Cash fitness sorting: fit vs unfit for circulation', 'Phân loại tiền đủ / không đủ tiêu chuẩn lưu thông'),
+    rule: L('Fit notes stay in 1111; unfit notes go to 1112 and wait to be surrendered to the SBV. They never go back into an ATM.', 'Tiền đủ tiêu chuẩn ở lại TK 1111; tiền không đủ tiêu chuẩn vào TK 1112 chờ nộp NHNN. Không bao giờ nạp lại vào ATM.'),
+    lines: [],
+    cit: citJournal({ scenario: 'ATM_CDM', direction: 'IN', amountCents: 4_000_000, unfitBp: 250 }),
+    detail: L('Only counts that land in the vault sort notes: cash sent out to an ATM was sorted before it left.', 'Chỉ kiểm đếm nhập kho mới phân loại: tiền xuất đi ATM đã được phân loại trước khi xuất.'),
+    reference: L('SBV Circular 01/2014/TT-NHNN · SBV rules on exchanging unfit currency', 'Thông tư 01/2014/TT-NHNN · Quy định của NHNN về đổi tiền không đủ tiêu chuẩn lưu thông'),
+  },
+  {
+    id: 'retail-cit-four-eyes',
+    sub: 'teller-vault',
+    tag: CIT_TAG,
+    front: L('The seal number on the bag does not match the manifest. Can the custodian open it and count?', 'Số niêm phong trên túi không khớp bảng kê. Thủ quỹ có được mở túi kiểm đếm không?'),
+    term: L('4-eye principle and tamper-evident seals', 'Nguyên tắc 4 mắt và niêm phong chống can thiệp'),
+    rule: L('Not alone, and not yet: the run is held, the incident is minuted, and the bag is counted in full by two custodians with the sender’s representative.', 'Không được một mình, và chưa được: chuyến bị tạm giữ, lập biên bản, rồi kiểm đếm toàn bộ bởi hai thủ quỹ có đại diện bên giao.'),
+    lines: [],
+    detail: L('Every hand-over needs two different signatures against one seal number; one person signing twice never passes.', 'Mỗi lần giao nhận cần hai chữ ký khác nhau trên cùng một số niêm phong; một người ký hai lần không bao giờ hợp lệ.'),
+    reference: CIT_REF,
+  },
+];
+
 /** Which sub-process teaches each audited acronym, and the demo journal that shows it posting. No journal means nothing posts for it. */
 const ACRONYM_CARD: Readonly<Record<(typeof AUDITED_ACRONYMS)[number], { sub: OpsSubProcessId; journal?: OpsActionId }>> = {
   TSDB: { sub: 'collateral', journal: 'collateral-lock' },
@@ -208,4 +288,4 @@ const ACRONYM_CARDS: readonly RetailFlashcard[] = AUDITED_ACRONYMS.map((key) => 
   };
 });
 
-export const RETAIL_FLASHCARDS: readonly RetailFlashcard[] = [...TOPIC_CARDS.map((c) => (FLASHCARD_DETAIL[c.id] ? { ...c, detail: FLASHCARD_DETAIL[c.id] } : c)), ...STP_CARDS, ...ACRONYM_CARDS];
+export const RETAIL_FLASHCARDS: readonly RetailFlashcard[] = [...TOPIC_CARDS.map((c) => (FLASHCARD_DETAIL[c.id] ? { ...c, detail: FLASHCARD_DETAIL[c.id] } : c)), ...STP_CARDS, ...CIT_CARDS, ...ACRONYM_CARDS];

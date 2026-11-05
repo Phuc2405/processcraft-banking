@@ -27,6 +27,8 @@ import {
 } from '../../data/knowledgeBase';
 import { AML_ARTICLE, type KbTable } from '../../data/amlKnowledge';
 import { STP_ARTICLE } from '../../data/stpKnowledge';
+import { CIT_ARTICLE } from '../../data/citKnowledge';
+import { CitDrill } from '../ops/CitPanel';
 import { RETAIL_DEEP_DIVES, type RetailDeepDive } from '../../data/advancedKnowledge';
 import { RETAIL_TOPICS, type RetailGuide } from '../../data/retailKnowledge';
 import { scenarioJournals, TELLER_DECISION, TELLER_FLOW, TOPIC_MODULES } from '../../data/retailTopicModules';
@@ -737,13 +739,21 @@ export function RetailArticle({ highlight = null, view = 'basic' }: { highlight?
   );
 }
 
-type SectionedArticle = typeof AML_ARTICLE | typeof STP_ARTICLE;
+type SectionedArticle = typeof AML_ARTICLE | typeof STP_ARTICLE | typeof CIT_ARTICLE;
 
 /** The AML compliance article: AML and CFT, the 3 stages, the 3 fraud patterns, red flags, the legal rules, KYC and CFT, with a golden rule each. */
 export const AmlArticle = (props: { highlight?: string | null; view?: ViewMode }) => <SectionArticle article={AML_ARTICLE} {...props} />;
 
 /** The STP article: concept and architecture, the live rules, STR and exceptions, fast-fail gates and ISO 20022. */
 export const StpArticle = (props: { highlight?: string | null; view?: ViewMode }) => <SectionArticle article={STP_ARTICLE} {...props} />;
+
+/** The CIT & vault article, then the hands-on drill through the run's states. */
+export const CitArticle = (props: { highlight?: string | null; view?: ViewMode }) => (
+  <>
+    <SectionArticle article={CIT_ARTICLE} {...props} />
+    <CitDrill />
+  </>
+);
 
 /** An article of titled sections (prose, golden rule, SOP flow, table, Advanced notes), shared by the AML and STP tabs.
  *  Basic shows the intuitive, action-oriented sections; Advanced adds the legal and technical foundations. */
@@ -792,10 +802,11 @@ function SectionArticle({ article, highlight = null, view = 'basic' }: { article
 }
 
 /** The Knowledge Base's categories (Strategy): each tab's label and the article it renders. A new category is one more entry. */
-const KB_TABS: readonly { id: KnowledgeTab; label: 'tabCore' | 'tabAml' | 'tabStp' | 'tabRetail' | 'tabFlashcards' | 'tabLegal'; render: (highlight: string | null, view: ViewMode) => ReactNode }[] = [
+const KB_TABS: readonly { id: KnowledgeTab; label: 'tabCore' | 'tabAml' | 'tabStp' | 'tabCit' | 'tabRetail' | 'tabFlashcards' | 'tabLegal'; render: (highlight: string | null, view: ViewMode) => ReactNode }[] = [
   { id: 'core', label: 'tabCore', render: (highlight, view) => <CoreLedgerArticle highlight={highlight} view={view} /> },
   { id: 'aml', label: 'tabAml', render: (highlight, view) => <AmlArticle highlight={highlight} view={view} /> },
   { id: 'stp', label: 'tabStp', render: (highlight, view) => <StpArticle highlight={highlight} view={view} /> },
+  { id: 'cit', label: 'tabCit', render: (highlight, view) => <CitArticle highlight={highlight} view={view} /> },
   { id: 'retail', label: 'tabRetail', render: (highlight, view) => <RetailArticle highlight={highlight} view={view} /> },
   { id: 'flashcards', label: 'tabFlashcards', render: (highlight) => <OpsFlashcards highlight={highlight} /> },
   { id: 'legal', label: 'tabLegal', render: (highlight) => <RegulatoryRegistry highlight={highlight} /> },
