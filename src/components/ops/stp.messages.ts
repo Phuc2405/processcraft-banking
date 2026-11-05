@@ -3,6 +3,8 @@ import { defineMessages } from '../../utils/i18nHelper';
 /** The STP drawer, its header button and the virtual STP node on the 2D map. */
 export const stpMessages = defineMessages('stp', {
   title: { en: 'STP Configuration: Straight-Through Processing', vi: 'Cấu hình STP: Xử lý tự động' },
+  node_STP: { en: '⚡ STP processing', vi: '⚡ Xử lý STP' },
+  node_MANUAL: { en: '👤 Awaiting manual review', vi: '👤 Chờ thẩm định thủ công' },
   subtitle: { en: 'Rules apply to cases arriving from now on. Watch the BNPL queue and the STP engine on the map react.', vi: 'Quy tắc áp dụng cho hồ sơ đến từ bây giờ. Quan sát hàng chờ BNPL và trạm STP trên bản đồ thay đổi.' },
   reset: { en: 'Restore defaults', vi: 'Khôi phục mặc định' },
   done: { en: 'Done', vi: 'Xong' },

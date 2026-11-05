@@ -10,6 +10,8 @@ import { CIT_DEMO_CAP, type CitDemo, type CitManual } from '../sim/citEngine';
 interface CitDemoState {
   day: number;
   manual: readonly CitManual[];
+  /** The 3D van is out of its away spot (driving in, at the bay, or driving off): the dispatch lock holds until it has gone. */
+  van: boolean;
   /** Records a dispatch at the bank's clock; false once the day's cap is reached. */
   dispatch(kind: CitDemo, day: number, minute: number, refillCents?: number): boolean;
   /** Keeps only the dispatches the bank's clock has reached today. */
@@ -21,6 +23,7 @@ interface CitDemoState {
 export const citStore = createStore<CitDemoState>((set, get) => ({
   day: -1,
   manual: [],
+  van: false,
   dispatch: (kind, day, minute, refillCents) => {
     const s = get();
     const today = s.day === day ? s.manual : [];

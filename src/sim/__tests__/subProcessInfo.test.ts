@@ -174,11 +174,12 @@ describe('manual CIT runs (engine)', () => {
     );
   });
 
-  it('holds the one-van mutex while a manual van is en route, arrived or in count, and only then', () => {
+  it('holds the one-van mutex from dispatch until the run is settled and its van is home, and only then', () => {
     const manual: CitManual[] = [{ kind: 'DOORSTEP', at }];
     expect(citDemoBusy(citAt(DAY, at - 1, manual))).toBeNull();
-    for (const dt of [0, CIT_TIMING.ARRIVED, CIT_TIMING.IN_COUNT, CIT_TIMING.DELIVERED - 1]) expect(citDemoBusy(citAt(DAY, at + dt, manual))?.order.id, `+${dt}`).toBe(`CIT-${DAY}-M1`);
-    expect(citDemoBusy(citAt(DAY, at + CIT_TIMING.DELIVERED, manual))).toBeNull();
+    const home = CIT_TIMING.SETTLED + CIT_TIMING.home;
+    for (const dt of [0, CIT_TIMING.ARRIVED, CIT_TIMING.IN_COUNT, CIT_TIMING.DELIVERED, CIT_TIMING.SETTLED, home - 1]) expect(citDemoBusy(citAt(DAY, at + dt, manual))?.order.id, `+${dt}`).toBe(`CIT-${DAY}-M1`);
+    expect(citDemoBusy(citAt(DAY, at + home, manual))).toBeNull();
     // A scheduled run on the road never blocks the learner's demo.
     expect(citDemoBusy(citAt(DAY, 9 * 60 + 20, []))).toBeNull();
   });
@@ -192,7 +193,7 @@ describe('manual CIT dispatch (store pipeline)', () => {
     retailOpsStore.getState().reset();
   });
 
-  it('dispatches a van immediately at the bank’s clock and refuses every other demo until it is delivered', () => {
+  it('dispatches a van immediately at the bank’s clock and refuses every other demo until it is settled and home', () => {
     const start = bankStore.getState().view.minute;
     expect(dispatchCitDemo('ATM')).toBe(true);
     expect(citStore.getState().manual[0]!.at).toBe(start);
@@ -200,12 +201,15 @@ describe('manual CIT dispatch (store pipeline)', () => {
     expect(live.runs.filter((r) => r.planned.order.id.includes('-M') && r.run?.status === 'EN_ROUTE')).toHaveLength(1);
     expect(live.book.TRANSIT).toBeGreaterThan(0);
     for (const kind of CIT_DEMOS) expect(dispatchCitDemo(kind), kind).toBe(false);
-    bankStore.getState().skipTo(start + CIT_TIMING.DELIVERED);
-    for (const kind of ['DOORSTEP', 'SBV'] as const) {
+    bankStore.getState().skipTo(start + CIT_TIMING.SETTLED);
+    expect(dispatchCitDemo('DOORSTEP'), 'settled, van still driving home').toBe(false);
+    const home = CIT_TIMING.SETTLED + CIT_TIMING.home;
+    bankStore.getState().skipTo(start + home);
+    for (const kind of ['DOORSTEP', 'SBV', 'TELLER'] as const) {
       expect(dispatchCitDemo(kind), kind).toBe(true);
-      bankStore.getState().skipTo(bankStore.getState().view.minute + CIT_TIMING.DELIVERED);
+      bankStore.getState().skipTo(bankStore.getState().view.minute + home + CIT_TIMING.incident);
     }
-    expect(citStore.getState().manual.map((m) => m.kind)).toEqual(['ATM', 'DOORSTEP', 'SBV']);
+    expect(citStore.getState().manual.map((m) => m.kind)).toEqual(['ATM', 'DOORSTEP', 'SBV', 'TELLER']);
   });
 
   it('refills the retail ATM cassette with the same van, sized from its shortfall', () => {

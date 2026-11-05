@@ -1,6 +1,6 @@
 /**
  * Who comes to a staffed counter when a human-driven demo runs (the teller's cash counter, the disputes desk, the Savings Desk, the
- * Collateral Vault and the Pay-in-4 appraisal counter): customers walk in, queue and are served in turn, while an officer stands in on the case. Every one of them follows the
+ * Cash & Collateral Vault and the Pay-in-4 appraisal counter): customers walk in, queue and are served in turn, while an officer stands in on the case. Every one of them follows the
  * same pattern: spawn, walk the path to the counter, the counter works the case (with a status over their head), done, walk away. A pure timeline on seconds since the demo began, read the same way by the
  * 2D map and the 3D office. It only draws people: the simulation, its KPIs and its seeded days never see it.
  */
@@ -207,7 +207,7 @@ export function visitFrame(step: DeskVisitStep, geo: VisitGeometry, t: number): 
 // Walk-in customers through the working day
 
 /**
- * The Savings Desk and the Collateral Vault have no channel in the seeded day (their cases are demo-only, CREDIT_OPS), so without
+ * The Savings Desk and the Cash & Collateral Vault have no channel in the seeded day (their cases are demo-only, CREDIT_OPS), so without
  * this nobody ever came to them unless a demo button was pressed. While the bank plays through opening hours, a depositor walks up
  * to the Savings Desk every `every` minutes, and a borrower is shown into the vault with its officer. Pure: drawn only, never posted,
  * so the simulation, its KPIs and its seeded days stay exactly as they were.

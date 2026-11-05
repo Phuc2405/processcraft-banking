@@ -44,6 +44,9 @@ function WorldTicker({ world }: { world: WorldEngine }) {
     });
     // The page's copy of the sky's blend (the gradient behind the canvas), a few times a second while it moves.
     if (mixChanged) weatherStore.setState({ mix: { ...liveMix } });
+    // The dispatch lock holds while the learner's van is still out in 3D: until it has driven off, not only until its run settles.
+    const van = world.citVanRun()?.includes('-M') ?? false;
+    if (citStore.getState().van !== van) citStore.setState({ van });
   }, -10);
   return null;
 }
@@ -67,6 +70,7 @@ export function WorldProvider({ children }: { children: ReactNode }) {
     const stops = [bankStore.subscribe(follow), citStore.subscribe(follow)];
     return () => {
       stops.forEach((stop) => stop());
+      citStore.setState({ van: false });
       world.dispose();
     };
   }, [world]);

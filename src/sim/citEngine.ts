@@ -1,11 +1,11 @@
 /**
- * Cash-in-transit (CIT) and vault operations: the four armoured-van scenarios, the vault's cash-fitness sort and the double-entry
+ * Cash-in-transit (CIT) and vault operations: the four armoured-van scenarios and the teller-till run carried on foot, the vault's cash-fitness sort and the double-entry
  * book they post to. A run's lifecycle is a State pattern (EN_ROUTE → ARRIVED → IN_COUNT → DELIVERED → SETTLED, each state
  * owning its guard and its posting); each scenario's GL legs are a Strategy. Pure: the day's runs are derived from the day number
  * and the clock, so pausing, replaying or reloading can never post a run twice.
  *
  * A book of its own, like the retail book: its GL numbers are the ones the CIT brief names (1111 vault, 1112 unfit cash, 1113 ATM,
- * 1121 SBV, 1131 cash in transit, 4211 corporate deposits). 1111 is split by where the cash physically is (branch vault, HQ vault).
+ * 1121 SBV, 1131 cash in transit, 4211 corporate deposits). 1111 is split by where the cash physically is (branch vault, HQ vault, teller tills).
  */
 
 import type { Localized } from '../i18n/localeCore';
@@ -16,6 +16,7 @@ const L = (en: string, vi: string): Localized<string> => ({ en, vi });
 export const CIT_ACCOUNTS = [
   { id: 'VAULT', code: '1111', name: L('Main vault · Branch A', 'Quỹ chính · Chi nhánh A') },
   { id: 'HQ_VAULT', code: '1111', name: L('Central vault · HQ', 'Quỹ Kho trung tâm · Hội sở') },
+  { id: 'TILL', code: '1111', name: L('Teller tills · counters', 'Quỹ nghiệp vụ quầy GDV') },
   { id: 'UNFIT', code: '1112', name: L('Unfit cash awaiting the SBV', 'Tiền không đủ tiêu chuẩn lưu thông chờ nộp NHNN') },
   { id: 'ATM', code: '1113', name: L('Cash at ATM / CDM', 'Tiền mặt tại ATM / CDM') },
   { id: 'SBV', code: '1121', name: L('Deposits at the SBV', 'Tiền gửi tại NHNN') },
@@ -40,19 +41,21 @@ export const CIT_LIMITS = {
   sbvLineCents: 520_000_000,
   unfitSurrenderCents: 1_000_000,
   holidayWithdrawCents: 150_000_000,
+  /** The teller till's float after its surplus goes back to the vault (the till's own cap is $50,000). */
+  tillFloatCents: 2_000_000,
   noteCents: 1_000,
 } as const;
 
 /** Debit-positive opening balances of the day book; corporate deposits are the balancing figure. */
 export const CIT_OPENING: Readonly<Record<CitAccountId, number>> = (() => {
-  const b: Record<CitAccountId, number> = { VAULT: 460_000_000, HQ_VAULT: 2_000_000_000, UNFIT: 1_200_000, ATM: 800_000, SBV: 5_000_000_000, TRANSIT: 0, CORP: 0 };
+  const b: Record<CitAccountId, number> = { VAULT: 460_000_000, HQ_VAULT: 2_000_000_000, TILL: 6_500_000, UNFIT: 1_200_000, ATM: 800_000, SBV: 5_000_000_000, TRANSIT: 0, CORP: 0 };
   b.CORP = -CIT_ACCOUNT_IDS.reduce((s, id) => s + b[id], 0);
   return b;
 })();
 
 // Scenarios (Strategy)
 
-export type CitScenario = 'ATM_CDM' | 'BRANCH_BALANCING' | 'DOORSTEP' | 'SBV';
+export type CitScenario = 'ATM_CDM' | 'BRANCH_BALANCING' | 'DOORSTEP' | 'SBV' | 'TELLER';
 /** Relative to the branch vault: OUT leaves it (or the CDM's cassette, for a collection: IN), IN arrives at it. */
 export type CitDirection = 'OUT' | 'IN';
 
@@ -62,6 +65,8 @@ interface CitStrategy {
   route: (d: CitDirection) => { from: CitAccountId; to: CitAccountId };
   /** The vault's count sorts fit from unfit notes. */
   sorts: (d: CitDirection) => boolean;
+  /** An armoured van carries it (false: custodians carry it across the floor, so no van comes to the bay). */
+  van: boolean;
 }
 
 export const CIT_STRATEGIES: Readonly<Record<CitScenario, CitStrategy>> = {
@@ -70,24 +75,35 @@ export const CIT_STRATEGIES: Readonly<Record<CitScenario, CitStrategy>> = {
     label: L('ATM / CDM replenishment', 'Tiếp quỹ ATM / CDM'),
     route: (d) => (d === 'OUT' ? { from: 'VAULT', to: 'ATM' } : { from: 'ATM', to: 'VAULT' }),
     sorts: (d) => d === 'IN',
+    van: true,
   },
   BRANCH_BALANCING: {
     icon: '🏛️',
     label: L('Branch ↔ HQ vault balancing', 'Điều chuyển tồn quỹ Chi nhánh ↔ Kho Trung ương'),
     route: (d) => (d === 'OUT' ? { from: 'VAULT', to: 'HQ_VAULT' } : { from: 'HQ_VAULT', to: 'VAULT' }),
     sorts: () => false,
+    van: true,
   },
   DOORSTEP: {
     icon: '🔐',
     label: L('Doorstep banking (corporate pickup)', 'Thu tiền mặt tận nơi (Khách hàng DN)'),
     route: () => ({ from: 'CORP', to: 'VAULT' }),
     sorts: () => true,
+    van: true,
   },
   SBV: {
     icon: '🏦',
     label: L('SBV vault operation', 'Nộp / Rút tiền mặt tại NHNN'),
     route: (d) => (d === 'OUT' ? { from: 'VAULT', to: 'SBV' } : { from: 'SBV', to: 'VAULT' }),
     sorts: () => false,
+    van: true,
+  },
+  TELLER: {
+    icon: '🗄️',
+    label: L('Teller till replenishment & fit / unfit sort', 'Tiếp quỹ Quầy GDV & Phân loại tiền Fit / Unfit'),
+    route: (d) => (d === 'OUT' ? { from: 'VAULT', to: 'TILL' } : { from: 'TILL', to: 'VAULT' }),
+    sorts: (d) => d === 'IN',
+    van: false,
   },
 };
 
@@ -302,7 +318,7 @@ export function sbvTrigger(vaultCents: number, unfitCents: number, holiday: bool
 // The day's runs
 
 /** Minutes after dispatch at which a run enters each state; a minuted seal incident adds `incident` before the count. */
-export const CIT_TIMING = { ARRIVED: 25, IN_COUNT: 35, DELIVERED: 55, SETTLED: 65, incident: 15 } as const;
+export const CIT_TIMING = { ARRIVED: 25, IN_COUNT: 35, DELIVERED: 55, SETTLED: 65, incident: 15, home: 10 } as const;
 export const DOORSTEP_CLIENTS = ['WinMart', 'Go!'] as const;
 const CUSTODIANS = ['Nguyễn Văn An', 'Trần Thị Bình', 'Lê Minh Châu', 'Phạm Quốc Dũng'] as const;
 const SLOTS: ReadonlyArray<{ at: number; kind: 'ATM' | 'CDM' | 'DOORSTEP' | 'SBV' | 'BRANCH'; client?: string }> = [
@@ -376,6 +392,9 @@ export function citSchedule(p: CitPlanned): Record<CitStatus, number> {
   return { EN_ROUTE: p.start, ARRIVED: p.start + CIT_TIMING.ARRIVED, IN_COUNT: p.start + CIT_TIMING.IN_COUNT + delay, DELIVERED: p.start + CIT_TIMING.DELIVERED + delay, SETTLED: p.start + CIT_TIMING.SETTLED + delay };
 }
 
+/** When a run is over for good: settled and, for a van, driven off the bay and back at its base (the demo lock's release). */
+export const citDone = (p: CitPlanned): number => citSchedule(p).SETTLED + (CIT_STRATEGIES[p.order.scenario].van ? CIT_TIMING.home : 0);
+
 /** A planned run as it stands at `minute`, walked through the state machine; null before dispatch. */
 export function runAt(p: CitPlanned, minute: number): CitRun | null {
   const at = citSchedule(p);
@@ -403,12 +422,14 @@ export interface CitSnapshot {
   vaultFlow: VaultFlow;
   /** The run stopped at the vault's loading bay and how far through that stop it is (0-1): what the crew's walk follows (citCrew.ts). */
   bay: { id: string; flow: 'IN' | 'OUT'; u: number } | null;
+  /** The learner's run holding the one-dispatch lock and where it is: its state, or RETURNING once settled while its van drives home. */
+  lock: { run: CitRun; stage: CitStatus | 'RETURNING' } | null;
 }
 
 // Manual demo dispatches
 
-export type CitDemo = 'ATM' | 'DOORSTEP' | 'SBV';
-export const CIT_DEMOS: readonly CitDemo[] = ['ATM', 'DOORSTEP', 'SBV'];
+export type CitDemo = 'ATM' | 'DOORSTEP' | 'SBV' | 'TELLER';
+export const CIT_DEMOS: readonly CitDemo[] = ['ATM', 'DOORSTEP', 'SBV', 'TELLER'];
 /** At most this many manual runs a day, so the derived plan stays small. */
 export const CIT_DEMO_CAP = 12;
 
@@ -432,6 +453,10 @@ export function manualOrder(day: number, n: number, m: CitManual, book: Readonly
     const amountCents = m.refillCents && m.refillCents > 0 ? m.refillCents : (atmTrigger(book.ATM, 0)?.amountCents ?? Math.max(CIT_LIMITS.atmTargetCents - book.ATM, 2_000_000));
     return citOrder({ ...base, scenario: 'ATM_CDM', direction: 'OUT', amountCents, trigger: manual(m.refillCents ? 'retail ATM cassette shortfall' : 'ATM top-up', m.refillCents ? 'bù hộp tiền ATM bán lẻ' : 'tiếp quỹ ATM') });
   }
+  if (m.kind === 'TELLER') {
+    const amountCents = Math.max(book.TILL - CIT_LIMITS.tillFloatCents, 1_000_000);
+    return citOrder({ ...base, scenario: 'TELLER', direction: 'IN', amountCents, unfitBp: 250, trigger: manual('till surplus back to the vault, sorted fit / unfit', 'nộp dư quỹ quầy về kho, phân loại Fit / Unfit') });
+  }
   if (m.kind === 'DOORSTEP') return citOrder({ ...base, scenario: 'DOORSTEP', direction: 'IN', client: DOORSTEP_CLIENTS[0], amountCents: 30_000_000, unfitBp: 150, trigger: manual(`bulk cash pickup at ${DOORSTEP_CLIENTS[0]}`, `thu tiền mặt tại ${DOORSTEP_CLIENTS[0]}`) });
   const t = sbvTrigger(book.VAULT, book.UNFIT, isHolidayEve(day)) ?? { direction: 'IN' as const, amountCents: CIT_LIMITS.holidayWithdrawCents, unfitSurrenderCents: 0, trigger: L('', '') };
   return citOrder({ ...base, scenario: 'SBV', ...t, trigger: manual(t.direction === 'OUT' ? 'deposit at the SBV' : 'withdraw from the SBV', t.direction === 'OUT' ? 'nộp tiền vào NHNN' : 'rút tiền từ NHNN') });
@@ -451,30 +476,30 @@ export function citAt(day: number, minute: number, manual: readonly CitManual[] 
   return snapshotOf(day, minute, manualPlan(day, manual));
 }
 
-/** The run the van is standing at the loading bay for: loading an outflow, or arrived with an inflow. */
+/** The run the van is standing at the loading bay for: loading an outflow, or arrived with an inflow (a till run needs no van). */
 export function citBayRun(cit: CitSnapshot): CitRun | null {
   const run = cit.active?.run;
-  if (!run || run.status === 'SETTLED') return null;
+  if (!run || run.status === 'SETTLED' || !CIT_STRATEGIES[run.order.scenario].van) return null;
   return cit.vaultFlow !== null || run.status !== 'EN_ROUTE' ? run : null;
 }
 
-/** The states in which a van is on the road or at a counting table: a demo dispatch waits until none of the learner's vans is in one. */
-export const CIT_BUSY: readonly CitStatus[] = ['EN_ROUTE', 'ARRIVED', 'IN_COUNT'];
 const isManual = (o: CitOrder): boolean => o.id.includes('-M');
 
-/** The learner's van still on its run (en route, arrived or in count), or null: the one mutex for every demo dispatch. */
-export const citDemoBusy = (cit: CitSnapshot): CitRun | null => cit.runs.find((r) => r.run && isManual(r.run.order) && CIT_BUSY.includes(r.run.status))?.run ?? null;
-
-/** The learner's van that has not settled yet: a paused bank plays it on its own until it does. */
-export const citDemoOpen = (cit: CitSnapshot): CitRun | null => cit.runs.find((r) => r.run && isManual(r.run.order) && r.run.status !== 'SETTLED')?.run ?? null;
+/**
+ * The one-dispatch mutex: the learner's run from dispatch until it is SETTLED and its van is home (citDone), or null. A paused
+ * bank plays that run on its own until then. Scheduled runs never hold it.
+ */
+export const citDemoBusy = (cit: CitSnapshot): CitRun | null => cit.lock?.run ?? null;
 
 /** Which way cash crosses the vault's loading bay on a run: out of the vault into the van, or in from the van. */
 export const bayFlow = (o: CitOrder): 'IN' | 'OUT' => (CIT_STRATEGIES[o.scenario].route(o.direction).from === 'VAULT' ? 'OUT' : 'IN');
 
 /** How far through its stop at the vault's bay a run is at `minute`, 0-1, or null when the van is not at the bay (citCrew.ts walks the crew by it). */
 export function bayProgress(p: CitPlanned, minute: number): number | null {
+  if (!CIT_STRATEGIES[p.order.scenario].van) return null;
   const at = citSchedule(p);
-  const [from, to] = bayFlow(p.order) === 'OUT' ? [at.EN_ROUTE, at.ARRIVED] : [at.IN_COUNT, at.SETTLED];
+  // An inflow's crew steps out the moment the van stops (ARRIVED), as its rear doors open: no gap between parking and the walk.
+  const [from, to] = bayFlow(p.order) === 'OUT' ? [at.EN_ROUTE, at.ARRIVED] : [at.ARRIVED, at.SETTLED];
   return minute >= from && minute < to ? (minute - from) / (to - from) : null;
 }
 
@@ -495,5 +520,7 @@ function snapshotOf(day: number, minute: number, extra: readonly CitPlanned[]): 
     const u = bayProgress(planned, minute);
     if (u !== null) bay = { id: planned.order.id, flow: bayFlow(planned.order), u };
   }
-  return { runs, active, journal, book: bookAfter(journal), vaultFlow, bay };
+  const open = runs.find((r) => r.run && isManual(r.run.order) && minute < citDone(r.planned));
+  const lock = open?.run ? { run: open.run, stage: open.run.status === 'SETTLED' ? ('RETURNING' as const) : open.run.status } : null;
+  return { runs, active, journal, book: bookAfter(journal), vaultFlow, bay, lock };
 }

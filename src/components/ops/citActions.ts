@@ -1,5 +1,5 @@
 import { formatMoney } from '../../sim/kpis';
-import { citAccount, citAt, citDemoBusy, citDemoOpen, type CitDemo, type CitSnapshot } from '../../sim/citEngine';
+import { citAccount, citAt, citDemoBusy, type CitDemo, type CitSnapshot } from '../../sim/citEngine';
 import { OPS_LIMITS } from '../../sim/retailOps';
 import { bankStore } from '../../store/bankStore';
 import { citStore } from '../../store/citStore';
@@ -20,8 +20,13 @@ export function citNow(): CitSnapshot {
   return citAt(day, minute, manualOf(day));
 }
 
-/** Why a demo van cannot leave now, or null: the day is over, or one of the learner's vans is still on its run (the one-van mutex). */
-export const citDemoBlock = (cit: CitSnapshot, dayOver: boolean): 'dayOver' | 'busy' | null => (dayOver ? 'dayOver' : citDemoBusy(cit) ? 'busy' : null);
+export type CitDemoBlock = 'dayOver' | 'busy' | null;
+
+/**
+ * Why a demo cannot be dispatched now, or null: the day is over, or the lock holds (the learner's run is not SETTLED and home yet,
+ * or the 3D van has not driven off). One mutex for the dock menu, the inspector and the drawer's "run this scenario".
+ */
+export const citDemoBlock = (cit: CitSnapshot, dayOver: boolean, van: boolean = citStore.getState().van): CitDemoBlock => (dayOver ? 'dayOver' : citDemoBusy(cit) || van ? 'busy' : null);
 
 /** The retail ATM cassette's shortfall the vault can cover: what an ATM run carries, so both books move the same cash. */
 function retailShortfall(): number {
@@ -65,12 +70,12 @@ export const CIT_SOLO_MS = 300;
 export function citSoloIndex(bank: Pick<typeof bankStore, 'getState'> = bankStore): number {
   const s = bank.getState();
   if (s.playing || s.view.dayOver) return -1;
-  const open = citDemoOpen(citNow());
+  const open = citDemoBusy(citNow());
   if (!open) return -1;
   return citStore.getState().manual.findIndex((_, i) => open.order.id === `CIT-${s.view.day}-M${i + 1}`);
 }
 
-/** Whether a CIT demo is playing in isolation now (the bank paused, the learner's van still on its run): the bay animates, nothing else does. */
+/** Whether a CIT demo is playing in isolation now (the bank paused, the learner's run still locked): the bay animates, nothing else does. */
 export const citSoloActive = (): boolean => citSoloIndex() >= 0;
 
 /**

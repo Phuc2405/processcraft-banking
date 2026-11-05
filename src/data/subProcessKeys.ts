@@ -1,5 +1,6 @@
 /** The sub-process info drawer's keys and how a menu choice or a desk maps to one; the content is in subProcessRegistry.ts. */
 
+import type { CitDemo } from '../sim/citEngine';
 import { GUIDED_FLOWS } from '../sim/guidedFlows';
 import type { DemoGroupId } from '../sim/demoGroups';
 import type { PlaceId } from '../sim/topology';
@@ -31,9 +32,17 @@ export type GroupInfoKey = (typeof GROUP_INFO_KEYS)[number];
 
 /** Cross-cutting domains with no demo group of their own. */
 export type DomainKey = 'cit-vault' | 'aml-sanctions';
-export type InfoKey = `flow-${FlowId}` | GroupInfoKey | DomainKey;
 
-export const INFO_KEYS: readonly InfoKey[] = [...FLOW_IDS.map((f): InfoKey => `flow-${f}`), ...GROUP_INFO_KEYS, 'cit-vault', 'aml-sanctions'];
+/** The CIT domain's four child sub-processes under Flow 06, one per demo the learner can run from its sheet. */
+export const CIT_INFO_KEYS = { ATM: '06-cit-atm', DOORSTEP: '06-cit-doorstep', SBV: '06-cit-sbv', TELLER: '06-cit-teller-vault' } as const satisfies Record<CitDemo, string>;
+export type CitInfoKey = (typeof CIT_INFO_KEYS)[CitDemo];
+const CIT_CHILDREN = Object.entries(CIT_INFO_KEYS) as ReadonlyArray<[CitDemo, CitInfoKey]>;
+/** The demo a CIT child sheet runs, or null for any other sheet. */
+export const citDemoOfKey = (k: string): CitDemo | null => CIT_CHILDREN.find(([, v]) => v === k)?.[0] ?? null;
+
+export type InfoKey = `flow-${FlowId}` | GroupInfoKey | DomainKey | CitInfoKey;
+
+export const INFO_KEYS: readonly InfoKey[] = [...FLOW_IDS.map((f): InfoKey => `flow-${f}`), ...GROUP_INFO_KEYS, 'cit-vault', ...CIT_CHILDREN.map(([, k]) => k), 'aml-sanctions'];
 export const isInfoKey = (k: unknown): k is InfoKey => typeof k === 'string' && (INFO_KEYS as readonly string[]).includes(k);
 
 /** What the drawer shows for a menu choice: the sub-group's own sheet when it has one, else its flow's. */

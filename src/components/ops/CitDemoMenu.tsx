@@ -4,21 +4,21 @@ import { useBankStore } from '../../store/bankStore';
 import { useMessages } from '../../utils/i18nHelper';
 import { AdaptivePopover, listboxKey } from '../shell/AdaptivePopover';
 import { citMessages } from './cit.messages';
-import { citDemoBlock, dispatchCitDemo } from './citActions';
-import { DEMO_ICON, useCit } from './CitPanel';
+import { dispatchCitDemo, type CitDemoBlock } from './citActions';
+import { CitBusyBadge, DEMO_ICON, useCitLock, type CitLockStage } from './CitPanel';
 
 /**
- * The bottom dock's one CIT control: "🚚 Demo CIT & Kho quỹ ▾" opening the three dispatches. While one of the learner's vans is on its
- * run the options are disabled and the trigger says so (one van at a time); while the bank is paused the run plays on its own.
+ * The bottom dock's one CIT control: "🚚 Demo CIT & Kho quỹ ▾" opening the dispatches. While the learner's run holds the lock
+ * (until it is SETTLED and its van has driven off and home) the options are disabled and a badge says where the run is; while the
+ * bank is paused the run plays on its own.
  */
 export function CitDemoMenu() {
-  const cit = useCit();
-  const dayOver = useBankStore((s) => s.view.dayOver);
+  const { block, stage } = useCitLock();
   const paused = useBankStore((s) => !s.playing);
-  return <CitDemoMenuView block={citDemoBlock(cit, dayOver)} paused={paused} />;
+  return <CitDemoMenuView block={block} stage={stage} paused={paused} />;
 }
 
-export function CitDemoMenuView({ block, paused }: { block: 'dayOver' | 'busy' | null; paused: boolean }) {
+export function CitDemoMenuView({ block, stage = null, paused }: { block: CitDemoBlock; stage?: CitLockStage | null; paused: boolean }) {
   const m = useMessages(citMessages);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -65,18 +65,14 @@ export function CitDemoMenuView({ block, paused }: { block: 'dayOver' | 'busy' |
         onClick={() => setOpen((o) => !o)}
         onKeyDown={onKeyDown}
         data-testid="cit-demo-trigger"
-        className="whitespace-nowrap rounded-lg bg-cyan-400 px-3 py-1.5 text-[12px] font-bold text-cyan-950 shadow transition hover:bg-cyan-300"
+        className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px] font-bold shadow transition ${block ? 'bg-cyan-400/40 text-cyan-950/70' : 'bg-cyan-400 text-cyan-950 hover:bg-cyan-300'}`}
       >
         <span aria-hidden="true">🚚</span> {m('demoMenu')}{' '}
         <span aria-hidden="true" className={`inline-block transition-transform ${open ? 'rotate-180' : ''}`}>
           ▾
         </span>
       </button>
-      {block === 'busy' && (
-        <span role="status" title={paused ? m('demoSolo') : m('demoBlock_busy')} data-testid="cit-demo-busy" className="animate-pulse whitespace-nowrap rounded-full bg-amber-400/20 px-2 py-0.5 text-[11px] font-bold text-amber-200 ring-1 ring-amber-300/50">
-          🚚 {m('demoBusy')}
-        </span>
-      )}
+      {block === 'busy' && <CitBusyBadge stage={stage} paused={paused} />}
       {open && (
         <AdaptivePopover anchor={trigger} onClose={() => setOpen(false)} direction="up" width={260} align="start" id={listId} label={m('demoMenu')} testId="cit-demo-list" activeIndex={active}>
           {CIT_DEMOS.map((kind, i) => (

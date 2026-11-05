@@ -11,6 +11,7 @@ import { activeFlowOf, bankStore, useBankStore } from '../../../store/bankStore'
 import { uiStore } from '../../../store/uiStore';
 import { sceneCovered } from './sceneCover';
 import { FlowStage3D, useAcademyCamera } from './FlowStage3D';
+import { TransactionFlow3D } from './TransactionFlow3D';
 import { useTerms } from '../useTerms';
 import { Desk3D } from './Desk3D';
 import { AtmKiosk } from './AtmKiosk';
@@ -866,6 +867,7 @@ const DeskRenderer = memo(function DeskRenderer() {
       <Kiosks />
       <Packets />
       <SignalPulses />
+      <TransactionFlow3D />
       <DeskVisitors3D />
     </group>
   );

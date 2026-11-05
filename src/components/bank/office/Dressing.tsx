@@ -1,4 +1,5 @@
-import { LOADING_DOOR } from '../../../engine/world/citRun';
+import { CORRIDOR, LOADING_DOOR, VAULT_DOOR } from '../../../engine/world/citRun';
+import { useWorld } from './WorldProvider';
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef, type DependencyList } from 'react';
@@ -22,7 +23,6 @@ import {
   WALL_H,
   WALL_T,
   WALL_WINDOWS,
-  deskPose,
   frontPlinth,
   kioskPose,
   partition,
@@ -210,9 +210,9 @@ export const Walls = memo(function Walls() {
 
 const GLASS_H = 2.3;
 
-/** Frames and panes for the walls of a glass room: cut open wherever a lane passes through. */
+/** Frames and panes for the walls of a glass room: cut open wherever a lane, or the CIT crew's walk to the vault door, passes through. */
 function glassRoomParts(rect: Rect, sides: readonly WallSide[], accent: string): { frame: Part[]; panes: Part[] } {
-  const lanes = LANES.map((l) => l.points);
+  const lanes = [...LANES.map((l) => l.points), CORRIDOR];
   const { runs, doors } = partition(rect, sides, lanes);
   const frame: Part[] = [];
   const panes: Part[] = [];
@@ -252,10 +252,10 @@ const GlassRoom = memo(function GlassRoom({ rect, sides, accent }: { rect: Rect;
 const VAULT_SIDES: readonly WallSide[] = ['front', 'left', 'right'];
 const SERVER_SIDES: readonly WallSide[] = ['left', 'front', 'back'];
 
-/** The Security & 3DS Risk Vault, in glass, with its great round door on the wall behind the vault desk. */
+/** The Security & 3DS Risk Vault, in glass, with the cash vault's great round door (VAULT_DOOR) on the wall behind the vault desk. */
 export const VaultRoom = memo(function VaultRoom() {
   const rect = useMemo(() => vaultRoom(), []);
-  const desk = useMemo(() => deskPose('SEC_VAULT'), []);
+  const world = useWorld();
   const body = useMerged(() => {
     const bolts: Part[] = Array.from({ length: 8 }, (_, i) => {
       const a = (i / 8) * Math.PI * 2;
@@ -274,19 +274,22 @@ export const VaultRoom = memo(function VaultRoom() {
   const wheel = useMerged(() => [ring([0, 0, 0], 0.3, 0.035, SET.brass, undefined, 14), ...[0, 1, 2].map((i) => box([0, 0, 0], [0.62, 0.05, 0.04], SET.brass, [0, 0, (i * Math.PI) / 3])), ball([0, 0, 0], 0.07, SET.brass), ...[0, 1, 2, 3, 4, 5].map((i) => ball([Math.cos((i * Math.PI) / 3) * 0.31, Math.sin((i * Math.PI) / 3) * 0.31, 0], 0.045, '#c0392b'))], []);
   const wheelRef = useRef<Group>(null);
   useFrame((_, dt) => {
+    // The wheel turns briskly while the token vault works, and hardest while CIT cash crosses the door.
+    const cash = world.lot.cit.pose().vaultPulse !== null;
     const busy = bankStore.getState().view.stations.SEC_VAULT.status !== 'IDLE';
-    if (wheelRef.current) wheelRef.current.rotation.z += dt * (busy ? 1.2 : 0.12);
+    if (wheelRef.current) wheelRef.current.rotation.z += dt * (cash ? 2.4 : busy ? 1.2 : 0.12);
   });
   return (
     <group name="office-vault">
       <GlassRoom rect={rect} sides={VAULT_SIDES} accent="#a78bfa" />
-      <group position={[desk.x, 1.45, rect.z0 + 0.09]}>
+      <group position={[VAULT_DOOR.x, VAULT_DOOR.y, VAULT_DOOR.z]} name="cash-vault-door">
         <mesh geometry={body} material={satin} castShadow receiveShadow />
         <group ref={wheelRef} position={[0, 0, 0.2]}>
           <mesh geometry={wheel} material={satin} castShadow />
         </group>
       </group>
       <Sign text="RISK VAULT" fg="#ffffff" bg="#7c3aed" position={[rect.x1 - 1.7, GLASS_H + 0.42, rect.z1 + 0.05]} width={1.9} />
+      <Sign text="CASH VAULT · 1111" fg="#111827" bg="#facc15" position={[VAULT_DOOR.x, VAULT_DOOR.y + 1.4, VAULT_DOOR.z + 0.05]} width={1.9} />
     </group>
   );
 });

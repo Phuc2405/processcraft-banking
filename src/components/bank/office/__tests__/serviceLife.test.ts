@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { atmosphereAt, GROUND_FOG, WEATHER_MIX } from '../../../../engine/world/atmosphere';
-import { CAB_DOOR, CARRY_PATH, CIT_RUN, CREW_PATH, DOOR_INSIDE, LOADING_BAY, LOADING_DOOR, VAN_REAR, VAULT_STOP, type CitPhase } from '../../../../engine/world/citRun';
+import { CAB_DOOR, CARRY_PATH, CIT_RUN, CREW_PATH, LOADING_BAY, LOADING_DOOR, VAN_REAR, VAULT_STOP, type CitPhase } from '../../../../engine/world/citRun';
 import { pathLength } from '../../../../engine/plan/path';
 import { chatPhase, MIST_BANKS, MIST_CLIP, MIST_LAYERS } from '../Environment3D';
 import { evacuationRoute, servedExit } from '../../../../engine/world/evacuation';
@@ -47,7 +47,7 @@ describe('the cash van’s run to the vault’s loading bay in the car park', ()
     expect(read('../Parking3D.tsx')).toContain('<LoadingBay3D run={lot.cit} />');
   });
 
-  it('drives in indicating, waits for the vault staff to open up, walks the crew to the vault and back both ways, shuts up and drives off', () => {
+  it('drives in indicating, opens up and walks the crew out the moment it stops, to the vault and back both ways, shuts up and drives off', () => {
     const order: CitPhase[] = [];
     const pulses = new Set<string>();
     const shown = new Map<string, boolean>();
@@ -65,20 +65,27 @@ describe('the cash van’s run to the vault’s loading bay in the car park', ()
       }
       return false;
     };
+    let stops = 0;
     const lot = run(1500, (l) => {
       const p = l.cit.pose();
+      const crew = p.crew.filter((c) => c.role !== 'staff');
+      // Synchronised: on the very frame the van stops, its doors start to open and the crew is already out.
+      if (order[order.length - 1] === 'arrive' && p.phase === 'load') {
+        stops++;
+        expect(crew.length, 'crew out on the stopping frame').toBeGreaterThan(0);
+        expect(p.doors).toBeLessThan(1);
+      }
       if (order[order.length - 1] !== p.phase) order.push(p.phase);
       if (p.phase === 'arrive' && p.signal !== 0) signalIn = true;
       if (p.phase === 'depart' && p.signal !== 0) signalOut = true;
       if (p.vaultPulse) pulses.add(p.vaultPulse);
-      const crew = p.crew.filter((c) => c.role !== 'staff');
-      const staff = p.crew.find((c) => c.role === 'staff');
-      // Doors open, the shutter up and the crew out only while the van stands in its bay; the shutter only once the staff is at it.
+      // Doors open, the shutter up and the crew out only while the van stands in its bay.
       if (p.doors > 0 || p.shutter > 0 || crew.length) {
         expect(p.x).toBe(LOADING_BAY.x);
         expect(p.z).toBe(LOADING_BAY.z);
       }
-      if (p.shutter > 0 && p.phase === 'open') expect(staff?.at).toEqual(DOOR_INSIDE);
+      // The rear doors and the shutter open together the moment the van stops, the crew already stepping out.
+      if (p.phase === 'load') expect(p.shutter).toBe(p.doors);
       for (const c of p.crew) {
         // Nobody pops in: the crew first shows at the cab door (inflow) or the vault (outflow), the staff at the vault.
         if (!shown.get(c.role)) expect(near(c.at, CAB_DOOR) || near(c.at, VAULT_STOP), `${c.role} first seen at ${c.at}`).toBe(true);
@@ -92,8 +99,9 @@ describe('the cash van’s run to the vault’s loading bay in the car park', ()
         if (c.carrying) carried++;
       }
     });
-    expect(order.join(' ')).toContain('away arrive open load close depart away');
+    expect(order.join(' ')).toContain('away arrive load close depart away');
     expect(lot.cit.runs).toBeGreaterThanOrEqual(3);
+    expect(stops).toBeGreaterThanOrEqual(3);
     expect(carried).toBeGreaterThan(0);
     // On its own timer the van alternates deliveries into the vault (gold, Dr 1111) and collections out of it (orange, Cr 1111).
     expect([...pulses].sort()).toEqual(['IN', 'OUT']);

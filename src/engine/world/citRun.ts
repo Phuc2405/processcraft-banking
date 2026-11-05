@@ -1,4 +1,4 @@
-import { FLOOR_SLAB, FRONT_AISLE_Z, LEFT_WALK_X, STATION_POSES, type V2 } from '../plan/layout3d';
+import { deskPose, FLOOR_SLAB, LEFT_WALK_X, vaultRoom, type V2 } from '../plan/layout3d';
 import { pathLength, pointAlongPath } from '../plan/path';
 import { actorStatus, type ActorStatus } from '../../sim/actorStatus';
 import { crewOf, vaultPulseAt, walkShare, type CrewFlow, type CrewPoint } from '../../sim/citCrew';
@@ -25,16 +25,25 @@ export const CAB_DOOR: V2 = [LOADING_BAY.x + LENGTH.cit / 2 - 0.9, SIDE_Z];
 /** The walk outside: from the back of the van, round its corner and along its side to the loading door. */
 export const CARRY_PATH: readonly V2[] = [VAN_REAR, [VAN_REAR[0], SIDE_Z], [-HX - 0.55, SIDE_Z], LOADING_DOOR];
 
-const vault = STATION_POSES.COLLATERAL_VAULT;
-/** Where the crew stands to hand cash over at the vault (its 3D desk): in front of it, on the customers' side. */
-export const VAULT_STOP: V2 = [vault.x, vault.z + vault.d / 2 + 0.45];
+/**
+ * The cash vault's great round steel door (the golden-wheel door on the back wall of the glass vault room): where every deposit
+ * and withdrawal of the CIT and teller runs crosses into the vault. Dressing.tsx draws it here.
+ */
+export const VAULT_DOOR = (() => {
+  const room = vaultRoom();
+  return { x: deskPose('SEC_VAULT').x, y: 1.45, z: room.z0 + 0.09, room } as const;
+})();
+/** Where the crew stands to hand cash over: facing the round door, clear of its swing. */
+export const VAULT_STOP: V2 = [VAULT_DOOR.x, VAULT_DOOR.z + 1.0];
 /** Just inside the loading door, where the vault's staff stands to roll the shutter up. */
 export const DOOR_INSIDE: V2 = [LEFT_WALK_X, LOADING_DOOR[1]];
+/** The aisle into the vault room: east of its desks, in through a doorway the glass front opens for it (Dressing cuts it). */
+const ROOM_AISLE_X = deskPose('SEC_VAULT').x + deskPose('SEC_VAULT').w / 2 + 0.55;
 /**
- * The walk inside, never across the floor: along the left wall's walkway to the front aisle, along the aisle to the vault's column,
- * and up to the vault (the walks the customers use, clear of the desks).
+ * The walk inside, never across a desk: along the front of the vault room from the loading door, in through its glass front east
+ * of the desks, back along the aisle to the round door's row, and across to the door.
  */
-export const CORRIDOR: readonly V2[] = [LOADING_DOOR, DOOR_INSIDE, [LEFT_WALK_X, FRONT_AISLE_Z], [vault.x, FRONT_AISLE_Z], VAULT_STOP];
+export const CORRIDOR: readonly V2[] = [LOADING_DOOR, DOOR_INSIDE, [ROOM_AISLE_X, DOOR_INSIDE[1]], [ROOM_AISLE_X, VAULT_STOP[1]], VAULT_STOP];
 
 /** The crew's whole walk, cab door to vault: to the van's rear for the cassettes, back along its side, in at the door and down the corridor. */
 export const CREW_PATH: readonly V2[] = [CAB_DOOR, [VAN_REAR[0], SIDE_Z], VAN_REAR, ...CARRY_PATH.slice(1), ...CORRIDOR.slice(1)];
@@ -57,7 +66,8 @@ export const loadS = (flow: CrewFlow): number => (CREW_LEN * (1 - REAR_AT)) / CI
 /** How long the vault's staff takes to walk between the vault and the loading door. */
 export const STAFF_WALK_S = STAFF_LEN / CIT_RUN.staffPace;
 
-export type CitPhase = 'away' | 'arrive' | 'open' | 'load' | 'close' | 'depart';
+/** The van's phases: it opens its rear doors as it stops, while the crew already steps out (`load` begins on arrival), so nothing waits between the two. */
+export type CitPhase = 'away' | 'arrive' | 'load' | 'close' | 'depart';
 
 /** Someone of the run on foot: the custodian (carries), the guard (escorts) or the vault's staff (opens the loading door). */
 export interface CrewFigure {
@@ -188,19 +198,16 @@ export class CitRun {
         }
         break;
       case 'arrive':
-        if (this.t >= driveTime(pathLength(this.routes.arrive))) this.next('open');
-        break;
-      case 'open':
-        // The van waits, doors shut, until the vault's staff is at the loading door to roll the shutter up.
-        if (this.staff?.leg !== 'at') this.t = 0;
-        else if (this.t >= CIT_RUN.doors) this.next('load');
+        // Stopped in the bay: the rear doors and the shutter open and the crew steps out in the same instant.
+        if (this.t >= driveTime(pathLength(this.routes.arrive))) this.next('load');
         break;
       case 'load':
         if (this.t >= loadS(this.flow)) this.next('close');
         break;
       case 'close':
         // Shut up, then waits for the car park to be still before backing out; the staff walks back to the vault.
-        if (this.t >= CIT_RUN.doors && this.staff?.leg === 'at') this.staff = { leg: 'back', t: 0 };
+        // (Still on the way out, they turn round where they stand.)
+        if (this.t >= CIT_RUN.doors && this.staff && this.staff.leg !== 'back') this.staff = { leg: 'back', t: this.staff.leg === 'out' ? STAFF_WALK_S - this.staff.t : 0 };
         if (this.t >= CIT_RUN.doors && lotFree) this.next('depart');
         break;
       case 'depart':
@@ -299,17 +306,14 @@ export class CitRun {
       case 'arrive':
         // Indicating before each turn: into the car park's gate, and into the bay.
         return on(this.routes.arrive, this.t, false, true);
-      case 'open': {
-        const k = Math.min(1, this.t / CIT_RUN.doors);
-        return still(k, k);
-      }
       case 'load': {
         const u = this.t / loadS(this.flow);
+        const k = Math.min(1, this.t / CIT_RUN.doors);
         const crew = crewOf(this.flow, u, REAR_AT);
         const people: CrewFigure[] = [];
         if (crew?.custodian) people.push(crewFigure('custodian', this.flow, crew.custodian));
         if (crew?.guard) people.push(crewFigure('guard', this.flow, crew.guard));
-        return still(1, 1, people, vaultPulseAt(this.flow, u));
+        return still(k, k, people, vaultPulseAt(this.flow, u));
       }
       case 'close': {
         const k = Math.max(0, 1 - this.t / CIT_RUN.doors);

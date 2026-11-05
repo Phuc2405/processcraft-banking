@@ -6,9 +6,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import { pathLength, pointAlongPath } from '../plan/path';
-import { ATM_STATIONS, FRONT_AISLE_Z, GUARD_CABIN, lobbyWalkIn, MAIN_GATE, queueSlots, STATION_POSES, WALK_IN_DESKS, type V2 } from '../plan/layout3d';
+import { ATM_STATIONS, GUARD_CABIN, lobbyWalkIn, MAIN_GATE, queueSlots, STATION_POSES, WALK_IN_DESKS, type V2 } from '../plan/layout3d';
 import { routesFor } from '../simulation/routes';
-import { CREW_PATH, CORRIDOR } from '../world/citRun';
+import { CREW_PATH, CORRIDOR, VAULT_DOOR } from '../world/citRun';
 import { evacuationRoute } from '../world/evacuation';
 import { PARKING_CABIN } from '../world/guardCabin';
 import { PARK_EXIT } from '../world/parkLife';
@@ -92,9 +92,12 @@ describe('obstacle-aware walking routes', () => {
     for (const x of [-12, -6, MAIN_GATE.x, 2, 9]) expect(hits(lobbyWalkIn(x)), `from x ${x}`).toEqual([]);
   });
 
-  it('the CIT crew and the vault’s staff keep to the bay walkway, the left wall and the front aisle', () => {
+  it('the CIT crew and the vault’s staff walk round every desk from the bay to the round vault door', () => {
     expect(hits(CREW_PATH)).toEqual([]);
     expect(hits(CORRIDOR)).toEqual([]);
-    for (const [, z] of CORRIDOR.slice(2, 4)) expect(z).toBe(FRONT_AISLE_Z);
+    // The walk ends facing the great round door, the target of every vault deposit and withdrawal.
+    const [x, z] = CORRIDOR[CORRIDOR.length - 1]!;
+    expect(x).toBe(VAULT_DOOR.x);
+    expect(z - VAULT_DOOR.z).toBeCloseTo(1, 5);
   });
 });

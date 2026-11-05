@@ -19,7 +19,7 @@ import { citStore } from '../../store/citStore';
 import { retailOpsStore } from '../../store/retailOpsStore';
 import { actorStatus, type ActorPhases } from '../actorStatus';
 import { crewAt, crewOf, GUARD_LAG, vaultPulseAt, type CrewFlow } from '../citCrew';
-import { citAt, citDemoOpen, CIT_TIMING, type CitManual } from '../citEngine';
+import { citAt, citDemoBusy, CIT_TIMING, type CitManual } from '../citEngine';
 
 const FLOWS: readonly CrewFlow[] = ['IN', 'OUT'];
 const u01 = fc.double({ min: 0, max: 1, noNaN: true });
@@ -137,7 +137,7 @@ describe('pause-isolated CIT demos', () => {
       // The demo walked every state and settled, 1131 back to zero for it.
       const demo = after.runs.find((r) => r.planned.order.id.endsWith('-M1'))!.run!;
       expect(demo.status).toBe('SETTLED');
-      expect(citDemoOpen(after)).toBeNull();
+      expect(citDemoBusy(after)).toBeNull();
       expect(citSoloActive()).toBe(false);
       expect(citStore.getState().manual[0]!.lead).toBeGreaterThanOrEqual(CIT_TIMING.SETTLED);
     } finally {

@@ -3,7 +3,8 @@ import { pick, useLocale } from '../../i18n/locale';
 import { flowText, GUIDED_FLOWS } from '../../sim/guidedFlows';
 import { demoGroup, demoGroupsIn, showsGroupsOf, type DemoGroupId } from '../../sim/demoGroups';
 import { bankStore, useBankStore, type Selection } from '../../store/bankStore';
-import { infoKeyForChoice, type InfoKey } from '../../data/subProcessKeys';
+import { CIT_INFO_KEYS, infoKeyForChoice, type CitInfoKey, type InfoKey } from '../../data/subProcessKeys';
+import { CIT_SHEETS } from '../../data/subProcessCitSheets';
 import { subProcessInfoMessages } from '../ops/subProcessInfo.messages';
 import { inspectorCoversMap, topBand } from './ViewportControls';
 import { FLOW_IDS, type FlowId } from '../../types/viewport';
@@ -13,15 +14,20 @@ import { retailOpsMessages } from './retailOps.messages';
 import { selectSubProcess } from './retailOpsActions';
 
 /**
- * What the menu offers, in order: each of the eight flows, with its child sub-groups under it. A flow with a single sub-group lists
- * none: picking the flow already shows that group's buttons, so a nested row would only repeat its parent.
+ * What the menu offers, in order: each of the eight flows, with its child sub-groups under it, and under Flow 06 the CIT domain's
+ * four child sub-processes (each opens its sheet with a "run this scenario" button). A flow with a single sub-group lists none:
+ * picking the flow already shows that group's buttons, so a nested row would only repeat its parent.
  */
-export type MenuChoice = { kind: 'flow'; flow: FlowId } | { kind: 'sub'; flow: FlowId; sub: DemoGroupId };
+export type MenuChoice = { kind: 'flow'; flow: FlowId } | { kind: 'sub'; flow: FlowId; sub: DemoGroupId } | { kind: 'cit'; flow: 6; key: CitInfoKey };
 
-export const MENU_CHOICES: readonly MenuChoice[] = FLOW_IDS.flatMap((flow): MenuChoice[] => [{ kind: 'flow', flow }, ...(showsGroupsOf(flow) ? demoGroupsIn(flow).map((g): MenuChoice => ({ kind: 'sub', flow, sub: g.id })) : [])]);
+const CIT_FLOW = 6 as const;
+const citChoices = (flow: FlowId): MenuChoice[] => (flow === CIT_FLOW ? Object.values(CIT_INFO_KEYS).map((key): MenuChoice => ({ kind: 'cit', flow: CIT_FLOW, key })) : []);
 
-const choiceId = (c: MenuChoice): string => (c.kind === 'flow' ? `flow-${c.flow}` : `flow-sub-${c.sub}`);
-const choiceInfo = (c: MenuChoice): InfoKey => infoKeyForChoice(c.flow, c.kind === 'sub' ? c.sub : null);
+export const MENU_CHOICES: readonly MenuChoice[] = FLOW_IDS.flatMap((flow): MenuChoice[] => [{ kind: 'flow', flow }, ...(showsGroupsOf(flow) ? demoGroupsIn(flow).map((g): MenuChoice => ({ kind: 'sub', flow, sub: g.id })) : []), ...citChoices(flow)]);
+
+const choiceId = (c: MenuChoice): string => (c.kind === 'flow' ? `flow-${c.flow}` : c.kind === 'sub' ? `flow-sub-${c.sub}` : `flow-cit-${c.key}`);
+const choiceInfo = (c: MenuChoice): InfoKey => (c.kind === 'cit' ? c.key : infoKeyForChoice(c.flow, c.kind === 'sub' ? c.sub : null));
+const CIT_SHEET_OF = new Map(CIT_SHEETS.map((s) => [s.key, s]));
 
 /** Shows a choice's fact sheet in the right drawer, unless the drawer would cover the map or is busy with a desk or a payment. */
 export function showInfo(c: MenuChoice, force = false): void {
@@ -72,9 +78,11 @@ export function SubProcessMenu() {
   const choose = (c: MenuChoice | undefined): void => {
     if (!c) return;
     if (c.kind === 'flow') setFlow(c.flow);
-    else selectSubProcess(c.sub);
+    else if (c.kind === 'sub') selectSubProcess(c.sub);
+    else setFlow(c.flow);
     before.current = null;
-    showInfo(c);
+    // A CIT child's sheet is where its scenario runs from, so it always opens.
+    showInfo(c, c.kind === 'cit');
     setOpen(false);
     trigger.current?.focus();
   };
@@ -140,7 +148,8 @@ export function SubProcessMenu() {
           {MENU_CHOICES.map((c, i) => {
             const on = i === selected;
             const parent = c.kind === 'flow';
-            const label = parent ? flowText(c.flow).title : pick(demoGroup(c.sub).title, locale);
+            const cit = c.kind === 'cit' ? CIT_SHEET_OF.get(c.key) : undefined;
+            const label = parent ? flowText(c.flow).title : c.kind === 'sub' ? pick(demoGroup(c.sub).title, locale) : `${cit?.icon ?? ''} ${cit ? pick(cit.title, locale) : ''}`;
             return (
               <li
                 key={choiceId(c)}
@@ -150,6 +159,7 @@ export function SubProcessMenu() {
                 data-index={i}
                 data-testid={choiceId(c)}
                 data-level={parent ? 1 : 2}
+                data-kind={c.kind}
                 onPointerMove={() => hover(i)}
                 onClick={() => choose(c)}
                 className={`flex cursor-pointer items-center gap-2 rounded-lg py-1 pr-2 ${parent ? `pl-2 text-[12px] font-bold text-slate-100 ${i > 0 ? 'mt-1' : ''}` : 'ml-3.5 border-l border-slate-700 pl-3 text-[11.5px] text-slate-300'} ${i === active ? 'bg-slate-800' : ''}`}
@@ -160,6 +170,11 @@ export function SubProcessMenu() {
                   </span>
                 )}
                 <span className="min-w-0 flex-1">{label}</span>
+                {c.kind === 'cit' && (
+                  <span className="shrink-0 rounded bg-cyan-400/15 px-1 font-mono text-[9.5px] font-bold text-cyan-200 ring-1 ring-cyan-300/30" aria-hidden="true">
+                    CIT
+                  </span>
+                )}
                 {on && (
                   <span aria-hidden="true" style={{ color: accent }}>
                     ✓

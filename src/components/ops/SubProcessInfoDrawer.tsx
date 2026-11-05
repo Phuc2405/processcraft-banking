@@ -1,12 +1,12 @@
 import { useState, type ReactNode } from 'react';
 import { regDocById } from '../../data/regulatoryRegistry';
-import { ACTORS, glLine, subProcessInfo, type ActorId, type InfoKey, type SubProcessInfo } from '../../data/subProcessRegistry';
+import { ACTORS, citDemoOfKey, glLine, subProcessInfo, type ActorId, type InfoKey, type SubProcessInfo } from '../../data/subProcessRegistry';
 import { GUIDED_FLOWS } from '../../sim/guidedFlows';
 import { isStation } from '../../sim/topology';
 import { bankStore, useBankStore } from '../../store/bankStore';
 import { uiStore } from '../../store/uiStore';
 import { pick, useLocale, useMessages } from '../../utils/i18nHelper';
-import { CitDemoButtons } from './CitPanel';
+import { CitDemoButtons, CitRunButton } from './CitPanel';
 import { subProcessInfoMessages } from './subProcessInfo.messages';
 
 /** The right-side sub-process fact sheet, hosted by the inspector drawer (selection kind 'subprocess'). Content: data/subProcessRegistry.ts. */
@@ -51,6 +51,7 @@ export function SubProcessInfoView({ info, liveStr }: { info: SubProcessInfo; li
     if (isStation(info.place)) bank.select({ kind: 'station', id: info.place });
   };
   const duty = actor ? info.actors.find((a) => a.id === actor) : null;
+  const citDemo = citDemoOfKey(info.key);
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-gradient-to-b from-slate-900/70 to-slate-950/80 backdrop-blur-xl" data-testid="subprocess-drawer" data-key={info.key} data-mode={info.mode}>
       <header className="shrink-0 border-b border-white/10 p-3.5" style={{ background: `linear-gradient(180deg, ${accent}26, transparent)` }}>
@@ -77,6 +78,7 @@ export function SubProcessInfoView({ info, liveStr }: { info: SubProcessInfo; li
         </div>
       </header>
       <div className="bk-scroll min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain p-3" data-testid="inspector-body">
+        {citDemo && <CitRunButton kind={citDemo} />}
         <Section title={m('overview')} testId="overview">
           <p className="text-[12.5px] leading-relaxed text-slate-200">{pick(info.overview, locale)}</p>
           <button type="button" onClick={showOnMap} data-testid="spi-show" className="mt-2 rounded-lg bg-white/10 px-2.5 py-1 text-[11.5px] font-semibold text-slate-100 hover:bg-white/15">

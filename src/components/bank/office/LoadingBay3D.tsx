@@ -1,14 +1,15 @@
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef, useState } from 'react';
 import type { Group } from 'three';
-import { MeshBasicMaterial } from 'three';
+import { MeshBasicMaterial, SphereGeometry, type Mesh } from 'three';
 import { CustomerFigure } from './Avatars';
-import { CARRY_PATH, LOADING_BAY, LOADING_DOOR, VAN_REAR, type CitPhase, type CitRun, type Load } from '../../../engine/world/citRun';
+import { CARRY_PATH, CORRIDOR, LOADING_BAY, LOADING_DOOR, VAN_REAR, VAULT_DOOR, VAULT_STOP, type CitPhase, type CitRun, type Load } from '../../../engine/world/citRun';
+import { pathLength, pointAlongPath } from '../../../engine/plan/path';
 import { TAG_STYLE } from '../personStatus';
 import { Html } from '@react-three/drei';
 import { Sign, useMerged } from './Dressing';
 import { box, type Part } from './kit';
-import { FLOOR_SLAB, STATION_POSES } from '../../../engine/plan/layout3d';
+import { FLOOR_SLAB } from '../../../engine/plan/layout3d';
 import { glow, solid } from './materials';
 import { CitMarker, bodyParts } from './Vehicles3D';
 import { LENGTH, WIDTH } from '../../../engine/world/vehicles';
@@ -112,30 +113,57 @@ function CrewMember({ run, role, index, shirt, wear }: { run: CitRun; role: Role
   );
 }
 
-const VAULT = STATION_POSES.COLLATERAL_VAULT;
 const PULSE = { IN: '#facc15', OUT: '#f97316' } as const;
+/** Flyweight: one sphere and one material per colour, shared by every cash particle. */
+const SPARK = new SphereGeometry(0.09, 10, 8);
+const SPARK_MAT = { IN: new MeshBasicMaterial({ color: PULSE.IN, toneMapped: false }), OUT: new MeshBasicMaterial({ color: PULSE.OUT, toneMapped: false }) } as const;
+const SPARKS = 8;
+/** The cash particles' stretch: from the loading door's inside along the crew's corridor to the round vault door. */
+const STREAM = CORRIDOR.slice(1);
+const STREAM_LEN = pathLength(STREAM);
 
-/** The vault's glow while cash crosses its door: gold for a deposit (Dr 1111), orange for a withdrawal (Cr 1111). */
+/**
+ * The round vault door lit while cash crosses it (the primary target of every vault deposit and withdrawal): a ring round the
+ * door, a ring on the floor where the crew stands, gold (Dr 1111) or orange (Cr 1111) cash particles streaming along the corridor
+ * into the door or out of it, and the GL tag.
+ */
 function VaultPulse({ run }: { run: CitRun }) {
   const ring = useRef<Group>(null);
+  const sparks = useRef<Array<Mesh | null>>([]);
   const [flow, setFlow] = useState<'IN' | 'OUT' | null>(null);
   useFrame(({ clock }) => {
-    const f = run.pose().vaultPulse;
+    const p = run.pose();
+    // The particles run while the custodian carries the cassettes, not only at the door.
+    const f = p.vaultPulse ?? (p.crew.some((c) => c.carrying) ? run.flow : null);
     if (f !== flow) setFlow(f);
-    if (ring.current) ring.current.scale.setScalar(1 + 0.08 * Math.sin(clock.elapsedTime * 6));
+    const t = clock.elapsedTime;
+    if (ring.current) ring.current.scale.setScalar(1 + 0.08 * Math.sin(t * 6));
+    sparks.current.forEach((m, i) => {
+      if (!m) return;
+      const u = (t * 0.22 + i / SPARKS) % 1;
+      const [x, z] = pointAlongPath(STREAM, (f === 'OUT' ? 1 - u : u) * STREAM_LEN);
+      m.position.set(x, 1.0 + 0.12 * Math.sin(t * 5 + i), z);
+    });
   });
   if (!flow) return null;
   return (
-    <group position={[VAULT.x, 0.02, VAULT.z]} name="cit-vault-pulse">
-      <group ref={ring}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[1.9, 2.2, 40]} />
-          <meshBasicMaterial color={PULSE[flow]} transparent opacity={0.85} toneMapped={false} />
+    <group name="cit-vault-pulse" data-flow={flow}>
+      <group ref={ring} position={[VAULT_DOOR.x, VAULT_DOOR.y, VAULT_DOOR.z + 0.32]}>
+        <mesh>
+          <ringGeometry args={[0.98, 1.16, 40]} />
+          <meshBasicMaterial color={PULSE[flow]} transparent opacity={0.9} toneMapped={false} />
         </mesh>
       </group>
-      <Html position={[0, 1.6, 0]} center zIndexRange={[11, 0]} style={{ pointerEvents: 'none' }}>
+      <mesh position={[VAULT_STOP[0], 0.03, VAULT_STOP[1]]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.55, 0.75, 32]} />
+        <meshBasicMaterial color={PULSE[flow]} transparent opacity={0.7} toneMapped={false} />
+      </mesh>
+      {Array.from({ length: SPARKS }, (_, i) => (
+        <mesh key={i} ref={(m) => (sparks.current[i] = m)} geometry={SPARK} material={SPARK_MAT[flow]} />
+      ))}
+      <Html position={[VAULT_DOOR.x, VAULT_DOOR.y + 1.0, VAULT_DOOR.z + 0.4]} center zIndexRange={[11, 0]} style={{ pointerEvents: 'none' }}>
         <div data-testid="cit-vault-post" style={{ ...TAG_STYLE, color: PULSE[flow] }}>
-          {flow === 'IN' ? 'Dr 1111' : 'Cr 1111'}
+          {flow === 'IN' ? '⬇ Dr 1111' : '⬆ Cr 1111'}
         </div>
       </Html>
     </group>

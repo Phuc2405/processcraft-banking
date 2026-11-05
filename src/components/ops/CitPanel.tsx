@@ -23,7 +23,7 @@ import {
 } from '../../sim/citEngine';
 import { useBankStore } from '../../store/bankStore';
 import { useCitStore } from '../../store/citStore';
-import { citDemoBlock, dispatchCitDemo } from './citActions';
+import { citDemoBlock, dispatchCitDemo, type CitDemoBlock } from './citActions';
 import { pick, useLocale, useMessages } from '../../utils/i18nHelper';
 import { SectionTitle } from '../bank/ui';
 import { citMessages } from './cit.messages';
@@ -38,14 +38,58 @@ export function useCit(): CitSnapshot {
 
 const NONE: readonly CitManual[] = [];
 
-export const DEMO_ICON: Readonly<Record<CitDemo, string>> = { ATM: '🏧', DOORSTEP: '🏬', SBV: '🏦' };
+export const DEMO_ICON: Readonly<Record<CitDemo, string>> = { ATM: '🏧', DOORSTEP: '🏬', SBV: '🏦', TELLER: '🗄️' };
 
-/** The three manual van dispatches laid out as buttons, in the vault's inspector and on the CIT sheet (the dock has CitDemoMenu). */
-export function CitDemoButtons({ compact = false }: { compact?: boolean }) {
-  const m = useMessages(citMessages);
+/** Where the locked run is, for the busy badge: its state, RETURNING (settled, van driving home) or LEAVING (the 3D van still pulling off the bay). */
+export type CitLockStage = NonNullable<CitSnapshot['lock']>['stage'] | 'LEAVING';
+
+/** The one dispatch lock as every CIT control reads it (Observer of the bank, CIT and 3D-van stores). */
+export function useCitLock(): { block: CitDemoBlock; stage: CitLockStage | null } {
   const cit = useCit();
   const dayOver = useBankStore((s) => s.view.dayOver);
-  const block = citDemoBlock(cit, dayOver);
+  const van = useCitStore((s) => s.van);
+  const block = citDemoBlock(cit, dayOver, van);
+  return { block, stage: block === 'busy' ? (cit.lock?.stage ?? 'LEAVING') : null };
+}
+
+/** "🚚 CIT van in transit… · <where it is>": shown wherever a CIT dispatch is locked. */
+export function CitBusyBadge({ stage, paused = false }: { stage: CitLockStage | null; paused?: boolean }) {
+  const m = useMessages(citMessages);
+  return (
+    <span role="status" title={paused ? m('demoSolo') : m('demoBlock_busy')} data-testid="cit-demo-busy" data-stage={stage ?? undefined} className="inline-flex animate-pulse items-center gap-1 whitespace-nowrap rounded-full bg-amber-400/20 px-2 py-0.5 text-[11px] font-bold text-amber-200 ring-1 ring-amber-300/50 backdrop-blur-sm">
+      🚚 {m('demoBusy')}
+      {stage && <span className="font-semibold text-amber-100/80">· {m(`status_${stage}`)}</span>}
+    </span>
+  );
+}
+
+/** The drawer's "▶ Run this scenario" for one CIT sub-process: dispatches its demo, locked like every other CIT control. */
+export function CitRunButton({ kind }: { kind: CitDemo }) {
+  const m = useMessages(citMessages);
+  const { block, stage } = useCitLock();
+  const paused = useBankStore((s) => !s.playing);
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-400/[0.07] p-2.5 backdrop-blur-sm" data-testid="cit-run-scenario" data-kind={kind} data-block={block ?? 'none'}>
+      <button
+        type="button"
+        onClick={() => dispatchCitDemo(kind)}
+        disabled={block !== null}
+        title={block ? m(`demoBlock_${block}`) : m(`demoHint_${kind}`)}
+        data-testid={`cit-run-${kind}`}
+        className="whitespace-nowrap rounded-lg bg-gradient-to-r from-cyan-300 to-sky-400 px-3.5 py-1.5 text-[12.5px] font-bold text-slate-950 shadow-lg shadow-cyan-500/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+      >
+        {m('runScenario')}
+      </button>
+      {block === 'busy' && <CitBusyBadge stage={stage} paused={paused} />}
+      <p className="w-full text-[11px] leading-snug text-slate-400">{m(`demoHint_${kind}`)}</p>
+    </div>
+  );
+}
+
+/** The manual dispatches laid out as buttons, in the vault's inspector and on the CIT sheet (the dock has CitDemoMenu). */
+export function CitDemoButtons({ compact = false }: { compact?: boolean }) {
+  const m = useMessages(citMessages);
+  const { block, stage } = useCitLock();
   return (
     <span className="flex flex-wrap items-center gap-1.5" role="group" aria-label={m('demoGroup')} data-testid="cit-demo-buttons" data-block={block ?? 'none'}>
       {CIT_DEMOS.map((kind) => {
@@ -63,6 +107,7 @@ export function CitDemoButtons({ compact = false }: { compact?: boolean }) {
           </button>
         );
       })}
+      {block === 'busy' && <CitBusyBadge stage={stage} />}
     </span>
   );
 }

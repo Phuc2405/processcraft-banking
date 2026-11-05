@@ -87,6 +87,8 @@ export class WorldEngine {
   private seenView: BankView | null = null;
   private seenTick: number | null = null;
   private citSeen: string | null = null;
+  /** The CIT run the van's current trip is for. */
+  private vanRun: string | null = null;
   /** The van's stop a paused bank is playing on its own: kept until the van is away again, so a stop is never left half walked. */
   private citSolo = false;
   private peopleVersion = 0;
@@ -246,8 +248,16 @@ export class WorldEngine {
   /** The CIT run the van stands at the bay for (citEngine.citBayRun) and which way its cash goes: the 3D van follows the schedule, arriving once per new run. */
   onCitBay(runId: string | null, flow: CrewFlow = 'IN'): void {
     this.lot.cit.follow();
-    if (runId !== null && runId !== this.citSeen) this.lot.cit.call(flow);
+    if (runId !== null && runId !== this.citSeen && this.lot.cit.phase === 'away') {
+      this.vanRun = runId;
+      this.lot.cit.call(flow);
+    }
     this.citSeen = runId;
+  }
+
+  /** The run the 3D van is out for (driving in, at the bay or driving off), or null once it has gone: the demo lock waits for it. */
+  citVanRun(): string | null {
+    return this.lot.cit.busy() ? this.vanRun : null;
   }
 
   /** Hears whenever the people of the desks change (Observer); returns the way to stop. */

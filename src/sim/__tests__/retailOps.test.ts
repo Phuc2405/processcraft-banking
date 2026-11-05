@@ -141,7 +141,8 @@ describe('the eight guided flows carry the six sub-processes', () => {
   });
 
   it('offers every flow and its sub-groups in the menu, flattening a flow with only one group, with no count badges', () => {
-    expect(MENU_CHOICES).toHaveLength(FLOW_IDS.length + FLOW_IDS.filter(showsGroupsOf).reduce((n, f) => n + demoGroupsIn(f).length, 0));
+    // Plus the CIT domain's four child sub-processes under Flow 06.
+    expect(MENU_CHOICES).toHaveLength(FLOW_IDS.length + FLOW_IDS.filter(showsGroupsOf).reduce((n, f) => n + demoGroupsIn(f).length, 0) + 4);
     for (const f of [4, 5, 7] as const) {
       expect(showsGroupsOf(f), `flow ${f}`).toBe(false);
       expect(MENU_CHOICES.some((c) => c.kind === 'sub' && c.flow === f), `flow ${f}`).toBe(false);

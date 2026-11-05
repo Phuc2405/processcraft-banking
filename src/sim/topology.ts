@@ -424,8 +424,8 @@ export const STATIONS: Record<StationId, StationDef> = {
   COLLATERAL_VAULT: {
     id: 'COLLATERAL_VAULT',
     department: 'SAVINGS',
-    name: 'Collateral Vault',
-    blurb: 'Holds the lien on pledged savings: frozen on default, then liquidated in waterfall order to clear the bad debt.',
+    name: 'Cash & Collateral Vault',
+    blurb: 'The branch cash vault (TK 1111) for CIT vans, ATMs and teller tills; also holds the lien on pledged savings: frozen on default, then liquidated in waterfall order to clear the bad debt.',
     kind: 'DESK',
     capability: 'CORE_LEDGER_CHECK',
     minutesPerItem: 10,

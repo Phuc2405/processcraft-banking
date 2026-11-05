@@ -321,8 +321,9 @@ describe('CIT on screen: map bay, inspector, Knowledge Base, flashcards, Academy
     expect(bay(5, out.start)).toMatch(/data-testid="cit-vault-post" data-flow="OUT"/);
     const inbound = plan.find((x) => x.order.scenario === 'DOORSTEP')!;
     const at = citSchedule(inbound);
-    // Inflow, at the vault halfway through the count: the deposit posts (gold Dr 1111) while the custodian hands the cassettes over.
-    const deposit = bay(5, at.IN_COUNT + 15);
+    // Inflow: the crew steps out as the van stops (ARRIVED); halfway through the stop, in the count, the custodian hands the cassettes over (gold Dr 1111).
+    expect(bay(5, at.ARRIVED)).toMatch(/data-testid="cit-crew-custodian" data-stage="stepOut"/);
+    const deposit = bay(5, Math.round((at.ARRIVED + at.SETTLED) / 2));
     expect(deposit).toMatch(/data-testid="cit-vault-post" data-flow="IN"/);
     expect(deposit).toMatch(/data-testid="cit-crew-custodian" data-stage="atVault"/);
     expect(deposit).toContain('data-status="processing"');

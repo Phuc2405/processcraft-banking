@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { PLACE_BOX } from '../../engine/plan/layout';
 import { actorStatus } from '../../sim/actorStatus';
 import { crewOf, vaultPulseAt, type CrewPoint } from '../../sim/citCrew';
-import { citBayRun, citDemoOpen, CIT_STRATEGIES, type CitAccountId, type CitSnapshot } from '../../sim/citEngine';
+import { citBayRun, citDemoBusy, CIT_STRATEGIES, type CitAccountId, type CitSnapshot } from '../../sim/citEngine';
 import { formatMoney } from '../../sim/kpis';
 import { beatLive, useBankStore } from '../../store/bankStore';
 import { useMessages } from '../../utils/i18nHelper';
@@ -31,7 +31,7 @@ export const CitBay2D = memo(function CitBay2D() {
   const select = useBankStore((s) => s.select);
   const cit = useCit();
   // A paused bank still plays the learner's own van (a pause-isolated demo): the bay animates, nothing else does.
-  const solo = useBankStore((s) => !s.playing) && citDemoOpen(cit) !== null;
+  const solo = useBankStore((s) => !s.playing) && citDemoBusy(cit) !== null;
   const live = useBankStore(beatLive) || solo;
   return <CitBayView cit={cit} live={live} onOpen={() => select({ kind: 'station', id: 'COLLATERAL_VAULT' })} />;
 });

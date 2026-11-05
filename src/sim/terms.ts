@@ -164,9 +164,9 @@ const EN: TermBook = {
       tip: 'Closes fixed-term savings, working out the interest again at a much lower rate if they are closed early.',
     },
     COLLATERAL_VAULT: {
-      plain: 'Collateral Vault',
-      short: 'Collateral Vault',
-      tip: 'When a loan goes bad, the savings pledged against it are frozen here and then used to pay it off.',
+      plain: 'Cash & Collateral Vault',
+      short: 'Cash & Collateral Vault',
+      tip: 'The branch’s cash vault (TK 1111) and the pledged collateral: CIT vans and teller tills hand cash in and out here, and the savings pledged against a bad loan are frozen here and used to pay it off.',
     },
     DISPUTE_DESK: {
       plain: 'Complaints & Refund Claims Desk',
@@ -409,9 +409,9 @@ const VI: TermBook = {
       tip: 'Tất toán tiền gửi có kỳ hạn, tính lại tiền lãi ở mức thấp hơn nhiều nếu tất toán sớm.',
     },
     COLLATERAL_VAULT: {
-      plain: 'Kho tài sản bảo đảm',
-      short: 'Kho TSĐB',
-      tip: 'Khi khoản vay thành nợ xấu, tiền gửi cầm cố được phong tỏa tại đây rồi dùng để trả nợ.',
+      plain: 'KHO QUỸ & TÀI SẢN BẢO ĐẢM',
+      short: 'KHO QUỸ & TÀI SẢN BẢO ĐẢM',
+      tip: 'Kho tiền mặt của chi nhánh (TK 1111) và tài sản bảo đảm: xe CIT và ngăn kéo GDV giao nhận tiền tại đây; khi khoản vay thành nợ xấu, tiền gửi cầm cố được phong tỏa tại đây rồi dùng để trả nợ.',
     },
     DISPUTE_DESK: {
       plain: 'Quầy khiếu nại & đòi tiền',
@@ -557,7 +557,7 @@ const EXPERT_STATION_VI: Readonly<Record<StationId, { name: string; blurb: strin
   AML_DESK: { name: 'Bàn tra soát AML & Danh sách đen', blurb: 'Chuyên viên tuân thủ rà soát các giao dịch bị giữ: lập STR hoặc giải phóng, và xác nhận các trường hợp trùng danh sách cấm vận OFAC/PEP trước khi phong tỏa tiền.' },
   STP_ENGINE: { name: 'Trạm xử lý tự động STP (Core Banking Engine)', blurb: 'Xử lý thẳng (STP): kiểm tra eKYC, DTI, nhóm nợ CIC, hạn mức và sàng lọc AML trong vài mili giây, rồi hạch toán vào sổ cái mà không cần con người. Hồ sơ ngoài quy tắc quay về quầy thủ công.' },
   SAVINGS_DESK: { name: 'Quầy Tiết kiệm', blurb: 'Tất toán tiền gửi có kỳ hạn, tính lại tiền lãi từ lãi suất hợp đồng về lãi suất không kỳ hạn khi tất toán sớm.' },
-  COLLATERAL_VAULT: { name: 'Kho Tài sản bảo đảm', blurb: 'Quản lý phong tỏa tiền gửi cầm cố: phong tỏa khi vỡ nợ, rồi xử lý theo thứ tự cấn trừ để thu hồi nợ xấu.' },
+  COLLATERAL_VAULT: { name: 'KHO QUỸ & TÀI SẢN BẢO ĐẢM', blurb: 'Kho tiền mặt (TK 1111) nhận và xuất tiền cho xe CIT, ATM và quầy GDV, đồng thời quản lý phong tỏa tiền gửi cầm cố: phong tỏa khi vỡ nợ, rồi xử lý theo thứ tự cấn trừ để thu hồi nợ xấu.' },
   DISPUTE_DESK: { name: 'Quầy Tra soát Khiếu nại & Đòi tiền', blurb: 'Chuyên viên xử lý khiếu nại của khách: tra soát thẻ (chargeback), hoàn trả pacs.004 và lệch tiền ATM, trong thời hạn của tổ chức thẻ.' },
   GATE_SWIFT: { name: 'Cổng Chuyển tiền Quốc tế SWIFT / ISO 20022', blurb: 'Đọc điện chuyển tiền quốc tế pacs.008 (mã BIC, EndToEndId, số tiền quyết toán và loại tiền) và quy đổi ngoại tệ trước khi sàng lọc.' },
 };

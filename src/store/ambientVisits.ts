@@ -1,5 +1,5 @@
 /**
- * Brings the day's walk-ins to the Savings Desk and the Collateral Vault (sim/deskVisit.ts AMBIENT_VISITS) as the bank's clock runs
+ * Brings the day's walk-ins to the Savings Desk and the Cash & Collateral Vault (sim/deskVisit.ts AMBIENT_VISITS) as the bank's clock runs
  * through opening hours. Only while the bank is really playing: a paused bank, a solo demo run, a guided tour and a clock moved
  * while paused (a skip, a jump, a replay) never bring anyone in, so nothing moves behind the learner's back.
  */
