@@ -12,6 +12,7 @@ import { useMessages } from '../../utils/i18nHelper';
 import { AdaptivePopover, listboxKey } from '../shell/AdaptivePopover';
 import { retailOpsMessages } from './retailOps.messages';
 import { selectSubProcess } from './retailOpsActions';
+import { LessonLink } from '../ops/LessonLink';
 
 /**
  * What the menu offers, in order: each of the eight flows, with its child sub-groups under it, and under Flow 06 the CIT domain's
@@ -56,7 +57,12 @@ export function SubProcessMenu() {
   const accent = GUIDED_FLOWS[flow].accent;
   // A single-group flow's group is shown as its flow, as the menu lists it.
   const group = sub && showsGroupsOf(flow) ? sub : null;
-  const title = group ? pick(demoGroup(group).title, locale) : `${GUIDED_FLOWS[flow].code}. ${flowText(flow).title}`;
+  // A CIT child picked from the menu names the menu while its sheet is open.
+  const citKey = useBankStore((s) => (s.selection.kind === 'subprocess' && CIT_SHEET_OF.has(s.selection.key) ? (s.selection.key as CitInfoKey) : null));
+  const cit = citKey && flow === CIT_FLOW ? CIT_SHEET_OF.get(citKey)! : null;
+  const title = cit ? `${cit.icon} ${pick(cit.title, locale)}` : group ? pick(demoGroup(group).title, locale) : `${GUIDED_FLOWS[flow].code}. ${flowText(flow).title}`;
+  // The lesson of what the menu names: the CIT child, the sub-group (or the single group of its flow), else the flow.
+  const lessonKey = cit ? cit.key as CitInfoKey : (sub && demoGroup(sub).flow === flow ? sub : `flow-${flow}` as const);
 
   useEffect(() => {
     if (open) {
@@ -107,6 +113,8 @@ export function SubProcessMenu() {
 
   return (
     <div className="bk-slide-down flex min-w-0 items-center gap-1" data-testid="flow-bar">
+      {/* Left of the menu, so it stays in reach when a narrow screen truncates the title. */}
+      <LessonLink lessonKey={lessonKey} className="h-8 w-8 rounded-xl border border-slate-700 bg-slate-950/95 text-[13px] shadow-xl hover:bg-slate-900" />
       <button
         ref={trigger}
         type="button"

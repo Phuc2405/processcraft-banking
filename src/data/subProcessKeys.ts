@@ -49,7 +49,8 @@ export const isInfoKey = (k: unknown): k is InfoKey => typeof k === 'string' && 
 export const infoKeyForChoice = (flow: FlowId, sub: string | null): InfoKey => (sub && isInfoKey(sub) ? sub : `flow-${flow}`);
 
 const PLACE_INFO: Partial<Record<PlaceId, InfoKey>> = {
-  COLLATERAL_VAULT: 'cit-vault',
+  MAIN_CASH_VAULT: 'cit-vault',
+  COLLATERAL_VAULT: 'collateral',
   AML_DESK: 'aml-sanctions',
   SEC_3DS: 'token-3ds',
   SEC_VAULT: 'token-3ds',

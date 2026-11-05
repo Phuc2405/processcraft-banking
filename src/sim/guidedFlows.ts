@@ -182,7 +182,7 @@ const PLACES_CACHE = new Map<FlowId, ReadonlySet<PlaceId>>();
 export function flowPlaces(flow: FlowId): ReadonlySet<PlaceId> {
   let set = PLACES_CACHE.get(flow);
   if (!set) {
-    set = new Set(GUIDED_FLOWS[flow].steps.flatMap((s) => s.places));
+    set = withCashVault(new Set(GUIDED_FLOWS[flow].steps.flatMap((s) => s.places)));
     PLACES_CACHE.set(flow, set);
   }
   return set;
@@ -206,6 +206,12 @@ export interface FlowScope {
 }
 
 const SCOPE_CACHE = new Map<FlowId, FlowScope>();
+/** A scope that touches a cash endpoint (the teller's till or the ATM's cassette) also lights the Central Cash Vault that feeds it. */
+export function withCashVault(places: Set<PlaceId>): Set<PlaceId> {
+  if (places.has('TELLER_CASH') || places.has('ATM_CASH')) places.add('MAIN_CASH_VAULT');
+  return places;
+}
+
 export function flowScope(flow: FlowId): FlowScope {
   const cached = SCOPE_CACHE.get(flow);
   if (cached) return cached;

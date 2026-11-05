@@ -1,5 +1,6 @@
 import { CORRIDOR, LOADING_DOOR, VAULT_DOOR } from '../../../engine/world/citRun';
 import { useWorld } from './WorldProvider';
+import { vaultDoorActivity, VaultDoorStation } from './VaultCash3D';
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef, type DependencyList } from 'react';
@@ -252,7 +253,10 @@ const GlassRoom = memo(function GlassRoom({ rect, sides, accent }: { rect: Rect;
 const VAULT_SIDES: readonly WallSide[] = ['front', 'left', 'right'];
 const SERVER_SIDES: readonly WallSide[] = ['left', 'front', 'back'];
 
-/** The Security & 3DS Risk Vault, in glass, with the cash vault's great round door (VAULT_DOOR) on the wall behind the vault desk. */
+/**
+ * The Security & 3DS Risk Vault, in glass, with the Central Cash Vault's great round door (VAULT_DOOR) on the wall behind the vault
+ * desk: the door is the MAIN_CASH_VAULT station itself (VaultDoorStation takes the click, the halo and the cash glow).
+ */
 export const VaultRoom = memo(function VaultRoom() {
   const rect = useMemo(() => vaultRoom(), []);
   const world = useWorld();
@@ -275,7 +279,7 @@ export const VaultRoom = memo(function VaultRoom() {
   const wheelRef = useRef<Group>(null);
   useFrame((_, dt) => {
     // The wheel turns briskly while the token vault works, and hardest while CIT cash crosses the door.
-    const cash = world.lot.cit.pose().vaultPulse !== null;
+    const cash = world.lot.cit.pose().vaultPulse !== null || vaultDoorActivity.active;
     const busy = bankStore.getState().view.stations.SEC_VAULT.status !== 'IDLE';
     if (wheelRef.current) wheelRef.current.rotation.z += dt * (cash ? 2.4 : busy ? 1.2 : 0.12);
   });
@@ -288,8 +292,9 @@ export const VaultRoom = memo(function VaultRoom() {
           <mesh geometry={wheel} material={satin} castShadow />
         </group>
       </group>
+      <VaultDoorStation />
       <Sign text="RISK VAULT" fg="#ffffff" bg="#7c3aed" position={[rect.x1 - 1.7, GLASS_H + 0.42, rect.z1 + 0.05]} width={1.9} />
-      <Sign text="CASH VAULT · 1111" fg="#111827" bg="#facc15" position={[VAULT_DOOR.x, VAULT_DOOR.y + 1.4, VAULT_DOOR.z + 0.05]} width={1.9} />
+      <Sign text="KHO QUỸ TRUNG TÂM · 1111" fg="#111827" bg="#facc15" position={[VAULT_DOOR.x, VAULT_DOOR.y + 1.4, VAULT_DOOR.z + 0.05]} width={1.9} />
     </group>
   );
 });

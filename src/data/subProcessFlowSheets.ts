@@ -383,7 +383,7 @@ export const FLOW_SHEETS: readonly SubProcessInfo[] = [
     legal: ['circ-01-2014', 'circ-13-2018', 'iso-20022'],
     kpi: { sla: L('Dispatch → settled ≤ 65 min (+15 min seal incident)', 'Xuất phát → tất toán ≤ 65 phút (+15 phút sự cố niêm phong)'), strPct: null, note: L('Target: 1131 = 0 at every close; 100% 4-eye coverage.', 'Mục tiêu: 1131 = 0 mỗi cuối ngày; 100% giao nhận 4 mắt.') },
     related: ['06-cit-atm', '06-cit-doorstep', '06-cit-sbv', '06-cit-teller-vault', 'flow-3', 'flow-6'],
-    place: 'COLLATERAL_VAULT',
+    place: 'MAIN_CASH_VAULT',
   },
   {
     key: 'aml-sanctions',

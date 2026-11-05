@@ -11,6 +11,7 @@ import type { TrafficSim, VehicleState } from '../world/vehicles';
 import { liveMix, newPavementClock, stepPavementClock, type PavementClock } from '../world/weather';
 import { isAutomatedNode } from '../../sim/nodeKind';
 import { STATION_IDS, type StationId } from '../../sim/topology';
+import { isWallStation } from '../plan/layout3d';
 import type { BankView } from '../../sim/types';
 import { ClosingWalkout } from './closingWalkout';
 import { ArrivalWalks, DeskLine, StaffWalks } from './people';
@@ -239,6 +240,8 @@ export class WorldEngine {
       this.arrivals.onBeat(view.stations, view.minute, motion.t);
     }
     for (const id of STATION_IDS) {
+      // The vault is a door in the wall: nobody queues at it or walks in to a seat there in 3D.
+      if (isWallStation(id)) continue;
       this.line(id).sync(view.stations[id], view.minute, motion.t);
       this.staff(id).sync(view.stations[id].workers, view.minute);
     }
@@ -257,7 +260,8 @@ export class WorldEngine {
 
   /** The run the 3D van is out for (driving in, at the bay or driving off), or null once it has gone: the demo lock waits for it. */
   citVanRun(): string | null {
-    return this.lot.cit.busy() ? this.vanRun : null;
+    // The demo lock follows the van alone: it releases the frame the van despawns, even while the vault staffer walks back in.
+    return this.lot.cit.vanOut() ? this.vanRun : null;
   }
 
   /** Hears whenever the people of the desks change (Observer); returns the way to stop. */

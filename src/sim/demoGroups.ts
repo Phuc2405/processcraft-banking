@@ -8,7 +8,7 @@
 
 import type { Localized } from '../i18n/localeCore';
 import type { FlowId } from '../types/viewport';
-import { flowScope, type FlowScope } from './guidedFlows';
+import { flowScope, withCashVault, type FlowScope } from './guidedFlows';
 import { planCheckout, buildGraphs } from './processes';
 import { PRESETS, presetCustomer, type PresetDef } from './presets';
 import { OPS_ACTIONS, opsSubProcess, type OpsActionDef, type OpsSubProcessId } from './retailOps';
@@ -113,7 +113,7 @@ const SCOPES = new Map<DemoGroupId, FlowScope>();
 export function groupScope(id: DemoGroupId): FlowScope {
   const cached = SCOPES.get(id);
   if (cached) return cached;
-  const places = new Set<PlaceId>(groupMembers(id).flatMap(memberPlaces));
+  const places = withCashVault(new Set<PlaceId>(groupMembers(id).flatMap(memberPlaces)));
   const departments = new Set<DepartmentId>();
   for (const p of places) if (isStation(p)) departments.add(STATIONS[p].department);
   const scope: FlowScope = { places, departments, wires: new Set(WIRES.filter(([a, b]) => places.has(a) && places.has(b)).map(([a, b]) => edgeId(a, b))) };

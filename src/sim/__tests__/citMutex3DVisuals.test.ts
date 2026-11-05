@@ -1,6 +1,5 @@
 /**
- * The CIT mandate's guards: the dispatch lock holds for a run's whole life (until SETTLED and the van is home, and the 3D van has
- * driven off), the four CIT child sub-processes are registered with full sheets and a "run this scenario" button, the vault station
+ * The CIT mandate's guards: the dispatch lock holds for a run's whole life (until SETTLED, and while the 3D van has not despawned), the four CIT child sub-processes are registered with full sheets and a "run this scenario" button, the vault station
  * is renamed in both maps, the crew walks to the round vault door, and the van's doors and crew start together as it stops.
  */
 import { createElement } from 'react';
@@ -8,7 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { MENU_CHOICES } from '../../components/bank/SubProcessMenu';
 import { citDemoBlock, dispatchCitDemo } from '../../components/ops/citActions';
-import { CitDemoMenuView } from '../../components/ops/CitDemoMenu';
+import { CitBusyBadge } from '../../components/ops/CitPanel';
 import { SubProcessInfoView } from '../../components/ops/SubProcessInfoDrawer';
 import { CIT_INFO_KEYS, citDemoOfKey, glLine, INFO_KEYS, subProcessInfo } from '../../data/subProcessRegistry';
 import { vaultRoom } from '../../engine/plan/layout3d';
@@ -19,7 +18,7 @@ import { bankStore } from '../../store/bankStore';
 import { citStore } from '../../store/citStore';
 import { retailOpsStore } from '../../store/retailOpsStore';
 import { crewAt } from '../citCrew';
-import { bayProgress, citAt, citDone, CIT_DEMOS, CIT_STRATEGIES, CIT_TIMING, citAccount, citSchedule, manualPlan, type CitManual } from '../citEngine';
+import { bayProgress, citAt, citDone, CIT_DEMOS, CIT_TIMING, citAccount, citSchedule, manualPlan, type CitManual } from '../citEngine';
 import { flowBeat, routeMode } from '../flowBeat';
 import { stationName, stationTitle } from '../terms';
 import { STATIONS } from '../topology';
@@ -30,12 +29,11 @@ const AT = 10 * 60;
 afterEach(() => setActiveLocale('en'));
 
 describe('strict full-lifecycle CIT mutex', () => {
-  it.each(CIT_DEMOS.map((k) => [k]))('%s holds the lock through every state until it is settled and its van is home', (kind) => {
+  it.each(CIT_DEMOS.map((k) => [k]))('%s holds the lock through every state until it is settled, and not after', (kind) => {
     const manual: CitManual[] = [{ kind, at: AT }];
     const plan = manualPlan(DAY, manual)[0]!;
     const done = citDone(plan);
-    const van = CIT_STRATEGIES[plan.order.scenario].van;
-    expect(done).toBe(citSchedule(plan).SETTLED + (van ? CIT_TIMING.home : 0));
+    expect(done).toBe(citSchedule(plan).SETTLED);
     expect(citAt(DAY, AT - 1, manual).lock).toBeNull();
     const stages = new Set<string>();
     for (let m = AT; m < done; m++) {
@@ -44,7 +42,7 @@ describe('strict full-lifecycle CIT mutex', () => {
       stages.add(lock!.stage);
       expect(citDemoBlock(citAt(DAY, m, manual), false, false)).toBe('busy');
     }
-    expect([...stages]).toEqual(['EN_ROUTE', 'ARRIVED', 'IN_COUNT', 'DELIVERED', ...(van ? ['RETURNING'] : [])]);
+    expect([...stages]).toEqual(['EN_ROUTE', 'ARRIVED', 'IN_COUNT', 'DELIVERED']);
     expect(citAt(DAY, done, manual).lock).toBeNull();
     expect(citDemoBlock(citAt(DAY, done, manual), false, false)).toBeNull();
   });
@@ -65,15 +63,15 @@ describe('strict full-lifecycle CIT mutex', () => {
     });
     afterEach(() => citStore.setState({ van: false }));
 
-    it('refuses every dispatch until settled and home, and while the 3D van has not driven off', () => {
+    it('refuses every dispatch until settled, and while the 3D van has not despawned', () => {
       expect(dispatchCitDemo('SBV')).toBe(true);
       const start = bankStore.getState().view.minute;
-      for (const dt of [CIT_TIMING.DELIVERED, CIT_TIMING.SETTLED, CIT_TIMING.SETTLED + CIT_TIMING.home - 5]) {
+      for (const dt of [CIT_TIMING.ARRIVED, CIT_TIMING.DELIVERED]) {
         bankStore.getState().skipTo(start + dt);
         expect(bankStore.getState().view.minute, 'skipTo lands on the beat').toBe(start + dt);
         for (const kind of CIT_DEMOS) expect(dispatchCitDemo(kind), `${kind} at +${dt}`).toBe(false);
       }
-      bankStore.getState().skipTo(start + CIT_TIMING.SETTLED + CIT_TIMING.home);
+      bankStore.getState().skipTo(start + CIT_TIMING.SETTLED);
       citStore.setState({ van: true });
       expect(dispatchCitDemo('ATM'), 'the 3D van is still pulling out').toBe(false);
       citStore.setState({ van: false });
@@ -82,10 +80,9 @@ describe('strict full-lifecycle CIT mutex', () => {
 
     it('shows the "CIT van in transit" badge with where the run is, and disables every option', () => {
       setActiveLocale('vi');
-      const html = renderToStaticMarkup(createElement(CitDemoMenuView, { block: 'busy', stage: 'RETURNING', paused: false }));
+      const html = renderToStaticMarkup(createElement(CitBusyBadge, { stage: 'LEAVING', paused: false }));
       expect(html).toContain('🚚 Xe CIT đang vận chuyển...');
-      expect(html).toContain('Xe đang về trạm');
-      expect(html).toContain('data-block="busy"');
+      expect(html).toContain('data-stage="LEAVING"');
     });
   });
 });
@@ -111,10 +108,15 @@ describe('the four CIT child sub-processes', () => {
   });
 
   it('carries the titles, Circular 01/2014 and every GL line its demo posts', () => {
-    const titles = { ATM: 'Tiếp quỹ & Rút hộc tiền ATM / CDM', DOORSTEP: 'Thu tiền mặt tận nơi cho Doanh nghiệp WinMart / Go!', SBV: 'Nộp / Rút tiền mặt tại Ngân hàng Nhà nước (NHNN)', TELLER: 'Tiếp quỹ Quầy GDV & Phân loại tiền Fit / Unfit' } as const;
+    const titles = {
+      ATM: ['Tiếp quỹ & Rút hộc tiền ATM / CDM', 'ATM/CDM Replenishment'],
+      DOORSTEP: ['Thu tiền mặt tận nơi cho Doanh nghiệp', 'Corporate Cash Pickup'],
+      SBV: ['Nộp / Rút tiền mặt tại Ngân hàng Nhà nước (SBV)', 'SBV Vault Operations'],
+      TELLER: ['Điều chuyển & Phân loại tiền quầy', 'Teller Vault Balancing & Cash Fitness Sorting'],
+    } as const;
     for (const kind of CIT_DEMOS) {
       const e = subProcessInfo(CIT_INFO_KEYS[kind]);
-      expect(e.title.vi).toBe(titles[kind]);
+      expect([e.title.vi, e.title.en]).toEqual(titles[kind]);
       expect(e.legal).toContain('circ-01-2014');
       const have = new Set(e.gl.map((r) => `${r.side}:${r.account}`));
       const run = citAt(DAY, 23 * 60, [{ kind, at: AT }]).runs.find((r) => r.planned.order.id.endsWith('-M1'))!.run!;
@@ -141,15 +143,21 @@ describe('the four CIT child sub-processes', () => {
   });
 });
 
-describe('station renamed to the Cash & Collateral Vault', () => {
-  it('reads KHO QUỸ & TÀI SẢN BẢO ĐẢM in Vietnamese and Cash & Collateral Vault in English, in both vocabularies', () => {
-    expect(STATIONS.COLLATERAL_VAULT.name).toBe('Cash & Collateral Vault');
-    for (const mode of ['expert', 'beginner'] as const) {
-      setActiveLocale('vi');
-      expect(stationName('COLLATERAL_VAULT', mode)).toBe('KHO QUỸ & TÀI SẢN BẢO ĐẢM');
-      expect(stationTitle('COLLATERAL_VAULT', mode)).toBe('KHO QUỸ & TÀI SẢN BẢO ĐẢM');
-      setActiveLocale('en');
-      expect(stationName('COLLATERAL_VAULT', mode)).toBe('Cash & Collateral Vault');
+describe('stations renamed: the collateral desk and the central cash vault are two stations', () => {
+  it('names the teller, the collateral desk and the vault as the brief does, in both languages and vocabularies', () => {
+    const NAMES = {
+      TELLER_CASH: ['Quầy Giao dịch viên Tiền mặt', 'Cash Teller Desk'],
+      COLLATERAL_VAULT: ['Quầy Tiết kiệm & Tài sản Bảo đảm', 'Savings & Collateral Desk'],
+      MAIN_CASH_VAULT: ['KHO QUỸ TRUNG TÂM', 'Central Cash Vault'],
+    } as const;
+    for (const [id, [vi, en]] of Object.entries(NAMES) as [keyof typeof NAMES, readonly [string, string]][]) {
+      expect(STATIONS[id].name).toBe(en);
+      for (const mode of ['expert', 'beginner'] as const) {
+        setActiveLocale('vi');
+        expect(stationTitle(id, mode)).toBe(vi);
+        setActiveLocale('en');
+        expect(stationName(id, mode)).toBe(en);
+      }
     }
   });
 });

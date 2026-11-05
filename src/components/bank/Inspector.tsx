@@ -399,7 +399,7 @@ function StationPanel({ id }: { id: StationId }) {
           </button>
         )}
 
-        {id === 'COLLATERAL_VAULT' && <CitInspector />}
+        {id === 'MAIN_CASH_VAULT' && <CitInspector />}
 
         {terms.beginner && modelForStation(id) && <MentalModelCard model={modelForStation(id)!} />}
 

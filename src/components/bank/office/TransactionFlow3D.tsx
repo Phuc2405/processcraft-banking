@@ -7,7 +7,7 @@ import { pathLength, pointAlongPath } from '../../../engine/plan/path';
 import { motion } from '../../../engine/simulation/motion';
 import { flowBeat, type NodeMode } from '../../../sim/flowBeat';
 import type { PlaceId } from '../../../sim/topology';
-import { badgeHops, hopSteps, orbArrived, orbProgress, type HopStep } from '../../../sim/transactionPath';
+import { badgeHops, flowIcon, hopSteps, orbArrived, orbProgress, type HopStep } from '../../../sim/transactionPath';
 import { useBankStore } from '../../../store/bankStore';
 import { useMessages } from '../../../utils/i18nHelper';
 import { stpMessages } from '../../ops/stp.messages';
@@ -62,7 +62,7 @@ function HopBadge({ hops, tone }: { hops: readonly HopStep[]; tone: string }) {
 }
 
 /** The orb and its badge, crossing the wire into `to` once, on the motion clock (so it stops when the bank pauses), then held at the stop. */
-function Orb({ from, to, mode, hops, onArrive }: { from: PlaceId | null; to: PlaceId; mode: NodeMode; hops: readonly HopStep[]; onArrive: (arrived: boolean) => void }) {
+function Orb({ from, to, mode, hops, icon, onArrive }: { from: PlaceId | null; to: PlaceId; mode: NodeMode; hops: readonly HopStep[]; icon: string; onArrive: (arrived: boolean) => void }) {
   const path = useMemo(() => (from ? wire(from, to) : [placeXZ(to)]), [from, to]);
   const len = useMemo(() => pathLength(path), [path]);
   const group = useRef<Group>(null);
@@ -86,6 +86,12 @@ function Orb({ from, to, mode, hops, onArrive }: { from: PlaceId | null; to: Pla
     <group ref={group} name="flow-orb" userData={{ from, to, mode }}>
       <mesh geometry={CORE} material={CORE_MAT[mode]} renderOrder={9} />
       <mesh ref={halo} geometry={HALO} material={HALO_MAT[mode]} renderOrder={9} />
+      {/* The moving icon: what the payment is (a card from a POS, a box of records at night…), riding the orb along the wire. */}
+      <Html position={[0, 0.55, 0]} center zIndexRange={[32, 0]} style={{ pointerEvents: 'none' }}>
+        <span data-testid="flow-icon-3d" className="text-[18px] drop-shadow-[0_0_6px_rgba(0,0,0,0.6)]">
+          {icon}
+        </span>
+      </Html>
       <Html position={[0, 1.15, 0]} center zIndexRange={[31, 0]} style={{ pointerEvents: 'none' }}>
         <HopBadge hops={hops} tone={TONE[mode]} />
       </Html>
@@ -121,15 +127,15 @@ export function TransactionFlow3D() {
     const [at, done, route] = key.split('|');
     const trace = { route: route!.split('>') as PlaceId[], at: Number(at), done: done === 'true' };
     const beat = flowBeat(trace);
-    return beat ? { beat, hops: badgeHops(hopSteps(trace)) } : null;
+    return beat ? { beat, hops: badgeHops(hopSteps(trace)), icon: flowIcon(trace.route) } : null;
   }, [key]);
   const ring = useRef<Group>(null);
   if (!view) return null;
-  const { beat, hops } = view;
+  const { beat, hops, icon } = view;
   return (
     <group name="transaction-flow" userData={{ route: beat.route }}>
       {/* Keyed by the hop, so each wire's orb starts from its own beginning. */}
-      <Orb key={`${beat.from ?? ''}>${beat.at}`} from={beat.from} to={beat.at} mode={beat.mode} hops={hops} onArrive={(on) => ring.current && (ring.current.visible = on)} />
+      <Orb key={`${beat.from ?? ''}>${beat.at}`} from={beat.from} to={beat.at} mode={beat.mode} hops={hops} icon={icon} onArrive={(on) => ring.current && (ring.current.visible = on)} />
       <StationPulse key={beat.at} at={beat.at} mode={beat.mode} ring={ring} />
     </group>
   );

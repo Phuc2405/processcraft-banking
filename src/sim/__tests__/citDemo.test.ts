@@ -8,7 +8,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import fc from 'fast-check';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CitDemoMenuView } from '../../components/ops/CitDemoMenu';
+import { CitBusyBadge } from '../../components/ops/CitPanel';
 import { citDemoBlock, citNow, citSoloActive, CIT_SOLO_MS, dispatchCitDemo, installCitSync } from '../../components/ops/citActions';
 import { counterTags } from '../../engine/simulation/peopleTags';
 import { CitRun, loadS } from '../../engine/world/citRun';
@@ -190,30 +190,25 @@ describe('pause-isolated CIT demos', () => {
   });
 });
 
-describe('the bottom dock’s CIT dropdown and its one-van mutex', () => {
+describe('no CIT dropdown on the bottom dock: the runs start from their sheets and the vault inspector', () => {
   beforeEach(() => {
     bankStore.getState().resetDay();
     bankStore.getState().skipTo(10 * 60);
     citStore.setState({ day: -1, manual: [] });
   });
 
-  it('is one compact menu on the cash flows’ dock, named as the brief names it', () => {
-    setActiveLocale('vi');
-    const html = renderToStaticMarkup(createElement(CitDemoMenuView, { block: citDemoBlock(citNow(), false), paused: false }));
-    expect(html).toContain('Demo CIT &amp; Kho quỹ');
-    expect(html).toContain('▾');
-    expect(html).toContain('data-block="none"');
-    expect(html).not.toContain('cit-demo-busy');
+  it('keeps the dock clean of any CIT menu', () => {
     const dock = readFileSync(join(__dirname, '../../components/bank/PresetDock.tsx'), 'utf8');
-    expect(dock).toContain('<CitDemoMenu />');
+    expect(dock).not.toContain('CitDemoMenu');
     expect(dock).not.toContain('CitDemoButtons');
   });
 
-  it('shows "Xe CIT đang vận chuyển..." and blocks every option while a van is en route or in count', () => {
+  it('shows "Xe CIT đang vận chuyển..." on the run buttons and blocks every option while a van is en route or in count', () => {
     expect(dispatchCitDemo('ATM')).toBe(true);
     setActiveLocale('vi');
-    const html = renderToStaticMarkup(createElement(CitDemoMenuView, { block: citDemoBlock(citNow(), false), paused: true }));
-    expect(html).toContain('data-block="busy"');
+    // The run buttons read this one lock (useCitLock); the badge they show while it holds:
+    expect(citDemoBlock(citNow(), false)).toBe('busy');
+    const html = renderToStaticMarkup(createElement(CitBusyBadge, { stage: 'EN_ROUTE' }));
     expect(html).toContain('Xe CIT đang vận chuyển...');
     for (const kind of ['ATM', 'DOORSTEP', 'SBV'] as const) expect(dispatchCitDemo(kind)).toBe(false);
   });

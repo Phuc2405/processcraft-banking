@@ -2170,6 +2170,8 @@ export class BankSimulation {
         ];
       case 'SAVINGS_DESK':
       case 'COLLATERAL_VAULT':
+      // The vault's balances and runs are in its own inspector section (CitInspector).
+      case 'MAIN_CASH_VAULT':
         return [{ label: 'Cases worked', value: n('cases'), tip: 'cases' }];
       case 'DISPUTE_DESK':
         return [

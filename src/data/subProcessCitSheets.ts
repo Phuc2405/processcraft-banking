@@ -10,7 +10,7 @@ import type { CitInfoKey } from './subProcessKeys';
 const CUSTODIANS = { id: 'cit', duty: L('Two custodians carry and sign for the sealed cash (4-eye); the guard escorts.', 'Hai thủ quỹ áp tải và ký nhận tiền niêm phong (4 mắt); bảo vệ hộ tống.') } as const;
 const LEDGER = { id: 'ledger', duty: L('Posts the dispatch and the receipt; TK 1131 must net to zero.', 'Hạch toán xuất và nhập quỹ; TK 1131 phải về 0.') } as const;
 const LEGAL = ['circ-01-2014', 'circ-13-2018'] as const;
-const LOCK = L('One run at a time: the next dispatch waits until this one is SETTLED and the van is home.', 'Mỗi lần một chuyến: lệnh tiếp theo chờ chuyến này tất toán và xe về trạm.');
+const LOCK = L('One run at a time: the next dispatch waits until this one is SETTLED and the van has left the bay.', 'Mỗi lần một chuyến: lệnh tiếp theo chờ chuyến này tất toán và xe rời sảnh.');
 
 const sheet = (key: CitInfoKey, s: Omit<SubProcessInfo, 'key' | 'flow' | 'legal' | 'related' | 'place'> & { legal?: readonly string[] }): SubProcessInfo => ({
   ...s,
@@ -18,7 +18,7 @@ const sheet = (key: CitInfoKey, s: Omit<SubProcessInfo, 'key' | 'flow' | 'legal'
   flow: 6,
   legal: s.legal ?? LEGAL,
   related: ['cit-vault', ...(['06-cit-atm', '06-cit-doorstep', '06-cit-sbv', '06-cit-teller-vault'] as const).filter((k) => k !== key)],
-  place: 'COLLATERAL_VAULT',
+  place: 'MAIN_CASH_VAULT',
 });
 
 export const CIT_SHEETS: readonly SubProcessInfo[] = [
@@ -26,7 +26,7 @@ export const CIT_SHEETS: readonly SubProcessInfo[] = [
     code: '06-CIT-ATM',
     icon: '🏧',
     mode: 'HYBRID',
-    title: L('ATM / CDM replenishment & cassette pickup', 'Tiếp quỹ & Rút hộc tiền ATM / CDM'),
+    title: L('ATM/CDM Replenishment', 'Tiếp quỹ & Rút hộc tiền ATM / CDM'),
     overview: L(
       'The ATM monitor raises the run: cash under the minimum, or a CDM deposit cassette nearly full. The van carries sealed cassettes from the vault to the machine (Dr 1131 / Cr 1111) and loads them (Dr 1113 / Cr 1131); a full CDM cassette comes back the other way and is sorted fit / unfit at the vault.',
       'Hệ thống giám sát ATM kích hoạt chuyến: tiền dưới mức tối thiểu, hoặc hộc tiền nộp CDM gần đầy. Xe chở hộc tiền niêm phong từ kho ra máy (Nợ 1131 / Có 1111) và nạp vào máy (Nợ 1113 / Có 1131); hộc CDM đầy được rút về theo chiều ngược lại và phân loại Fit / Unfit tại kho.',
@@ -52,7 +52,7 @@ export const CIT_SHEETS: readonly SubProcessInfo[] = [
     code: '06-CIT-DOOR',
     icon: '🏬',
     mode: 'MANUAL',
-    title: L('Doorstep cash pickup for corporate clients (WinMart / Go!)', 'Thu tiền mặt tận nơi cho Doanh nghiệp WinMart / Go!'),
+    title: L('Corporate Cash Pickup', 'Thu tiền mặt tận nơi cho Doanh nghiệp'),
     overview: L(
       'The van collects a retailer’s day takings in a sealed bag. The client is credited provisionally on pickup (Dr 1131 / Cr 4211); the vault counts the bag, sorts fit from unfit notes, and a shortfall reverses part of the credit, so the client is paid only for what was counted.',
       'Xe thu tiền doanh thu trong ngày của nhà bán lẻ trong túi niêm phong. Khách được ghi Có tạm tính khi nhận túi (Nợ 1131 / Có 4211); kho kiểm đếm, phân loại Fit / Unfit, phần thiếu được ghi đảo, nên khách chỉ được ghi Có số tiền thực đếm.',
@@ -79,7 +79,7 @@ export const CIT_SHEETS: readonly SubProcessInfo[] = [
     code: '06-CIT-SBV',
     icon: '🏦',
     mode: 'MANUAL',
-    title: L('Cash deposit / withdrawal at the State Bank (SBV)', 'Nộp / Rút tiền mặt tại Ngân hàng Nhà nước (NHNN)'),
+    title: L('SBV Vault Operations', 'Nộp / Rút tiền mặt tại Ngân hàng Nhà nước (SBV)'),
     overview: L(
       'The vault keeps its cash between a floor and a ceiling. A surplus goes to the State Bank with the unfit notes (Dr 1131 / Cr 1111 and Cr 1112, then Dr 1121 / Cr 1131); before a holiday the bank draws cash the other way (Dr 1131 / Cr 1121, then Dr 1111 / Cr 1131).',
       'Kho giữ tồn quỹ giữa mức sàn và mức trần. Tiền thừa được nộp NHNN cùng tiền không đủ tiêu chuẩn (Nợ 1131 / Có 1111 và Có 1112, rồi Nợ 1121 / Có 1131); trước dịp lễ ngân hàng rút tiền theo chiều ngược lại (Nợ 1131 / Có 1121, rồi Nợ 1111 / Có 1131).',
@@ -105,7 +105,7 @@ export const CIT_SHEETS: readonly SubProcessInfo[] = [
     code: '06-CIT-TELLER',
     icon: '🗄️',
     mode: 'MANUAL',
-    title: L('Teller till replenishment & fit / unfit sorting', 'Tiếp quỹ Quầy GDV & Phân loại tiền Fit / Unfit'),
+    title: L('Teller Vault Balancing & Cash Fitness Sorting', 'Điều chuyển & Phân loại tiền quầy'),
     overview: L(
       'Cash moves between the tellers’ tills and the vault on foot, under dual control: a till over its float sends the surplus back (Dr 1131 / Cr 1111 till), and the vault counts it, keeping fit notes in 1111 and moving torn or soiled ones to 1112 to await the SBV.',
       'Tiền di chuyển giữa ngăn kéo GDV và kho bằng đường nội bộ, có kiểm soát kép: ngăn kéo vượt định mức nộp phần dư về kho (Nợ 1131 / Có 1111 quầy), kho kiểm đếm, giữ tiền Fit ở 1111 và chuyển tiền rách, bẩn sang 1112 chờ nộp NHNN.',

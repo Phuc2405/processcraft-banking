@@ -4,6 +4,11 @@ import { defineMessages } from '../../utils/i18nHelper';
 export const subProcessInfoMessages = defineMessages('subProcessInfo', {
   label: { en: 'Sub-process info', vi: 'Thông tin quy trình con' },
   open: { en: 'About this sub-process', vi: 'Về quy trình con này' },
+  lesson: { en: 'Open this sub-process’s lesson in the Knowledge Base', vi: 'Mở bài học của quy trình này trong Thư viện kiến thức' },
+  slaLive: { en: 'Live', vi: 'Thực tế' },
+  slaWait: { en: 'wait {min} min · queue {queue}', vi: 'chờ {min} phút · hàng đợi {queue}' },
+  slaCit: { en: 'CIT run: {status}', vi: 'Chuyến CIT: {status}' },
+  slaIdle: { en: 'no run in flight', vi: 'không có chuyến đang chạy' },
   close: { en: 'Close the sub-process info', vi: 'Đóng thông tin quy trình' },
   runScenario: { en: '▶ Run this scenario', vi: '▶ Chạy thử kịch bản này' },
   runNextDay: { en: 'today has closed: a 24/7 channel rolls into the next day', vi: 'hôm nay đã khép sổ: kênh 24/7 sẽ chuyển sang ngày mới' },

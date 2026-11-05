@@ -11,12 +11,12 @@ import { useCit } from '../ops/CitPanel';
 import { ActorStatusBadge } from './ActorStatusBadge';
 import { H, Person, W } from './DeskVisitors2D';
 
-/** The loading bay on the map's bottom-right edge, under the vault: the van, and its crew walking between the van and the vault. */
-export const CIT_BAY = { x: 1336, y: 772, w: 208, h: 216 } as const;
+/** The loading bay on the map's bottom-right edge, right under the Central Cash Vault: the van, and its crew walking between the van and the vault. */
+export const CIT_BAY = { x: 1350, y: 900, w: 180, h: 166 } as const;
 
-const VAULT = PLACE_BOX.COLLATERAL_VAULT;
+const VAULT = PLACE_BOX.MAIN_CASH_VAULT;
 const VAULT_BOTTOM = VAULT.cy + VAULT.h / 2;
-const VAN_Y = CIT_BAY.y + 148;
+const VAN_Y = CIT_BAY.y + 112;
 /** The crew's walk on the 2D map: straight up from the van's door to the vault's, the custodian on the left, the guard on the right. */
 const WALK = { x: CIT_BAY.x + CIT_BAY.w / 2, van: VAN_Y - 6, vault: VAULT_BOTTOM + H / 2 + 2 } as const;
 const LANE = { custodian: -13, guard: 13 } as const;
@@ -33,7 +33,7 @@ export const CitBay2D = memo(function CitBay2D() {
   // A paused bank still plays the learner's own van (a pause-isolated demo): the bay animates, nothing else does.
   const solo = useBankStore((s) => !s.playing) && citDemoBusy(cit) !== null;
   const live = useBankStore(beatLive) || solo;
-  return <CitBayView cit={cit} live={live} onOpen={() => select({ kind: 'station', id: 'COLLATERAL_VAULT' })} />;
+  return <CitBayView cit={cit} live={live} onOpen={() => select({ kind: 'station', id: 'MAIN_CASH_VAULT' })} />;
 });
 
 /** A crew member on the 2D walk: the same figure and badge as a customer at a counter (DeskVisitors2D, ActorStatusBadge). */

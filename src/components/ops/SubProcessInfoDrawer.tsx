@@ -9,8 +9,11 @@ import { isStation } from '../../sim/topology';
 import { bankStore, useBankStore } from '../../store/bankStore';
 import { uiStore } from '../../store/uiStore';
 import { pick, useLocale, useMessages } from '../../utils/i18nHelper';
-import { CitDemoButtons, CitRunButton } from './CitPanel';
+import { CitDemoButtons, CitRunButton, useCit } from './CitPanel';
+import { citMessages } from './cit.messages';
+import { slaTelemetry, type SlaTelemetry } from '../../sim/sheetTelemetry';
 import { subProcessInfoMessages } from './subProcessInfo.messages';
+import { LessonLink } from './LessonLink';
 
 /** The right-side sub-process fact sheet, hosted by the inspector drawer (selection kind 'subprocess'). Content: data/subProcessRegistry.ts. */
 
@@ -70,10 +73,26 @@ function RunScenario({ infoKey }: { infoKey: InfoKey }) {
 /** The drawer for the live store: closes and navigates through the bank. */
 export function SubProcessInfoDrawer({ infoKey }: { infoKey: InfoKey }) {
   const str = useBankStore((s) => s.view.stp.rate);
-  return <SubProcessInfoView info={subProcessInfo(infoKey)} liveStr={str} />;
+  const stations = useBankStore((s) => s.view.stations);
+  const cit = useCit();
+  const info = subProcessInfo(infoKey);
+  return <SubProcessInfoView info={info} liveStr={str} liveSla={slaTelemetry(info, { stations }, cit)} />;
 }
 
-export function SubProcessInfoView({ info, liveStr }: { info: SubProcessInfo; liveStr: number }) {
+/** The SLA tile's live line: the desk's wait and queue, or where the CIT run in flight is. */
+function SlaLive({ live }: { live: SlaTelemetry }) {
+  const m = useMessages(subProcessInfoMessages);
+  const cm = useMessages(citMessages);
+  if (!live) return null;
+  const text = live.kind === 'desk' ? m('slaWait', { min: String(live.waitMin), queue: String(live.queue) }) : live.status === 'IDLE' ? m('slaIdle') : m('slaCit', { status: cm(`status_${live.status}`) });
+  return (
+    <div className="text-[10.5px] text-violet-200" data-testid="spi-sla-live" data-kind={live.kind}>
+      {m('slaLive')}: {text}
+    </div>
+  );
+}
+
+export function SubProcessInfoView({ info, liveStr, liveSla = null }: { info: SubProcessInfo; liveStr: number; liveSla?: SlaTelemetry }) {
   const m = useMessages(subProcessInfoMessages);
   const locale = useLocale();
   const [actor, setActor] = useState<ActorId | null>(null);
@@ -101,9 +120,12 @@ export function SubProcessInfoView({ info, liveStr }: { info: SubProcessInfo; li
                 {GUIDED_FLOWS[info.flow].code} · {m('label')}
               </span>
             </div>
-            <h2 className="mt-1 text-[16px] font-bold leading-tight text-slate-50" data-testid="inspector-title">
-              <span aria-hidden="true">{info.icon}</span> {pick(info.title, locale)}
-            </h2>
+            <div className="mt-1 flex items-start gap-1.5">
+              <h2 className="min-w-0 text-[16px] font-bold leading-tight text-slate-50" data-testid="inspector-title">
+                <span aria-hidden="true">{info.icon}</span> {pick(info.title, locale)}
+              </h2>
+              <LessonLink lessonKey={info.key} className="h-6 w-6 rounded-md bg-white/10 text-[13px] ring-1 ring-white/15" />
+            </div>
           </div>
           <button type="button" onClick={() => bankStore.getState().clearSelection()} aria-label={m('close')} title={m('close')} data-testid="spi-close" className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-300 transition hover:bg-white/10 hover:text-white">
             ✕
@@ -176,9 +198,10 @@ export function SubProcessInfoView({ info, liveStr }: { info: SubProcessInfo; li
         </Section>
         <Section title={m('kpi')} testId="kpi">
           <div className="grid grid-cols-2 gap-1.5 text-center">
-            <div className="rounded-lg bg-white/5 px-2 py-1.5">
+            <div className="rounded-lg bg-white/5 px-2 py-1.5" data-testid="spi-sla">
               <div className="text-[9.5px] uppercase tracking-wide text-slate-400">{m('sla')}</div>
               <div className="text-[12px] font-semibold text-slate-100">{pick(info.kpi.sla, locale)}</div>
+              <SlaLive live={liveSla} />
             </div>
             <div className="rounded-lg bg-white/5 px-2 py-1.5" data-testid="spi-str">
               <div className="text-[9.5px] uppercase tracking-wide text-slate-400">{m('strTarget')}</div>

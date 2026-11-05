@@ -122,7 +122,7 @@ function Notice() {
 /** The Living Bank: day clock, the map of departments, the inspector drawer, and the process learning hub. */
 export function LivingBank() {
   useBankClock();
-  // The day's walk-ins at the Savings Desk and the Cash & Collateral Vault, and the count of everyone at a counter on its badge.
+  // The day's walk-ins at the Savings Desk and the Savings & Collateral Desk, and the count of everyone at a counter on its badge.
   useEffect(() => {
     const stops = [installAmbientVisits(), installDeskOccupancy(), installCitSync()];
     return () => stops.forEach((stop) => stop());

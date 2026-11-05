@@ -446,9 +446,13 @@ export class ParkingLot {
     } else if (this.mover === CIT_MOVER) this.mover = null;
   }
 
-  /** Steps the cash van alone (a paused bank playing a CIT demo): everyone else stands still, so the lot is the van's whenever no one else holds it. */
+  /**
+   * Steps the cash van alone (a paused bank playing a CIT demo): everyone else stands frozen, so the lot is always the van's. A car
+   * frozen mid-turn by the pause would otherwise hold the lane for ever, the van would never back out and despawn, and the CIT lock
+   * (which waits for the van) would never release.
+   */
   stepCitAlone(h: number): void {
-    this.driveCit(h, this.mover === null || this.mover === CIT_MOVER, []);
+    this.driveCit(h, true, []);
   }
 
   /** A newcomer sets off up the lane (one at a time, and not while the cash van is on it) and takes a free bay; it needs the lot only at the gate. */

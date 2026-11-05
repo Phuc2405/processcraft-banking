@@ -30,7 +30,7 @@ import { flowPlaces, flowScope } from '../guidedFlows';
 import { isOpsQuestion, localQuestion, quizFor } from '../academyKnowledge';
 import { journalLines } from '../isoMessages';
 import { applyPresetJournal, settleEod, OPS_SUB_CHAPTER, cassetteStatus, decodeBook, openingBook, OPS_ACCOUNTS, OPS_ACTIONS, OPS_LIMITS, OPS_SUBPROCESSES, opsActionById, opsFlowOf, opsJournalBalanced, opsNatural, opsTrial, refillCassette, resolveTicket, runOpsAction, transferToVault, type OpsActionId, type OpsLine } from '../retailOps';
-import { hasWire, isStation, STATIONS } from '../topology';
+import { hasWire, isStation, STATIONS, hasCashLine } from '../topology';
 
 const AT = 'D1 09:00:00';
 const pickLabel = (t: { en: string }): string => t.en;
@@ -58,7 +58,7 @@ describe('the eight guided flows carry the six sub-processes', () => {
     for (const f of [3, 7] as const) {
       for (const p of flowPlaces(f)) {
         if (!isStation(p) || STATIONS[p].department === 'LEDGER') continue;
-        expect([...flowPlaces(f)].some((q) => q !== p && (hasWire(p, q) || hasWire(q, p))), `${f} ${p}`).toBe(true);
+        expect([...flowPlaces(f)].some((q) => q !== p && (hasWire(p, q) || hasWire(q, p) || hasCashLine(p, q))), `${f} ${p}`).toBe(true);
       }
     }
   });

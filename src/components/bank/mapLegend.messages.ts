@@ -13,7 +13,7 @@ export const mapLegendMessages = defineMessages('mapLegend', {
   lineOtp: { en: 'Violet dotted line: the customer’s one-time password (OTP) challenge', vi: 'Đường tím chấm: bước xác thực mật khẩu một lần (OTP) của khách hàng' },
   lineLock: { en: 'Cyan dashed line: a lock or freeze, pledged savings held as collateral', vi: 'Đường xanh ngọc nét đứt: phong tỏa, tiền gửi cầm cố giữ làm tài sản bảo đảm' },
   deskSavings: { en: 'Savings Desk: closes term deposits and recalculates early closures', vi: 'Quầy tiết kiệm: tất toán tiền gửi có kỳ hạn và tính lại lãi khi tất toán sớm' },
-  deskCollateral: { en: 'Cash & Collateral Vault: the cash vault (TK 1111) for CIT and teller runs; freezes pledged savings and liquidates them against bad debt', vi: 'Kho quỹ & Tài sản bảo đảm: kho tiền mặt (TK 1111) cho CIT và quầy GDV; phong tỏa tiền gửi cầm cố và xử lý để thu hồi nợ xấu' },
+  deskCollateral: { en: 'Savings & Collateral Desk: collateral paperwork only; freezes pledged savings and liquidates them against bad debt (no cash kept)', vi: 'Quầy Tiết kiệm & Tài sản Bảo đảm: chỉ xử lý hồ sơ tài sản bảo đảm; phong tỏa tiền gửi cầm cố và xử lý để thu hồi nợ xấu (không giữ tiền mặt)' },
   gateway: { en: 'XOR gateway (diamond): exclusive join, each payment arrives by exactly one of its lines and leaves by the one trunk', vi: 'Cổng XOR (hình thoi): hợp nhất loại trừ, mỗi giao dịch đến bằng đúng một nhánh và đi tiếp theo một trục duy nhất' },
   frame: { en: 'Tinted frame: a department, the subsystem boundary its desks belong to', vi: 'Khung tô màu: một phòng ban, ranh giới phân hệ chứa các quầy của nó' },
   hoverTip: { en: 'Point at a desk or a line to light only its own paths.', vi: 'Rê chuột lên một quầy hoặc một đường nối để chỉ làm sáng các luồng của nó.' },

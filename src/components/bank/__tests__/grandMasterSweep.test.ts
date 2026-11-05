@@ -258,6 +258,8 @@ describe('the Knowledge Base, Basic and Advanced', () => {
       '3. Tài khoản nghiệp vụ và tài khoản trung gian',
       '4. Ví dụ dòng hạch toán chi tiết',
       '5. Từ viết tắt và mã hiệu tài khoản',
+      '6. Quẹt thẻ POS & cấp phép giao dịch',
+      '7. Thẻ số hóa (Token), xác thực 3DS và OTP',
     ]);
     for (const s of CORE_LEDGER_ARTICLE.sections) expect(s.title.en, s.id).not.toMatch(/\bvs\.|\betc\./);
   });

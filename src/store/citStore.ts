@@ -18,6 +18,8 @@ interface CitDemoState {
   prune(day: number, minute: number): void;
   /** Plays today's dispatch `index` on by `minutes` on its own (the bank is paused): its `lead` grows, nothing else moves. */
   playAhead(index: number, minutes: number): void;
+  /** Today's ATM dispatch `index` has delivered its cash to the retail cassette. */
+  markRefilled(index: number): void;
 }
 
 export const citStore = createStore<CitDemoState>((set, get) => ({
@@ -44,6 +46,11 @@ export const citStore = createStore<CitDemoState>((set, get) => ({
     const m = s.manual[index];
     if (!m) return;
     set({ manual: s.manual.map((x, i) => (i === index ? { ...x, lead: (x.lead ?? 0) + minutes } : x)) });
+  },
+  markRefilled: (index) => {
+    const s = get();
+    if (!s.manual[index] || s.manual[index]!.refilled) return;
+    set({ manual: s.manual.map((x, i) => (i === index ? { ...x, refilled: true } : x)) });
   },
 }));
 

@@ -238,6 +238,48 @@ export const CORE_LEDGER_ARTICLE = {
       ],
       keywords: ['acronym', 'tu viet tat', 'glossary', 'thuat ngu', 'lookup', 'tra cuu', 'ma hieu'],
     },
+    {
+      id: 'card-pos-auth',
+      title: L('6. POS card authorisation: approve or decline', '6. Quẹt thẻ POS & cấp phép giao dịch'),
+      paragraphs: [
+        L(
+          'When a card is tapped or inserted at a shop terminal, the terminal reads the chip, collects the amount and the PIN (or the contactless cryptogram), and sends an authorisation request through the acquirer and the card scheme to the issuing bank.',
+          'Khi khách chạm hoặc cắm thẻ vào máy POS, máy đọc chip, lấy số tiền và mã PIN (hoặc mã mật một lần của thẻ không tiếp xúc), rồi gửi yêu cầu cấp phép qua ngân hàng thanh toán và tổ chức thẻ tới ngân hàng phát hành.',
+        ),
+        L(
+          'The issuer checks the card is genuine and active, then checks the money: the available balance on a debit card (Debit CASA) or the open-to-buy on a credit card (Credit Revolving Line). If it is there, the bank places a hold and answers "approved" in about a second; otherwise it declines with a reason code. The hold becomes a posting only when the night batch clears it.',
+          'Ngân hàng phát hành kiểm tra thẻ thật và còn hiệu lực, rồi kiểm tra tiền: số dư khả dụng với thẻ ghi nợ (Ghi nợ CASA) hoặc hạn mức còn lại với thẻ tín dụng (Hạn mức tín dụng tuần hoàn). Nếu đủ, ngân hàng khoanh giữ số tiền và trả lời "chấp thuận" trong khoảng một giây; nếu không, từ chối kèm mã lý do. Khoản khoanh giữ chỉ thành bút toán khi lô cuối ngày bù trừ.',
+        ),
+      ],
+      advanced: [
+        L(
+          'Authorisation and clearing are two different messages: the authorisation (ISO 8583 0100/0110) only reserves funds; the clearing record in the EOD batch posts Dr customer account / Cr scheme settlement. A hold that is never cleared expires and is released.',
+          'Cấp phép và bù trừ là hai thông điệp khác nhau: cấp phép (ISO 8583 0100/0110) chỉ khoanh giữ tiền; bản ghi bù trừ trong lô cuối ngày mới hạch toán Nợ tài khoản khách / Có quyết toán tổ chức thẻ. Khoản khoanh giữ không được bù trừ sẽ hết hạn và được giải tỏa.',
+        ),
+      ],
+      keywords: ['pos', 'card terminal', 'may pos', 'authorisation', 'authorization', 'cap phep', 'approve', 'decline', 'tu choi', 'hold', 'khoanh giu', 'iso 8583'],
+    },
+    {
+      id: 'card-3ds-token',
+      title: L('7. Tokenised cards, 3DS and OTP', '7. Thẻ số hóa (Token), xác thực 3DS và OTP'),
+      paragraphs: [
+        L(
+          'Online and in-app payments rarely carry the real card number. A wallet or a virtual card sends a token (a device PAN, DPAN) and a dynamic CVV that changes every few minutes; the Token Vault maps the token back to the real card, and the dCVV desk checks the code is right and still valid.',
+          'Thanh toán trực tuyến và trong ứng dụng hiếm khi mang số thẻ thật. Ví điện tử hoặc thẻ ảo gửi một mã token (DPAN) và mã CVV động đổi sau vài phút; Kho token ánh xạ token về thẻ thật, và bàn dCVV kiểm tra mã đúng và còn hiệu lực.',
+        ),
+        L(
+          '3-D Secure scores each online payment for risk. A low-risk payment passes frictionless; a riskier one is challenged with a one-time password (OTP) sent to the customer’s phone; a clearly fraudulent one is rejected. Only then does the ledger check the money.',
+          '3-D Secure chấm điểm rủi ro từng giao dịch trực tuyến. Giao dịch rủi ro thấp đi thẳng (frictionless); giao dịch rủi ro hơn bị thử thách bằng mật khẩu một lần (OTP) gửi tới điện thoại khách; giao dịch gian lận rõ ràng bị từ chối. Chỉ sau đó sổ cái mới kiểm tra tiền.',
+        ),
+      ],
+      advanced: [
+        L(
+          'A successful challenge shifts fraud liability to the issuer; a frictionless approval the issuer chose keeps it there too. That is why the risk desk tunes its threshold: every challenge costs conversion, every miss costs a chargeback.',
+          'Thử thách thành công chuyển trách nhiệm gian lận sang ngân hàng phát hành; phê duyệt frictionless do ngân hàng phát hành chọn cũng vậy. Vì thế bàn rủi ro phải cân chỉnh ngưỡng: mỗi lần thử thách làm giảm tỷ lệ chuyển đổi, mỗi lần bỏ sót dẫn tới bồi hoàn.',
+        ),
+      ],
+      keywords: ['3ds', '3-d secure', 'otp', 'token', 'tokenisation', 'tokenization', 'so hoa', 'dpan', 'dcvv', 'virtual card', 'the ao', 'challenge', 'frictionless', 'xac thuc'],
+    },
   ] as const satisfies readonly ArticleSection[],
   flows: [
     {

@@ -12,6 +12,12 @@ import { pathLength, pointAlongPath } from '../../../engine/plan/path';
 /** How strongly the rest of the office fades: to 20% round a pointed-at desk, to 10% outside a sub-process (guided scenario). */
 export const DIM = { hover: 0.2, flow: 0.1 } as const;
 
+/**
+ * The wires' ambient glow: idle lanes sit dimmed in the background, and a live path's halo glows just enough ("vừa đủ"), never a
+ * neon that hides the scene.
+ */
+export const LANE_GLOW = { idle: 0.55, halo: 0.28 } as const;
+
 /** How far the unrelated lanes and badges fade round a pointed-at desk. */
 export const LANE_DIM = 0.15;
 

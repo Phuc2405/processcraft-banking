@@ -20,9 +20,10 @@ import { MapLegend } from './MapLegend';
 import type { Move, StationView } from '../../sim/types';
 import { academyFocusOf, activeFlowOf, activeScopeOf, beatLive, useBankStore } from '../../store/bankStore';
 import { useLivePath } from './useLivePath';
-import { onPath } from '../../sim/transactionPath';
+import { flowIcon, HOP_SECONDS, onPath } from '../../sim/transactionPath';
 import { AtmCassetteBadge } from './RetailOpsDock';
 import { CitBay2D } from './CitBay2D';
+import { CashLines2D } from './CashLines2D';
 import { GUIDED_FLOWS, type FlowScope } from '../../sim/guidedFlows';
 import type { FlowId } from '../../types/viewport';
 import { StepPreviewBody } from './StepPreview';
@@ -570,7 +571,7 @@ function wireStyle(to: string, from: string): { base: string; glow: string; dash
   if (to === 'OUT_DECLINED') return { base: '#7f1d1d', glow: '#fb7185', dash: '5 4' };
   if (from === 'OUT_APPROVED' || from.startsWith('EOD_') || from === 'RECON' || from === 'SUSPENSE' || to === 'OUT_SETTLED') return { base: '#78350f', glow: '#fbbf24' };
   if (to === 'CUSTOMER_OTP' || from === 'CUSTOMER_OTP') return { base: '#4c1d95', glow: '#a78bfa', dash: '3 3' };
-  if (from === 'COLLATERAL_VAULT') return { base: '#155e75', glow: '#22d3ee', dash: '7 3' };
+  if (from === 'COLLATERAL_VAULT' || from === 'MAIN_CASH_VAULT') return { base: '#155e75', glow: '#22d3ee', dash: '7 3' };
   return { base: '#334155', glow: '#38bdf8' };
 }
 
@@ -614,6 +615,8 @@ function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; t
   // While the learner's payment runs in a guided flow, only its own path is lit (not the whole flow): the wires it has crossed glow, the one it is crossing runs.
   const live = useLivePath();
   const path = flow && !focus ? live : null;
+  // The payment's moving icon (a card from the POS, a box of records at night…) rides the wire it is crossing.
+  const icon = useBankStore((s) => (s.presetTrace && !s.presetTrace.done ? flowIcon(s.presetTrace.route) : null));
   const inPath = (id: string): boolean => (path ? onPath(path, id) : flow ? flow.scope.wires.has(id) : true);
   // The wires the token is on right now glow brightest; the ones it has already ridden stay lit.
   const current = new Set(focus && !focus.tour.intro ? wiresOfRoute(focus.current.route) : []);
@@ -646,6 +649,16 @@ function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; t
             {h > 0.05 && <path d={d} fill="none" stroke={st.glow} strokeWidth={2 + Math.min(h, 6) * 0.3} strokeLinecap="round" opacity={Math.min(0.55, 0.1 + h * 0.07)} style={{ transition: 'opacity 400ms' }} />}
             {path && inFlow && flow && (
               <path d={d} fill="none" stroke={flow.accent} strokeWidth={path.current.has(w.id) ? 3.6 : 2.6} strokeLinecap="round" className={path.current.has(w.id) ? 'bk-tour-path bk-flow' : 'bk-tour-path'} style={{ filter: `drop-shadow(0 0 5px ${flow.accent})` }} data-testid={`flow-path-wire-${w.id}`} data-active={path.current.has(w.id) || undefined} />
+            )}
+            {path && flow && icon && path.current.has(w.id) && (
+              <g key={`icon-${path.active}`} data-testid="flow-icon-2d">
+                {/* The route may cross a wire stored the other way round: then the icon rides it backwards. */}
+                <animateMotion dur={`${HOP_SECONDS * 1.6}s`} repeatCount="indefinite" path={d} keyPoints={path.active === w.id ? '0;1' : '1;0'} keyTimes="0;1" calcMode="linear" />
+                <circle r={11} fill="#0f172a" stroke={flow.accent} strokeWidth={1.5} style={{ filter: `drop-shadow(0 0 4px ${flow.accent})` }} />
+                <text y={4.5} textAnchor="middle" fontSize={12}>
+                  {icon}
+                </text>
+              </g>
             )}
             {focus && ridden && (
               <path
@@ -840,6 +853,7 @@ function BankMapView() {
               </div>
             )}
             {!focus && <AtmCassetteBadge />}
+            {!focus && <CashLines2D />}
             {!focus && <CitBay2D />}
             {!focus && <DeskCrowd2D />}
             {!focus && <DeskVisitors2D />}

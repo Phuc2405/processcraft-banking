@@ -7,8 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import fc from 'fast-check';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { MENU_CHOICES, showInfo } from '../../components/bank/SubProcessMenu';
-import { CIT_DOCK_FLOWS } from '../../components/bank/PresetDock';
-import { citNow, dispatchCitDemo, installCitSync } from '../../components/ops/citActions';
+import { citNow, dispatchCitDemo, installCitSync, settleAtmRefills } from '../../components/ops/citActions';
 import { CitDemoButtons } from '../../components/ops/CitPanel';
 import { SubProcessInfoView } from '../../components/ops/SubProcessInfoDrawer';
 import { regDocById } from '../../data/regulatoryRegistry';
@@ -75,7 +74,9 @@ describe('the sub-process registry', () => {
     expect(infoKeyForChoice(2, 'bnpl-credit')).toBe('bnpl-credit');
     expect(infoKeyForChoice(6, 'teller-vault')).toBe('teller-vault');
     expect(infoKeyForChoice(4, 'eod-batch')).toBe('flow-4');
-    expect(infoKeyForPlace('COLLATERAL_VAULT')).toBe('cit-vault');
+    // The cash sheet belongs to the Central Cash Vault; the collateral desk reads the collateral sheet.
+    expect(infoKeyForPlace('MAIN_CASH_VAULT')).toBe('cit-vault');
+    expect(infoKeyForPlace('COLLATERAL_VAULT')).toBe('collateral');
     expect(infoKeyForPlace('AML_DESK')).toBe('aml-sanctions');
     expect(infoKeyForPlace('SEC_3DS')).toBe('token-3ds');
     for (const id of STATION_IDS) {
@@ -174,11 +175,11 @@ describe('manual CIT runs (engine)', () => {
     );
   });
 
-  it('holds the one-van mutex from dispatch until the run is settled and its van is home, and only then', () => {
+  it('holds the one-van mutex from dispatch until the run is settled, and not a minute longer', () => {
     const manual: CitManual[] = [{ kind: 'DOORSTEP', at }];
     expect(citDemoBusy(citAt(DAY, at - 1, manual))).toBeNull();
-    const home = CIT_TIMING.SETTLED + CIT_TIMING.home;
-    for (const dt of [0, CIT_TIMING.ARRIVED, CIT_TIMING.IN_COUNT, CIT_TIMING.DELIVERED, CIT_TIMING.SETTLED, home - 1]) expect(citDemoBusy(citAt(DAY, at + dt, manual))?.order.id, `+${dt}`).toBe(`CIT-${DAY}-M1`);
+    const home = CIT_TIMING.SETTLED;
+    for (const dt of [0, CIT_TIMING.ARRIVED, CIT_TIMING.IN_COUNT, CIT_TIMING.DELIVERED, home - 1]) expect(citDemoBusy(citAt(DAY, at + dt, manual))?.order.id, `+${dt}`).toBe(`CIT-${DAY}-M1`);
     expect(citDemoBusy(citAt(DAY, at + home, manual))).toBeNull();
     // A scheduled run on the road never blocks the learner's demo.
     expect(citDemoBusy(citAt(DAY, 9 * 60 + 20, []))).toBeNull();
@@ -193,7 +194,7 @@ describe('manual CIT dispatch (store pipeline)', () => {
     retailOpsStore.getState().reset();
   });
 
-  it('dispatches a van immediately at the bank’s clock and refuses every other demo until it is settled and home', () => {
+  it('dispatches a van immediately at the bank’s clock and refuses every other demo until it is settled', () => {
     const start = bankStore.getState().view.minute;
     expect(dispatchCitDemo('ATM')).toBe(true);
     expect(citStore.getState().manual[0]!.at).toBe(start);
@@ -201,10 +202,14 @@ describe('manual CIT dispatch (store pipeline)', () => {
     expect(live.runs.filter((r) => r.planned.order.id.includes('-M') && r.run?.status === 'EN_ROUTE')).toHaveLength(1);
     expect(live.book.TRANSIT).toBeGreaterThan(0);
     for (const kind of CIT_DEMOS) expect(dispatchCitDemo(kind), kind).toBe(false);
+    bankStore.getState().skipTo(start + CIT_TIMING.DELIVERED);
+    expect(dispatchCitDemo('DOORSTEP'), 'not settled yet').toBe(false);
+    // The 3D van still on its exit route holds the lock on its own; the moment it despawns, the lock is gone.
+    citStore.setState({ van: true });
     bankStore.getState().skipTo(start + CIT_TIMING.SETTLED);
-    expect(dispatchCitDemo('DOORSTEP'), 'settled, van still driving home').toBe(false);
-    const home = CIT_TIMING.SETTLED + CIT_TIMING.home;
-    bankStore.getState().skipTo(start + home);
+    expect(dispatchCitDemo('DOORSTEP'), 'settled, 3D van still leaving').toBe(false);
+    citStore.setState({ van: false });
+    const home = CIT_TIMING.SETTLED;
     for (const kind of ['DOORSTEP', 'SBV', 'TELLER'] as const) {
       expect(dispatchCitDemo(kind), kind).toBe(true);
       bankStore.getState().skipTo(bankStore.getState().view.minute + home + CIT_TIMING.incident);
@@ -212,12 +217,18 @@ describe('manual CIT dispatch (store pipeline)', () => {
     expect(citStore.getState().manual.map((m) => m.kind)).toEqual(['ATM', 'DOORSTEP', 'SBV', 'TELLER']);
   });
 
-  it('refills the retail ATM cassette with the same van, sized from its shortfall', () => {
+  it('refills the retail ATM cassette with the same van, sized from its shortfall, once the van reaches the ATM', () => {
     retailOpsStore.getState().runAction('atm-withdraw-100', 'D1 10:00:00');
-    const short = OPS_LIMITS.cassetteCapacityCents - retailOpsStore.getState().book.balances.CASH_ATM;
+    const before = retailOpsStore.getState().book.balances.CASH_ATM;
+    const short = OPS_LIMITS.cassetteCapacityCents - before;
     expect(short).toBeGreaterThan(0);
+    const start = bankStore.getState().view.minute;
     expect(dispatchCitDemo('ATM')).toBe(true);
     expect(citStore.getState().manual[0]!.refillCents).toBe(short);
+    // Not at dispatch: the cash is still in the van.
+    expect(retailOpsStore.getState().book.balances.CASH_ATM).toBe(before);
+    bankStore.getState().skipTo(start + CIT_TIMING.DELIVERED);
+    expect(settleAtmRefills()).toBe(1);
     expect(retailOpsStore.getState().book.balances.CASH_ATM).toBe(OPS_LIMITS.cassetteCapacityCents);
     expect(citNow().runs.find((r) => r.planned.order.id.endsWith('-M1'))!.planned.order.amountCents).toBe(short);
   });
@@ -238,8 +249,7 @@ describe('manual CIT dispatch (store pipeline)', () => {
     }
   });
 
-  it('puts the three buttons on the cash flows’ dock, in Vietnamese as the brief names them', () => {
-    expect(CIT_DOCK_FLOWS).toEqual([3, 6]);
+  it('keeps the CIT buttons in the vault inspector and on the CIT sheet, in Vietnamese as the brief names them (the dock has none)', () => {
     setActiveLocale('vi');
     const html = renderToStaticMarkup(createElement(CitDemoButtons));
     for (const label of ['Demo CIT: Tiếp quỹ ATM', 'Demo CIT: Thu tiền WinMart', 'Demo CIT: Nộp/Rút tiền NHNN']) expect(html).toContain(label);

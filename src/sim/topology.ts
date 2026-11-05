@@ -35,6 +35,8 @@ export const STATION_IDS = [
   'COLLATERAL_VAULT',
   // The virtual STP node: the core banking engine deciding and posting cases with no human touch.
   'STP_ENGINE',
+  // The central cash vault (the round steel door in 3D): every physical note the branch holds. Appended so older staff keep their names.
+  'MAIN_CASH_VAULT',
 ] as const;
 export type StationId = (typeof STATION_IDS)[number];
 
@@ -44,7 +46,7 @@ export type ExternalId = (typeof EXTERNAL_IDS)[number];
 
 export type PlaceId = StationId | ExternalId;
 
-export type DepartmentId = 'GATES' | 'SECURITY' | 'LEDGER' | 'BNPL' | 'EOD' | 'ATM' | 'ENTRANCE' | 'COMPLIANCE' | 'BACKOFFICE' | 'SAVINGS';
+export type DepartmentId = 'GATES' | 'SECURITY' | 'LEDGER' | 'BNPL' | 'EOD' | 'ATM' | 'ENTRANCE' | 'COMPLIANCE' | 'BACKOFFICE' | 'SAVINGS' | 'CASH';
 
 export interface DepartmentDef {
   id: DepartmentId;
@@ -117,6 +119,13 @@ export const DEPARTMENTS: Record<DepartmentId, DepartmentDef> = {
     blurb: 'Where term deposits are closed and recalculated, and where pledged savings are frozen as collateral and liquidated against bad debt.',
     accent: '#34d399',
     stations: ['SAVINGS_DESK', 'COLLATERAL_VAULT'],
+  },
+  CASH: {
+    id: 'CASH',
+    name: 'Central Cash Vault',
+    blurb: 'The branch’s one physical cash holding: fit notes (TK 1111), unfit notes awaiting the SBV (TK 1112) and cash in transit (TK 1131). Every teller top-up, ATM / CDM run and CIT van starts or ends here.',
+    accent: '#facc15',
+    stations: ['MAIN_CASH_VAULT'],
   },
   BACKOFFICE: {
     id: 'BACKOFFICE',
@@ -367,7 +376,7 @@ export const STATIONS: Record<StationId, StationDef> = {
   TELLER_CASH: {
     id: 'TELLER_CASH',
     department: 'ENTRANCE',
-    name: 'Teller Cash In/Out Desk',
+    name: 'Cash Teller Desk',
     blurb: 'Branch tellers count notes in and out against the vault, record serial numbers of suspect notes, and file a CTR for any cash transaction over $10,000.',
     kind: 'DESK',
     capability: 'CORE_LEDGER_CHECK',
@@ -424,8 +433,8 @@ export const STATIONS: Record<StationId, StationDef> = {
   COLLATERAL_VAULT: {
     id: 'COLLATERAL_VAULT',
     department: 'SAVINGS',
-    name: 'Cash & Collateral Vault',
-    blurb: 'The branch cash vault (TK 1111) for CIT vans, ATMs and teller tills; also holds the lien on pledged savings: frozen on default, then liquidated in waterfall order to clear the bad debt.',
+    name: 'Savings & Collateral Desk',
+    blurb: 'Collateral paperwork only: the lien on pledged savings and loan collateral, frozen on default, then liquidated in waterfall order to clear the bad debt. It holds no physical cash (that is the Central Cash Vault).',
     kind: 'DESK',
     capability: 'CORE_LEDGER_CHECK',
     minutesPerItem: 10,
@@ -444,6 +453,18 @@ export const STATIONS: Record<StationId, StationDef> = {
     staff: 2,
     openHoursOnly: true,
     processes: ['F'],
+  },
+  MAIN_CASH_VAULT: {
+    id: 'MAIN_CASH_VAULT',
+    department: 'CASH',
+    name: 'Central Cash Vault',
+    blurb: 'The bank’s sole physical cash holding behind the round steel door: fit cash (TK 1111), unfit cash (TK 1112) and cash in transit (TK 1131). Cash goes out to the teller tills, the ATMs and the CIT vans, and comes back in from them, always under dual control.',
+    kind: 'DESK',
+    capability: 'CORE_LEDGER_CHECK',
+    minutesPerItem: 10,
+    staff: 1,
+    openHoursOnly: true,
+    processes: [],
   },
   STP_ENGINE: {
     id: 'STP_ENGINE',
@@ -483,6 +504,7 @@ export const SERVICE_ORDER: StationId[] = [
   'TELLER_CASH',
   'COLLATERAL_VAULT',
   'SAVINGS_DESK',
+  'MAIN_CASH_VAULT',
   'DISPUTE_DESK',
   'SEC_VAULT',
   'SEC_DCVV',
@@ -567,6 +589,17 @@ export const WIRES: ReadonlyArray<readonly [PlaceId, PlaceId, string?]> = [
   ['COLLATERAL_VAULT', 'SAVINGS_DESK', 'lien'],
   ['SAVINGS_DESK', 'LEDGER_DEBIT', 'term deposit posting'],
 ];
+
+/** Where physical cash moves to and from the central vault: the teller tills, the ATM / CDM and the CIT loading bay. Not payment wires (no packet routes along them): the maps draw them as gold cash lines (sim/vaultFlows.ts). */
+export const CASH_ENDPOINTS = ['TELLER', 'ATM', 'BAY'] as const;
+export type CashEndpoint = (typeof CASH_ENDPOINTS)[number];
+/** The desk at each cash endpoint (the bay has none: it is the CIT van's stop). */
+export const CASH_ENDPOINT_PLACE: Readonly<Record<CashEndpoint, StationId | null>> = { TELLER: 'TELLER_CASH', ATM: 'ATM_CASH', BAY: null };
+/** Whether a cash line joins two places (the vault and a desk it feeds), either way round. */
+export const hasCashLine = (a: PlaceId, b: PlaceId): boolean => {
+  const desks = Object.values(CASH_ENDPOINT_PLACE) as readonly (StationId | null)[];
+  return (a === 'MAIN_CASH_VAULT' && desks.includes(b as StationId)) || (b === 'MAIN_CASH_VAULT' && desks.includes(a as StationId));
+};
 
 const WIRE_SET = new Set(WIRES.map(([a, b]) => edgeId(a, b)));
 export const hasWire = (from: PlaceId, to: PlaceId): boolean => WIRE_SET.has(edgeId(from, to));

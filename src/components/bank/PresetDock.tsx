@@ -2,30 +2,23 @@ import { memo, useEffect, useId, useRef, useState, type KeyboardEvent } from 're
 import { activeLocale, pick, tr, useLocale } from '../../i18n/locale';
 import { acronymHint } from './codeGlossary';
 import { demoActionById, demoActionsFor, demoBlocked, type DemoAction } from '../../sim/demoActions';
-import { demoGroup, isOpsGroup, showsGroupsOf } from '../../sim/demoGroups';
+import { demoGroup, showsGroupsOf } from '../../sim/demoGroups';
 import { shiftOf, shiftSnap } from '../../sim/demoSchedule';
 import { shiftQueueStore, useShiftQueue } from '../../store/shiftQueueStore';
 import { flowText, GUIDED_FLOWS } from '../../sim/guidedFlows';
 import type { PresetVariant } from '../../sim/presets';
 import { cassetteStatus } from '../../sim/retailOps';
-import { opsLessonAnchor } from '../../data/retailOpsKnowledge';
 import { activeFlowOf, useBankStore } from '../../store/bankStore';
 import { formatAud } from '../../engine/money';
 import { retailOpsStore, useRetailOpsStore } from '../../store/retailOpsStore';
-import { uiStore } from '../../store/uiStore';
 import { useMessages } from '../../utils/i18nHelper';
 import { AdaptivePopover, listboxKey } from '../shell/AdaptivePopover';
 import { retailOpsMessages } from './retailOps.messages';
 import { opsStamp, runDemo } from './retailOpsActions';
 import { topBand, useInspectorCovers, useMeasuredBox, useRightInset, useTopBand } from './ViewportControls';
 import { dockLayout } from './dockOverflow';
-import { CitDemoMenu } from '../ops/CitDemoMenu';
 import { refillAtmByCit } from '../ops/citActions';
-import type { FlowId } from '../../types/viewport';
-
-/** The flows whose dock carries the CIT van dispatches (ATM cash and the teller vault), and the room their one menu takes inline. */
-export const CIT_DOCK_FLOWS: readonly FlowId[] = [3, 6];
-const CIT_DOCK_PX = 210;
+import { LessonLink } from '../ops/LessonLink';
 
 /** The one demo bar of the guided flow in focus, anchored at the bottom of the map in the Beginner scope. Every control runs through runDemo. */
 
@@ -204,13 +197,13 @@ function PresetDockView() {
   const actions = demoActionsFor(flow, sub);
   // A single-group flow's dock is titled by its flow, as the menu lists it; the 📖 lesson is the retail book's, so core groups have none.
   const group = sub && showsGroupsOf(flow) ? demoGroup(sub) : null;
-  const lesson = sub && isOpsGroup(sub) ? sub : null;
+  // Every sub-process has a lesson now (data/subProcessLessons.ts): the group's, or its flow's.
+  const lesson = sub && demoGroup(sub).flow === flow ? sub : (`flow-${flow}` as const);
   const title = group ? pick(group.title, locale) : `${f.code}. ${ft.title}`;
   const free = mapW > 0 ? mapW - right - 24 : 1280;
   // One row only: what the title, the lesson link and the padding leave of the free width must hold every pill, or the whole area is a dropdown.
-  // The cash flows carry the CIT dispatch menu beside their own buttons.
-  const citDemos = CIT_DOCK_FLOWS.includes(flow);
-  const budget = free - Math.round(title.length * 6.2 + 24) - (lesson ? 30 : 0) - (citDemos ? CIT_DOCK_PX : 0) - 32;
+  // No CIT control here: the four CIT runs start from their own sheets (top menu → Flow 06) and the vault's inspector.
+  const budget = free - Math.round(title.length * 6.2 + 24) - 30 - 32;
   const windowW = typeof window === 'undefined' ? Infinity : window.innerWidth;
   const compact = dockIsCompact(mapW - right, shortMap, windowW);
   const dropdown = compact || dockLayout(actions.map((a) => ({ id: a.id, variant: a.variant, text: `${a.icon} ${a.label()}` })), budget, windowW) === 'dropdown';
@@ -233,11 +226,7 @@ function PresetDockView() {
           {title}
         </span>
       )}
-      {lesson && (
-        <button type="button" onClick={() => uiStore.getState().openKnowledge(opsLessonAnchor(lesson))} title={m('openThisSubProcessS')} aria-label={m('openThisSubProcessS')} data-testid={`ops-lesson-${lesson}`} className="shrink-0 text-[13px]">
-          📖
-        </button>
-      )}
+      <LessonLink lessonKey={lesson} className="text-[13px]" />
       {dropdown ? (
         // Keyed by the list: another flow starts from its own first scenario.
         <DemoSelector key={`${flow}-${sub ?? ''}`} actions={actions} />
@@ -256,7 +245,6 @@ function PresetDockView() {
           🚚 {m('citRefill')}
         </button>
       )}
-      {citDemos && <CitDemoMenu />}
       <WaitingChips />
       {running && !compact && (
         <span className="whitespace-nowrap text-[11px] text-slate-400" role="status" data-testid="preset-running">

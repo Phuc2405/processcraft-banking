@@ -1,13 +1,14 @@
 /** Where everything sits on the bank map, and the wires between the desks. */
 
 import { VI_DICTIONARY } from '../../i18n/viDictionary';
-import { edgeId, WIRES, type DepartmentId, type PlaceId } from '../../sim/topology';
+import { edgeId, WIRES, type CashEndpoint, type DepartmentId, type PlaceId } from '../../sim/topology';
 import type { BoxSide, Pt } from '../../types/geometry';
 
 /** The branch itself is the BUILDING (the old stage). */
 export const BUILDING = { width: 1080, height: 1180 } as const;
 // 2D stage (Phase 1A compact grid: EOD moved under the outcome column.
-export const STAGE = { width: 1560, height: 1000 } as const;
+// 1080 high (was 1000) so the Central Cash Vault and its CIT bay have a column of their own under Savings & Collateral.
+export const STAGE = { width: 1560, height: 1080 } as const;
 
 // Right-side clusters (Flows 3 and 4): `right` px of extra free space so the zoom toolbar never covers them and the camera never parks against the edge.
 export const EDGE_PAD = { right: 120, band: 240, centre: 0.55, wide: 0.6 } as const;
@@ -92,6 +93,8 @@ export const PLACE_BOX: Record<PlaceId, PlaceBox> = {
   // Phase 2/4: a column of its own right of the night cycle: the vault feeds the savings desk, which posts straight to the ledger.
   SAVINGS_DESK: card(1440, 548),
   COLLATERAL_VAULT: card(1440, 688),
+  // The Central Cash Vault: under the savings column, with the CIT loading bay right below it (CitBay2D), and gold cash lines to the teller and the ATM (CashLines2D).
+  MAIN_CASH_VAULT: card(1440, 844),
   // The virtual STP node: a slim card in the corridor between the risk desk and Pay-in-4, so the fast lane skips both.
   STP_ENGINE: { cx: 540, cy: 500, w: 150, h: 64 },
 };
@@ -112,6 +115,7 @@ export const DEPT_BOX: Record<DepartmentId, DeptBox> = {
   ATM: { x: 1094, y: 66, w: 192, h: 366 },
   ...bandDepts(BAND_ROW_2D),
   SAVINGS: { x: 1344, y: 466, w: 192, h: 284 },
+  CASH: { x: 1344, y: 762, w: 192, h: 310 },
 };
 
 // Wires
@@ -746,3 +750,25 @@ export function tipSideFor(place: PlaceId): TipSide {
 }
 
 export const TIP_SIDE: Readonly<Record<PlaceId, TipSide>> = Object.fromEntries((Object.keys(PLACE_BOX) as PlaceId[]).map((p) => [p, tipSideFor(p)])) as Record<PlaceId, TipSide>;
+
+// Cash lines: the Central Cash Vault to the teller, the ATM and the CIT bay (not payment wires: cash, drawn in gold by CashLines2D)
+
+/**
+ * Each cash line as corners from the vault (first point) to its endpoint (last point): to the teller the long way round under the
+ * whole map, to the ATM up the map's right-hand margin, and straight down into the CIT loading bay under the vault.
+ */
+export const CASH_LINES: Readonly<Record<CashEndpoint, readonly Pt[]>> = (() => {
+  const v = PLACE_BOX.MAIN_CASH_VAULT;
+  const teller = PLACE_BOX.TELLER_CASH;
+  const atm = PLACE_BOX.ATM_CASH;
+  const left = v.cx - v.w / 2;
+  const right = v.cx + v.w / 2;
+  return {
+    TELLER: [[left, v.cy + 20], [1330, v.cy + 20], [1330, 1056], [teller.cx, 1056], [teller.cx, teller.cy + teller.h / 2]],
+    ATM: [[right, v.cy - 20], [1550, v.cy - 20], [1550, atm.cy + 20], [atm.cx + atm.w / 2, atm.cy + 20]],
+    BAY: [[v.cx + 40, v.cy + v.h / 2], [v.cx + 40, 902]],
+  };
+})();
+
+/** An SVG path through a cash line's corners. */
+export const cashLinePath = (e: CashEndpoint): string => CASH_LINES[e].map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(' ');

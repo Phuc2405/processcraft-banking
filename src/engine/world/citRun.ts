@@ -254,6 +254,11 @@ export class CitRun {
     return this.phase === 'arrive' || this.phase === 'depart';
   }
 
+  /** Whether the van itself is still out: driving in, at the bay, or on its exit route (false once it has despawned at its away spot). */
+  vanOut(): boolean {
+    return this.phase !== 'away';
+  }
+
   /** Whether anything of the run is still to be seen: the van out of its bay's away spot, or the vault's staff on the floor. */
   busy(): boolean {
     return this.phase !== 'away' || this.staff !== null;

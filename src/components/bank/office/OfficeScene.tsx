@@ -14,6 +14,7 @@ import { FlowStage3D, useAcademyCamera } from './FlowStage3D';
 import { TransactionFlow3D } from './TransactionFlow3D';
 import { useTerms } from '../useTerms';
 import { Desk3D } from './Desk3D';
+import { VAULT_STATION, VaultCashStreams3D } from './VaultCash3D';
 import { AtmKiosk } from './AtmKiosk';
 import { GateStanchions, Kiosks, Plants, ServerRoom, VaultRoom, Walls } from './Dressing';
 import { Street } from './Street';
@@ -23,7 +24,7 @@ import { Park3D } from './Park3D';
 import { Parking3D } from './Parking3D';
 import { Vehicles3D } from './Vehicles3D';
 import { liveMix, weatherStore } from '../../../engine/world/weather';
-import { badgeFocus, badgeOpacity, dashLane, litLanes, PULSE, pulseDistance, type BadgeFocus } from './focus3d';
+import { badgeFocus, badgeOpacity, dashLane, LANE_GLOW, litLanes, PULSE, pulseDistance, type BadgeFocus } from './focus3d';
 import { useLivePath } from '../useLivePath';
 import { pathLength, pointAlongPath } from '../../../engine/plan/path';
 import { customerShirt, type V2 } from '../../../engine/plan/layout3d';
@@ -492,7 +493,10 @@ function FloorLabel({ text, color, width, selected }: { text: string; color: str
   );
 }
 
-const DEPARTMENT_IDS = Object.keys(DEPARTMENTS) as DepartmentId[];
+/** Every department with a floor of its own: the cash vault has none (its station is the door in the vault room's back wall). */
+const RUG_IDS = (Object.keys(DEPARTMENTS) as DepartmentId[]).filter((id) => id !== 'CASH');
+/** Every station drawn as a desk or a kiosk. */
+const DESK_IDS = STATION_IDS.filter((id) => id !== VAULT_STATION);
 
 /** A coloured rug for each department, with a border; the name is painted on the floor just outside its front edge. */
 const Rug = memo(function Rug({ id }: { id: DepartmentId }) {
@@ -581,7 +585,7 @@ const Lanes = memo(function Lanes() {
     m.transparent = true;
     return m;
   }, []);
-  const haloMaterial = useMemo(() => new MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.45, depthWrite: false, blending: AdditiveBlending, toneMapped: false }), []);
+  const haloMaterial = useMemo(() => new MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: LANE_GLOW.halo, depthWrite: false, blending: AdditiveBlending, toneMapped: false }), []);
   useEffect(() => () => geometry.dispose(), [geometry]);
   useEffect(() => () => stripe?.dispose(), [stripe]);
   useEffect(() => () => halo?.dispose(), [halo]);
@@ -592,7 +596,7 @@ const Lanes = memo(function Lanes() {
     },
     [material, haloMaterial],
   );
-  material.opacity = lit.size ? dim : 1;
+  material.opacity = lit.size ? dim : LANE_GLOW.idle;
   return (
     <>
       <mesh geometry={geometry} material={material} renderOrder={1} name="office-lanes" />
@@ -865,7 +869,9 @@ const DeskRenderer = memo(function DeskRenderer() {
   return (
     <group name="desk-renderer">
       <GateStanchions />
-      {STATION_IDS.map((id) => (isMachine(id) ? <AtmKiosk key={id} id={id} /> : <Desk3D key={id} id={id} />))}
+      {/* The Central Cash Vault has no desk: the round steel door is the station (Dressing.VaultRoom), clickable on its own. */}
+      {DESK_IDS.map((id) => (isMachine(id) ? <AtmKiosk key={id} id={id} /> : <Desk3D key={id} id={id} />))}
+      <VaultCashStreams3D />
       <Kiosks />
       <Packets />
       <SignalPulses />
@@ -903,7 +909,7 @@ export function OfficeScene({ resetKey }: { resetKey: number }) {
       <ContactShadows position={[0, -0.66, 0]} scale={[FLOOR_SLAB.w + 6, FLOOR_SLAB.d + 6]} far={0.9} blur={2.8} opacity={0.4} resolution={512} frames={1} color="#6b4f35" />
       {/* Soft contact shadows under every desk, person and plant on the office floor, baked once (at 512 px: a quarter of the GPU memory of 1024, and as soft under the blur). */}
       <ContactShadows position={[0, 0.03, 0]} scale={[FLOOR_SLAB.w, FLOOR_SLAB.d]} far={2.4} blur={2} opacity={0.4} resolution={512} frames={1} color="#5b4330" />
-      {DEPARTMENT_IDS.map((id) => (
+      {RUG_IDS.map((id) => (
         <Rug key={id} id={id} />
       ))}
       <Lanes />

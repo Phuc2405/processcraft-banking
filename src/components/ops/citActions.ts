@@ -1,5 +1,5 @@
 import { formatMoney } from '../../sim/kpis';
-import { citAccount, citAt, citDemoBusy, type CitDemo, type CitSnapshot } from '../../sim/citEngine';
+import { citAccount, citAt, citDemoBusy, dueAtmRefills, type CitDemo, type CitSnapshot } from '../../sim/citEngine';
 import { OPS_LIMITS } from '../../sim/retailOps';
 import { bankStore } from '../../store/bankStore';
 import { citStore } from '../../store/citStore';
@@ -23,8 +23,9 @@ export function citNow(): CitSnapshot {
 export type CitDemoBlock = 'dayOver' | 'busy' | null;
 
 /**
- * Why a demo cannot be dispatched now, or null: the day is over, or the lock holds (the learner's run is not SETTLED and home yet,
- * or the 3D van has not driven off). One mutex for the dock menu, the inspector and the drawer's "run this scenario".
+ * Why a demo cannot be dispatched now, or null: the day is over, or the lock holds (the learner's run is not SETTLED yet, or the 3D
+ * van has not finished its exit route and despawned). It releases the moment both are done. One mutex for the vault inspector and
+ * the drawer's "run this scenario".
  */
 export const citDemoBlock = (cit: CitSnapshot, dayOver: boolean, van: boolean = citStore.getState().van): CitDemoBlock => (dayOver ? 'dayOver' : citDemoBusy(cit) || van ? 'busy' : null);
 
@@ -34,14 +35,15 @@ function retailShortfall(): number {
   return Math.max(0, Math.min(OPS_LIMITS.cassetteCapacityCents - balances.CASH_ATM, balances.CASH_VAULT));
 }
 
-/** Sends a van now: the dispatch posts at once (Dr 1131 / Cr source), and the run walks its states with the bank's clock (or alone, while paused). */
+/**
+ * Sends a van now: the dispatch posts at once (Dr 1131 / Cr source), and the run walks its states with the bank's clock (or alone,
+ * while paused). An ATM run fills the retail cassette only when its van reaches the machine (settleAtmRefills), not here.
+ */
 export function dispatchCitDemo(kind: CitDemo): boolean {
   const { day, minute, dayOver } = bankStore.getState().view;
   if (citDemoBlock(citNow(), dayOver)) return false;
   const refill = kind === 'ATM' ? retailShortfall() : 0;
   if (!citStore.getState().dispatch(kind, day, minute, refill)) return false;
-  // The retail cassette fills (and a sensor drill clears) with the same van.
-  if (kind === 'ATM') retailOpsStore.getState().refillCassette(opsStamp());
   const id = `CIT-${day}-M${citStore.getState().manual.length}`;
   const run = citNow().runs.find((r) => r.planned.order.id === id)?.run;
   const lines = run?.entries[0]?.lines ?? [];
@@ -53,7 +55,7 @@ export function dispatchCitDemo(kind: CitDemo): boolean {
     body: { en: `${run?.order.id ?? ''}: ${text('Dr', 'Cr')}`, vi: `${run?.order.id ?? ''}: ${text('Nợ', 'Có')}` },
     deferred: false,
     source: `cit-demo:${kind}`,
-    onOpen: () => bankStore.getState().select({ kind: 'station', id: 'COLLATERAL_VAULT' }),
+    onOpen: () => bankStore.getState().select({ kind: 'station', id: 'MAIN_CASH_VAULT' }),
   });
   return true;
 }
@@ -61,6 +63,20 @@ export function dispatchCitDemo(kind: CitDemo): boolean {
 /** The retail cassette's "CIT refill": a real van run when one can leave, else the cassette alone (a van is already on the road). */
 export function refillAtmByCit(): void {
   if (!dispatchCitDemo('ATM')) retailOpsStore.getState().refillCassette(opsStamp());
+}
+
+/**
+ * Fills the retail ATM cassette for every learner ATM run whose van has now reached the machine (DELIVERED): the cassette and the
+ * sensor drill change when the cash arrives, as the CIT book's Dr 1113 does. Returns how many it filled.
+ */
+export function settleAtmRefills(bank: Pick<typeof bankStore, 'getState'> = bankStore): number {
+  const { day, minute } = bank.getState().view;
+  const due = dueAtmRefills(day, minute, manualOf(day));
+  for (const i of due) {
+    citStore.getState().markRefilled(i);
+    retailOpsStore.getState().refillCassette(opsStamp());
+  }
+  return due.length;
 }
 
 /** Real milliseconds per CIT minute of a pause-isolated demo: a whole run (65 minutes) plays in about 20 seconds. */
@@ -86,12 +102,15 @@ export function installCitSync(bank: Pick<typeof bankStore, 'getState' | 'subscr
   const prune = (): void => {
     const { day, minute } = bank.getState().view;
     citStore.getState().prune(day, minute);
+    settleAtmRefills(bank);
   };
   prune();
   const stop = bank.subscribe(prune);
   const solo = setInterval(() => {
     const i = citSoloIndex(bank);
-    if (i >= 0) citStore.getState().playAhead(i, 1);
+    if (i < 0) return;
+    citStore.getState().playAhead(i, 1);
+    settleAtmRefills(bank);
   }, CIT_SOLO_MS);
   return () => {
     stop();

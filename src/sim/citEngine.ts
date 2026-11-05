@@ -318,7 +318,7 @@ export function sbvTrigger(vaultCents: number, unfitCents: number, holiday: bool
 // The day's runs
 
 /** Minutes after dispatch at which a run enters each state; a minuted seal incident adds `incident` before the count. */
-export const CIT_TIMING = { ARRIVED: 25, IN_COUNT: 35, DELIVERED: 55, SETTLED: 65, incident: 15, home: 10 } as const;
+export const CIT_TIMING = { ARRIVED: 25, IN_COUNT: 35, DELIVERED: 55, SETTLED: 65, incident: 15 } as const;
 export const DOORSTEP_CLIENTS = ['WinMart', 'Go!'] as const;
 const CUSTODIANS = ['Nguyễn Văn An', 'Trần Thị Bình', 'Lê Minh Châu', 'Phạm Quốc Dũng'] as const;
 const SLOTS: ReadonlyArray<{ at: number; kind: 'ATM' | 'CDM' | 'DOORSTEP' | 'SBV' | 'BRANCH'; client?: string }> = [
@@ -392,8 +392,11 @@ export function citSchedule(p: CitPlanned): Record<CitStatus, number> {
   return { EN_ROUTE: p.start, ARRIVED: p.start + CIT_TIMING.ARRIVED, IN_COUNT: p.start + CIT_TIMING.IN_COUNT + delay, DELIVERED: p.start + CIT_TIMING.DELIVERED + delay, SETTLED: p.start + CIT_TIMING.SETTLED + delay };
 }
 
-/** When a run is over for good: settled and, for a van, driven off the bay and back at its base (the demo lock's release). */
-export const citDone = (p: CitPlanned): number => citSchedule(p).SETTLED + (CIT_STRATEGIES[p.order.scenario].van ? CIT_TIMING.home : 0);
+/**
+ * When a run's GL is over: SETTLED. The demo lock releases here, or once the 3D van has driven off the bay and despawned if that is
+ * later (citStore.van, citActions.citDemoBlock): no arbitrary extra hold.
+ */
+export const citDone = (p: CitPlanned): number => citSchedule(p).SETTLED;
 
 /** A planned run as it stands at `minute`, walked through the state machine; null before dispatch. */
 export function runAt(p: CitPlanned, minute: number): CitRun | null {
@@ -422,8 +425,8 @@ export interface CitSnapshot {
   vaultFlow: VaultFlow;
   /** The run stopped at the vault's loading bay and how far through that stop it is (0-1): what the crew's walk follows (citCrew.ts). */
   bay: { id: string; flow: 'IN' | 'OUT'; u: number } | null;
-  /** The learner's run holding the one-dispatch lock and where it is: its state, or RETURNING once settled while its van drives home. */
-  lock: { run: CitRun; stage: CitStatus | 'RETURNING' } | null;
+  /** The learner's run holding the one-dispatch lock and where it is (its state), from dispatch until it is SETTLED. */
+  lock: { run: CitRun; stage: CitStatus } | null;
 }
 
 // Manual demo dispatches
@@ -443,6 +446,8 @@ export interface CitManual {
   at: number;
   refillCents?: number;
   lead?: number;
+  /** An ATM run whose van has reached the ATM: the retail cassette has been filled from it (dueAtmRefills). */
+  refilled?: boolean;
 }
 
 /** A manual run's order, raised against the book as it stands at dispatch; a trigger that would not fire still sends a sensible demo amount. */
@@ -472,6 +477,15 @@ export function manualPlan(day: number, manual: readonly CitManual[]): CitPlanne
   return out;
 }
 
+/**
+ * Today's manual ATM runs whose van has reached the machine (DELIVERED, about 55 minutes after dispatch) and whose retail
+ * cassette has not been filled yet, as indexes into `manual`: the retail balance moves when the cash arrives, not at dispatch.
+ */
+export function dueAtmRefills(day: number, minute: number, manual: readonly CitManual[]): number[] {
+  const plan = manualPlan(day, manual);
+  return manual.flatMap((m, i) => (m.kind === 'ATM' && !m.refilled && plan[i] && minute >= citSchedule(plan[i]!).DELIVERED ? [i] : []));
+}
+
 export function citAt(day: number, minute: number, manual: readonly CitManual[] = []): CitSnapshot {
   return snapshotOf(day, minute, manualPlan(day, manual));
 }
@@ -486,7 +500,7 @@ export function citBayRun(cit: CitSnapshot): CitRun | null {
 const isManual = (o: CitOrder): boolean => o.id.includes('-M');
 
 /**
- * The one-dispatch mutex: the learner's run from dispatch until it is SETTLED and its van is home (citDone), or null. A paused
+ * The one-dispatch mutex: the learner's run from dispatch until it is SETTLED (citDone), or null. A paused
  * bank plays that run on its own until then. Scheduled runs never hold it.
  */
 export const citDemoBusy = (cit: CitSnapshot): CitRun | null => cit.lock?.run ?? null;
@@ -521,6 +535,6 @@ function snapshotOf(day: number, minute: number, extra: readonly CitPlanned[]): 
     if (u !== null) bay = { id: planned.order.id, flow: bayFlow(planned.order), u };
   }
   const open = runs.find((r) => r.run && isManual(r.run.order) && minute < citDone(r.planned));
-  const lock = open?.run ? { run: open.run, stage: open.run.status === 'SETTLED' ? ('RETURNING' as const) : open.run.status } : null;
+  const lock = open?.run ? { run: open.run, stage: open.run.status } : null;
   return { runs, active, journal, book: bookAfter(journal), vaultFlow, bay, lock };
 }

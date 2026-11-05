@@ -186,6 +186,7 @@ export function describeWork(station: StationId, p: Packet, stop: Stop, previous
     case 'GATE_SWIFT':
     case 'SAVINGS_DESK':
     case 'COLLATERAL_VAULT':
+    case 'MAIN_CASH_VAULT':
       return `Working on ${what}`;
     case 'STP_ENGINE':
       return p.plan.outcome === 'DECLINED' ? `Fast-failing ${what} at the gate: ${p.plan.reasonCode ?? 'rule breach'}` : `Straight-through: ${what} checked and posted to the GL in milliseconds`;
@@ -218,6 +219,7 @@ export const IDLE_TEXT: Record<StationId, string> = {
   DISPUTE_DESK: 'No claims waiting',
   SAVINGS_DESK: 'Waiting for the next term deposit to close',
   COLLATERAL_VAULT: 'No liens waiting to be actioned',
+  MAIN_CASH_VAULT: 'Vault sealed, dual-control keys in the safe',
   GATE_SWIFT: 'Watching the SWIFT inbound and outbound queues',
   STP_ENGINE: 'Rules loaded, waiting for the next straight-through case',
 };

@@ -56,6 +56,7 @@ const SHIRT: Record<StationId, string> = {
   DISPUTE_DESK: '#c2410c',
   SAVINGS_DESK: '#047857',
   COLLATERAL_VAULT: '#065f46',
+  MAIN_CASH_VAULT: '#a16207',
   GATE_SWIFT: '#c2410c',
   STP_ENGINE: '#7c3aed',
 };
@@ -85,7 +86,8 @@ export const ROLE: Record<StationId, string> = {
   AML_DESK: 'Compliance analyst',
   DISPUTE_DESK: 'Disputes specialist',
   SAVINGS_DESK: 'Savings officer',
-  COLLATERAL_VAULT: 'Collateral custodian',
+  COLLATERAL_VAULT: 'Collateral officer',
+  MAIN_CASH_VAULT: 'Vault custodian',
   GATE_SWIFT: 'Gateway monitor, SWIFT',
   STP_ENGINE: 'Server thread, STP engine',
 };
