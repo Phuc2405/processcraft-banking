@@ -5,6 +5,8 @@ export const subProcessInfoMessages = defineMessages('subProcessInfo', {
   label: { en: 'Sub-process info', vi: 'Thông tin quy trình con' },
   open: { en: 'About this sub-process', vi: 'Về quy trình con này' },
   close: { en: 'Close the sub-process info', vi: 'Đóng thông tin quy trình' },
+  runScenario: { en: '▶ Run this scenario', vi: '▶ Chạy thử kịch bản này' },
+  runNextDay: { en: 'today has closed: a 24/7 channel rolls into the next day', vi: 'hôm nay đã khép sổ: kênh 24/7 sẽ chuyển sang ngày mới' },
   mode_STP: { en: 'STP ⚡', vi: 'STP ⚡' },
   mode_MANUAL: { en: 'Manual 👤', vi: 'Thủ công 👤' },
   mode_HYBRID: { en: 'Hybrid 🔄', vi: 'Kết hợp 🔄' },

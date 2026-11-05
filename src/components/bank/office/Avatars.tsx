@@ -1,6 +1,6 @@
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { memo, useMemo, useRef } from 'react';
-import type { BufferGeometry, Group } from 'three';
+import { BoxGeometry, CylinderGeometry, MeshStandardMaterial, SphereGeometry, type BufferGeometry, type Group } from 'three';
 import type { WorkerProfileSeed } from '../../../sim/types';
 import { blob, box, cyl, merge, shade, type Part } from './kit';
 import { isSlumped, typingRate } from '../../../engine/plan/layout3d';
@@ -321,77 +321,94 @@ interface CustomerProps {
 
 const WEAR_TONES = ['#b91c1c', '#1d4ed8', '#047857', '#7c2d12', '#6d28d9', '#be185d'];
 
-/** The weather's extras on a figure, in the figure's own units (its head sits at about 1.21). */
-function Wearables({ wear, index }: { wear: Wear; index: number }) {
-  if (wear === 'none') return null;
+type V3 = readonly [number, number, number];
+/** One piece of a wearable: a shared shape, where it sits on the figure, and its shared surface. */
+interface WearPart {
+  shape: string;
+  at: V3;
+  rot?: V3;
+  color: string;
+  roughness: number;
+  metalness?: number;
+}
+
+/** The shapes the wearables are cut from, built once each (Flyweight). */
+const WEAR_SHAPES: Readonly<Record<string, () => BufferGeometry>> = {
+  capCrown: () => new CylinderGeometry(0.2, 0.22, 0.12, 12),
+  capPeak: () => new BoxGeometry(0.3, 0.03, 0.16),
+  capBadge: () => new BoxGeometry(0.07, 0.06, 0.02),
+  mask: () => new BoxGeometry(0.24, 0.12, 0.05),
+  maskStrap: () => new BoxGeometry(0.42, 0.015, 0.34),
+  shades: () => new BoxGeometry(0.3, 0.06, 0.03),
+  hood: () => new SphereGeometry(0.25, 10, 8, 0, Math.PI * 2, 0, Math.PI / 1.8),
+  beanie: () => new SphereGeometry(0.235, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+  pompom: () => new SphereGeometry(0.06, 8, 6),
+  scarf: () => new BoxGeometry(0.32, 0.1, 0.3),
+  scarfEnd: () => new BoxGeometry(0.08, 0.22, 0.04),
+};
+const shapeCache = new Map<string, BufferGeometry>();
+const surfaceCache = new Map<string, MeshStandardMaterial>();
+const shapeOf = (k: string): BufferGeometry => {
+  let g = shapeCache.get(k);
+  if (!g) shapeCache.set(k, (g = WEAR_SHAPES[k]!()));
+  return g;
+};
+const surfaceOf = (p: WearPart): MeshStandardMaterial => {
+  const k = `${p.color}|${p.roughness}|${p.metalness ?? 0}`;
+  let m = surfaceCache.get(k);
+  if (!m) surfaceCache.set(k, (m = new MeshStandardMaterial({ color: p.color, roughness: p.roughness, metalness: p.metalness ?? 0 })));
+  return m;
+};
+
+/** What each wear puts on a figure, in the figure's own units (its head sits at about 1.21). */
+export function wearParts(wear: Wear, index: number): readonly WearPart[] {
   const tone = WEAR_TONES[index % WEAR_TONES.length]!;
-  if (wear === 'guard')
-    // A security guard's peaked cap, with its badge.
-    return (
-      <group>
-        <mesh position={[0, 1.37, -0.01]}>
-          <cylinderGeometry args={[0.2, 0.22, 0.12, 12]} />
-          <meshStandardMaterial color="#1e293b" roughness={0.6} />
-        </mesh>
-        <mesh position={[0, 1.32, 0.17]} rotation={[0.35, 0, 0]}>
-          <boxGeometry args={[0.3, 0.03, 0.16]} />
-          <meshStandardMaterial color="#0f172a" roughness={0.4} />
-        </mesh>
-        <mesh position={[0, 1.38, 0.2]}>
-          <boxGeometry args={[0.07, 0.06, 0.02]} />
-          <meshStandardMaterial color="#facc15" metalness={0.6} roughness={0.3} />
-        </mesh>
-      </group>
-    );
-  if (wear === 'mask')
-    // A face mask over the nose and mouth, its straps round to the ears.
-    return (
-      <group>
-        <mesh position={[0, 1.15, 0.19]}>
-          <boxGeometry args={[0.24, 0.12, 0.05]} />
-          <meshStandardMaterial color={index % 3 === 0 ? '#bfdbfe' : '#f8fafc'} roughness={0.9} />
-        </mesh>
-        <mesh position={[0, 1.2, 0.02]}>
-          <boxGeometry args={[0.42, 0.015, 0.34]} />
-          <meshStandardMaterial color="#e2e8f0" roughness={0.9} />
-        </mesh>
-      </group>
-    );
-  if (wear === 'summer')
-    return (
-      <mesh position={[0, 1.235, 0.205]}>
-        <boxGeometry args={[0.3, 0.06, 0.03]} />
-        <meshStandardMaterial color="#0f172a" roughness={0.2} metalness={0.4} />
-      </mesh>
-    );
-  if (wear === 'rain')
-    return (
-      <mesh position={[0, 1.27, -0.04]}>
-        <sphereGeometry args={[0.25, 10, 8, 0, Math.PI * 2, 0, Math.PI / 1.8]} />
-        <meshStandardMaterial color="#facc15" roughness={0.45} />
-      </mesh>
-    );
+  switch (wear) {
+    case 'none':
+      return [];
+    case 'guard':
+      // A security guard's peaked cap, with its badge.
+      return [
+        { shape: 'capCrown', at: [0, 1.37, -0.01], color: '#1e293b', roughness: 0.6 },
+        { shape: 'capPeak', at: [0, 1.32, 0.17], rot: [0.35, 0, 0], color: '#0f172a', roughness: 0.4 },
+        { shape: 'capBadge', at: [0, 1.38, 0.2], color: '#facc15', roughness: 0.3, metalness: 0.6 },
+      ];
+    case 'mask':
+      // A face mask over the nose and mouth, its straps round to the ears.
+      return [
+        { shape: 'mask', at: [0, 1.15, 0.19], color: index % 3 === 0 ? '#bfdbfe' : '#f8fafc', roughness: 0.9 },
+        { shape: 'maskStrap', at: [0, 1.2, 0.02], color: '#e2e8f0', roughness: 0.9 },
+      ];
+    case 'summer':
+      return [{ shape: 'shades', at: [0, 1.235, 0.205], color: '#0f172a', roughness: 0.2, metalness: 0.4 }];
+    case 'rain':
+      return [{ shape: 'hood', at: [0, 1.27, -0.04], color: '#facc15', roughness: 0.45 }];
+    case 'winter':
+      return [
+        { shape: 'beanie', at: [0, 1.36, -0.01], color: tone, roughness: 0.9 },
+        { shape: 'pompom', at: [0, 1.6, -0.01], color: '#f8fafc', roughness: 0.9 },
+        { shape: 'scarf', at: [0, 1.06, 0], color: tone, roughness: 0.9 },
+        { shape: 'scarfEnd', at: [0.1, 0.92, 0.14], color: tone, roughness: 0.9 },
+      ];
+  }
+}
+
+/** The weather's extras on a figure. Every piece shares its geometry and material with every other figure wearing it, so a figure that starts or stops walking (and remounts) allocates nothing on the GPU. */
+function Wearables({ wear, index }: { wear: Wear; index: number }) {
+  const parts = wearParts(wear, index);
+  if (parts.length === 0) return null;
   return (
     <group>
-      <mesh position={[0, 1.36, -0.01]}>
-        <sphereGeometry args={[0.235, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
-        <meshStandardMaterial color={tone} roughness={0.9} />
-      </mesh>
-      <mesh position={[0, 1.6, -0.01]}>
-        <sphereGeometry args={[0.06, 8, 6]} />
-        <meshStandardMaterial color="#f8fafc" roughness={0.9} />
-      </mesh>
-      <mesh position={[0, 1.06, 0]}>
-        <boxGeometry args={[0.32, 0.1, 0.3]} />
-        <meshStandardMaterial color={tone} roughness={0.9} />
-      </mesh>
-      <mesh position={[0.1, 0.92, 0.14]}>
-        <boxGeometry args={[0.08, 0.22, 0.04]} />
-        <meshStandardMaterial color={tone} roughness={0.9} />
-      </mesh>
+      {parts.map((p) => (
+        <mesh key={p.shape} position={p.at as [number, number, number]} rotation={p.rot as [number, number, number] | undefined} geometry={shapeOf(p.shape)} material={surfaceOf(p)} />
+      ))}
     </group>
   );
 }
+
+/** How many distinct wearable geometries and materials exist (bounded however many figures wear them), for the tests. */
+export const wearableCacheSize = (): { shapes: number; surfaces: number } => ({ shapes: shapeCache.size, surfaces: surfaceCache.size });
+export const wearableResources = (wear: Wear, index: number): { geometry: BufferGeometry; material: MeshStandardMaterial }[] => wearParts(wear, index).map((p) => ({ geometry: shapeOf(p.shape), material: surfaceOf(p) }));
 
 /** A customer. */
 export const CustomerFigure = memo(function CustomerFigure({ index, shirt, phase = 0, walking = false, scale = 0.72, wear = 'none', raise, stride = 1, tempo = 1 }: CustomerProps) {

@@ -1,6 +1,9 @@
 import { useState, type ReactNode } from 'react';
 import { regDocById } from '../../data/regulatoryRegistry';
-import { ACTORS, citDemoOfKey, glLine, subProcessInfo, type ActorId, type InfoKey, type SubProcessInfo } from '../../data/subProcessRegistry';
+import { ACTORS, glLine, subProcessInfo, type ActorId, type InfoKey, type SubProcessInfo } from '../../data/subProcessRegistry';
+import { demoActionById } from '../../sim/demoActions';
+import { sheetDemo } from '../../sim/sheetDemo';
+import { runDemo } from '../bank/retailOpsActions';
 import { GUIDED_FLOWS } from '../../sim/guidedFlows';
 import { isStation } from '../../sim/topology';
 import { bankStore, useBankStore } from '../../store/bankStore';
@@ -33,6 +36,37 @@ const Bullets = ({ items, tone }: { items: readonly string[]; tone: string }) =>
   </ul>
 );
 
+/**
+ * The sheet's "▶ Run this scenario": a CIT child dispatches its run (CitRunButton holds its lock); any other sheet sends its scenario
+ * through the dock's one pipeline (runDemo), which lights the payment's own path, starts its energy orb on both maps and opens the
+ * payment in the inspector, on its first step.
+ */
+function RunScenario({ infoKey }: { infoKey: InfoKey }) {
+  const m = useMessages(subProcessInfoMessages);
+  const demo = sheetDemo(infoKey);
+  const dayOver = useBankStore((s) => s.view.dayOver);
+  if (!demo) return null;
+  if (demo.kind === 'cit') return <CitRunButton kind={demo.demo} />;
+  const action = demoActionById(demo.id);
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-violet-300/30 bg-violet-400/[0.07] p-2.5 backdrop-blur-sm" data-testid="spi-run-scenario" data-demo={demo.id}>
+      <button
+        type="button"
+        onClick={() => runDemo(demo.id)}
+        title={action.hint()}
+        data-testid="spi-run"
+        className="whitespace-nowrap rounded-lg bg-gradient-to-r from-violet-300 to-sky-400 px-3.5 py-1.5 text-[12.5px] font-bold text-slate-950 shadow-lg shadow-violet-500/20 transition hover:brightness-110"
+      >
+        {m('runScenario')}
+      </button>
+      <p className="w-full text-[11px] leading-snug text-slate-400">
+        {action.icon} {action.label()}
+        {dayOver ? ` · ${m('runNextDay')}` : ''}
+      </p>
+    </div>
+  );
+}
+
 /** The drawer for the live store: closes and navigates through the bank. */
 export function SubProcessInfoDrawer({ infoKey }: { infoKey: InfoKey }) {
   const str = useBankStore((s) => s.view.stp.rate);
@@ -51,7 +85,6 @@ export function SubProcessInfoView({ info, liveStr }: { info: SubProcessInfo; li
     if (isStation(info.place)) bank.select({ kind: 'station', id: info.place });
   };
   const duty = actor ? info.actors.find((a) => a.id === actor) : null;
-  const citDemo = citDemoOfKey(info.key);
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-gradient-to-b from-slate-900/70 to-slate-950/80 backdrop-blur-xl" data-testid="subprocess-drawer" data-key={info.key} data-mode={info.mode}>
       <header className="shrink-0 border-b border-white/10 p-3.5" style={{ background: `linear-gradient(180deg, ${accent}26, transparent)` }}>
@@ -78,7 +111,7 @@ export function SubProcessInfoView({ info, liveStr }: { info: SubProcessInfo; li
         </div>
       </header>
       <div className="bk-scroll min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain p-3" data-testid="inspector-body">
-        {citDemo && <CitRunButton kind={citDemo} />}
+        <RunScenario infoKey={info.key} />
         <Section title={m('overview')} testId="overview">
           <p className="text-[12.5px] leading-relaxed text-slate-200">{pick(info.overview, locale)}</p>
           <button type="button" onClick={showOnMap} data-testid="spi-show" className="mt-2 rounded-lg bg-white/10 px-2.5 py-1 text-[11.5px] font-semibold text-slate-100 hover:bg-white/15">

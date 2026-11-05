@@ -1,5 +1,6 @@
 import { focusScope, type DemoGroupId } from '../../../sim/demoGroups';
 import type { PlaceId } from '../../../sim/topology';
+import type { LivePath } from '../../../sim/transactionPath';
 import type { FlowId } from '../../../types/viewport';
 import { LANES, type V2 } from '../../../engine/plan/layout3d';
 import { pathLength, pointAlongPath } from '../../../engine/plan/path';
@@ -34,11 +35,15 @@ export function deskFocus(place: PlaceId, hover: PlaceId | null, flow: FlowId | 
   return 1;
 }
 
-/** The lanes lit now: the pointed-at desk's own, else the guided scenario's; and how much the others fade. */
-export function litLanes(hover: PlaceId | null, flow: FlowId | null, sub: DemoGroupId | null = null): { lanes: ReadonlySet<string>; dim: number } {
-  if (hover) return { lanes: new Set(LANES.filter((l) => l.from === hover || l.to === hover).map((l) => l.id)), dim: LANE_DIM };
-  if (flow) return { lanes: focusScope(flow, sub).wires, dim: DIM.flow };
-  return { lanes: new Set(), dim: 1 };
+/**
+ * The lanes lit now and how much the others fade: the pointed-at desk's own; else, while the learner's payment runs, only the wires
+ * it has crossed and is crossing (its orb is then the one moving light, so `pulses` is off); else the guided scenario's.
+ */
+export function litLanes(hover: PlaceId | null, flow: FlowId | null, sub: DemoGroupId | null = null, path: LivePath | null = null): { lanes: ReadonlySet<string>; dim: number; pulses: boolean } {
+  if (hover) return { lanes: new Set(LANES.filter((l) => l.from === hover || l.to === hover).map((l) => l.id)), dim: LANE_DIM, pulses: true };
+  if (path) return { lanes: new Set(LANES.filter((l) => path.all.has(l.id)).map((l) => l.id)), dim: DIM.flow, pulses: false };
+  if (flow) return { lanes: focusScope(flow, sub).wires, dim: DIM.flow, pulses: true };
+  return { lanes: new Set(), dim: 1, pulses: true };
 }
 
 export type BadgeFocus = 'lit' | 'dim' | 'plain' | 'faded';

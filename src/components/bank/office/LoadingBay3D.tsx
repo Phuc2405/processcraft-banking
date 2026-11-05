@@ -1,9 +1,9 @@
 import { useFrame } from '@react-three/fiber';
-import { useMemo, useRef, useState } from 'react';
-import type { Group } from 'three';
-import { MeshBasicMaterial, SphereGeometry, type Mesh } from 'three';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { BoxGeometry, Mesh, MeshBasicMaterial, MeshStandardMaterial, RingGeometry, SphereGeometry, type Group } from 'three';
 import { CustomerFigure } from './Avatars';
-import { CARRY_PATH, CORRIDOR, LOADING_BAY, LOADING_DOOR, VAN_REAR, VAULT_DOOR, VAULT_STOP, type CitPhase, type CitRun, type Load } from '../../../engine/world/citRun';
+import { CARRY_PATH, CORRIDOR, LOADING_BAY, LOADING_DOOR, VAN_REAR, VAULT_DOOR, VAULT_STOP, type CitPhase, type CitPose, type CitRun, type CrewFigure } from '../../../engine/world/citRun';
+import { frameMemo, ObjectPool } from './webglSafety';
 import { pathLength, pointAlongPath } from '../../../engine/plan/path';
 import { TAG_STYLE } from '../personStatus';
 import { Html } from '@react-three/drei';
@@ -69,15 +69,9 @@ function RearDoors({ doors }: { doors: { current: number } }) {
   );
 }
 
-/** The steel cash cassette box, carried in front in both hands. */
-function Carried() {
-  return (
-    <mesh position={[0, 0.5, 0.2]}>
-      <boxGeometry args={[0.34, 0.2, 0.24]} />
-      <meshStandardMaterial color="#9ca3af" metalness={0.7} roughness={0.3} />
-    </mesh>
-  );
-}
+/** Flyweight: the steel cash cassette box, one shape and one surface for every run. */
+const CASSETTE = new BoxGeometry(0.34, 0.2, 0.24);
+const CASSETTE_MAT = new MeshStandardMaterial({ color: '#9ca3af', metalness: 0.7, roughness: 0.3 });
 
 /** Each of the run's people on foot: their look and the shirt they wear. */
 const ROLES = [
@@ -86,37 +80,56 @@ const ROLES = [
   { role: 'staff', index: 57, shirt: '#7c3aed', wear: 'none' },
 ] as const;
 type Role = (typeof ROLES)[number]['role'];
-type Look = { visible: boolean; walking: boolean; carrying: Load | null };
-const HIDDEN: Look = { visible: false, walking: false, carrying: null };
+/** The run's pose for this frame, computed once and shared by the van, the crew and the vault (frameMemo). */
+type PoseOf = (frame: number) => CitPose;
 
-/** One of the run's people, moved every frame from the pose; re-rendered only when how they look changes. Their status badge is PeopleTags3D's, as everyone's. */
-function CrewMember({ run, role, index, shirt, wear }: { run: CitRun; role: Role; index: number; shirt: string; wear: 'none' | 'guard' }) {
+const crewOf = (p: CitPose, role: Role): CrewFigure | null => {
+  for (const c of p.crew) if (c.role === role) return c;
+  return null;
+};
+
+/**
+ * One of the run's people. Both of their figures (walking and standing) and the cassette are mounted once, for the scene's life,
+ * and shown or hidden every frame (a pool of one): a crew that steps out, walks, stops and climbs back in never mounts a mesh,
+ * never re-renders and never allocates GPU memory. Their status badge is PeopleTags3D's, as everyone's.
+ */
+function CrewMember({ pose, role, index, shirt, wear }: { pose: PoseOf; role: Role; index: number; shirt: string; wear: 'none' | 'guard' }) {
   const group = useRef<Group>(null);
-  const [look, setLook] = useState<Look>(HIDDEN);
-  useFrame(() => {
-    const f = run.pose().crew.find((c) => c.role === role);
-    if (group.current) {
-      group.current.visible = !!f;
-      if (f) {
-        group.current.position.set(f.at[0], GROUND_Y, f.at[1]);
-        group.current.rotation.y = f.heading;
-      }
-    }
-    const next: Look = f ? { visible: true, walking: f.walking, carrying: f.carrying } : HIDDEN;
-    if (next.visible !== look.visible || next.walking !== look.walking || next.carrying !== look.carrying) setLook(next);
+  const walker = useRef<Group>(null);
+  const stander = useRef<Group>(null);
+  const cassette = useRef<Mesh>(null);
+  useFrame(({ clock }) => {
+    const f = crewOf(pose(clock.elapsedTime), role);
+    if (!group.current) return;
+    group.current.visible = f !== null;
+    if (!f) return;
+    group.current.position.set(f.at[0], GROUND_Y, f.at[1]);
+    group.current.rotation.y = f.heading;
+    if (walker.current) walker.current.visible = f.walking;
+    if (stander.current) stander.current.visible = !f.walking;
+    if (cassette.current) cassette.current.visible = f.carrying !== null;
   });
   return (
     <group ref={group} visible={false} name={`cit-${role}`}>
-      {look.visible && <CustomerFigure index={index} shirt={shirt} walking={look.walking} scale={0.72} wear={wear} />}
-      {look.carrying && <Carried />}
+      <group ref={walker} visible={false}>
+        <CustomerFigure index={index} shirt={shirt} walking scale={0.72} wear={wear} />
+      </group>
+      <group ref={stander}>
+        <CustomerFigure index={index} shirt={shirt} walking={false} scale={0.72} wear={wear} />
+      </group>
+      <mesh ref={cassette} visible={false} position={[0, 0.5, 0.2]} geometry={CASSETTE} material={CASSETTE_MAT} />
     </group>
   );
 }
 
 const PULSE = { IN: '#facc15', OUT: '#f97316' } as const;
-/** Flyweight: one sphere and one material per colour, shared by every cash particle. */
+type Flow = keyof typeof PULSE;
+/** Flyweight: one sphere and one material per colour, shared by every cash particle; one ring shape each for the door and the floor. */
 const SPARK = new SphereGeometry(0.09, 10, 8);
-const SPARK_MAT = { IN: new MeshBasicMaterial({ color: PULSE.IN, toneMapped: false }), OUT: new MeshBasicMaterial({ color: PULSE.OUT, toneMapped: false }) } as const;
+const SPARK_MAT: Readonly<Record<Flow, MeshBasicMaterial>> = { IN: new MeshBasicMaterial({ color: PULSE.IN, toneMapped: false }), OUT: new MeshBasicMaterial({ color: PULSE.OUT, toneMapped: false }) };
+const RING_MAT: Readonly<Record<Flow, MeshBasicMaterial>> = { IN: new MeshBasicMaterial({ color: PULSE.IN, transparent: true, opacity: 0.85, toneMapped: false }), OUT: new MeshBasicMaterial({ color: PULSE.OUT, transparent: true, opacity: 0.85, toneMapped: false }) };
+const DOOR_RING = new RingGeometry(0.98, 1.16, 40);
+const FLOOR_RING = new RingGeometry(0.55, 0.75, 32);
 const SPARKS = 8;
 /** The cash particles' stretch: from the loading door's inside along the crew's corridor to the round vault door. */
 const STREAM = CORRIDOR.slice(1);
@@ -125,47 +138,75 @@ const STREAM_LEN = pathLength(STREAM);
 /**
  * The round vault door lit while cash crosses it (the primary target of every vault deposit and withdrawal): a ring round the
  * door, a ring on the floor where the crew stands, gold (Dr 1111) or orange (Cr 1111) cash particles streaming along the corridor
- * into the door or out of it, and the GL tag.
+ * into the door or out of it, and the GL tag. The rings stay mounted and hide between runs; the particles come from a pool that
+ * hands the same eight meshes to every run.
  */
-function VaultPulse({ run }: { run: CitRun }) {
-  const ring = useRef<Group>(null);
-  const sparks = useRef<Array<Mesh | null>>([]);
-  const [flow, setFlow] = useState<'IN' | 'OUT' | null>(null);
+function VaultPulse({ pose, run }: { pose: PoseOf; run: CitRun }) {
+  const root = useRef<Group>(null);
+  const ring = useRef<Mesh>(null);
+  const floor = useRef<Mesh>(null);
+  const stream = useRef<Group>(null);
+  const pool = useMemo(() => new ObjectPool<Mesh>(() => new Mesh(SPARK, SPARK_MAT.IN), SPARKS), []);
+  const sparks = useRef<Mesh[]>([]);
+  const [flow, setFlow] = useState<Flow | null>(null);
+  const shown = useRef<Flow | null>(null);
+  useEffect(
+    () => () => {
+      for (const m of sparks.current) stream.current?.remove(m);
+      sparks.current = [];
+      // The meshes share the flyweight's geometry and materials, which outlive this view: only the pool's own list goes.
+      pool.drain();
+    },
+    [pool],
+  );
   useFrame(({ clock }) => {
-    const p = run.pose();
+    const p = pose(clock.elapsedTime);
     // The particles run while the custodian carries the cassettes, not only at the door.
-    const f = p.vaultPulse ?? (p.crew.some((c) => c.carrying) ? run.flow : null);
-    if (f !== flow) setFlow(f);
+    const f: Flow | null = p.vaultPulse ?? (p.crew.some((c) => c.carrying) ? run.flow : null);
+    if (f !== shown.current) {
+      shown.current = f;
+      setFlow(f);
+      if (f) {
+        if (ring.current) ring.current.material = RING_MAT[f];
+        if (floor.current) floor.current.material = RING_MAT[f];
+        for (let i = sparks.current.length; i < SPARKS; i++) {
+          const m = pool.acquire();
+          if (!m) break;
+          m.material = SPARK_MAT[f];
+          sparks.current.push(m);
+          stream.current?.add(m);
+        }
+      } else {
+        for (const m of sparks.current) {
+          stream.current?.remove(m);
+          pool.release(m);
+        }
+        sparks.current = [];
+      }
+    }
+    if (root.current) root.current.visible = f !== null;
+    if (!f) return;
     const t = clock.elapsedTime;
     if (ring.current) ring.current.scale.setScalar(1 + 0.08 * Math.sin(t * 6));
     sparks.current.forEach((m, i) => {
-      if (!m) return;
+      m.material = SPARK_MAT[f];
       const u = (t * 0.22 + i / SPARKS) % 1;
       const [x, z] = pointAlongPath(STREAM, (f === 'OUT' ? 1 - u : u) * STREAM_LEN);
       m.position.set(x, 1.0 + 0.12 * Math.sin(t * 5 + i), z);
     });
   });
-  if (!flow) return null;
   return (
-    <group name="cit-vault-pulse" data-flow={flow}>
-      <group ref={ring} position={[VAULT_DOOR.x, VAULT_DOOR.y, VAULT_DOOR.z + 0.32]}>
-        <mesh>
-          <ringGeometry args={[0.98, 1.16, 40]} />
-          <meshBasicMaterial color={PULSE[flow]} transparent opacity={0.9} toneMapped={false} />
-        </mesh>
-      </group>
-      <mesh position={[VAULT_STOP[0], 0.03, VAULT_STOP[1]]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.55, 0.75, 32]} />
-        <meshBasicMaterial color={PULSE[flow]} transparent opacity={0.7} toneMapped={false} />
-      </mesh>
-      {Array.from({ length: SPARKS }, (_, i) => (
-        <mesh key={i} ref={(m) => (sparks.current[i] = m)} geometry={SPARK} material={SPARK_MAT[flow]} />
-      ))}
-      <Html position={[VAULT_DOOR.x, VAULT_DOOR.y + 1.0, VAULT_DOOR.z + 0.4]} center zIndexRange={[11, 0]} style={{ pointerEvents: 'none' }}>
-        <div data-testid="cit-vault-post" style={{ ...TAG_STYLE, color: PULSE[flow] }}>
-          {flow === 'IN' ? '⬇ Dr 1111' : '⬆ Cr 1111'}
-        </div>
-      </Html>
+    <group ref={root} visible={false} name="cit-vault-pulse" userData={{ flow }}>
+      <mesh ref={ring} geometry={DOOR_RING} material={RING_MAT.IN} position={[VAULT_DOOR.x, VAULT_DOOR.y, VAULT_DOOR.z + 0.32]} />
+      <mesh ref={floor} geometry={FLOOR_RING} material={RING_MAT.IN} position={[VAULT_STOP[0], 0.03, VAULT_STOP[1]]} rotation={[-Math.PI / 2, 0, 0]} />
+      <group ref={stream} />
+      {flow && (
+        <Html position={[VAULT_DOOR.x, VAULT_DOOR.y + 1.0, VAULT_DOOR.z + 0.4]} center zIndexRange={[11, 0]} style={{ pointerEvents: 'none' }}>
+          <div data-testid="cit-vault-post" style={{ ...TAG_STYLE, color: PULSE[flow] }}>
+            {flow === 'IN' ? '⬇ Dr 1111' : '⬆ Cr 1111'}
+          </div>
+        </Html>
+      )}
     </group>
   );
 }
@@ -182,8 +223,10 @@ export function LoadingBay3D({ run }: { run: CitRun }) {
   const blinkRight = useRef<Group>(null);
   const doors = useMemo(() => ({ current: 0 }), []);
   const [phase, setPhase] = useState<CitPhase>(run.phase);
+  // One pose a frame for the van, the three crew and the vault, instead of five.
+  const pose = useMemo<PoseOf>(() => frameMemo(() => run.pose()), [run]);
   useFrame(({ clock }) => {
-    const p = run.pose();
+    const p = pose(clock.elapsedTime);
     if (van.current) {
       van.current.visible = p.phase !== 'away';
       van.current.position.set(p.x, GROUND_Y, p.z);
@@ -236,9 +279,9 @@ export function LoadingBay3D({ run }: { run: CitRun }) {
       </group>
       {/* The custodian and the guard step out of the cab and walk to the vault and back; the vault's staff walks out to open the door. */}
       {ROLES.map((r) => (
-        <CrewMember key={r.role} run={run} {...r} />
+        <CrewMember key={r.role} pose={pose} {...r} />
       ))}
-      <VaultPulse run={run} />
+      <VaultPulse pose={pose} run={run} />
     </group>
   );
 }

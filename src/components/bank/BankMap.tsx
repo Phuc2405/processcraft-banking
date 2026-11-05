@@ -19,6 +19,8 @@ import { DEPARTMENTS, DEPARTMENT_IDS, STATIONS, type DepartmentId, type External
 import { MapLegend } from './MapLegend';
 import type { Move, StationView } from '../../sim/types';
 import { academyFocusOf, activeFlowOf, activeScopeOf, beatLive, useBankStore } from '../../store/bankStore';
+import { useLivePath } from './useLivePath';
+import { onPath } from '../../sim/transactionPath';
 import { AtmCassetteBadge } from './RetailOpsDock';
 import { CitBay2D } from './CitBay2D';
 import { GUIDED_FLOWS, type FlowScope } from '../../sim/guidedFlows';
@@ -609,6 +611,10 @@ function GatewayMark({ g, opacity, glow, active, accent, ridden }: { g: Gateway;
 
 function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; tick: number; focus: Focus | null; flow: FlowFocus | null; active: PlaceId | null }) {
   const heat = useWireHeat(moves, tick);
+  // While the learner's payment runs in a guided flow, only its own path is lit (not the whole flow): the wires it has crossed glow, the one it is crossing runs.
+  const live = useLivePath();
+  const path = flow && !focus ? live : null;
+  const inPath = (id: string): boolean => (path ? onPath(path, id) : flow ? flow.scope.wires.has(id) : true);
   // The wires the token is on right now glow brightest; the ones it has already ridden stay lit.
   const current = new Set(focus && !focus.tour.intro ? wiresOfRoute(focus.current.route) : []);
   // Hovering a line lights that line; hovering or selecting a node lights its own paths.
@@ -628,7 +634,7 @@ function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; t
         const st = wireStyle(w.to, w.from);
         const h = focus ? 0 : (heat[w.id] ?? 0);
         const inScope = !focus || focus.scope.wires.has(w.id);
-        const inFlow = !flow || flow.scope.wires.has(w.id);
+        const inFlow = !flow || inPath(w.id);
         const ridden = focus?.trail.has(w.id) ?? false;
         const on = linked?.has(w.id) ?? false;
         const shown = inScope && inFlow && (!linked || on);
@@ -638,6 +644,9 @@ function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; t
           <g key={w.id} data-wire={w.id} data-lit={focus ? inScope : flow ? inFlow : linked ? on : undefined} data-ridden={ridden || undefined} opacity={shown ? 1 : 0.15} style={focus && !inScope ? { filter: 'blur(1px)' } : flow && !inFlow ? { filter: 'grayscale(1)' } : undefined}>
             <path d={w.strokePath ?? d} fill="none" stroke={on ? st.glow : focus && inScope ? `${focus.accent}66` : flow && inFlow ? `${flow.accent}88` : st.base} strokeWidth={on ? 2.6 : 2} {...(st.dash ? { strokeDasharray: st.dash } : {})} {...(w.gateway ? {} : { markerEnd: `url(#bk-arrow-${st.base.slice(1)})` })} />
             {h > 0.05 && <path d={d} fill="none" stroke={st.glow} strokeWidth={2 + Math.min(h, 6) * 0.3} strokeLinecap="round" opacity={Math.min(0.55, 0.1 + h * 0.07)} style={{ transition: 'opacity 400ms' }} />}
+            {path && inFlow && flow && (
+              <path d={d} fill="none" stroke={flow.accent} strokeWidth={path.current.has(w.id) ? 3.6 : 2.6} strokeLinecap="round" className={path.current.has(w.id) ? 'bk-tour-path bk-flow' : 'bk-tour-path'} style={{ filter: `drop-shadow(0 0 5px ${flow.accent})` }} data-testid={`flow-path-wire-${w.id}`} data-active={path.current.has(w.id) || undefined} />
+            )}
             {focus && ridden && (
               <path
                 d={d}
@@ -656,7 +665,7 @@ function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; t
       {GATEWAYS.map((g) => {
         const members = gatewayCarries(g);
         const inScope = !focus || members.some((id) => focus.scope.wires.has(id));
-        const inFlow = !flow || members.some((id) => flow.scope.wires.has(id));
+        const inFlow = !flow || members.some(inPath);
         const on = linked ? members.some((id) => linked.has(id)) : false;
         const glow = focus ? 0 : Math.max(0, ...members.map((id) => heat[id] ?? 0));
         const ridden = focus ? members.some((id) => focus.trail.has(id)) : false;

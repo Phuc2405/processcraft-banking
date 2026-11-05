@@ -24,6 +24,7 @@ import { Parking3D } from './Parking3D';
 import { Vehicles3D } from './Vehicles3D';
 import { liveMix, weatherStore } from '../../../engine/world/weather';
 import { badgeFocus, badgeOpacity, dashLane, litLanes, PULSE, pulseDistance, type BadgeFocus } from './focus3d';
+import { useLivePath } from '../useLivePath';
 import { pathLength, pointAlongPath } from '../../../engine/plan/path';
 import { customerShirt, type V2 } from '../../../engine/plan/layout3d';
 import { ribbonGeometry, roundedRect, roundedRectPath, shade, tint } from './kit';
@@ -557,7 +558,8 @@ const Lanes = memo(function Lanes() {
   const hover = useBankStore((s) => (s.spotlight ? null : s.hoverPlace));
   const flow = useBankStore((s) => (s.spotlight ? null : activeFlowOf(s)));
   const sub = useBankStore((s) => s.subProcess);
-  const { lanes: lit, dim } = useMemo(() => litLanes(hover, flow, sub), [hover, flow, sub]);
+  const path = useLivePath();
+  const { lanes: lit, dim, pulses } = useMemo(() => litLanes(hover, flow, sub, path), [hover, flow, sub, path]);
   const litLanes3d = useMemo(
     () =>
       LANES.filter((l) => lit.has(l.id)).map((l) => {
@@ -596,7 +598,7 @@ const Lanes = memo(function Lanes() {
       <mesh geometry={geometry} material={material} renderOrder={1} name="office-lanes" />
       {halo && <mesh geometry={halo} material={haloMaterial} renderOrder={2} name="office-lanes-halo" />}
       {stripe && <mesh geometry={stripe} material={tape} renderOrder={2} name="office-lanes-lit" />}
-      {paths.length > 0 && <LanePulses paths={paths} colors={colors} />}
+      {pulses && paths.length > 0 && <LanePulses paths={paths} colors={colors} />}
     </>
   );
 });
@@ -899,8 +901,8 @@ export function OfficeScene({ resetKey }: { resetKey: number }) {
       <FrameDriver />
       <Environment3D />
       <ContactShadows position={[0, -0.66, 0]} scale={[FLOOR_SLAB.w + 6, FLOOR_SLAB.d + 6]} far={0.9} blur={2.8} opacity={0.4} resolution={512} frames={1} color="#6b4f35" />
-      {/* Soft contact shadows under every desk, person and plant on the office floor, baked once. */}
-      <ContactShadows position={[0, 0.03, 0]} scale={[FLOOR_SLAB.w, FLOOR_SLAB.d]} far={2.4} blur={2} opacity={0.4} resolution={1024} frames={1} color="#5b4330" />
+      {/* Soft contact shadows under every desk, person and plant on the office floor, baked once (at 512 px: a quarter of the GPU memory of 1024, and as soft under the blur). */}
+      <ContactShadows position={[0, 0.03, 0]} scale={[FLOOR_SLAB.w, FLOOR_SLAB.d]} far={2.4} blur={2} opacity={0.4} resolution={512} frames={1} color="#5b4330" />
       {DEPARTMENT_IDS.map((id) => (
         <Rug key={id} id={id} />
       ))}

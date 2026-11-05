@@ -380,6 +380,7 @@ export const VI_DICTIONARY: Readonly<Record<string, string>> = {
   "The 3D office could not be loaded.": "Không tải được văn phòng 3D.",
   "The 3D office could not start": "Không khởi động được văn phòng 3D",
   "The 3D view could not start.": "Không khởi động được chế độ xem 3D.",
+  "Restoring the 3D view…": "Đang khôi phục chế độ xem 3D…",
   "The brief": "Đề bài",
   "The day in numbers": "Một ngày qua các con số",
   "The day is over": "Ngày đã kết thúc",
