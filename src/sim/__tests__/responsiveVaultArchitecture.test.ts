@@ -188,7 +188,8 @@ describe('the 3D cash streams and the object pool', () => {
       const [x1, , z1] = arcPoint(e, 1);
       expect(x1).toBeCloseTo(endpointXZ(e)[0], 6);
       expect(z1).toBeCloseTo(endpointXZ(e)[1], 6);
-      expect(arcPoint(e, 0.5)[1]).toBeGreaterThan(2.5);
+      expect(arcPoint(e, 0.5)[1]).toBeGreaterThanOrEqual(1.5);
+      expect(arcPoint(e, 0.5)[1]).toBeLessThanOrEqual(1.8);
     }
   });
 
@@ -338,7 +339,7 @@ describe('subtle wires and moving icons', () => {
   it('gives each payment an icon from where it entered the bank', () => {
     expect(flowIcon(['GATE_POS', 'LEDGER_DEBIT'])).toBe('💳');
     expect(flowIcon(['OUT_APPROVED', 'EOD_BATCH'])).toBe('📦');
-    expect(flowIcon(['GATE_QR'])).toBe('📲');
+    expect(flowIcon(['GATE_QR'])).toBe('💸');
     expect(flowIcon([])).toBe('💠');
     expect(src('components/bank/BankMap.tsx')).toContain('data-testid="flow-icon-2d"');
     expect(src('components/bank/office/TransactionFlow3D.tsx')).toContain('data-testid="flow-icon-3d"');

@@ -420,8 +420,8 @@ const VI: TermBook = {
       tip: 'Chỉ xử lý hồ sơ tài sản bảo đảm và không giữ tiền mặt: khi khoản vay thành nợ xấu, tiền gửi cầm cố được phong tỏa tại đây rồi dùng để trả nợ.',
     },
     MAIN_CASH_VAULT: {
-      plain: 'KHO QUỸ TRUNG TÂM',
-      short: 'KHO QUỸ TRUNG TÂM',
+      plain: 'Kho Quỹ Trung Tâm',
+      short: 'Kho Quỹ Trung Tâm',
       tip: 'Kho tiền duy nhất của ngân hàng sau cánh cửa thép tròn, giữ toàn bộ tiền mặt (TK 1111 đủ tiêu chuẩn, 1112 không đủ tiêu chuẩn, 1131 đang chuyển), nơi quầy GDV, ATM và xe CIT nhận tiền hoặc nộp tiền về.',
     },
     DISPUTE_DESK: {
@@ -570,7 +570,7 @@ const EXPERT_STATION_VI: Readonly<Record<StationId, { name: string; blurb: strin
   STP_ENGINE: { name: 'Trạm xử lý tự động STP (Core Banking Engine)', blurb: 'Xử lý thẳng (STP): kiểm tra eKYC, DTI, nhóm nợ CIC, hạn mức và sàng lọc AML trong vài mili giây, rồi hạch toán vào sổ cái mà không cần con người. Hồ sơ ngoài quy tắc quay về quầy thủ công.' },
   SAVINGS_DESK: { name: 'Quầy Tiết kiệm', blurb: 'Tất toán tiền gửi có kỳ hạn, tính lại tiền lãi từ lãi suất hợp đồng về lãi suất không kỳ hạn khi tất toán sớm.' },
   COLLATERAL_VAULT: { name: 'Quầy Tiết kiệm & Tài sản Bảo đảm', blurb: 'Chỉ xử lý hồ sơ tài sản bảo đảm và cầm cố khoản vay: phong tỏa tiền gửi cầm cố khi vỡ nợ, rồi xử lý theo thứ tự cấn trừ để thu hồi nợ xấu. Quầy không giữ tiền mặt (tiền mặt nằm ở Kho Quỹ Trung Tâm).' },
-  MAIN_CASH_VAULT: { name: 'KHO QUỸ TRUNG TÂM', blurb: 'Kho tiền mặt duy nhất của ngân hàng, sau cánh cửa thép tròn: tiền đủ tiêu chuẩn (TK 1111), không đủ tiêu chuẩn (TK 1112) và đang chuyển (TK 1131). Xuất tiền cho quầy GDV, ATM và xe CIT, và nhận tiền về từ họ, luôn theo kiểm soát kép.' },
+  MAIN_CASH_VAULT: { name: 'Kho Quỹ Trung Tâm', blurb: 'Kho tiền mặt duy nhất của ngân hàng, sau cánh cửa thép tròn: tiền đủ tiêu chuẩn (TK 1111), không đủ tiêu chuẩn (TK 1112) và đang chuyển (TK 1131). Xuất tiền cho quầy GDV, ATM và xe CIT, và nhận tiền về từ họ, luôn theo kiểm soát kép.' },
   DISPUTE_DESK: { name: 'Quầy Tra soát Khiếu nại & Đòi tiền', blurb: 'Chuyên viên xử lý khiếu nại của khách: tra soát thẻ (chargeback), hoàn trả pacs.004 và lệch tiền ATM, trong thời hạn của tổ chức thẻ.' },
   GATE_SWIFT: { name: 'Cổng Chuyển tiền Quốc tế SWIFT / ISO 20022', blurb: 'Đọc điện chuyển tiền quốc tế pacs.008 (mã BIC, EndToEndId, số tiền quyết toán và loại tiền) và quy đổi ngoại tệ trước khi sàng lọc.' },
 };

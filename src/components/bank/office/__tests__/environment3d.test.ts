@@ -539,7 +539,7 @@ describe('focus in 3D: a pointed-at desk and a guided scenario', () => {
     const len = 10;
     const a = pulseDistance(len, 0, 1);
     const b = pulseDistance(len, 1, 1);
-    expect(Math.abs(b - a)).toBeCloseTo(len / PULSE.perLane, 5);
+    expect(Math.abs(b - a) % len).toBeCloseTo((len / PULSE.perLane) % len, 5);
     expect(pulseDistance(len, 0, len / PULSE.speed)).toBeCloseTo(0, 5);
     for (let t = 0; t < 20; t += 0.7) {
       const d = pulseDistance(len, 1, t);

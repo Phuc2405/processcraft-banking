@@ -78,28 +78,32 @@ export function orbProgress(elapsed: number, seconds = HOP_SECONDS): number {
 /** Whether the orb has reached its stop, so the station's LED ring should pulse (it is being processed there). */
 export const orbArrived = (elapsed: number, seconds = HOP_SECONDS): boolean => elapsed >= seconds;
 
-/**
- * The moving icon a payment wears along its wires, from what it is (Strategy keyed by where it entered the bank): a card from a
- * shop's terminal, a phone for a QR or wallet payment, a box of records for the night batch, a globe for SWIFT, notes at the till.
- */
-const FLOW_ICON: Readonly<Partial<Record<PlaceId, string>>> = {
-  GATE_POS: '💳',
-  GATE_VIRTUAL: '💳',
-  GATE_ECOM: '🛒',
-  GATE_A2A: '🔁',
-  GATE_ATM: '🏧',
-  ATM_CASH: '🏧',
-  GATE_EKYC: '🪪',
-  GATE_QR: '📲',
-  GATE_SWIFT: '🌐',
-  TELLER_CASH: '💵',
-  DISPUTE_DESK: '📄',
-  SAVINGS_DESK: '🏦',
-  COLLATERAL_VAULT: '📜',
-  MAIN_CASH_VAULT: '💵',
-  OUT_APPROVED: '📦',
-  EOD_BATCH: '📦',
+/** The six things a payment can be, each with one icon (Flyweight: the icon belongs to the category, never to a place). */
+export const CATEGORY_ICON = { card: '💳', transfer: '💸', cash: '💵', paper: '📜', ecom: '🛒', swift: '🌐', batch: '📦' } as const;
+export type FlowCategory = keyof typeof CATEGORY_ICON;
+
+/** What a payment is, from where it entered the bank (Strategy keyed by its first stop). */
+export const PLACE_CATEGORY: Readonly<Partial<Record<PlaceId, FlowCategory>>> = {
+  GATE_POS: 'card',
+  GATE_VIRTUAL: 'card',
+  GATE_A2A: 'transfer',
+  GATE_QR: 'transfer',
+  GATE_ATM: 'cash',
+  ATM_CASH: 'cash',
+  TELLER_CASH: 'cash',
+  MAIN_CASH_VAULT: 'cash',
+  GATE_EKYC: 'paper',
+  SAVINGS_DESK: 'paper',
+  COLLATERAL_VAULT: 'paper',
+  DISPUTE_DESK: 'paper',
+  GATE_ECOM: 'ecom',
+  GATE_SWIFT: 'swift',
+  OUT_APPROVED: 'batch',
+  EOD_BATCH: 'batch',
 };
+
+/** The moving icon a payment wears along its wires: its category's icon, or a plain spark for a route that starts elsewhere. */
 export function flowIcon(route: readonly PlaceId[]): string {
-  return (route[0] && FLOW_ICON[route[0]]) || '💠';
+  const c = route[0] && PLACE_CATEGORY[route[0]];
+  return c ? CATEGORY_ICON[c] : '💠';
 }

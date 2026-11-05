@@ -91,7 +91,8 @@ export const CIT_SHEETS: readonly SubProcessInfo[] = [
       LEDGER,
     ],
     steps: [
-      L('Trigger: vault over its SBV line, unfit notes ≥ $10,000, or a holiday eve.', 'Kích hoạt: tồn quỹ vượt ngưỡng nộp NHNN, tiền Unfit ≥ $10,000, hoặc trước dịp lễ.'),
+      L('Deposit to the SBV when vault cash is over its $5.2M ceiling, or unfit notes (TK 1112) reach $10,000.', 'Nộp tiền về NHNN khi tồn quỹ vượt mức trần $5.2M, hoặc tiền không đủ tiêu chuẩn (TK 1112) đạt từ $10,000.'),
+      L('Withdraw from the SBV when vault cash is under its $1M floor, or as a cash buffer before a holiday / Lunar New Year (Tet).', 'Rút tiền từ NHNN khi tồn quỹ dưới mức sàn $1M, hoặc để dự phòng tiền mặt trước dịp Lễ / Tết.'),
       L('Deposit: Dr 1131 / Cr 1111 surplus and Cr 1112 unfit notes.', 'Nộp: Nợ 1131 / Có 1111 tiền thừa và Có 1112 tiền không đủ tiêu chuẩn.'),
       L('At the SBV: counted and receipted, Dr 1121 / Cr 1131.', 'Tại NHNN: kiểm đếm và ký nhận, Nợ 1121 / Có 1131.'),
       L('Withdrawal: Dr 1131 / Cr 1121, then Dr 1111 / Cr 1131 at the vault.', 'Rút: Nợ 1131 / Có 1121, rồi Nợ 1111 / Có 1131 tại kho.'),

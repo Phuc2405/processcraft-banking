@@ -8,6 +8,7 @@ import { motion } from '../../../engine/simulation/motion';
 import { flowBeat, type NodeMode } from '../../../sim/flowBeat';
 import type { PlaceId } from '../../../sim/topology';
 import { badgeHops, flowIcon, hopSteps, orbArrived, orbProgress, type HopStep } from '../../../sim/transactionPath';
+import { HopBadge } from '../HopBadge';
 import { useBankStore } from '../../../store/bankStore';
 import { useMessages } from '../../../utils/i18nHelper';
 import { stpMessages } from '../../ops/stp.messages';
@@ -26,13 +27,13 @@ const CORE = new SphereGeometry(0.17, 14, 12);
 const HALO = new SphereGeometry(0.34, 14, 12);
 const CORE_MAT: Readonly<Record<NodeMode, MeshBasicMaterial>> = { STP: new MeshBasicMaterial({ color: '#f5f3ff', toneMapped: false }), MANUAL: new MeshBasicMaterial({ color: '#fffbeb', toneMapped: false }) };
 const HALO_MAT: Readonly<Record<NodeMode, MeshBasicMaterial>> = {
-  STP: new MeshBasicMaterial({ color: TONE.STP, transparent: true, opacity: 0.45, depthWrite: false, toneMapped: false }),
-  MANUAL: new MeshBasicMaterial({ color: TONE.MANUAL, transparent: true, opacity: 0.45, depthWrite: false, toneMapped: false }),
+  STP: new MeshBasicMaterial({ color: TONE.STP, transparent: true, opacity: 0.3, depthWrite: false, toneMapped: false }),
+  MANUAL: new MeshBasicMaterial({ color: TONE.MANUAL, transparent: true, opacity: 0.3, depthWrite: false, toneMapped: false }),
 };
 const RING = new RingGeometry(2.05, 2.3, 48);
 const RING_MAT: Readonly<Record<NodeMode, MeshBasicMaterial>> = {
-  STP: new MeshBasicMaterial({ color: TONE.STP, transparent: true, opacity: 0.85, toneMapped: false }),
-  MANUAL: new MeshBasicMaterial({ color: TONE.MANUAL, transparent: true, opacity: 0.85, toneMapped: false }),
+  STP: new MeshBasicMaterial({ color: TONE.STP, transparent: true, opacity: 0.6, toneMapped: false }),
+  MANUAL: new MeshBasicMaterial({ color: TONE.MANUAL, transparent: true, opacity: 0.6, toneMapped: false }),
 };
 const WIRE_Y = 0.42;
 
@@ -41,24 +42,6 @@ function wire(from: PlaceId, to: PlaceId): readonly V2[] {
   const lane = LANES.find((l) => (l.from === from && l.to === to) || (l.from === to && l.to === from));
   if (!lane) return [placeXZ(from), placeXZ(to)];
   return lane.from === from ? lane.points : [...lane.points].reverse();
-}
-
-const BADGE_STYLE = { background: 'rgba(15,23,42,0.86)', boxShadow: '0 0 14px rgba(0,0,0,0.35)' } as const;
-
-/** The hop badge: the stops round the active one, numbered, the active one in the mode's colour. */
-function HopBadge({ hops, tone }: { hops: readonly HopStep[]; tone: string }) {
-  return (
-    <div role="status" data-testid="flow-hop-badge" className="flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[10.5px] font-semibold backdrop-blur-md" style={{ ...BADGE_STYLE, borderColor: `${tone}aa` }}>
-      {hops.map((h, i) => (
-        <span key={h.n} className="flex items-center gap-1" data-hop={h.n} data-state={h.state}>
-          {i > 0 && <span className="text-slate-500">➔</span>}
-          <span style={{ color: h.state === 'active' ? tone : h.state === 'done' ? '#94a3b8' : '#cbd5e1', fontWeight: h.state === 'active' ? 800 : 600 }}>
-            {h.n}. {h.name}
-          </span>
-        </span>
-      ))}
-    </div>
-  );
 }
 
 /** The orb and its badge, crossing the wire into `to` once, on the motion clock (so it stops when the bank pauses), then held at the stop. */

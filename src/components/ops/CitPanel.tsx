@@ -86,6 +86,20 @@ export function CitRunButton({ kind }: { kind: CitDemo }) {
   );
 }
 
+/** The bottom dock's button while a CIT child sheet is picked: that child's own run, under the one dispatch lock. */
+export function CitDockButton({ kind }: { kind: CitDemo }) {
+  const m = useMessages(citMessages);
+  const { block, stage } = useCitLock();
+  return (
+    <>
+      <button type="button" onClick={() => dispatchCitDemo(kind)} disabled={block !== null} title={block ? m(`demoBlock_${block}`) : m(`demoHint_${kind}`)} data-testid={`dock-cit-${kind}`} className="whitespace-nowrap rounded-lg bg-cyan-400 px-3 py-1.5 text-[12px] font-bold text-cyan-950 shadow transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-40">
+        <span aria-hidden="true">{DEMO_ICON[kind]}</span> {m(`dock_${kind}`)}
+      </button>
+      {block === 'busy' && <CitBusyBadge stage={stage} />}
+    </>
+  );
+}
+
 /** The manual dispatches laid out as buttons, in the vault's inspector and on the CIT sheet (the dock has CitDemoMenu). */
 export function CitDemoButtons({ compact = false }: { compact?: boolean }) {
   const m = useMessages(citMessages);

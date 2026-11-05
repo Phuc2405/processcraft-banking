@@ -24,7 +24,7 @@ import { Park3D } from './Park3D';
 import { Parking3D } from './Parking3D';
 import { Vehicles3D } from './Vehicles3D';
 import { liveMix, weatherStore } from '../../../engine/world/weather';
-import { badgeFocus, badgeOpacity, dashLane, LANE_GLOW, litLanes, PULSE, pulseDistance, type BadgeFocus } from './focus3d';
+import { badgeFocus, badgeOpacity, dashLane, GPU_BUDGET, LANE_GLOW, litLanes, PULSE, pulseDistance, type BadgeFocus } from './focus3d';
 import { useLivePath } from '../useLivePath';
 import { pathLength, pointAlongPath } from '../../../engine/plan/path';
 import { customerShirt, type V2 } from '../../../engine/plan/layout3d';
@@ -906,9 +906,9 @@ export function OfficeScene({ resetKey }: { resetKey: number }) {
       <Floor />
       <FrameDriver />
       <Environment3D />
-      <ContactShadows position={[0, -0.66, 0]} scale={[FLOOR_SLAB.w + 6, FLOOR_SLAB.d + 6]} far={0.9} blur={2.8} opacity={0.4} resolution={512} frames={1} color="#6b4f35" />
-      {/* Soft contact shadows under every desk, person and plant on the office floor, baked once (at 512 px: a quarter of the GPU memory of 1024, and as soft under the blur). */}
-      <ContactShadows position={[0, 0.03, 0]} scale={[FLOOR_SLAB.w, FLOOR_SLAB.d]} far={2.4} blur={2} opacity={0.4} resolution={512} frames={1} color="#5b4330" />
+      <ContactShadows position={[0, -0.66, 0]} scale={[FLOOR_SLAB.w + 6, FLOOR_SLAB.d + 6]} far={0.9} blur={2.8} opacity={0.4} resolution={GPU_BUDGET.shadowPx} frames={1} color="#6b4f35" />
+      {/* Soft contact shadows under every desk, person and plant on the office floor, baked once at the GPU budget's light resolution (as soft under the blur). */}
+      <ContactShadows position={[0, 0.03, 0]} scale={[FLOOR_SLAB.w, FLOOR_SLAB.d]} far={2.4} blur={2} opacity={0.4} resolution={GPU_BUDGET.shadowPx} frames={1} color="#5b4330" />
       {RUG_IDS.map((id) => (
         <Rug key={id} id={id} />
       ))}

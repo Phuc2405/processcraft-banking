@@ -10,6 +10,7 @@ import { useBankStore } from '../../../store/bankStore';
 import { useVaultFlows } from '../useVaultFlows';
 import { cursor } from './cursor';
 import { pickPlace } from './tourHooks';
+import { budgeted, GLOW } from './focus3d';
 import { ObjectPool } from './webglSafety';
 
 /**
@@ -97,14 +98,17 @@ export function endpointXZ(e: CashEndpoint): readonly [number, number] {
 }
 
 const ARC_STEPS = 32;
-const ARC_PEAK = 3.4;
+/** The arc's height at its middle, in metres: over the counters, well under the ceiling, so a long run to the ATM or the bay stays in the room. */
+export const ARC_PEAK = 1.7;
+const END_Y = 1.0;
 
-/** The arc from the vault door to an endpoint, `u` = 0 at the door: high enough to clear the desks and glass, low enough to read. */
+/** The arc from the vault door to an endpoint, `u` = 0 at the door: a low lunge over the desks that peaks at ARC_PEAK halfway. */
 export function arcPoint(e: CashEndpoint, u: number): [number, number, number] {
   const [ex, ez] = endpointXZ(e);
   const x0 = VAULT_DOOR.x;
   const z0 = VAULT_DOOR.z + 0.4;
-  const y = VAULT_DOOR.y + (1.0 - VAULT_DOOR.y) * u + 4 * (ARC_PEAK - 1.2) * u * (1 - u);
+  const base = VAULT_DOOR.y + (END_Y - VAULT_DOOR.y) * u;
+  const y = base + 4 * (ARC_PEAK - (VAULT_DOOR.y + END_Y) / 2) * u * (1 - u);
   return [x0 + (ex - x0) * u, y, z0 + (ez - z0) * u];
 }
 
@@ -119,14 +123,14 @@ const ARC_LINE: Readonly<Record<CashEndpoint, BufferGeometry>> = (() => {
 })();
 /** The idle line is faint; the live one glows just enough ("vừa đủ"), never a neon. */
 const LINE_MAT: Readonly<Record<CashDir | 'idle', LineBasicMaterial>> = {
-  idle: new LineBasicMaterial({ color: '#a16207', transparent: true, opacity: 0.18, toneMapped: false }),
-  IN: new LineBasicMaterial({ color: TONE.IN, transparent: true, opacity: 0.6, toneMapped: false }),
-  OUT: new LineBasicMaterial({ color: TONE.OUT, transparent: true, opacity: 0.6, toneMapped: false }),
+  idle: new LineBasicMaterial({ color: '#a16207', transparent: true, opacity: GLOW.idle, toneMapped: false }),
+  IN: new LineBasicMaterial({ color: TONE.IN, transparent: true, opacity: GLOW.live, toneMapped: false }),
+  OUT: new LineBasicMaterial({ color: TONE.OUT, transparent: true, opacity: GLOW.live, toneMapped: false }),
 };
 const SPARK = new SphereGeometry(0.11, 10, 8);
 const SPARK_MAT: Readonly<Record<CashDir, MeshBasicMaterial>> = { IN: new MeshBasicMaterial({ color: TONE.IN, toneMapped: false }), OUT: new MeshBasicMaterial({ color: TONE.OUT, toneMapped: false }) };
-/** Sparks per live stream, and at most three streams (one per endpoint): the pool never grows past that. */
-export const STREAM_SPARKS = 6;
+/** Sparks per live stream (at the GPU budget's density), and at most three streams (one per endpoint): the pool never grows past that. */
+export const STREAM_SPARKS = budgeted(6);
 export const STREAM_POOL_CAP = STREAM_SPARKS * 3;
 const ICON: Readonly<Record<CashEndpoint, string>> = { TELLER: '🧑‍💼', ATM: '🏧', BAY: '🚚' };
 

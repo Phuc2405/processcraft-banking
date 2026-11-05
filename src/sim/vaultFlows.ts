@@ -80,3 +80,30 @@ export function mergeFlows(...lists: ReadonlyArray<readonly VaultCashFlow[]>): V
   for (const list of lists) for (const f of list) if (!seen.has(f.endpoint)) seen.set(f.endpoint, f);
   return (['TELLER', 'ATM', 'BAY'] as const).flatMap((e) => (seen.has(e) ? [seen.get(e)!] : []));
 }
+
+export interface CashMovements {
+  total: number;
+  in: number;
+  out: number;
+}
+
+/**
+ * The vault card's headline: how many times cash crossed the vault's door today, both books (the CIT runs dispatched so far and the
+ * retail journals that touched the vault), split IN (Dr 1111) and OUT (Cr 1111).
+ */
+export function dailyCashMovements(cit: CitSnapshot, journals: readonly OpsJournal[], day: number): CashMovements {
+  const dirs: CashDir[] = [];
+  for (const { run } of cit.runs) {
+    if (!run) continue;
+    const r = CIT_STRATEGIES[run.order.scenario].route(run.order.direction);
+    if (r.from === 'VAULT') dirs.push('OUT');
+    else if (r.to === 'VAULT') dirs.push('IN');
+  }
+  const today = `D${day} `;
+  for (const j of journals) {
+    const f = j.at.startsWith(today) ? retailCashFlow(j) : null;
+    if (f) dirs.push(f.dir);
+  }
+  const inn = dirs.filter((d) => d === 'IN').length;
+  return { total: dirs.length, in: inn, out: dirs.length - inn };
+}

@@ -16,7 +16,19 @@ export const DIM = { hover: 0.2, flow: 0.1 } as const;
  * The wires' ambient glow: idle lanes sit dimmed in the background, and a live path's halo glows just enough ("vừa đủ"), never a
  * neon that hides the scene.
  */
-export const LANE_GLOW = { idle: 0.55, halo: 0.28 } as const;
+export const LANE_GLOW = { idle: 0.55, halo: 0.2 } as const;
+
+/** The vault's cash arcs: a faint idle line, and a live one lit softly (never a neon). */
+export const GLOW = { idle: 0.14, live: 0.45 } as const;
+
+/**
+ * The 3D scene's GPU budget, one place for every knob: particles at half their old density (cash sparks, lane pulses, weather
+ * drift, dust and rain) and the baked contact shadows at a light 256 px, so a long session never runs the WebGL context out of memory.
+ */
+export const GPU_BUDGET = { particles: 0.5, shadowPx: 256 } as const;
+
+/** `n` particles at the budget's density, never fewer than one. */
+export const budgeted = (n: number): number => Math.max(1, Math.round(n * GPU_BUDGET.particles));
 
 /** How far the unrelated lanes and badges fade round a pointed-at desk. */
 export const LANE_DIM = 0.15;
@@ -82,7 +94,7 @@ export function dashLane(points: readonly V2[], dash?: readonly [number, number]
 }
 
 /** Light pulses on a lit lane: how many ride it at once, and how fast (world units a second). */
-export const PULSE = { perLane: 2, speed: 3.2 } as const;
+export const PULSE = { perLane: budgeted(2), speed: 3.2 } as const;
 
 /** Where pulse `k` of a lane of length `len` is at time `t`: evenly spaced, looping from the start. */
 export const pulseDistance = (len: number, k: number, t: number): number => (len <= 0 ? 0 : (((t * PULSE.speed + (k * len) / PULSE.perLane) % len) + len) % len);

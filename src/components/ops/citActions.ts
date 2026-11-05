@@ -29,6 +29,10 @@ export type CitDemoBlock = 'dayOver' | 'busy' | null;
  */
 export const citDemoBlock = (cit: CitSnapshot, dayOver: boolean, van: boolean = citStore.getState().van): CitDemoBlock => (dayOver ? 'dayOver' : citDemoBusy(cit) || van ? 'busy' : null);
 
+/** The dispatch toast's header: a van leaves for every run but the till run, which is an internal walk between the counter and the vault. */
+export const dispatchTitle = (kind: CitDemo): { en: string; vi: string } =>
+  kind === 'TELLER' ? { en: 'Internal transfer: Counter ↔ Vault', vi: 'Điều chuyển nội bộ Quầy ↔ Kho' } : { en: 'CIT van dispatched', vi: 'Đã điều xe CIT' };
+
 /** The retail ATM cassette's shortfall the vault can cover: what an ATM run carries, so both books move the same cash. */
 function retailShortfall(): number {
   const { balances } = retailOpsStore.getState().book;
@@ -51,7 +55,7 @@ export function dispatchCitDemo(kind: CitDemo): boolean {
   notificationStore.getState().push({
     tone: 'info',
     icon: '🚚',
-    title: { en: 'CIT van dispatched', vi: 'Đã điều xe CIT' },
+    title: dispatchTitle(kind),
     body: { en: `${run?.order.id ?? ''}: ${text('Dr', 'Cr')}`, vi: `${run?.order.id ?? ''}: ${text('Nợ', 'Có')}` },
     deferred: false,
     source: `cit-demo:${kind}`,

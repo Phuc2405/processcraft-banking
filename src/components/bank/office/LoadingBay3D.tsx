@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { BoxGeometry, Mesh, MeshBasicMaterial, MeshStandardMaterial, RingGeometry, SphereGeometry, type Group } from 'three';
 import { CustomerFigure } from './Avatars';
 import { CARRY_PATH, CORRIDOR, LOADING_BAY, LOADING_DOOR, VAN_REAR, VAULT_DOOR, VAULT_STOP, type CitPhase, type CitPose, type CitRun, type CrewFigure } from '../../../engine/world/citRun';
+import { budgeted } from './focus3d';
 import { frameMemo, ObjectPool } from './webglSafety';
 import { pathLength, pointAlongPath } from '../../../engine/plan/path';
 import { TAG_STYLE } from '../personStatus';
@@ -130,7 +131,7 @@ const SPARK_MAT: Readonly<Record<Flow, MeshBasicMaterial>> = { IN: new MeshBasic
 const RING_MAT: Readonly<Record<Flow, MeshBasicMaterial>> = { IN: new MeshBasicMaterial({ color: PULSE.IN, transparent: true, opacity: 0.85, toneMapped: false }), OUT: new MeshBasicMaterial({ color: PULSE.OUT, transparent: true, opacity: 0.85, toneMapped: false }) };
 const DOOR_RING = new RingGeometry(0.98, 1.16, 40);
 const FLOOR_RING = new RingGeometry(0.55, 0.75, 32);
-const SPARKS = 8;
+const SPARKS = budgeted(8);
 /** The cash particles' stretch: from the loading door's inside along the crew's corridor to the round vault door. */
 const STREAM = CORRIDOR.slice(1);
 const STREAM_LEN = pathLength(STREAM);
@@ -139,7 +140,7 @@ const STREAM_LEN = pathLength(STREAM);
  * The round vault door lit while cash crosses it (the primary target of every vault deposit and withdrawal): a ring round the
  * door, a ring on the floor where the crew stands, gold (Dr 1111) or orange (Cr 1111) cash particles streaming along the corridor
  * into the door or out of it, and the GL tag. The rings stay mounted and hide between runs; the particles come from a pool that
- * hands the same eight meshes to every run.
+ * hands the same few meshes to every run.
  */
 function VaultPulse({ pose, run }: { pose: PoseOf; run: CitRun }) {
   const root = useRef<Group>(null);

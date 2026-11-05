@@ -43,10 +43,10 @@ export const SUBPROCESS_LESSON: Readonly<Record<LessonKey, string>> = {
   'auto-pay': opsLessonAnchor('auto-pay'),
   // The CIT domain and its four children
   'cit-vault': 'cit-concept',
-  '06-cit-atm': 'cit-scenarios',
-  '06-cit-doorstep': 'cit-scenarios',
-  '06-cit-sbv': 'cit-fitness',
-  '06-cit-teller-vault': 'retail-teller-vault',
+  '06-cit-atm': 'cit-atm',
+  '06-cit-doorstep': 'cit-doorstep',
+  '06-cit-sbv': 'cit-sbv',
+  '06-cit-teller-vault': 'cit-teller',
   // AML
   'aml-sanctions': 'aml-cft',
 };

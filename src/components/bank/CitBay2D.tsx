@@ -14,6 +14,9 @@ import { H, Person, W } from './DeskVisitors2D';
 /** The loading bay on the map's bottom-right edge, right under the Central Cash Vault: the van, and its crew walking between the van and the vault. */
 export const CIT_BAY = { x: 1350, y: 900, w: 180, h: 166 } as const;
 
+/** The bay card's text rows, px from its top: the header, then the live vault balance on its own line (14 px apart: no overlap). */
+export const BAY_ROWS = { header: 7, balance: 24 } as const;
+
 const VAULT = PLACE_BOX.MAIN_CASH_VAULT;
 const VAULT_BOTTOM = VAULT.cy + VAULT.h / 2;
 const VAN_Y = CIT_BAY.y + 112;
@@ -89,8 +92,11 @@ export function CitBayView({ cit, live, onOpen }: { cit: CitSnapshot; live: bool
         className="absolute z-20 rounded-xl border border-dashed border-cyan-400/50 bg-slate-950/60 text-left transition hover:border-cyan-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
         style={{ left: CIT_BAY.x, top: CIT_BAY.y, width: CIT_BAY.w, height: CIT_BAY.h }}
       >
-        <span className="absolute left-2 top-1.5 text-[10.5px] font-bold uppercase tracking-wider text-cyan-200">{m('bay')}</span>
-        <span key={cit.book.VAULT} className="bk-cit-count absolute right-2 top-1.5 font-mono text-[10.5px] font-bold tabular-nums text-amber-200" data-testid="cit-vault-counter">
+        {/* Header and balance on rows of their own (BAY_ROWS), so the title never runs into the vault's figure. */}
+        <span className="absolute inset-x-2 truncate text-[10.5px] font-bold uppercase leading-none tracking-wider text-cyan-200" style={{ top: BAY_ROWS.header }} data-testid="cit-bay-title">
+          {m('bay')}
+        </span>
+        <span key={cit.book.VAULT} className="bk-cit-count absolute right-2 font-mono text-[10.5px] font-bold leading-none tabular-nums text-amber-200" style={{ top: BAY_ROWS.balance }} data-testid="cit-vault-counter">
           {formatMoney(cit.book.VAULT)}
         </span>
         <span className={`absolute left-1/2 -translate-x-1/2 text-[26px] transition-opacity duration-500 ${atBay ? 'opacity-100' : 'opacity-25'}`} style={{ top: VAN_Y - CIT_BAY.y - 18 }} aria-hidden="true" data-testid="cit-van">

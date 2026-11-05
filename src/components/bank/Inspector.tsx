@@ -26,7 +26,9 @@ import { useMessages, type Translate } from '../../utils/i18nHelper';
 import { analystWorkspaceMessages, type AnalystWorkspaceKey } from './analystWorkspace.messages';
 import { isAutomatedNode } from '../../sim/nodeKind';
 import { InfoTip } from './InfoTip';
-import { CitInspector } from '../ops/CitPanel';
+import { CitInspector, useCit } from '../ops/CitPanel';
+import { dailyCashMovements, type CashMovements } from '../../sim/vaultFlows';
+import { useRetailOpsStore } from '../../store/retailOpsStore';
 import { infoKeyForPlace } from '../../data/subProcessKeys';
 import { subProcessInfoMessages } from '../ops/subProcessInfo.messages';
 
@@ -353,6 +355,7 @@ function StationPanel({ id }: { id: StationId }) {
   const covers = sv.workers.filter((w) => w.temp).length;
   const canCover = !dayOver && covers < MAX_COVER_PER_STATION;
   const stats = sv.stats;
+  const lines = useStationLines(id, stats.lines);
   const copy = useNodeCopy(id);
   const names = displayNames(sv.workers, (w) => copy.workerName(w, sv.workers.indexOf(w)));
   const infoKey = infoKeyForPlace(id);
@@ -457,9 +460,9 @@ function StationPanel({ id }: { id: StationId }) {
               </div>
             </div>
           </div>
-          {stats.lines.length > 0 && (
+          {lines.length > 0 && (
             <dl className="mt-2 divide-y divide-slate-800/80 rounded-xl border border-slate-800 bg-slate-900/40 text-[12px]" data-testid="station-lines">
-              {stats.lines.map((l, i) => (
+              {lines.map((l, i) => (
                 <div key={l.label} className="flex items-center justify-between px-2.5 py-1.5">
                   <dt className="flex items-center text-slate-400">
                     {terms.t(t(l.label))}
@@ -760,3 +763,16 @@ function InspectorDrawer() {
 }
 
 export const Inspector = memo(InspectorDrawer);
+
+type StatLine = StationView['stats']['lines'][number];
+
+/** The vault card's one line: today's cash movements across its door (both books), in place of a generic case count. */
+export const vaultMovesLine = (m: CashMovements): StatLine => ({ label: 'Daily cash movements', value: `${m.total} (↓${m.in} · ↑${m.out})`, tip: 'cashMoves' });
+
+/** A station's stat lines: the simulation's own, and for the vault its cash movements today (CIT runs + retail journals). */
+function useStationLines(id: StationId, own: readonly StatLine[]): readonly StatLine[] {
+  const cit = useCit();
+  const journal = useRetailOpsStore((s) => s.book.journal);
+  const day = useBankStore((s) => s.view.day);
+  return id === 'MAIN_CASH_VAULT' ? [vaultMovesLine(dailyCashMovements(cit, journal, day)), ...own] : own;
+}

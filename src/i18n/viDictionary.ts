@@ -639,6 +639,7 @@ export const VI_DICTIONARY: Readonly<Record<string, string>> = {
   "Sanctions matches (OFAC/PEP)": "Trùng danh sách cấm vận (OFAC/PEP)",
   "Released to the ledger": "Đã giải phóng sang sổ cái",
   "Cases worked": "Hồ sơ đã xử lý",
+  "Daily cash movements": "Tổng lượt điều chuyển tiền mặt hôm nay",
   "Claims worked (CB / pacs.004 / ATM)": "Khiếu nại đã xử lý (CB / pacs.004 / ATM)",
   "Refunded": "Đã hoàn tiền",
   "Past the SLA": "Quá thời hạn",

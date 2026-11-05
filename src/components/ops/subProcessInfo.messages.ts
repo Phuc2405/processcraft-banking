@@ -3,7 +3,7 @@ import { defineMessages } from '../../utils/i18nHelper';
 /** The right-side sub-process info drawer. */
 export const subProcessInfoMessages = defineMessages('subProcessInfo', {
   label: { en: 'Sub-process info', vi: 'Thông tin quy trình con' },
-  open: { en: 'About this sub-process', vi: 'Về quy trình con này' },
+  open: { en: 'About this process', vi: 'Thông tin về quy trình này' },
   lesson: { en: 'Open this sub-process’s lesson in the Knowledge Base', vi: 'Mở bài học của quy trình này trong Thư viện kiến thức' },
   slaLive: { en: 'Live', vi: 'Thực tế' },
   slaWait: { en: 'wait {min} min · queue {queue}', vi: 'chờ {min} phút · hàng đợi {queue}' },

@@ -6,6 +6,11 @@ import { useVaultFlows } from './useVaultFlows';
 
 /** One cash run along a line: how long the 💵 takes from end to end, in seconds. */
 export const CASH_ICON_SECONDS = 2.4;
+/** A till run has no van: the custodian walks the teller line, at a walking pace (slower than the 💵). */
+export const CUSTODIAN_WALK_SECONDS = 6;
+
+/** Whether a flow is walked on foot by the vault custodian (a CIT till run), so the 2D line shows them walking it. */
+export const walkedOnFoot = (f: VaultCashFlow): boolean => f.endpoint === 'TELLER' && f.source === 'cit';
 const TONE = { IN: '#facc15', OUT: '#f97316' } as const;
 const ICON: Readonly<Record<CashEndpoint, string>> = { TELLER: '🧑‍💼', ATM: '🏧', BAY: '🚚' };
 
@@ -34,6 +39,18 @@ export function CashLinesView({ flows }: { flows: readonly VaultCashFlow[] }) {
                 <rect x={-30} y={-9} width={60} height={18} rx={9} fill="#0f172a" stroke={TONE[f.dir]} strokeWidth={1.2} />
                 <text x={0} y={4} textAnchor="middle" fontSize={10} fontWeight={700} fill={TONE[f.dir]}>
                   💵 {f.dir === 'OUT' ? '→' : '←'} {ICON[e]}
+                </text>
+              </g>
+            )}
+            {f && walkedOnFoot(f) && (
+              <g key={`walk-${f.id}`} data-testid="cash-walker-TELLER" data-dir={f.dir}>
+                <animateMotion dur={`${CUSTODIAN_WALK_SECONDS}s`} repeatCount="indefinite" path={d} keyPoints={f.dir === 'OUT' ? '0;1' : '1;0'} keyTimes="0;1" calcMode="linear" />
+                <circle r={10} cy={-16} fill="#0e7490" stroke="#facc15" strokeWidth={1.2} />
+                <text y={-12} textAnchor="middle" fontSize={11}>
+                  🚶
+                </text>
+                <text x={9} y={-6} fontSize={9}>
+                  💼
                 </text>
               </g>
             )}

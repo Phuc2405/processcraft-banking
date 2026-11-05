@@ -754,9 +754,11 @@ export const TIP_SIDE: Readonly<Record<PlaceId, TipSide>> = Object.fromEntries((
 // Cash lines: the Central Cash Vault to the teller, the ATM and the CIT bay (not payment wires: cash, drawn in gold by CashLines2D)
 
 /**
- * Each cash line as corners from the vault (first point) to its endpoint (last point): to the teller the long way round under the
- * whole map, to the ATM up the map's right-hand margin, and straight down into the CIT loading bay under the vault.
+ * Each cash line as corners from the vault (first point) to its endpoint (last point): to the teller straight along the clear
+ * corridor between the band's departments (y 928) and the decline floor bus (y 960), to the ATM up the map's right-hand margin,
+ * and straight down into the CIT loading bay under the vault.
  */
+export const CASH_CORRIDOR = { x: 1306, y: 944 } as const;
 export const CASH_LINES: Readonly<Record<CashEndpoint, readonly Pt[]>> = (() => {
   const v = PLACE_BOX.MAIN_CASH_VAULT;
   const teller = PLACE_BOX.TELLER_CASH;
@@ -764,7 +766,7 @@ export const CASH_LINES: Readonly<Record<CashEndpoint, readonly Pt[]>> = (() => 
   const left = v.cx - v.w / 2;
   const right = v.cx + v.w / 2;
   return {
-    TELLER: [[left, v.cy + 20], [1330, v.cy + 20], [1330, 1056], [teller.cx, 1056], [teller.cx, teller.cy + teller.h / 2]],
+    TELLER: [[left, v.cy + 26], [CASH_CORRIDOR.x, v.cy + 26], [CASH_CORRIDOR.x, CASH_CORRIDOR.y], [teller.cx, CASH_CORRIDOR.y], [teller.cx, teller.cy + teller.h / 2]],
     ATM: [[right, v.cy - 20], [1550, v.cy - 20], [1550, atm.cy + 20], [atm.cx + atm.w / 2, atm.cy + 20]],
     BAY: [[v.cx + 40, v.cy + v.h / 2], [v.cx + 40, 902]],
   };

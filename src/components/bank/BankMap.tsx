@@ -23,6 +23,7 @@ import { useLivePath } from './useLivePath';
 import { flowIcon, HOP_SECONDS, onPath } from '../../sim/transactionPath';
 import { AtmCassetteBadge } from './RetailOpsDock';
 import { CitBay2D } from './CitBay2D';
+import { HopBadge2D } from './HopBadge';
 import { CashLines2D } from './CashLines2D';
 import { GUIDED_FLOWS, type FlowScope } from '../../sim/guidedFlows';
 import type { FlowId } from '../../types/viewport';
@@ -853,6 +854,7 @@ function BankMapView() {
               </div>
             )}
             {!focus && <AtmCassetteBadge />}
+            {!focus && flow && <HopBadge2D tone={flow.accent} />}
             {!focus && <CashLines2D />}
             {!focus && <CitBay2D />}
             {!focus && <DeskCrowd2D />}

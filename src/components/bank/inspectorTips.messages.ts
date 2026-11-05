@@ -133,6 +133,10 @@ export const tipMessages = defineMessages('inspectorTips', {
     en: 'Savings and collateral cases handled at this desk today. Early term deposit closures go through the savings desk; collateral locks and liquidations go through the vault, then the savings desk.',
     vi: 'Số hồ sơ tiết kiệm và tài sản đảm bảo được xử lý tại quầy này hôm nay. Tất toán sớm tiền gửi đi qua quầy tiết kiệm; phong tỏa và xử lý tài sản đảm bảo đi qua kho, rồi đến quầy tiết kiệm.',
   },
+  line_cashMoves: {
+    en: 'Every time cash crossed the vault door today, in both books: CIT runs dispatched (ATM, doorstep, SBV, till) and retail moves (cassette refills, till surpluses, large withdrawals). ↓ IN is Dr 1111, ↑ OUT is Cr 1111.',
+    vi: 'Mỗi lần tiền mặt qua cửa kho hôm nay, cả hai sổ: các chuyến CIT đã điều (ATM, DN, NHNN, quầy) và điều chuyển bán lẻ (nạp hộp tiền ATM, nộp dư quỹ quầy, chi tiền lớn). ↓ VÀO là Nợ 1111, ↑ RA là Có 1111.',
+  },
   line_claims: { en: 'Claims worked today by type: card chargebacks (CB), pacs.004 payment returns, and ATM cash mismatches.', vi: 'Số khiếu nại xử lý hôm nay theo loại: tra soát thẻ (CB), hoàn trả pacs.004 và lệch tiền ATM.' },
   line_refunds: { en: 'Claims upheld and credited back to the customer’s CASA account.', vi: 'Các khiếu nại được chấp nhận và ghi có lại vào tài khoản CASA của khách.' },
   line_sla: {

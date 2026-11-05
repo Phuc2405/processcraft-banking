@@ -51,6 +51,7 @@ import {
   type Roof,
 } from '../../../engine/world/weather';
 import { useWeather } from './useWeather';
+import { budgeted } from './focus3d';
 
 /** The world around the branch in the 3D office: the city it stands in, the sky light and the haze, the morning mist, the weather (eased between picks by WeatherDriver), the wind in the trees, the shelters on the pavement and the people under them. */
 
@@ -633,7 +634,7 @@ function Mist() {
   );
 }
 
-const MOTES = 220;
+const MOTES = budgeted(220);
 
 /** Dust and pollen drifting in the sunlight over the office and the street, on sunny days only. */
 function Motes() {
@@ -672,7 +673,7 @@ function Motes() {
   return <points geometry={geometry} material={material} name="office-motes" frustumCulled={false} />;
 }
 
-const DROPS = 1800;
+const DROPS = budgeted(1800);
 /** Where weather falls: from cloud height, over the whole view. */
 const RAIN_BOX = { x: 30, z0: -HZ - 6, z1: ROAD_END + 6, top: 20 } as const;
 /** Below the ground, where a drop over the branch is parked so it is not drawn. */
@@ -760,10 +761,10 @@ export interface DriftKind {
 }
 
 export const DRIFTS: readonly DriftKind[] = [
-  { id: 'snow', count: 1400, colors: ['#ffffff', '#eef4ff', '#dbe7f5'], size: 3.5, fall: 1.1, carry: 0.9, flutter: 0.35 },
-  { id: 'leaves', count: 260, colors: ['#c2410c', '#ea580c', '#b45309', '#a16207', '#92400e', '#dc2626'], size: 6, fall: 0.8, carry: 3.2, flutter: 0.7 },
-  { id: 'petals', count: 320, colors: ['#fbcfe8', '#f9a8d4', '#ffffff', '#fce7f3', '#f472b6'], size: 4.5, fall: 0.45, carry: 2.2, flutter: 0.9 },
-  { id: 'hail', count: 1100, colors: ['#f8fafc', '#e2e8f0', '#dbeafe'], size: 3, fall: 11, carry: 0.6, flutter: 0.02, bounce: 0.45 },
+  { id: 'snow', count: budgeted(1400), colors: ['#ffffff', '#eef4ff', '#dbe7f5'], size: 3.5, fall: 1.1, carry: 0.9, flutter: 0.35 },
+  { id: 'leaves', count: budgeted(260), colors: ['#c2410c', '#ea580c', '#b45309', '#a16207', '#92400e', '#dc2626'], size: 6, fall: 0.8, carry: 3.2, flutter: 0.7 },
+  { id: 'petals', count: budgeted(320), colors: ['#fbcfe8', '#f9a8d4', '#ffffff', '#fce7f3', '#f472b6'], size: 4.5, fall: 0.45, carry: 2.2, flutter: 0.9 },
+  { id: 'hail', count: budgeted(1100), colors: ['#f8fafc', '#e2e8f0', '#dbeafe'], size: 3, fall: 11, carry: 0.6, flutter: 0.02, bounce: 0.45 },
 ];
 
 /** How high a hail pellet bounces, at `u` (0-1) through its bounce: one big hop, then a little one. */

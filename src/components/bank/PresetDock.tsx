@@ -19,6 +19,9 @@ import { topBand, useInspectorCovers, useMeasuredBox, useRightInset, useTopBand 
 import { dockLayout } from './dockOverflow';
 import { refillAtmByCit } from '../ops/citActions';
 import { LessonLink } from '../ops/LessonLink';
+import { CitDockButton } from '../ops/CitPanel';
+import { CIT_INFO_KEYS, citDemoOfKey } from '../../data/subProcessKeys';
+import { CIT_SHEETS } from '../../data/subProcessCitSheets';
 
 /** The one demo bar of the guided flow in focus, anchored at the bottom of the map in the Beginner scope. Every control runs through runDemo. */
 
@@ -176,6 +179,8 @@ function PresetDockView() {
   const locale = useLocale();
   const flow = useBankStore(activeFlowOf);
   const sub = useBankStore((s) => s.subProcess);
+  // A CIT child sheet picked (top menu → Flow 06) owns the dock: its own run, not the retail group's.
+  const citPicked = useBankStore((s) => (s.selection.kind === 'subprocess' ? citDemoOfKey(s.selection.key) : null));
   const solid = useBankStore((s) => s.viewMode === '3d');
   const running = useBankStore((s) => s.presetTrace !== null && !s.presetTrace.done);
   const right = useRightInset();
@@ -187,7 +192,7 @@ function PresetDockView() {
   const cassetteLow = cassetteStatus(useRetailOpsStore((s) => s.book)).low;
   const box = useRef<HTMLDivElement>(null);
   // What stands on top of the bar (the ledger) keeps clear of it, whatever height the bar takes.
-  useMeasuredBox(box, (b) => topBand.setState({ demoDock: b }), [flow, sub, shortMap, mapW, right, vault, cassetteLow, waitingCount]);
+  useMeasuredBox(box, (b) => topBand.setState({ demoDock: b }), [flow, sub, citPicked, shortMap, mapW, right, vault, cassetteLow, waitingCount]);
   useEffect(() => {
     if (!flow || covered) topBand.setState({ demoDock: null });
   }, [flow, covered]);
@@ -199,14 +204,15 @@ function PresetDockView() {
   const group = sub && showsGroupsOf(flow) ? demoGroup(sub) : null;
   // Every sub-process has a lesson now (data/subProcessLessons.ts): the group's, or its flow's.
   const lesson = sub && demoGroup(sub).flow === flow ? sub : (`flow-${flow}` as const);
-  const title = group ? pick(group.title, locale) : `${f.code}. ${ft.title}`;
+  const cit = flow === 6 ? citPicked : null;
+  const citSheet = cit ? CIT_SHEETS.find((c) => c.key === CIT_INFO_KEYS[cit]) : undefined;
+  const title = citSheet ? pick(citSheet.title, locale) : group ? pick(group.title, locale) : `${f.code}. ${ft.title}`;
   const free = mapW > 0 ? mapW - right - 24 : 1280;
   // One row only: what the title, the lesson link and the padding leave of the free width must hold every pill, or the whole area is a dropdown.
-  // No CIT control here: the four CIT runs start from their own sheets (top menu → Flow 06) and the vault's inspector.
   const budget = free - Math.round(title.length * 6.2 + 24) - 30 - 32;
   const windowW = typeof window === 'undefined' ? Infinity : window.innerWidth;
   const compact = dockIsCompact(mapW - right, shortMap, windowW);
-  const dropdown = compact || dockLayout(actions.map((a) => ({ id: a.id, variant: a.variant, text: `${a.icon} ${a.label()}` })), budget, windowW) === 'dropdown';
+  const dropdown = !cit && (compact || dockLayout(actions.map((a) => ({ id: a.id, variant: a.variant, text: `${a.icon} ${a.label()}` })), budget, windowW) === 'dropdown');
   return (
     // The middle of what the inspector and the zoom toolbar leave free, so the bar never slides under them.
     <div
@@ -218,6 +224,7 @@ function PresetDockView() {
       data-testid="preset-dock"
       data-flow={flow}
       data-sub={sub ?? undefined}
+      data-cit={cit ?? undefined}
       data-compact={compact}
       data-layout={dropdown ? 'dropdown' : 'inline'}
     >
@@ -226,8 +233,10 @@ function PresetDockView() {
           {title}
         </span>
       )}
-      <LessonLink lessonKey={lesson} className="text-[13px]" />
-      {dropdown ? (
+      <LessonLink lessonKey={cit ? CIT_INFO_KEYS[cit] : lesson} className="text-[13px]" />
+      {cit ? (
+        <CitDockButton kind={cit} />
+      ) : dropdown ? (
         // Keyed by the list: another flow starts from its own first scenario.
         <DemoSelector key={`${flow}-${sub ?? ''}`} actions={actions} />
       ) : (
