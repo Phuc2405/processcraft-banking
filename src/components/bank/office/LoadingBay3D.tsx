@@ -1,4 +1,10 @@
-import { useFrame } from '@react-three/fiber';
+import { useWireHoverStore } from '../../../store/wireHoverStore';
+import { useFrame, type ThreeEvent } from '@react-three/fiber';
+import { bankStore, useBankStore } from '../../../store/bankStore';
+import { useMessages } from '../../../utils/i18nHelper';
+import { citMessages } from '../../ops/cit.messages';
+import { CIT_FLOW } from '../../../types/viewport';
+import { cursor } from './cursor';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BoxGeometry, Mesh, MeshBasicMaterial, MeshStandardMaterial, RingGeometry, SphereGeometry, type Group } from 'three';
 import { CustomerFigure } from './Avatars';
@@ -212,6 +218,62 @@ function VaultPulse({ pose, run }: { pose: PoseOf; run: CitRun }) {
   );
 }
 
+/**
+ * Flyweight: the bay's invisible click target, a thin pad on the painted floor (nothing is drawn). Everything standing on the bay
+ * (the parked van, the custodians and the guard) is above it, so a ray reaches them first and the pad never steals their clicks.
+ */
+export const BAY_HIT_SIZE = { h: 0.06, y: 0.03 } as const;
+const BAY_HIT = new BoxGeometry(1, BAY_HIT_SIZE.h, 1);
+const BAY_HIT_MAT = new MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+
+/** The bay is a station of its own: pointing at it shows a hand, clicking opens the Loading Bay inspector (as the 2D bay card does). */
+function BayStation() {
+  const m = useMessages(citMessages);
+  const selected = useBankStore((s) => s.selection.kind === 'bay');
+  // The bay is highlighted only while Flow 09 (cash in transit) is the lit flow.
+  const lit = useBankStore((s) => s.scope === 'beginner' && s.flow === CIT_FLOW);
+  const [hover, setHover] = useState(false);
+  useEffect(
+    () => () => {
+      cursor(false);
+      useWireHoverStore.getState().set(null);
+    },
+    [],
+  );
+  const { x, z, len: bl, w: bw } = LOADING_BAY;
+  return (
+    <group position={[x, BAY_HIT_SIZE.y, z]} name="cit-bay-station" userData={{ lit }}>
+      <mesh
+        geometry={BAY_HIT}
+        material={BAY_HIT_MAT}
+        scale={[bl, 1, bw]}
+        name="cit-bay-hit"
+        onClick={(e: ThreeEvent<MouseEvent>) => {
+          e.stopPropagation();
+          if (e.delta <= 4) bankStore.getState().select({ kind: 'bay' });
+        }}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          setHover(true);
+          // The CIT hall's gold wires (to the vault and the teller) light while it is pointed at, as on the 2D map.
+          useWireHoverStore.getState().set('BAY');
+          cursor(true);
+        }}
+        onPointerOut={() => {
+          setHover(false);
+          useWireHoverStore.getState().set(null);
+          cursor(false);
+        }}
+      />
+      <Html position={[0, 3, 0]} center zIndexRange={[12, 0]}>
+        <button type="button" onClick={() => bankStore.getState().select({ kind: 'bay' })} title={m('bayOpen')} data-testid="cit-bay-label-3d" data-lit={lit} style={{ ...TAG_STYLE, cursor: 'pointer', color: selected || hover || lit ? '#fde68a' : '#cbd5e1', opacity: lit || selected || hover ? 1 : 0.7, outline: selected || lit ? '1px solid #facc15' : undefined }}>
+          🚚 {m('bay')}
+        </button>
+      </Html>
+    </group>
+  );
+}
+
 /** The cash van's run to the vault, read every frame from `run` (the car park steps it). */
 export function LoadingBay3D({ run }: { run: CitRun }) {
   const bay = useMerged(bayParts, []);
@@ -248,6 +310,7 @@ export function LoadingBay3D({ run }: { run: CitRun }) {
   return (
     <group name="cit-loading-bay">
       <mesh geometry={bay} material={solid} receiveShadow name="cit-bay" />
+      <BayStation />
       <Sign text="CASH LOADING · CIT ONLY" fg="#111827" bg="#facc15" position={[-HX - 0.1, DOOR.h + 0.42, LOADING_DOOR[1]]} rotationY={-Math.PI / 2} width={1.8} />
       {/* The roller shutter: grey slats, rolled up while the cash goes in. */}
       <group position={[-HX - 0.06, 0, LOADING_DOOR[1]]}>

@@ -1,11 +1,11 @@
 /**
- * The learner's own payment as a path on the map: which wires it has crossed, which one it is crossing now, the numbered hops
- * of its route for the step badge, and how far along the current wire its energy orb is. Both maps read this (BankMap's wires,
+ * The learner's own payment as a path on the map: which wires it has crossed and which one it is crossing now (the hop player,
+ * sim/hopPlayer.ts, says where it is shown to be), and the icon it wears. Both maps read this (BankMap's wires,
  * the 3D lanes and TransactionFlow3D), so only the payment's own path lights up while it runs, never the whole flow.
  * Pure, no React, no Three.js.
  */
 
-import { edgeId, placeName, type PlaceId } from './topology';
+import { edgeId, type PlaceId } from './topology';
 
 export interface TraceLike {
   route: readonly PlaceId[];
@@ -39,44 +39,6 @@ export function livePath(trace: TraceLike | null): LivePath | null {
 
 /** Whether wire `id` is on the payment's path (either way round). */
 export const onPath = (path: LivePath | null, id: string): boolean => path !== null && path.all.has(id);
-
-export type HopState = 'done' | 'active' | 'next';
-
-export interface HopStep {
-  /** 1-based, as the badge numbers it. */
-  n: number;
-  place: PlaceId;
-  name: string;
-  state: HopState;
-}
-
-/** The route as numbered hops (`1. POS Gate ➔ 2. STP Engine ➔ 3. Core Banking`), the one the payment is at marked active. */
-export function hopSteps(trace: TraceLike): HopStep[] {
-  return trace.route.map((place, i) => ({ n: i + 1, place, name: placeName(place), state: trace.done || i < trace.at ? 'done' : i === trace.at ? 'active' : 'next' }));
-}
-
-/** At most this many hops show on the badge: the one before, the active one and the next ones, so a long route stays short. */
-export const BADGE_HOPS = 3;
-
-/** The window of hops the floating badge shows round the active one. */
-export function badgeHops(steps: readonly HopStep[]): HopStep[] {
-  const i = Math.max(0, steps.findIndex((s) => s.state === 'active'));
-  const start = Math.max(0, Math.min(i - 1, steps.length - BADGE_HOPS));
-  return steps.slice(start, start + BADGE_HOPS);
-}
-
-/** How long the orb takes to cross one wire, in seconds of motion. */
-export const HOP_SECONDS = 1.4;
-
-/** How far along the current wire the orb is, 0-1, `elapsed` seconds after it left the last stop: eased in and out, then held at 1. */
-export function orbProgress(elapsed: number, seconds = HOP_SECONDS): number {
-  if (!(elapsed > 0) || seconds <= 0) return elapsed > 0 ? 1 : 0;
-  const u = Math.min(1, elapsed / seconds);
-  return u * u * (3 - 2 * u);
-}
-
-/** Whether the orb has reached its stop, so the station's LED ring should pulse (it is being processed there). */
-export const orbArrived = (elapsed: number, seconds = HOP_SECONDS): boolean => elapsed >= seconds;
 
 /** The six things a payment can be, each with one icon (Flyweight: the icon belongs to the category, never to a place). */
 export const CATEGORY_ICON = { card: '💳', transfer: '💸', cash: '💵', paper: '📜', ecom: '🛒', swift: '🌐', batch: '📦' } as const;

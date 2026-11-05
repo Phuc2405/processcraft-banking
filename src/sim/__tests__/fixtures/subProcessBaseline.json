@@ -262,8 +262,8 @@
    "Duyệt: Nợ 1320 phải thu / Có quyết toán cửa hàng."
   ]
  },
- "cit-vault": {
-  "code": "CIT-01",
+ "flow-9": {
+  "code": "CIT-09",
   "gl": [
    "Dr 1131 cit:TRANSIT",
    "Cr 1111 cit:VAULT",

@@ -20,10 +20,11 @@ import { MapLegend } from './MapLegend';
 import type { Move, StationView } from '../../sim/types';
 import { academyFocusOf, activeFlowOf, activeScopeOf, beatLive, useBankStore } from '../../store/bankStore';
 import { useLivePath } from './useLivePath';
-import { flowIcon, HOP_SECONDS, onPath } from '../../sim/transactionPath';
+import { onPath } from '../../sim/transactionPath';
 import { AtmCassetteBadge } from './RetailOpsDock';
 import { CitBay2D } from './CitBay2D';
-import { HopBadge2D } from './HopBadge';
+import { HopLayer2D } from './HopBadge';
+import { hopStopOf, useHopPlayer } from '../../store/hopPlayerStore';
 import { CashLines2D } from './CashLines2D';
 import { GUIDED_FLOWS, type FlowScope } from '../../sim/guidedFlows';
 import type { FlowId } from '../../types/viewport';
@@ -40,6 +41,8 @@ import { useTerms, type Terms } from './useTerms';
 import { useSmartZoom, type ViewInsets } from '../../hooks/useSmartZoom';
 import { useFitScale, useZoomPan } from '../../hooks/useZoomPan';
 import { useNavStore } from '../../store/navStore';
+import { useWireHoverStore } from '../../store/wireHoverStore';
+import { wireNodeOf, type WireNode } from '../../sim/cashWires';
 import { roleForStation } from '../../sim/staffRoleplay';
 import { DESK_HEAT, deskHeat, type DeskHeat } from '../../sim/deskHeat';
 import { useMessages } from '../../utils/i18nHelper';
@@ -616,8 +619,6 @@ function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; t
   // While the learner's payment runs in a guided flow, only its own path is lit (not the whole flow): the wires it has crossed glow, the one it is crossing runs.
   const live = useLivePath();
   const path = flow && !focus ? live : null;
-  // The payment's moving icon (a card from the POS, a box of records at night…) rides the wire it is crossing.
-  const icon = useBankStore((s) => (s.presetTrace && !s.presetTrace.done ? flowIcon(s.presetTrace.route) : null));
   const inPath = (id: string): boolean => (path ? onPath(path, id) : flow ? flow.scope.wires.has(id) : true);
   // The wires the token is on right now glow brightest; the ones it has already ridden stay lit.
   const current = new Set(focus && !focus.tour.intro ? wiresOfRoute(focus.current.route) : []);
@@ -650,16 +651,6 @@ function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; t
             {h > 0.05 && <path d={d} fill="none" stroke={st.glow} strokeWidth={2 + Math.min(h, 6) * 0.3} strokeLinecap="round" opacity={Math.min(0.55, 0.1 + h * 0.07)} style={{ transition: 'opacity 400ms' }} />}
             {path && inFlow && flow && (
               <path d={d} fill="none" stroke={flow.accent} strokeWidth={path.current.has(w.id) ? 3.6 : 2.6} strokeLinecap="round" className={path.current.has(w.id) ? 'bk-tour-path bk-flow' : 'bk-tour-path'} style={{ filter: `drop-shadow(0 0 5px ${flow.accent})` }} data-testid={`flow-path-wire-${w.id}`} data-active={path.current.has(w.id) || undefined} />
-            )}
-            {path && flow && icon && path.current.has(w.id) && (
-              <g key={`icon-${path.active}`} data-testid="flow-icon-2d">
-                {/* The route may cross a wire stored the other way round: then the icon rides it backwards. */}
-                <animateMotion dur={`${HOP_SECONDS * 1.6}s`} repeatCount="indefinite" path={d} keyPoints={path.active === w.id ? '0;1' : '1;0'} keyTimes="0;1" calcMode="linear" />
-                <circle r={11} fill="#0f172a" stroke={flow.accent} strokeWidth={1.5} style={{ filter: `drop-shadow(0 0 4px ${flow.accent})` }} />
-                <text y={4.5} textAnchor="middle" fontSize={12}>
-                  {icon}
-                </text>
-              </g>
             )}
             {focus && ridden && (
               <path
@@ -796,7 +787,8 @@ function BankMapView() {
   const terms = useTerms();
   const activeFlow = useBankStore(activeFlowOf);
   const presetId = useBankStore((s) => s.presetTxId);
-  const presetPlace = useBankStore((s) => (s.presetTrace && !s.presetTrace.done ? (s.presetTrace.route[s.presetTrace.at] ?? null) : null));
+  // Where the hop player stands: the desk the learner's run is being processed at now (sim/hopPlayer.ts).
+  const presetPlace = useHopPlayer((s) => (s.play?.phase === 'travel' ? null : (hopStopOf(s)?.place ?? null)));
   const activeScope = useBankStore(activeScopeOf);
   const flow = useMemo<FlowFocus | null>(() => (activeFlow && activeScope ? { flow: activeFlow, accent: GUIDED_FLOWS[activeFlow].accent, scope: activeScope } : null), [activeFlow, activeScope]);
   const flowHereAt = flow ? presetPlace : null;
@@ -811,9 +803,17 @@ function BankMapView() {
   const selectedStation = selection.kind === 'station' ? selection.id : selection.kind === 'worker' ? selection.station : null;
   // The node under the pointer (or, failing that, the selected desk) has its paths lit and every other wire dimmed.
   const [hovered, setHovered] = useState<PlaceId | null>(null);
+  const setWireHover = useWireHoverStore((s) => s.set);
   const onPointerOver = (e: ReactPointerEvent): void => {
-    const id = ((e.target as Element).closest?.('[data-place]')?.getAttribute('data-place') ?? null) as PlaceId | null;
+    const target = e.target as Element;
+    const id = (target.closest?.('[data-place]')?.getAttribute('data-place') ?? null) as PlaceId | null;
     if (id !== hovered) setHovered(id);
+    // The cash network's station under the pointer (a desk card, or the CIT hall, which has no PlaceId) lights its gold wires.
+    setWireHover((target.closest?.('[data-wire-node]')?.getAttribute('data-wire-node') as WireNode | null) ?? wireNodeOf(id));
+  };
+  const onPointerLeave = (): void => {
+    setHovered(null);
+    setWireHover(null);
   };
   const spotlit: PlaceId | null = focus ? focus.current.place : null;
 
@@ -830,7 +830,7 @@ function BankMapView() {
             data-active-place={hovered ?? selectedStation ?? undefined}
             onClick={(e) => e.target === e.currentTarget && !panned.current && clearSelection()}
             onPointerOver={onPointerOver}
-            onPointerLeave={() => setHovered(null)}
+            onPointerLeave={onPointerLeave}
           >
             {DEPARTMENT_IDS.map((id) => (
               <DepartmentFrame key={id} id={id} focus={focus} flow={flow} terms={terms} />
@@ -854,7 +854,7 @@ function BankMapView() {
               </div>
             )}
             {!focus && <AtmCassetteBadge />}
-            {!focus && flow && <HopBadge2D tone={flow.accent} />}
+            {!focus && <HopLayer2D accent={flow?.accent} />}
             {!focus && <CashLines2D />}
             {!focus && <CitBay2D />}
             {!focus && <DeskCrowd2D />}

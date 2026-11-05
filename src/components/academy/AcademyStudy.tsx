@@ -12,8 +12,9 @@ import { sampleForLevel } from '../../sim/academySamples';
 import { formatAud } from '../../engine/money';
 import { GL_PLAIN, rcLabel } from '../../sim/plainLanguage';
 import type { FlowId } from '../../types/viewport';
-import { academyStore, useAcademyStore } from '../../store/academyStore';
-import { simulateFlow } from '../../store/academySync';
+import { useAcademyStore } from '../../store/academyStore';
+import { simulateGuidedFlow } from '../bank/retailOpsActions';
+import { useDemoLocked } from '../bank/DemoSession';
 import { bankStore, useBankStore } from '../../store/bankStore';
 import { postingKindLabel } from '../../data/ledgerCopy';
 import type { PostingKind } from '../../types/processLearning';
@@ -24,11 +25,14 @@ import type { PostingKind } from '../../types/processLearning';
 
 /** Closes the lesson panel and plays the flow on the map. Disabled where no guided flow covers the desk. */
 export function SimulateButton({ flow, testId = 'simulate-flow' }: { flow: FlowId | null; testId?: string }) {
+  // Under the one execution lock: no second run while a demo plays (cancel it, or let it finish).
+  const locked = useDemoLocked();
   return (
     <button
       type="button"
-      disabled={flow === null}
-      onClick={() => flow !== null && simulateFlow(academyStore, bankStore, flow)}
+      disabled={flow === null || locked}
+      data-locked={locked || undefined}
+      onClick={() => flow !== null && simulateGuidedFlow(flow)}
       title={flow === null ? tr({ en: 'No guided flow covers this desk yet', vi: 'Chưa có luồng hướng dẫn cho quầy này' }) : tr({ en: 'Close the lessons and watch this flow run on the map', vi: 'Đóng bài học và xem luồng này chạy trên bản đồ' })}
       data-testid={testId}
       data-flow={flow ?? undefined}

@@ -10,7 +10,11 @@ import {
   CIT_STATUSES,
   CIT_STRATEGIES,
   countCash,
+  isHolidayEve,
   logIncident,
+  sbvCasePlan,
+  sbvMode,
+  sbvReasonOf,
   startRun,
   verifySeal,
   type CitDemo,
@@ -20,12 +24,18 @@ import {
   type CitRun,
   type CitScenario,
   type CitSnapshot,
+  type SbvMode,
+  type SbvReason,
 } from '../../sim/citEngine';
 import { useBankStore } from '../../store/bankStore';
-import { useCitStore } from '../../store/citStore';
+import { citStore, useCitStore } from '../../store/citStore';
 import { citDemoBlock, dispatchCitDemo, type CitDemoBlock } from './citActions';
 import { pick, useLocale, useMessages } from '../../utils/i18nHelper';
 import { SectionTitle } from '../bank/ui';
+import { ScenarioPicker } from '../bank/ScenarioPicker';
+import { RunOrCancel, useDemoLocked } from '../bank/DemoSession';
+import { LessonLink } from './LessonLink';
+import { CIT_INFO_KEYS } from '../../data/subProcessKeys';
 import { citMessages } from './cit.messages';
 
 /** The live CIT snapshot at the bank's clock: derived, never stored, so a paused or replayed day shows exactly what it posted. */
@@ -46,10 +56,68 @@ export type CitLockStage = NonNullable<CitSnapshot['lock']>['stage'] | 'LEAVING'
 /** The one dispatch lock as every CIT control reads it (Observer of the bank, CIT and 3D-van stores). */
 export function useCitLock(): { block: CitDemoBlock; stage: CitLockStage | null } {
   const cit = useCit();
-  const dayOver = useBankStore((s) => s.view.dayOver);
   const van = useCitStore((s) => s.van);
-  const block = citDemoBlock(cit, dayOver, van);
+  const block = citDemoBlock(cit, van);
   return { block, stage: block === 'busy' ? (cit.lock?.stage ?? 'LEAVING') : null };
+}
+
+/** 🟢 Nộp tiền về NHNN or 🔴 Rút tiền từ NHNN, and why: on an SBV run's card, its sheet and its dock button. */
+export function SbvBadge({ mode, reason, forced = false }: { mode: SbvMode; reason: SbvReason; forced?: boolean }) {
+  const m = useMessages(citMessages);
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1">
+      <span data-testid="sbv-badge" data-mode={mode} data-reason={reason} title={m(`sbvWhy_${reason}`)} className={`inline-flex flex-wrap items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ring-1 ${mode === 'DEPOSIT' ? 'bg-emerald-500/15 text-emerald-100 ring-emerald-400/60' : 'bg-rose-500/15 text-rose-100 ring-rose-400/60'}`}>
+        {m(`sbv_${mode}`)}
+        <span className="font-semibold opacity-80">· {m(`sbvWhy_${reason}`)}</span>
+      </span>
+      {forced && <SbvForcedBadge />}
+    </span>
+  );
+}
+
+/** The run card's tag for a deposit forced from a vault at or under its floor (CitOrder.forced): a demo, not a live rule. */
+export function SbvForcedBadge() {
+  const m = useMessages(citMessages);
+  return (
+    <span data-testid="sbv-forced" title={m('sbvForcedHint')} className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10.5px] font-bold text-amber-100 ring-1 ring-amber-400/70">
+      ⚠ {m('sbvForced')}
+    </span>
+  );
+}
+
+/** What the next SBV run would do against the live book, in the case picked on the sheet's toggle (citEngine.sbvCasePlan, as the dispatch). */
+export function useSbvNext(): { mode: SbvMode; reason: SbvReason; forced: boolean } {
+  const cit = useCit();
+  const day = useBankStore((s) => s.view.day);
+  const mode = useCitStore((s) => s.sbvCase);
+  const t = sbvCasePlan(cit.book, isHolidayEve(day), mode);
+  return { mode: sbvMode(t.direction), reason: t.reason, forced: t.forced === true };
+}
+
+/** The SBV sheet's case switch: 🟢 Case Nộp Tiền ↔ 🔴 Case Rút Tiền. The six sections and the next dispatch follow it; locked while a demo runs. */
+export function SbvCaseToggle() {
+  const m = useMessages(citMessages);
+  const mode = useCitStore((s) => s.sbvCase);
+  const locked = useDemoLocked();
+  const on = mode === 'WITHDRAW';
+  return (
+    <div className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-2" role="group" aria-label={m('sbvCase')} data-testid="sbv-toggle" data-mode={mode}>
+      <span className={`text-[11.5px] font-bold ${on ? 'text-slate-500' : 'text-emerald-200'}`}>{m('sbvCase_DEPOSIT')}</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label={m('sbvCase')}
+        disabled={locked}
+        onClick={() => citStore.getState().setSbvCase(on ? 'DEPOSIT' : 'WITHDRAW')}
+        data-testid="sbv-toggle-switch"
+        className={`relative h-5 w-10 shrink-0 rounded-full ring-1 transition disabled:cursor-not-allowed disabled:opacity-50 ${on ? 'bg-rose-500/60 ring-rose-300/60' : 'bg-emerald-500/60 ring-emerald-300/60'}`}
+      >
+        <span aria-hidden="true" className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${on ? 'left-[22px]' : 'left-0.5'}`} />
+      </button>
+      <span className={`text-[11.5px] font-bold ${on ? 'text-rose-200' : 'text-slate-500'}`}>{m('sbvCase_WITHDRAW')}</span>
+    </div>
+  );
 }
 
 /** "🚚 CIT van in transit… · <where it is>": shown wherever a CIT dispatch is locked. */
@@ -63,26 +131,52 @@ export function CitBusyBadge({ stage, paused = false }: { stage: CitLockStage | 
   );
 }
 
-/** The drawer's "▶ Run this scenario" for one CIT sub-process: dispatches its demo, locked like every other CIT control. */
+/**
+ * The drawer's "▶ Run this scenario" for one CIT sub-process (a single demo case): the 📖 lesson on the far left and the action
+ * centred on the same line. It dispatches its demo under the one CIT lock, and turns into "Hủy demo" while a demo runs.
+ */
 export function CitRunButton({ kind }: { kind: CitDemo }) {
   const m = useMessages(citMessages);
   const { block, stage } = useCitLock();
   const paused = useBankStore((s) => !s.playing);
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-400/[0.07] p-2.5 backdrop-blur-sm" data-testid="cit-run-scenario" data-kind={kind} data-block={block ?? 'none'}>
-      <button
-        type="button"
-        onClick={() => dispatchCitDemo(kind)}
-        disabled={block !== null}
-        title={block ? m(`demoBlock_${block}`) : m(`demoHint_${kind}`)}
-        data-testid={`cit-run-${kind}`}
-        className="whitespace-nowrap rounded-lg bg-gradient-to-r from-cyan-300 to-sky-400 px-3.5 py-1.5 text-[12.5px] font-bold text-slate-950 shadow-lg shadow-cyan-500/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
-      >
-        {m('runScenario')}
-      </button>
-      {block === 'busy' && <CitBusyBadge stage={stage} paused={paused} />}
-      <p className="w-full text-[11px] leading-snug text-slate-400">{m(`demoHint_${kind}`)}</p>
+    <div className="space-y-2 rounded-xl border border-cyan-300/30 bg-cyan-400/[0.07] p-2.5 backdrop-blur-sm" data-testid="cit-run-scenario" data-kind={kind} data-block={block ?? 'none'}>
+      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2" data-testid="spi-single-case">
+        <LessonLink lessonKey={CIT_INFO_KEYS[kind]} className="h-7 w-7 rounded-md bg-white/10 text-[13px] ring-1 ring-white/15" />
+        <div className="flex justify-center">
+          <RunOrCancel>
+            <button
+              type="button"
+              onClick={() => dispatchCitDemo(kind)}
+              disabled={block !== null}
+              title={block ? m(`demoBlock_${block}`) : m(`demoHint_${kind}`)}
+              data-testid={`cit-run-${kind}`}
+              className="whitespace-nowrap rounded-lg bg-gradient-to-r from-cyan-300 to-sky-400 px-3.5 py-1.5 text-[12.5px] font-bold text-slate-950 shadow-lg shadow-cyan-500/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+            >
+              {m('runScenario')}
+            </button>
+          </RunOrCancel>
+        </div>
+        <span className="h-7 w-7" aria-hidden="true" />
+      </div>
+      {block === 'busy' && (
+        <div className="flex justify-center">
+          <CitBusyBadge stage={stage} paused={paused} />
+        </div>
+      )}
+      {kind === 'SBV' && <SbvNextBadge />}
+      <p className="text-[11px] leading-snug text-slate-400">{m(`demoHint_${kind}`)}</p>
     </div>
+  );
+}
+
+function SbvNextBadge() {
+  const m = useMessages(citMessages);
+  const next = useSbvNext();
+  return (
+    <span className="flex w-full items-center gap-1.5 text-[10.5px] text-slate-400">
+      {m('sbvNext')}: <SbvBadge {...next} />
+    </span>
   );
 }
 
@@ -90,39 +184,41 @@ export function CitRunButton({ kind }: { kind: CitDemo }) {
 export function CitDockButton({ kind }: { kind: CitDemo }) {
   const m = useMessages(citMessages);
   const { block, stage } = useCitLock();
+  const sbv = useSbvNext();
+  const hint = kind === 'SBV' ? `${m(`demoHint_${kind}`)} · ${m(`sbv_${sbv.mode}`)} (${m(`sbvWhy_${sbv.reason}`)})` : m(`demoHint_${kind}`);
   return (
     <>
-      <button type="button" onClick={() => dispatchCitDemo(kind)} disabled={block !== null} title={block ? m(`demoBlock_${block}`) : m(`demoHint_${kind}`)} data-testid={`dock-cit-${kind}`} className="whitespace-nowrap rounded-lg bg-cyan-400 px-3 py-1.5 text-[12px] font-bold text-cyan-950 shadow transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-40">
-        <span aria-hidden="true">{DEMO_ICON[kind]}</span> {m(`dock_${kind}`)}
-      </button>
+      <RunOrCancel>
+        <button type="button" onClick={() => dispatchCitDemo(kind)} disabled={block !== null} title={block ? m(`demoBlock_${block}`) : hint} data-sbv={kind === 'SBV' ? sbv.mode : undefined} data-testid={`dock-cit-${kind}`} className="whitespace-nowrap rounded-lg bg-cyan-400 px-3 py-1.5 text-[12px] font-bold text-cyan-950 shadow transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-40">
+          <span aria-hidden="true">{DEMO_ICON[kind]}</span> {m(`dock_${kind}`)}
+        </button>
+      </RunOrCancel>
       {block === 'busy' && <CitBusyBadge stage={stage} />}
     </>
   );
 }
 
-/** The manual dispatches laid out as buttons, in the vault's inspector and on the CIT sheet (the dock has CitDemoMenu). */
-export function CitDemoButtons({ compact = false }: { compact?: boolean }) {
+/**
+ * The CIT demo scenario picker: the dock's dropdown pattern (ScenarioPicker) listing the four CIT sub-processes, and one Run
+ * button for the picked one, under the one CIT lock. On the Flow 09 sheet, in the vault's and the bay's inspectors and in the dock.
+ */
+export function CitDemoPicker({ direction = 'up' }: { direction?: 'up' | 'down' }) {
   const m = useMessages(citMessages);
   const { block, stage } = useCitLock();
+  const locked = useDemoLocked();
+  const [picked, setPicked] = useState<CitDemo>('ATM');
+  const items = CIT_DEMOS.map((kind) => ({ id: kind, icon: DEMO_ICON[kind], label: m(`demoOption_${kind}`), hint: m(`demoHint_${kind}`), dot: 'bg-cyan-400' }));
   return (
-    <span className="flex flex-wrap items-center gap-1.5" role="group" aria-label={m('demoGroup')} data-testid="cit-demo-buttons" data-block={block ?? 'none'}>
-      {CIT_DEMOS.map((kind) => {
-        return (
-          <button
-            key={kind}
-            type="button"
-            onClick={() => dispatchCitDemo(kind)}
-            disabled={block !== null}
-            title={block ? m(`demoBlock_${block}`) : m(`demoHint_${kind}`)}
-            data-testid={`cit-demo-${kind}`}
-            className="whitespace-nowrap rounded-lg bg-cyan-400 px-3 py-1.5 text-[12px] font-bold text-cyan-950 shadow transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <span aria-hidden="true">{DEMO_ICON[kind]}</span> {m(compact ? `demoOption_${kind}` : `demo_${kind}`)}
+    <div className="flex w-full min-w-0 flex-wrap items-center gap-1.5" role="group" aria-label={m('demoGroup')} data-testid="cit-demo-picker" data-block={block ?? 'none'} data-picked={picked}>
+      <ScenarioPicker items={items} picked={picked} onPick={(id) => setPicked(id as CitDemo)} label={m('pickScenario')} testId="cit-demo" direction={direction} disabled={locked}>
+        <RunOrCancel>
+          <button type="button" onClick={() => dispatchCitDemo(picked)} disabled={block !== null} title={block ? m(`demoBlock_${block}`) : m(`demoHint_${picked}`)} data-testid="cit-demo-run" className="shrink-0 whitespace-nowrap rounded-lg bg-cyan-400 px-3 py-1.5 text-[12px] font-bold text-cyan-950 shadow transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-40">
+            {m('runScenario')}
           </button>
-        );
-      })}
+        </RunOrCancel>
+      </ScenarioPicker>
       {block === 'busy' && <CitBusyBadge stage={stage} />}
-    </span>
+    </div>
   );
 }
 
@@ -199,6 +295,7 @@ function RunCard({ run, start }: { run: CitRun; start?: number }) {
       <div className="text-[11px] text-slate-400">
         {m('trigger')}: {pick(o.trigger, locale)}
       </div>
+      {o.scenario === 'SBV' && <SbvBadge mode={sbvMode(o.direction)} reason={sbvReasonOf(o)} forced={o.forced} />}
       <Stepper run={run} />
       {run.blocked && (
         <div className="text-[11px] font-semibold text-rose-200" data-testid="cit-block">
@@ -254,7 +351,7 @@ export function CitInspectorView({ cit, demos = false }: { cit: CitSnapshot; dem
       </div>
       {demos && (
         <div className="mb-2">
-          <CitDemoButtons compact />
+          <CitDemoPicker direction="down" />
         </div>
       )}
       {cit.active ? <RunCard run={cit.active.run} start={cit.active.planned.start} /> : <p className="text-[12px] text-slate-500">{m('noRuns')}</p>}

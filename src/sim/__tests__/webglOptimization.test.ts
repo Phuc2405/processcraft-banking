@@ -3,6 +3,7 @@
  * context-loss state machine (restore first, 2D only when unrecoverable), the payment's own path and its hop badge, and the
  * sub-process drawer's "▶ Run this scenario" for every sheet.
  */
+import { demoSessionStore } from '../../store/demoSessionStore';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -21,7 +22,9 @@ import { demoActionById } from '../demoActions';
 import { groupMembers } from '../demoGroups';
 import { sheetDemo } from '../sheetDemo';
 import { edgeId, type PlaceId } from '../topology';
-import { badgeHops, BADGE_HOPS, HOP_SECONDS, hopSteps, livePath, onPath, orbArrived, orbProgress } from '../transactionPath';
+import { livePath, onPath } from '../transactionPath';
+import { HOP_TIMING, stepPlay, stopStates, travelU, type HopPlay } from '../hopPlayer';
+import { badgeWindow } from '../../components/bank/HopBadge';
 
 const disposable = () => ({ dispose: vi.fn() });
 
@@ -194,32 +197,23 @@ describe('the payment’s own path', () => {
   });
 
   it('numbers the hops and marks the active one, in a short window for the badge', () => {
-    const steps = hopSteps({ route, at: 2, done: false });
-    expect(steps.map((s) => [s.n, s.state])).toEqual([
-      [1, 'done'],
-      [2, 'done'],
-      [3, 'active'],
-      [4, 'next'],
-    ]);
-    const shown = badgeHops(steps);
-    expect(shown).toHaveLength(BADGE_HOPS);
-    expect(shown.map((s) => s.n)).toEqual([2, 3, 4]);
-    expect(badgeHops(hopSteps({ route, at: 0, done: false })).map((s) => s.n)).toEqual([1, 2, 3]);
-    expect(hopSteps({ route, at: 1, done: true }).every((s) => s.state === 'done')).toBe(true);
+    const states = stopStates({ index: 2, phase: 'show', t: 0 }, route.length);
+    expect(states).toEqual(['done', 'done', 'active', 'next']);
+    const steps = states.map((state, i) => ({ n: i + 1, state }));
+    expect(badgeWindow(steps, 3).shown.map((s) => s.n)).toEqual([2, 3, 4]);
+    expect(badgeWindow(steps).shown).toHaveLength(route.length);
   });
 
-  it('moves the orb once along the wire, eased, then holds it at the stop where the LED ring lights', () => {
-    expect(orbProgress(0)).toBe(0);
+  it('moves the icon once along the wire, eased, then stands at the stop with its badge', () => {
     let last = 0;
-    for (let t = 0.05; t <= HOP_SECONDS; t += 0.05) {
-      const u = orbProgress(t);
+    for (let t = 0.05; t <= HOP_TIMING.travel; t += 0.05) {
+      const u = travelU({ index: 0, phase: 'travel', t });
       expect(u).toBeGreaterThanOrEqual(last);
       last = u;
     }
-    expect(orbProgress(HOP_SECONDS)).toBe(1);
-    expect(orbProgress(HOP_SECONDS * 5)).toBe(1);
-    expect(orbArrived(HOP_SECONDS / 2)).toBe(false);
-    expect(orbArrived(HOP_SECONDS)).toBe(true);
+    const arrived: HopPlay | null = stepPlay({ index: 0, phase: 'travel', t: 0 }, HOP_TIMING.travel, route.length, route.length - 1);
+    expect(arrived).toMatchObject({ index: 1, phase: 'show' });
+    expect(travelU(arrived!)).toBe(1);
   });
 });
 
@@ -255,7 +249,7 @@ describe('“▶ Run this scenario” on every sub-process sheet', () => {
   it('gives every sheet but the CIT overview a scenario, each a real button or CIT dispatch', () => {
     for (const k of INFO_KEYS) {
       const d = sheetDemo(k);
-      if (k === 'cit-vault') {
+      if (k === 'flow-9') {
         expect(d).toBeNull();
         continue;
       }
@@ -269,6 +263,8 @@ describe('“▶ Run this scenario” on every sub-process sheet', () => {
   });
 
   it('renders the button in the drawer for POS, Bill Pay, BNPL, 3DS, AML and the four CIT children, in Vietnamese', () => {
+    // No demo running (an earlier test's would turn every run button into "Hủy demo").
+    demoSessionStore.getState().finish();
     setActiveLocale('vi');
     const render = (k: (typeof INFO_KEYS)[number]) => renderToStaticMarkup(createElement(SubProcessInfoView, { info: subProcessInfo(k), liveStr: 0.5 }));
     for (const k of ['card-auth', 'bill-pay', 'bnpl-credit', 'token-3ds', 'aml-sanctions'] as const) {

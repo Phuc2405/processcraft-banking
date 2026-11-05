@@ -6,7 +6,18 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { executeDemo, releaseDueDemos, runDemo, stayForShift } from '../../components/bank/retailOpsActions';
+import { executeDemo as executeDemoNow, releaseDueDemos, runDemo as runDemoNow, stayForShift } from '../../components/bank/retailOpsActions';
+import { demoSessionStore } from '../../store/demoSessionStore';
+
+// Each button press here is a fresh demo: the previous one is closed first, as a learner would cancel it (or let it finish).
+const executeDemo = (id: DemoActionId): void => {
+  demoSessionStore.getState().finish();
+  executeDemoNow(id);
+};
+const runDemo = (id: DemoActionId): void => {
+  demoSessionStore.getState().finish();
+  runDemoNow(id);
+};
 import { RegulatoryRegistry } from '../../components/knowledge/RegulatoryRegistry';
 import { Flashcard, flashcardPoints } from '../../components/knowledge/RetailOpsStudy';
 import { retailOpsMessages } from '../../components/bank/retailOps.messages';

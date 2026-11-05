@@ -7,7 +7,7 @@ import { useLocale } from '../../../i18n/locale';
 import { AdditiveBlending, CanvasTexture, Color, ExtrudeGeometry, MeshBasicMaterial, MOUSE, Path, RepeatWrapping, ShapeGeometry, SpriteMaterial, SRGBColorSpace, TOUCH, Vector3, type AmbientLight, type DirectionalLight, type Group, type HemisphereLight } from 'three';
 import { DEPARTMENTS, STATION_IDS, type DepartmentId } from '../../../sim/topology';
 import { prefersReducedMotion } from '../../canvas/timing';
-import { activeFlowOf, bankStore, useBankStore } from '../../../store/bankStore';
+import { activeFlowOf, bankStore, focusSubOf, useBankStore } from '../../../store/bankStore';
 import { uiStore } from '../../../store/uiStore';
 import { sceneCovered } from './sceneCover';
 import { FlowStage3D, useAcademyCamera } from './FlowStage3D';
@@ -561,7 +561,7 @@ const Lanes = memo(function Lanes() {
   );
   const hover = useBankStore((s) => (s.spotlight ? null : s.hoverPlace));
   const flow = useBankStore((s) => (s.spotlight ? null : activeFlowOf(s)));
-  const sub = useBankStore((s) => s.subProcess);
+  const sub = useBankStore(focusSubOf);
   const path = useLivePath();
   const { lanes: lit, dim, pulses } = useMemo(() => litLanes(hover, flow, sub, path), [hover, flow, sub, path]);
   const litLanes3d = useMemo(
@@ -725,7 +725,7 @@ function LaneBadge({ text, at, focus }: { text: string; at: readonly [number, nu
 const LaneLabels = memo(function LaneLabels() {
   useLocale();
   const flow = useBankStore((s) => (s.spotlight ? null : activeFlowOf(s)));
-  const sub = useBankStore((s) => s.subProcess);
+  const sub = useBankStore(focusSubOf);
   const hover = useBankStore((s) => (s.spotlight ? null : s.hoverPlace));
   const always = useBankStore((s) => s.labelMode === 'always' && s.spotlight === null);
   return (

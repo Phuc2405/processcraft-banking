@@ -12,7 +12,7 @@ import type { CitDemo } from './citEngine';
 import type { DemoActionId } from './demoActions';
 import { groupMembers, isDemoGroupId } from './demoGroups';
 import { PRIMARY_PRESET } from './presets';
-import type { FlowId } from '../types/viewport';
+import { isPaymentFlow, type FlowId } from '../types/viewport';
 
 export type SheetDemo = { kind: 'cit'; demo: CitDemo } | { kind: 'action'; id: DemoActionId };
 
@@ -25,7 +25,11 @@ export function sheetDemo(key: InfoKey): SheetDemo | null {
   if (cit) return { kind: 'cit', demo: cit };
   const domain = DOMAIN_DEMO[key];
   if (domain) return { kind: 'action', id: domain };
-  if (key.startsWith('flow-')) return { kind: 'action', id: PRIMARY_PRESET[Number(key.slice(5)) as FlowId] };
+  if (key.startsWith('flow-')) {
+    // Flow 09 has no single run: its sheet hands over to the four CIT dispatch buttons.
+    const flow = Number(key.slice(5)) as FlowId;
+    return isPaymentFlow(flow) ? { kind: 'action', id: PRIMARY_PRESET[flow] } : null;
+  }
   if (isDemoGroupId(key)) {
     const first = groupMembers(key)[0];
     return first ? { kind: 'action', id: first.def.id as DemoActionId } : null;

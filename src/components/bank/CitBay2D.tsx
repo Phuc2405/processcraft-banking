@@ -1,10 +1,11 @@
 import { memo } from 'react';
-import { PLACE_BOX } from '../../engine/plan/layout';
+import { CIT_BAY, PLACE_BOX } from '../../engine/plan/layout';
 import { actorStatus } from '../../sim/actorStatus';
 import { crewOf, vaultPulseAt, type CrewPoint } from '../../sim/citCrew';
 import { citBayRun, citDemoBusy, CIT_STRATEGIES, type CitAccountId, type CitSnapshot } from '../../sim/citEngine';
 import { formatMoney } from '../../sim/kpis';
-import { beatLive, useBankStore } from '../../store/bankStore';
+import { activeFlowOf, beatLive, useBankStore } from '../../store/bankStore';
+import { CIT_FLOW } from '../../types/viewport';
 import { useMessages } from '../../utils/i18nHelper';
 import { citMessages } from '../ops/cit.messages';
 import { useCit } from '../ops/CitPanel';
@@ -12,7 +13,7 @@ import { ActorStatusBadge } from './ActorStatusBadge';
 import { H, Person, W } from './DeskVisitors2D';
 
 /** The loading bay on the map's bottom-right edge, right under the Central Cash Vault: the van, and its crew walking between the van and the vault. */
-export const CIT_BAY = { x: 1350, y: 900, w: 180, h: 166 } as const;
+export { CIT_BAY };
 
 /** The bay card's text rows, px from its top: the header, then the live vault balance on its own line (14 px apart: no overlap). */
 export const BAY_ROWS = { header: 7, balance: 24 } as const;
@@ -36,7 +37,9 @@ export const CitBay2D = memo(function CitBay2D() {
   // A paused bank still plays the learner's own van (a pause-isolated demo): the bay animates, nothing else does.
   const solo = useBankStore((s) => !s.playing) && citDemoBusy(cit) !== null;
   const live = useBankStore(beatLive) || solo;
-  return <CitBayView cit={cit} live={live} onOpen={() => select({ kind: 'station', id: 'MAIN_CASH_VAULT' })} />;
+  // Highlighted only while Flow 09 (cash in transit) is the lit flow; quiet under every other flow.
+  const lit = useBankStore((s) => activeFlowOf(s) === CIT_FLOW);
+  return <CitBayView cit={cit} live={live} lit={lit} onOpen={() => select({ kind: 'bay' })} />;
 });
 
 /** A crew member on the 2D walk: the same figure and badge as a customer at a counter (DeskVisitors2D, ActorStatusBadge). */
@@ -63,7 +66,7 @@ function CrewFigure2D({ role, flow, p }: { role: 'custodian' | 'guard'; flow: 'I
   );
 }
 
-export function CitBayView({ cit, live, onOpen }: { cit: CitSnapshot; live: boolean; onOpen: () => void }) {
+export function CitBayView({ cit, live, lit = false, onOpen }: { cit: CitSnapshot; live: boolean; lit?: boolean; onOpen: () => void }) {
   const m = useMessages(citMessages);
   const run = cit.active?.run ?? null;
   const moving = run && run.status !== 'SETTLED' ? run : null;
@@ -86,14 +89,16 @@ export function CitBayView({ cit, live, onOpen }: { cit: CitSnapshot; live: bool
         type="button"
         onClick={onOpen}
         title={m('bayHint')}
-        aria-label={`${m('bay')}: ${m('bayHint')}`}
+        aria-label={`${m('bay')}: ${m('bayOpen')}`}
         data-testid="cit-bay"
         data-status={moving?.status ?? 'IDLE'}
-        className="absolute z-20 rounded-xl border border-dashed border-cyan-400/50 bg-slate-950/60 text-left transition hover:border-cyan-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+        data-lit={lit}
+        data-wire-node="BAY"
+        className={`absolute z-20 rounded-xl border bg-slate-950/60 text-left transition hover:border-cyan-300 hover:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${lit ? 'border-solid border-cyan-300 shadow-[0_0_16px_rgba(34,211,238,0.45)]' : 'border-dashed border-slate-600/70 opacity-70'}`}
         style={{ left: CIT_BAY.x, top: CIT_BAY.y, width: CIT_BAY.w, height: CIT_BAY.h }}
       >
         {/* Header and balance on rows of their own (BAY_ROWS), so the title never runs into the vault's figure. */}
-        <span className="absolute inset-x-2 truncate text-[10.5px] font-bold uppercase leading-none tracking-wider text-cyan-200" style={{ top: BAY_ROWS.header }} data-testid="cit-bay-title">
+        <span className="absolute inset-x-2 truncate text-[10.5px] font-bold leading-none tracking-wide text-cyan-200" style={{ top: BAY_ROWS.header }} data-testid="cit-bay-title">
           {m('bay')}
         </span>
         <span key={cit.book.VAULT} className="bk-cit-count absolute right-2 font-mono text-[10.5px] font-bold leading-none tabular-nums text-amber-200" style={{ top: BAY_ROWS.balance }} data-testid="cit-vault-counter">

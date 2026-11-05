@@ -1,6 +1,6 @@
 /** The Message & Ledger Inspector's examples. */
 
-import type { FlowId } from '../types/viewport';
+import { isPaymentFlow, type FlowId } from '../types/viewport';
 import { BankSimulation } from './bankSimulation';
 import { WORK_START } from './clock';
 import { journalLines, journalText, rawMessage, responseCodeFor, type JournalLine } from './isoMessages';
@@ -52,5 +52,7 @@ export function sampleFor(preset: PresetId): InspectorSample | null {
 /** The sample a level shows. */
 export function sampleForLevel(level: Pick<AcademyLevel, 'flow'>): InspectorSample | null {
   if (level.flow === null) return null;
-  return sampleFor(level.flow === 4 ? PRIMARY_PRESET[1] : PRIMARY_PRESET[level.flow as FlowId]);
+  const flow = level.flow as FlowId;
+  if (!isPaymentFlow(flow)) return null;
+  return sampleFor(flow === 4 ? PRIMARY_PRESET[1] : PRIMARY_PRESET[flow]);
 }

@@ -114,7 +114,7 @@ export const FLOW_SHEETS: readonly SubProcessInfo[] = [
     gl: [dr('ops', 'CASA'), cr('ops', 'CASH_ATM'), cr('ops', 'FEE_INCOME'), cr('ops', 'NAPAS_FEE'), dr('ops', 'ATM_SUSPENSE')],
     legal: ['circ-36-2012', 'circ-18-2024', 'iso-8583'],
     kpi: { sla: L('Dispense < 30 s · jam resolved by EOD', 'Nhả tiền < 30 giây · Xử lý kẹt trong ngày'), strPct: 99, note: L('Cassette alert below 15% of capacity.', 'Cảnh báo hộp tiền dưới 15% dung lượng.') },
-    related: ['cit-vault', 'flow-6'],
+    related: ['flow-9', 'flow-6'],
     place: 'ATM_CASH',
   },
   {
@@ -225,7 +225,7 @@ export const FLOW_SHEETS: readonly SubProcessInfo[] = [
     gl: [dr('ops', 'CASH_TILL'), cr('ops', 'CASA'), dr('ops', 'CASH_VAULT'), cr('ops', 'CASH_TILL')],
     legal: ['circ-01-2014', 'decision-11-2023', 'law-14-2022', 'au-ttr'],
     kpi: { sla: L('Counter < 5 min · kiosk < 1 min', 'Quầy < 5 phút · Kiosk < 1 phút'), strPct: 40, note: L('Kiosk STP counts on the STP engine’s badge.', 'STP kiosk được tính trên huy hiệu bộ máy STP.') },
-    related: ['cit-vault', 'aml-sanctions', 'flow-3'],
+    related: ['flow-9', 'aml-sanctions', 'flow-3'],
     place: 'TELLER_CASH',
   },
   {
@@ -348,12 +348,12 @@ export const FLOW_SHEETS: readonly SubProcessInfo[] = [
     place: 'BNPL',
   },
   {
-    key: 'cit-vault',
-    code: 'CIT-01',
-    flow: 6,
+    key: 'flow-9',
+    code: 'CIT-09',
+    flow: 9,
     icon: '🚚',
     mode: 'MANUAL',
-    title: L('Cash in transit & vault operations', 'Vận chuyển tiền mặt (CIT) & Quản lý kho quỹ'),
+    title: L('Cash in transit & vault management (CIT)', 'Vận chuyển tiền mặt & Quản lý Kho quỹ (CIT)'),
     overview: L(
       'Armoured-van runs between the branch vault, the ATMs, HQ, corporate clients and the SBV. Each run is EN_ROUTE → ARRIVED → IN_COUNT → DELIVERED → SETTLED, under 4-eye seal control, with TK 1131 holding the cash while it is on the road.',
       'Các chuyến xe chở tiền giữa kho chi nhánh, ATM, Hội sở, khách hàng DN và NHNN. Mỗi chuyến đi qua Đang vận chuyển → Đã đến → Kiểm đếm → Đã giao → Tất toán, kiểm soát niêm phong 4 mắt, TK 1131 giữ tiền trong lúc đi đường.',
@@ -382,7 +382,7 @@ export const FLOW_SHEETS: readonly SubProcessInfo[] = [
     gl: [dr('cit', 'TRANSIT'), cr('cit', 'VAULT'), dr('cit', 'ATM'), dr('cit', 'UNFIT'), dr('cit', 'SBV'), cr('cit', 'CORP')],
     legal: ['circ-01-2014', 'circ-13-2018', 'iso-20022'],
     kpi: { sla: L('Dispatch → settled ≤ 65 min (+15 min seal incident)', 'Xuất phát → tất toán ≤ 65 phút (+15 phút sự cố niêm phong)'), strPct: null, note: L('Target: 1131 = 0 at every close; 100% 4-eye coverage.', 'Mục tiêu: 1131 = 0 mỗi cuối ngày; 100% giao nhận 4 mắt.') },
-    related: ['06-cit-atm', '06-cit-doorstep', '06-cit-sbv', '06-cit-teller-vault', 'flow-3', 'flow-6'],
+    related: ['09-cit-atm', '09-cit-doorstep', '09-cit-sbv', '09-cit-teller-vault', 'flow-3', 'flow-6'],
     place: 'MAIN_CASH_VAULT',
   },
   {

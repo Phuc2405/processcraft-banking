@@ -224,7 +224,8 @@ describe('saving', () => {
     expect(s.view.day).toBe(2);
     expect(s.view.history).toHaveLength(1);
     expect(s.view.suspense.items).toBe(saved!.carry.suspense.length);
-    expect(s.notice?.message).toMatch(/day 2/);
+    // No "welcome back" toast: the start-of-day banner already greets the reloaded day.
+    expect(s.notice).toBeNull();
   });
 
   it('keeps the rules across a reload', () => {

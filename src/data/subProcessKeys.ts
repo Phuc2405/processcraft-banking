@@ -31,10 +31,10 @@ export const GROUP_INFO_KEYS = [
 export type GroupInfoKey = (typeof GROUP_INFO_KEYS)[number];
 
 /** Cross-cutting domains with no demo group of their own. */
-export type DomainKey = 'cit-vault' | 'aml-sanctions';
+export type DomainKey = 'aml-sanctions';
 
-/** The CIT domain's four child sub-processes under Flow 06, one per demo the learner can run from its sheet. */
-export const CIT_INFO_KEYS = { ATM: '06-cit-atm', DOORSTEP: '06-cit-doorstep', SBV: '06-cit-sbv', TELLER: '06-cit-teller-vault' } as const satisfies Record<CitDemo, string>;
+/** The CIT domain's four child sub-processes under Flow 09 (its parent sheet is flow-9), one per demo the learner can run from its sheet. */
+export const CIT_INFO_KEYS = { ATM: '09-cit-atm', DOORSTEP: '09-cit-doorstep', SBV: '09-cit-sbv', TELLER: '09-cit-teller-vault' } as const satisfies Record<CitDemo, string>;
 export type CitInfoKey = (typeof CIT_INFO_KEYS)[CitDemo];
 const CIT_CHILDREN = Object.entries(CIT_INFO_KEYS) as ReadonlyArray<[CitDemo, CitInfoKey]>;
 /** The demo a CIT child sheet runs, or null for any other sheet. */
@@ -42,14 +42,14 @@ export const citDemoOfKey = (k: string): CitDemo | null => CIT_CHILDREN.find(([,
 
 export type InfoKey = `flow-${FlowId}` | GroupInfoKey | DomainKey | CitInfoKey;
 
-export const INFO_KEYS: readonly InfoKey[] = [...FLOW_IDS.map((f): InfoKey => `flow-${f}`), ...GROUP_INFO_KEYS, 'cit-vault', ...CIT_CHILDREN.map(([, k]) => k), 'aml-sanctions'];
+export const INFO_KEYS: readonly InfoKey[] = [...FLOW_IDS.map((f): InfoKey => `flow-${f}`), ...GROUP_INFO_KEYS, ...CIT_CHILDREN.map(([, k]) => k), 'aml-sanctions'];
 export const isInfoKey = (k: unknown): k is InfoKey => typeof k === 'string' && (INFO_KEYS as readonly string[]).includes(k);
 
 /** What the drawer shows for a menu choice: the sub-group's own sheet when it has one, else its flow's. */
 export const infoKeyForChoice = (flow: FlowId, sub: string | null): InfoKey => (sub && isInfoKey(sub) ? sub : `flow-${flow}`);
 
 const PLACE_INFO: Partial<Record<PlaceId, InfoKey>> = {
-  MAIN_CASH_VAULT: 'cit-vault',
+  MAIN_CASH_VAULT: 'flow-9',
   COLLATERAL_VAULT: 'collateral',
   AML_DESK: 'aml-sanctions',
   SEC_3DS: 'token-3ds',

@@ -8,7 +8,7 @@ import fc from 'fast-check';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { MENU_CHOICES, showInfo } from '../../components/bank/SubProcessMenu';
 import { citNow, dispatchCitDemo, installCitSync, settleAtmRefills } from '../../components/ops/citActions';
-import { CitDemoButtons } from '../../components/ops/CitPanel';
+import { CitDemoPicker } from '../../components/ops/CitPanel';
 import { SubProcessInfoView } from '../../components/ops/SubProcessInfoDrawer';
 import { regDocById } from '../../data/regulatoryRegistry';
 import { RETAIL_FLASHCARDS } from '../../data/retailFlashcards';
@@ -32,10 +32,10 @@ import { STATION_IDS } from '../topology';
 afterEach(() => setActiveLocale('en'));
 
 describe('the sub-process registry', () => {
-  it('has a sheet for each of the eight flows and the CIT, AML, 3DS and Pay-in-4 domains, without new flow ids', () => {
+  it('has a sheet for each of the nine flows (Flow 09 is the CIT domain) and the AML, 3DS and Pay-in-4 domains', () => {
     for (const f of FLOW_IDS) expect(isInfoKey(`flow-${f}`), `flow ${f}`).toBe(true);
-    for (const k of ['cit-vault', 'aml-sanctions', 'token-3ds', 'bnpl-credit']) expect(isInfoKey(k)).toBe(true);
-    expect(FLOW_IDS).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    for (const k of ['flow-9', 'aml-sanctions', 'token-3ds', 'bnpl-credit']) expect(isInfoKey(k)).toBe(true);
+    expect(FLOW_IDS).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
     expect(Object.keys(SUB_PROCESS_REGISTRY).sort()).toEqual([...INFO_KEYS].sort());
     for (const k of INFO_KEYS) expect(FLOW_IDS).toContain(SUB_PROCESS_REGISTRY[k].flow);
   });
@@ -65,7 +65,7 @@ describe('the sub-process registry', () => {
         expect(g.name, k).not.toBe('');
       }
     }
-    const cit = subProcessInfo('cit-vault').gl.map((r) => glLine(r, 'en').code);
+    const cit = subProcessInfo('flow-9').gl.map((r) => glLine(r, 'en').code);
     for (const code of ['1131', '1111', '1113', '4211']) expect(cit).toContain(code);
   });
 
@@ -75,7 +75,7 @@ describe('the sub-process registry', () => {
     expect(infoKeyForChoice(6, 'teller-vault')).toBe('teller-vault');
     expect(infoKeyForChoice(4, 'eod-batch')).toBe('flow-4');
     // The cash sheet belongs to the Central Cash Vault; the collateral desk reads the collateral sheet.
-    expect(infoKeyForPlace('MAIN_CASH_VAULT')).toBe('cit-vault');
+    expect(infoKeyForPlace('MAIN_CASH_VAULT')).toBe('flow-9');
     expect(infoKeyForPlace('COLLATERAL_VAULT')).toBe('collateral');
     expect(infoKeyForPlace('AML_DESK')).toBe('aml-sanctions');
     expect(infoKeyForPlace('SEC_3DS')).toBe('token-3ds');
@@ -100,17 +100,20 @@ describe('the info drawer', () => {
 
   it('shows the status badge, the live STR on automated sheets and the van dispatches on the CIT sheet, in Vietnamese', () => {
     setActiveLocale('vi');
-    const cit = render('cit-vault');
+    const cit = render('flow-9');
     expect(cit).toContain('data-mode="MANUAL"');
     expect(cit).toContain('Thủ công');
     expect(cit).toContain('📌 Tổng quan &amp; Định danh');
     expect(cit).toContain('📈 KPIs &amp; SLAs');
     expect(cit).toContain('data-code="1131"');
-    for (const k of CIT_DEMOS) expect(cit).toContain(`data-testid="cit-demo-${k}"`);
+    // The parent Flow 09 sheet runs nothing itself: each CIT child's sheet (and the dock) carries the run.
+    expect(cit).not.toContain('data-testid="cit-demo-picker"');
+    expect(cit).not.toContain('▶ Chạy thử kịch bản này');
+    for (const k of CIT_DEMOS) expect(cit).not.toContain(`data-testid="cit-demo-${k}"`);
     const bnpl = render('bnpl-credit');
     expect(bnpl).toContain('Kết hợp');
     expect(bnpl).toContain('42%');
-    expect(bnpl).not.toContain('cit-demo-ATM');
+    expect(bnpl).not.toContain('cit-demo-picker');
   });
 });
 
@@ -249,10 +252,11 @@ describe('manual CIT dispatch (store pipeline)', () => {
     }
   });
 
-  it('keeps the CIT buttons in the vault inspector and on the CIT sheet, in Vietnamese as the brief names them (the dock has none)', () => {
+  it('puts the CIT dispatches in one scenario dropdown, named in Vietnamese as the brief names them', () => {
     setActiveLocale('vi');
-    const html = renderToStaticMarkup(createElement(CitDemoButtons));
-    for (const label of ['Demo CIT: Tiếp quỹ ATM', 'Demo CIT: Thu tiền WinMart', 'Demo CIT: Nộp/Rút tiền NHNN']) expect(html).toContain(label);
+    const html = renderToStaticMarkup(createElement(CitDemoPicker));
+    expect(html).toContain('Tiếp quỹ &amp; Rút hộc tiền ATM / CDM');
+    expect(html).toContain('▶ Chạy thử kịch bản này');
   });
 });
 

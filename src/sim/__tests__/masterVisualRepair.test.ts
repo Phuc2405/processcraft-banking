@@ -30,7 +30,8 @@ import { citAt, CIT_DEMOS } from '../citEngine';
 import type { OpsJournal } from '../retailOps';
 import { TERMS } from '../terms';
 import type { PlaceId } from '../topology';
-import { CATEGORY_ICON, flowIcon, hopSteps, PLACE_CATEGORY } from '../transactionPath';
+import { CATEGORY_ICON, flowIcon, PLACE_CATEGORY } from '../transactionPath';
+import { stopStates } from '../hopPlayer';
 import { dailyCashMovements, type VaultCashFlow } from '../vaultFlows';
 
 const src = (rel: string): string => readFileSync(join(__dirname, '..', '..', rel), 'utf8');
@@ -125,10 +126,10 @@ describe('3D: a low cash arc and a light GPU budget', () => {
 describe('CIT: the dock, the toast, the drawer and the lessons', () => {
   it('maps each CIT child to its own dock button', () => {
     const vi: Record<string, string> = {
-      '06-cit-atm': '▶ Tiếp quỹ & Rút hộc tiền ATM/CDM ($60k)',
-      '06-cit-doorstep': '▶ Thu tiền mặt Doanh nghiệp ($300k)',
-      '06-cit-sbv': '▶ Nộp / Rút tiền mặt Ngân hàng Nhà nước ($1.5M)',
-      '06-cit-teller-vault': '▶ Điều chuyển & Phân loại tiền quầy ($50k)',
+      '09-cit-atm': '▶ Tiếp quỹ & Rút hộc tiền ATM/CDM ($60k)',
+      '09-cit-doorstep': '▶ Thu tiền mặt Doanh nghiệp ($300k)',
+      '09-cit-sbv': '▶ Nộp / Rút tiền mặt Ngân hàng Nhà nước ($1.5M)',
+      '09-cit-teller-vault': '▶ Điều chuyển & Phân loại tiền quầy ($50k)',
     };
     for (const [key, label] of Object.entries(vi)) {
       const kind = citDemoOfKey(key)!;
@@ -158,7 +159,7 @@ describe('CIT: the dock, the toast, the drawer and the lessons', () => {
   it('spells out the SBV deposit and withdrawal triggers in the tooltip and the drawer', () => {
     const hint = citMessages.messages.demoHint_SBV.vi;
     for (const s of ['$5.2M', '$10,000', '$1M', 'Tết']) expect(hint).toContain(s);
-    const steps = subProcessInfo('06-cit-sbv').steps.map((s) => s.vi).join(' ');
+    const steps = subProcessInfo('09-cit-sbv').steps.map((s) => s.vi).join(' ');
     expect(steps).toMatch(/Nộp tiền về NHNN.*\$5\.2M.*\$10,000/);
     expect(steps).toMatch(/Rút tiền từ NHNN.*\$1M.*Tết/);
   });
@@ -166,13 +167,13 @@ describe('CIT: the dock, the toast, the drawer and the lessons', () => {
 
 describe('the active step and the moving icon', () => {
   it('accents only the current hop of the badge', () => {
-    const steps = hopSteps({ route: ['GATE_POS', 'LEDGER_DEBIT', 'OUT_APPROVED'], at: 1, done: false });
+    const steps = stopStates({ index: 1, phase: 'show', t: 0 }, 3).map((state, i) => ({ n: i + 1, name: ['POS Gate', 'Debit CASA', 'Approved'][i]!, state }));
     expect(steps.map((s) => s.state)).toEqual(['done', 'active', 'next']);
     expect(hopLook('active', '#fbbf24').background).toBe('#fbbf24');
     expect(hopLook('done', '#fbbf24').background).toBe('transparent');
     const html = renderToStaticMarkup(createElement(HopBadge, { hops: steps, tone: '#fbbf24' }));
     expect(html.match(/aria-current="step"/g)).toHaveLength(1);
-    expect(html).toMatch(/data-state="active"[\s\S]*?aria-current="step"[^>]*>2\./);
+    expect(html).toMatch(/data-state="active"[\s\S]*?aria-current="step"[^>]*>Step 2:/);
   });
 
   it('walks the custodian along the 2D teller line on a till run', () => {

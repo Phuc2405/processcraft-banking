@@ -1,10 +1,11 @@
 /**
- * The four CIT child sub-processes under Flow 06 (the CIT domain sheet `cit-vault` is their parent): one sheet per demo the learner
+ * The four CIT child sub-processes under Flow 09 (the flow's own sheet `flow-9` is their parent): one sheet per demo the learner
  * can run (CIT_INFO_KEYS maps them). The GL lines are the CIT book's, so each sheet covers exactly what its demo posts.
  */
 
 import { cr, dr, L, type SubProcessInfo } from './subProcessModel';
 import type { CitInfoKey } from './subProcessKeys';
+import type { SbvMode } from '../sim/citEngine';
 
 /** What every CIT run shares: the custodians, the core ledger, Circular 01/2014 and the internal-control circular. */
 const CUSTODIANS = { id: 'cit', duty: L('Two custodians carry and sign for the sealed cash (4-eye); the guard escorts.', 'Hai thủ quỹ áp tải và ký nhận tiền niêm phong (4 mắt); bảo vệ hộ tống.') } as const;
@@ -15,15 +16,15 @@ const LOCK = L('One run at a time: the next dispatch waits until this one is SET
 const sheet = (key: CitInfoKey, s: Omit<SubProcessInfo, 'key' | 'flow' | 'legal' | 'related' | 'place'> & { legal?: readonly string[] }): SubProcessInfo => ({
   ...s,
   key,
-  flow: 6,
+  flow: 9,
   legal: s.legal ?? LEGAL,
-  related: ['cit-vault', ...(['06-cit-atm', '06-cit-doorstep', '06-cit-sbv', '06-cit-teller-vault'] as const).filter((k) => k !== key)],
+  related: ['flow-9', ...(['09-cit-atm', '09-cit-doorstep', '09-cit-sbv', '09-cit-teller-vault'] as const).filter((k) => k !== key)],
   place: 'MAIN_CASH_VAULT',
 });
 
 export const CIT_SHEETS: readonly SubProcessInfo[] = [
-  sheet('06-cit-atm', {
-    code: '06-CIT-ATM',
+  sheet('09-cit-atm', {
+    code: '09-CIT-ATM',
     icon: '🏧',
     mode: 'HYBRID',
     title: L('ATM/CDM Replenishment', 'Tiếp quỹ & Rút hộc tiền ATM / CDM'),
@@ -48,8 +49,8 @@ export const CIT_SHEETS: readonly SubProcessInfo[] = [
     gl: [dr('cit', 'TRANSIT'), cr('cit', 'VAULT'), dr('cit', 'ATM'), cr('cit', 'TRANSIT'), cr('cit', 'ATM'), dr('cit', 'VAULT'), dr('cit', 'UNFIT')],
     kpi: { sla: L('Machine back in service ≤ 65 min from dispatch', 'Máy hoạt động lại ≤ 65 phút từ lúc xuất phát'), strPct: null, note: L('Track cash-out minutes per ATM and unfit notes found in cassettes.', 'Theo dõi số phút hết tiền mỗi ATM và tiền Unfit trong hộc.') },
   }),
-  sheet('06-cit-doorstep', {
-    code: '06-CIT-DOOR',
+  sheet('09-cit-doorstep', {
+    code: '09-CIT-DOOR',
     icon: '🏬',
     mode: 'MANUAL',
     title: L('Corporate Cash Pickup', 'Thu tiền mặt tận nơi cho Doanh nghiệp'),
@@ -75,14 +76,14 @@ export const CIT_SHEETS: readonly SubProcessInfo[] = [
     legal: [...LEGAL, 'law-14-2022'],
     kpi: { sla: L('Pickup → client credited ≤ 65 min (+15 min seal incident)', 'Nhận túi → ghi Có khách ≤ 65 phút (+15 phút sự cố niêm phong)'), strPct: null, note: L('Track shortfall rate per client and seal incidents.', 'Theo dõi tỷ lệ thiếu tiền mỗi khách và sự cố niêm phong.') },
   }),
-  sheet('06-cit-sbv', {
-    code: '06-CIT-SBV',
+  sheet('09-cit-sbv', {
+    code: '09-CIT-SBV',
     icon: '🏦',
     mode: 'MANUAL',
     title: L('SBV Vault Operations', 'Nộp / Rút tiền mặt tại Ngân hàng Nhà nước (SBV)'),
     overview: L(
-      'The vault keeps its cash between a floor and a ceiling. A surplus goes to the State Bank with the unfit notes (Dr 1131 / Cr 1111 and Cr 1112, then Dr 1121 / Cr 1131); before a holiday the bank draws cash the other way (Dr 1131 / Cr 1121, then Dr 1111 / Cr 1131).',
-      'Kho giữ tồn quỹ giữa mức sàn và mức trần. Tiền thừa được nộp NHNN cùng tiền không đủ tiêu chuẩn (Nợ 1131 / Có 1111 và Có 1112, rồi Nợ 1121 / Có 1131); trước dịp lễ ngân hàng rút tiền theo chiều ngược lại (Nợ 1131 / Có 1121, rồi Nợ 1111 / Có 1131).',
+      'The State Bank of Vietnam (SBV) is the central bank: it issues the currency and holds the commercial banks’ settlement accounts. ProcessCraft is a commercial bank with its account at the SBV (TK 1121). The vault keeps its cash between a floor and a ceiling. A surplus goes to the State Bank with the unfit notes (Dr 1131 / Cr 1111 and Cr 1112, then Dr 1121 / Cr 1131); before a holiday the bank draws cash the other way (Dr 1131 / Cr 1121, then Dr 1111 / Cr 1131).',
+      'Ngân hàng Nhà nước Việt Nam (NHNN, SBV) là ngân hàng trung ương: phát hành tiền và giữ tài khoản thanh toán của các ngân hàng thương mại. ProcessCraft là ngân hàng thương mại có tài khoản tại NHNN (TK 1121). Kho giữ tồn quỹ giữa mức sàn và mức trần. Tiền thừa được nộp NHNN cùng tiền không đủ tiêu chuẩn (Nợ 1131 / Có 1111 và Có 1112, rồi Nợ 1121 / Có 1131); trước dịp lễ ngân hàng rút tiền theo chiều ngược lại (Nợ 1131 / Có 1121, rồi Nợ 1111 / Có 1131).',
     ),
     actors: [
       { id: 'sbv', duty: L('Receives surplus and unfit notes; supplies holiday cash.', 'Nhận tiền thừa và tiền không đủ tiêu chuẩn; cấp tiền dịp lễ.') },
@@ -102,8 +103,8 @@ export const CIT_SHEETS: readonly SubProcessInfo[] = [
     gl: [dr('cit', 'TRANSIT'), cr('cit', 'VAULT'), cr('cit', 'UNFIT'), dr('cit', 'SBV'), cr('cit', 'TRANSIT'), cr('cit', 'SBV'), dr('cit', 'VAULT')],
     kpi: { sla: L('Dispatch → receipted at the SBV ≤ 65 min', 'Xuất phát → NHNN ký nhận ≤ 65 phút'), strPct: null, note: L('Target: vault inside its band at every close; 1112 surrendered weekly.', 'Mục tiêu: tồn quỹ trong hạn mức mỗi cuối ngày; nộp 1112 hằng tuần.') },
   }),
-  sheet('06-cit-teller-vault', {
-    code: '06-CIT-TELLER',
+  sheet('09-cit-teller-vault', {
+    code: '09-CIT-TELLER',
     icon: '🗄️',
     mode: 'MANUAL',
     title: L('Teller Vault Balancing & Cash Fitness Sorting', 'Điều chuyển & Phân loại tiền quầy'),
@@ -128,3 +129,78 @@ export const CIT_SHEETS: readonly SubProcessInfo[] = [
     kpi: { sla: L('Surplus in the vault before the next customer is served', 'Tiền dư vào kho trước khi phục vụ khách tiếp theo'), strPct: null, note: L('Track unfit share per till and till-over-float minutes.', 'Theo dõi tỷ lệ Unfit mỗi ngăn kéo và số phút vượt định mức.') },
   }),
 ];
+
+/** Who is who in an SBV run: the central bank and the commercial bank that banks with it. */
+export const SBV_DOMAIN = {
+  centralBank: L('State Bank of Vietnam (SBV): the central bank. It issues the currency and holds the commercial banks’ settlement accounts.', 'Ngân hàng Nhà nước Việt Nam (NHNN, SBV): ngân hàng trung ương, phát hành tiền và giữ tài khoản thanh toán của các ngân hàng thương mại.'),
+  commercialBank: L('ProcessCraft Bank: a commercial bank. It keeps its own vault and its settlement account at the SBV (TK 1121).', 'Ngân hàng ProcessCraft: ngân hàng thương mại, tự quản lý kho quỹ và có tài khoản thanh toán tại NHNN (TK 1121).'),
+} as const;
+
+const SBV_BASE = CIT_SHEETS.find((c) => c.key === '09-cit-sbv')!;
+
+/**
+ * The SBV sheet for one case of the drawer's toggle (🟢 Nộp tiền / 🔴 Rút tiền): all six sections (overview, SOP, impact, risks,
+ * GL & legal, KPI) are that case's own. The code, actors and links stay the parent sheet's.
+ */
+export const SBV_CASE_SHEETS: Readonly<Record<SbvMode, SubProcessInfo>> = {
+  DEPOSIT: {
+    ...SBV_BASE,
+    overview: L(
+      'Deposit case: ProcessCraft, a commercial bank, carries its surplus cash and its unfit notes to the State Bank of Vietnam, the central bank, which credits the bank’s settlement account (TK 1121). The vault comes back inside its band and the unfit notes leave circulation.',
+      'Case Nộp tiền: ProcessCraft (ngân hàng thương mại) vận chuyển tiền thừa và tiền không đủ tiêu chuẩn lưu thông đến Ngân hàng Nhà nước (ngân hàng trung ương), NHNN ghi Có tài khoản thanh toán của ngân hàng (TK 1121). Tồn quỹ trở về trong hạn mức và tiền rách nát được rút khỏi lưu thông.',
+    ),
+    steps: [
+      L('Trigger: vault cash over its $5.2M ceiling, or unfit notes (TK 1112) at $10,000 or more.', 'Kích hoạt: tồn quỹ vượt mức trần $5.2M, hoặc tiền không đủ tiêu chuẩn (TK 1112) từ $10,000.'),
+      L('Treasury sizes the run; the notes are counted, bundled by denomination and sealed under dual control.', 'Ngân quỹ xác định số tiền; tiền được kiểm đếm, đóng bó theo mệnh giá và niêm phong dưới kiểm soát kép.'),
+      L('Dispatch: Dr 1131 / Cr 1111 surplus and Cr 1112 unfit notes; both custodians sign the manifest.', 'Xuất quỹ: Nợ 1131 / Có 1111 tiền thừa và Có 1112 tiền không đủ tiêu chuẩn; hai thủ quỹ ký bảng kê.'),
+      L('At the SBV: the seal is checked, the cash counted and receipted.', 'Tại NHNN: kiểm niêm phong, kiểm đếm và ký nhận.'),
+      L('Settled: Dr 1121 deposit at the SBV / Cr 1131; TK 1131 back to zero.', 'Tất toán: Nợ 1121 tiền gửi tại NHNN / Có 1131; TK 1131 về 0.'),
+    ],
+    impact: [
+      L('Idle cash moves to the central bank, where it counts for the bank’s reserves instead of costing vault insurance.', 'Tiền nhàn rỗi chuyển về ngân hàng trung ương, được tính vào dự trữ thay vì tốn phí bảo hiểm kho.'),
+      L('Unfit notes leave circulation, so the counters and ATMs only pay out fit cash.', 'Tiền không đủ tiêu chuẩn được rút khỏi lưu thông, quầy và ATM chỉ chi tiền đủ tiêu chuẩn.'),
+      SBV_BASE.impact[1]!,
+    ],
+    risks: [
+      L('A deposit that leaves the vault under its floor makes tomorrow’s withdrawals short.', 'Nộp quá tay khiến tồn quỹ dưới mức sàn, ngày mai thiếu tiền chi trả.'),
+      L('Unfit notes kept back slip into circulation and draw an SBV finding.', 'Giữ lại tiền không đủ tiêu chuẩn khiến chúng quay lại lưu thông và bị NHNN lập biên bản.'),
+      L('A seal broken in transit must be minuted and the bag counted in full at the SBV.', 'Niêm phong rách trên đường phải lập biên bản và kiểm đếm toàn bộ tại NHNN.'),
+    ],
+    gl: [dr('cit', 'TRANSIT'), cr('cit', 'VAULT'), cr('cit', 'UNFIT'), dr('cit', 'SBV'), cr('cit', 'TRANSIT')],
+    kpi: {
+      sla: L('Dispatch → receipted at the SBV ≤ 65 min', 'Xuất phát → NHNN ký nhận ≤ 65 phút'),
+      strPct: null,
+      note: L('Target: vault inside its band at every close; TK 1112 surrendered at least weekly.', 'Mục tiêu: tồn quỹ trong hạn mức mỗi cuối ngày; TK 1112 nộp ít nhất hằng tuần.'),
+    },
+  },
+  WITHDRAW: {
+    ...SBV_BASE,
+    overview: L(
+      'Withdrawal case: ProcessCraft, a commercial bank, draws cash from its settlement account at the State Bank of Vietnam, the central bank, when the vault falls under its floor or ahead of a holiday / Tet. The SBV debits TK 1121 and the van brings the cash back to the vault.',
+      'Case Rút tiền: ProcessCraft (ngân hàng thương mại) rút tiền mặt từ tài khoản thanh toán tại Ngân hàng Nhà nước (ngân hàng trung ương) khi tồn quỹ dưới mức sàn hoặc trước dịp Lễ / Tết. NHNN ghi Nợ TK 1121 và xe chở tiền về kho.',
+    ),
+    steps: [
+      L('Trigger: vault cash under its $1M floor, or a cash buffer before a holiday / Lunar New Year (Tet).', 'Kích hoạt: tồn quỹ dưới mức sàn $1M, hoặc dự phòng tiền mặt trước dịp Lễ / Tết.'),
+      L('Treasury books the withdrawal with the SBV by denomination, against the TK 1121 balance.', 'Ngân quỹ đăng ký rút tiền với NHNN theo cơ cấu mệnh giá, trong số dư TK 1121.'),
+      L('At the SBV: the cash is counted and sealed; Dr 1131 / Cr 1121.', 'Tại NHNN: kiểm đếm và niêm phong; Nợ 1131 / Có 1121.'),
+      L('Back at the vault: two custodians check the seal and count the bags.', 'Về kho: hai thủ quỹ kiểm niêm phong và kiểm đếm.'),
+      L('Settled: Dr 1111 vault / Cr 1131; TK 1131 back to zero.', 'Tất toán: Nợ 1111 kho / Có 1131; TK 1131 về 0.'),
+    ],
+    impact: [
+      L('The counters and ATMs keep paying out through a holiday rush.', 'Quầy và ATM vẫn chi trả đủ trong cao điểm dịp lễ.'),
+      L('A vault back over its floor keeps the branch inside the SBV’s liquidity rules.', 'Tồn quỹ trở lại trên mức sàn giữ chi nhánh trong quy định thanh khoản của NHNN.'),
+      SBV_BASE.impact[1]!,
+    ],
+    risks: [
+      L('A holiday run sized too small leaves ATMs empty over the break.', 'Rút tiền dịp lễ quá ít khiến ATM hết tiền trong kỳ nghỉ.'),
+      L('Over-withdrawing parks cash in the vault, raising insurance and robbery exposure.', 'Rút quá nhiều làm tồn quỹ cao, tăng phí bảo hiểm và rủi ro mất cướp.'),
+      L('Cash on the road is the most exposed: armoured van, escort and sealed bags are mandatory.', 'Tiền trên đường là khâu rủi ro nhất: bắt buộc xe chuyên dùng, hộ tống và túi niêm phong.'),
+    ],
+    gl: [dr('cit', 'TRANSIT'), cr('cit', 'SBV'), dr('cit', 'VAULT'), cr('cit', 'TRANSIT')],
+    kpi: {
+      sla: L('Booking → cash in the vault ≤ 65 min on the day', 'Đăng ký → tiền nhập kho ≤ 65 phút trong ngày'),
+      strPct: null,
+      note: L('Target: no ATM cash-out over the holiday; vault back over its floor before opening.', 'Mục tiêu: không ATM nào hết tiền dịp lễ; tồn quỹ trên mức sàn trước giờ mở cửa.'),
+    },
+  },
+};

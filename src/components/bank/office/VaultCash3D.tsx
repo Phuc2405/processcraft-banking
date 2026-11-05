@@ -6,7 +6,12 @@ import { deskPose } from '../../../engine/plan/layout3d';
 import { LOADING_DOOR, VAULT_DOOR } from '../../../engine/world/citRun';
 import type { CashEndpoint } from '../../../sim/topology';
 import { vaultPost, type CashDir, type VaultCashFlow } from '../../../sim/vaultFlows';
-import { useBankStore } from '../../../store/bankStore';
+import { activeFlowOf, citChildOf, useBankStore } from '../../../store/bankStore';
+import { CASH_WIRES, litWires, WIRE_ENDS, type CashWire, type WireNode } from '../../../sim/cashWires';
+import { useWireHover } from '../../../store/wireHoverStore';
+import { CIT_FLOW } from '../../../types/viewport';
+import { useMessages } from '../../../utils/i18nHelper';
+import { citMessages, WIRE_LABEL } from '../../ops/cit.messages';
 import { useVaultFlows } from '../useVaultFlows';
 import { cursor } from './cursor';
 import { pickPlace } from './tourHooks';
@@ -90,6 +95,27 @@ export const VaultDoorStation = memo(function VaultDoorStation() {
 
 // The cash streams
 
+/** Each wire's direction, as on the 2D map: Xuất quỹ (Outflow ➔) / Nhập quỹ (Inflow 🡨) at the arc's top, live or (lit) both. */
+function WireLabels3D({ flows, route }: { flows: readonly VaultCashFlow[]; route: ReadonlySet<CashWire> | null }) {
+  const m = useMessages(citMessages);
+  const live = new Map<CashWire, CashDir>(flows.map((f) => [f.endpoint, f.dir]));
+  return (
+    <>
+      {CASH_WIRES.map((e) => {
+        const dir = live.get(e) ?? null;
+        if (!dir && !route?.has(e)) return null;
+        return (
+          <Html key={e} position={wirePoint(e, 0.5)} center zIndexRange={[11, 0]} style={{ pointerEvents: 'none' }}>
+            <div data-testid={`vault-wire-label-${e}`} data-dir={dir ?? 'both'} className="whitespace-nowrap rounded-md px-2 py-0.5 text-[10px] font-bold leading-tight" style={{ background: 'rgba(2,6,23,0.88)', color: dir ? TONE[dir] : '#fde68a', border: `1px solid ${dir ? TONE[dir] : '#fde68a'}66`, opacity: dir ? 1 : 0.85 }}>
+              {dir ? m(WIRE_LABEL[dir]) : `${m(WIRE_LABEL.OUT)} · ${m(WIRE_LABEL.IN)}`}
+            </div>
+          </Html>
+        );
+      })}
+    </>
+  );
+}
+
 /** Where each endpoint is on the floor: the teller's counter, the ATM's cash bay, the loading door the CIT crew uses. */
 export function endpointXZ(e: CashEndpoint): readonly [number, number] {
   if (e === 'TELLER') return [deskPose('TELLER_CASH').x, deskPose('TELLER_CASH').z];
@@ -102,28 +128,33 @@ const ARC_STEPS = 32;
 export const ARC_PEAK = 1.7;
 const END_Y = 1.0;
 
-/** The arc from the vault door to an endpoint, `u` = 0 at the door: a low lunge over the desks that peaks at ARC_PEAK halfway. */
-export function arcPoint(e: CashEndpoint, u: number): [number, number, number] {
-  const [ex, ez] = endpointXZ(e);
-  const x0 = VAULT_DOOR.x;
-  const z0 = VAULT_DOOR.z + 0.4;
-  const base = VAULT_DOOR.y + (END_Y - VAULT_DOOR.y) * u;
-  const y = base + 4 * (ARC_PEAK - (VAULT_DOOR.y + END_Y) / 2) * u * (1 - u);
-  return [x0 + (ex - x0) * u, y, z0 + (ez - z0) * u];
-}
+/** A wire's end in the room: the vault door's face, or an endpoint at counter height. */
+const nodeAt = (n: WireNode): readonly [number, number, number] => (n === 'VAULT' ? [VAULT_DOOR.x, VAULT_DOOR.y, VAULT_DOOR.z + 0.4] : [endpointXZ(n)[0], END_Y, endpointXZ(n)[1]]);
 
-/** Flyweight: one arc line per endpoint, made once for the app's life (the endpoints never move). */
-const ARC_LINE: Readonly<Record<CashEndpoint, BufferGeometry>> = (() => {
-  const make = (e: CashEndpoint): BufferGeometry => {
+/** Any wire's arc, `u` = 0 at its first end (the vault, for a vault line): a low lunge over the desks that peaks at ARC_PEAK halfway. */
+export function wirePoint(w: CashWire, u: number): [number, number, number] {
+  const [a, b] = WIRE_ENDS[w];
+  const [x0, y0, z0] = nodeAt(a);
+  const [x1, y1, z1] = nodeAt(b);
+  const base = y0 + (y1 - y0) * u;
+  const y = base + 4 * (ARC_PEAK - (y0 + y1) / 2) * u * (1 - u);
+  return [x0 + (x1 - x0) * u, y, z0 + (z1 - z0) * u];
+}
+/** The arc from the vault door to an endpoint, `u` = 0 at the door. */
+export const arcPoint = (e: CashEndpoint, u: number): [number, number, number] => wirePoint(e, u);
+
+/** Flyweight: one arc line per wire, made once for the app's life (the endpoints never move). */
+const ARC_LINE: Readonly<Record<CashWire, BufferGeometry>> = Object.fromEntries(
+  CASH_WIRES.map((w) => {
     const pts: number[] = [];
-    for (let i = 0; i <= ARC_STEPS; i++) pts.push(...arcPoint(e, i / ARC_STEPS));
-    return new BufferGeometry().setAttribute('position', new Float32BufferAttribute(pts, 3));
-  };
-  return { TELLER: make('TELLER'), ATM: make('ATM'), BAY: make('BAY') };
-})();
-/** The idle line is faint; the live one glows just enough ("vừa đủ"), never a neon. */
-const LINE_MAT: Readonly<Record<CashDir | 'idle', LineBasicMaterial>> = {
+    for (let i = 0; i <= ARC_STEPS; i++) pts.push(...wirePoint(w, i / ARC_STEPS));
+    return [w, new BufferGeometry().setAttribute('position', new Float32BufferAttribute(pts, 3))];
+  }),
+) as Record<CashWire, BufferGeometry>;
+/** The idle line is faint; a lit one (its flow active, or a station it touches hovered) soft gold; the live one glows just enough ("vừa đủ"), never a neon. */
+const LINE_MAT: Readonly<Record<CashDir | 'idle' | 'lit', LineBasicMaterial>> = {
   idle: new LineBasicMaterial({ color: '#a16207', transparent: true, opacity: GLOW.idle, toneMapped: false }),
+  lit: new LineBasicMaterial({ color: '#facc15', transparent: true, opacity: GLOW.lit, toneMapped: false }),
   IN: new LineBasicMaterial({ color: TONE.IN, transparent: true, opacity: GLOW.live, toneMapped: false }),
   OUT: new LineBasicMaterial({ color: TONE.OUT, transparent: true, opacity: GLOW.live, toneMapped: false }),
 };
@@ -182,21 +213,33 @@ function Stream({ flow, pool }: { flow: VaultCashFlow; pool: ObjectPool<Mesh> })
   );
 }
 
-/** The faint idle lines to every endpoint, and the live streams over them. One pool for every stream of the scene's life, drained on unmount. */
+/** Flyweight: the two Line objects (idle, lit) of each wire, shared by every mount; a still wire swaps between them, never allocating. */
+type StillLines = Readonly<Record<'idle' | 'lit', Line<BufferGeometry, LineBasicMaterial>>>;
+const STILL_LINE = Object.fromEntries(CASH_WIRES.map((w): [CashWire, StillLines] => [w, { idle: new Line(ARC_LINE[w], LINE_MAT.idle), lit: new Line(ARC_LINE[w], LINE_MAT.lit) }])) as Readonly<Record<CashWire, StillLines>>;
+
+/**
+ * Every wire (the vault to the teller, the ATM and the CIT bay, and the bay to the teller), still or lit, and the live streams over
+ * them. Lit, as on the 2D map: the active flow's wires (03 ATM, 06 teller, 09 all; a picked CIT child its own) and every wire of the
+ * hovered station (sim/cashWires.ts). One pool for every stream of the scene's life, drained on unmount.
+ */
 export const VaultCashStreams3D = memo(function VaultCashStreams3D() {
   const flows = useVaultFlows();
   const pool = useMemo(() => new ObjectPool<Mesh>(() => new Mesh(SPARK, SPARK_MAT.OUT), STREAM_POOL_CAP), []);
   // The meshes share the flyweight geometry and materials, which outlive the scene: draining only drops the pool's list.
   useEffect(() => () => pool.drain(), [pool]);
-  const idle = useMemo(() => (['TELLER', 'ATM', 'BAY'] as const).map((e) => new Line(ARC_LINE[e], LINE_MAT.idle)), []);
   useEffect(() => {
     vaultDoorActivity.active = flows.length > 0;
   }, [flows]);
   useEffect(() => () => void (vaultDoorActivity.active = false), []);
-  const live = new Set(flows.map((f) => f.endpoint));
+  const live = new Set<CashWire>(flows.map((f) => f.endpoint));
+  const flow = useBankStore(activeFlowOf);
+  const child = useBankStore((s) => (activeFlowOf(s) === CIT_FLOW ? citChildOf(s) : null));
+  const hover = useWireHover();
+  const route = useMemo(() => litWires(flow, child, hover), [flow, child, hover]);
   return (
-    <group name="vault-cash-streams" userData={{ flows: flows.map((f) => `${f.endpoint}:${f.dir}`) }}>
-      {idle.map((l, i) => (live.has((['TELLER', 'ATM', 'BAY'] as const)[i]!) ? null : <primitive key={i} object={l} />))}
+    <group name="vault-cash-streams" userData={{ flows: flows.map((f) => `${f.endpoint}:${f.dir}`), lit: route ? [...route] : [] }}>
+      <WireLabels3D flows={flows} route={route} />
+      {CASH_WIRES.map((w) => (live.has(w) ? null : <primitive key={w} object={STILL_LINE[w][route?.has(w) ? 'lit' : 'idle']} />))}
       {flows.map((f) => (
         <Stream key={`${f.endpoint}:${f.dir}`} flow={f} pool={pool} />
       ))}

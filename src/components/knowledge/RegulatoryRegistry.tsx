@@ -6,6 +6,7 @@ import { demoGroup } from '../../sim/demoGroups';
 import { uiStore } from '../../store/uiStore';
 import { useMessages } from '../../utils/i18nHelper';
 import { runDemo, selectSubProcess } from '../bank/retailOpsActions';
+import { demoLocked, useDemoLocked } from '../bank/DemoSession';
 import { knowledgeBaseMessages } from './knowledgeBase.messages';
 
 /**
@@ -66,6 +67,8 @@ function SourceButton({ doc, locale }: { doc: RegDocument; locale: Locale }) {
 
 /** Runs a scenario from the registry: close the Knowledge Base, light its sub-process, and send the case in. */
 function openScenario(id: DemoActionId): void {
+  // Under the one execution lock: while a demo runs, the Knowledge Base stays open and nothing is sent.
+  if (demoLocked()) return;
   uiStore.getState().closeKnowledge();
   selectSubProcess(demoActionById(id).group);
   runDemo(id);
@@ -80,6 +83,8 @@ function Toggle({ on, onClick, children, testId }: { on: boolean; onClick: () =>
 }
 
 function DocumentCard({ doc, locale, lit }: { doc: RegDocument; locale: Locale; lit: boolean }) {
+  // The scenario links run under the one execution lock: disabled while a demo plays.
+  const locked = useDemoLocked();
   const m = useMessages(knowledgeBaseMessages);
   const issuer = regulatorById(doc.issuer);
   const regulator = doc.regulator ? regulatorById(doc.regulator) : undefined;
@@ -132,7 +137,7 @@ function DocumentCard({ doc, locale, lit }: { doc: RegDocument; locale: Locale; 
           {doc.scenarios.map((id) => {
             const a = demoActionById(id);
             return (
-              <button key={id} type="button" onClick={() => openScenario(id)} title={`${pick(demoGroup(a.group).title, locale)} · ${m('legalRunScenario')}`} data-testid={`legal-scenario-${doc.id}-${id}`} className="max-w-full truncate rounded-lg border border-slate-700 bg-slate-900 px-2 py-0.5 text-left text-[12px] font-semibold text-slate-100 hover:border-sky-400 hover:bg-slate-800">
+              <button key={id} type="button" disabled={locked} onClick={() => openScenario(id)} title={`${pick(demoGroup(a.group).title, locale)} · ${m('legalRunScenario')}`} data-testid={`legal-scenario-${doc.id}-${id}`} className="max-w-full truncate rounded-lg border border-slate-700 bg-slate-900 px-2 py-0.5 text-left text-[12px] font-semibold text-slate-100 hover:border-sky-400 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
                 <span aria-hidden="true">{a.icon}</span> {a.label()}
               </button>
             );

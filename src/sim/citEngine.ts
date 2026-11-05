@@ -125,6 +125,8 @@ export interface CitOrder {
   shortCents: number;
   /** Unfit notes surrendered with an SBV deposit. */
   unfitSurrenderCents: number;
+  /** An SBV deposit the learner forced from a vault at or under its floor (the toggle's demo case, not a live rule): "Nộp cưỡng chế (Demo)". */
+  forced?: true;
   trigger: Localized<string>;
 }
 
@@ -148,6 +150,7 @@ export function citOrder(i: CitOrderInput): CitOrder {
     unfitBp: Math.min(10_000, Math.max(0, Math.round(i.unfitBp ?? 0))),
     shortCents: i.scenario === 'DOORSTEP' ? Math.min(amountCents, note(i.shortCents ?? 0)) : 0,
     unfitSurrenderCents: i.scenario === 'SBV' && i.direction === 'OUT' ? note(i.unfitSurrenderCents ?? 0) : 0,
+    ...(i.forced && i.scenario === 'SBV' && i.direction === 'OUT' ? { forced: true as const } : {}),
     trigger: i.trigger ?? L('Manual order', 'Lệnh điều quỹ thủ công'),
   };
 }
@@ -307,12 +310,49 @@ export function branchTrigger(vaultCents: number): CitTrigger {
   return null;
 }
 
-export function sbvTrigger(vaultCents: number, unfitCents: number, holiday: boolean): (CitTrigger & { unfitSurrenderCents: number }) | null {
-  if (holiday) return { direction: 'IN', amountCents: CIT_LIMITS.holidayWithdrawCents, unfitSurrenderCents: 0, trigger: L('Holiday cash withdrawal', 'Rút tiền mặt dự phòng dịp lễ') };
+/** Why the bank goes to the SBV: a deposit for a vault over its ceiling or a pile of unfit notes, a withdrawal for a vault under its floor or a holiday / Tết buffer. */
+export type SbvReason = 'ceiling' | 'unfit' | 'floor' | 'holiday';
+/** OUT of the vault to the SBV is a deposit (Nộp tiền về NHNN), IN from it a withdrawal (Rút tiền từ NHNN). */
+export type SbvMode = 'DEPOSIT' | 'WITHDRAW';
+export const sbvMode = (d: CitDirection): SbvMode => (d === 'OUT' ? 'DEPOSIT' : 'WITHDRAW');
+export type SbvTrigger = NonNullable<CitTrigger> & { unfitSurrenderCents: number; reason: SbvReason; forced?: true };
+
+export function sbvTrigger(vaultCents: number, unfitCents: number, holiday: boolean): SbvTrigger | null {
+  if (holiday) return { direction: 'IN', amountCents: CIT_LIMITS.holidayWithdrawCents, unfitSurrenderCents: 0, reason: 'holiday', trigger: L('Holiday cash withdrawal', 'Rút tiền mặt dự phòng dịp lễ') };
+  if (vaultCents < CIT_LIMITS.branchFloorCents)
+    return { direction: 'IN', amountCents: CIT_LIMITS.branchTargetCents - vaultCents, unfitSurrenderCents: 0, reason: 'floor', trigger: L('Vault under its $1M floor: withdraw from the SBV', 'Tồn quỹ dưới mức sàn $1M: rút tiền từ NHNN') };
   const surplus = Math.max(0, vaultCents - CIT_LIMITS.sbvLineCents);
   const surrender = unfitCents >= CIT_LIMITS.unfitSurrenderCents ? unfitCents : 0;
   if (surplus === 0 && surrender === 0) return null;
-  return { direction: 'OUT', amountCents: surplus, unfitSurrenderCents: surrender, trigger: L('Deposit surplus and unfit notes at the SBV', 'Nộp tiền thừa và tiền không đủ tiêu chuẩn vào NHNN') };
+  return { direction: 'OUT', amountCents: surplus, unfitSurrenderCents: surrender, reason: surplus > 0 ? 'ceiling' : 'unfit', trigger: L('Deposit surplus and unfit notes at the SBV', 'Nộp tiền thừa và tiền không đủ tiêu chuẩn vào NHNN') };
+}
+
+/**
+ * What an SBV run started now would do (one source for the manual dispatch, the drawer's badge and the dock's tooltip): the trigger
+ * that fires, or with none a holiday / Tết buffer withdrawal, so a demo always has something to show.
+ */
+/** Why an SBV run went, read back from its order (the badge on a run already on the road). */
+export const sbvReasonOf = (o: Pick<CitOrder, 'direction' | 'amountCents'>): SbvReason =>
+  o.direction === 'OUT' ? (o.amountCents > 0 ? 'ceiling' : 'unfit') : o.amountCents === CIT_LIMITS.holidayWithdrawCents ? 'holiday' : 'floor';
+
+export const sbvPlan = (book: Readonly<Record<CitAccountId, number>>, holiday: boolean): SbvTrigger =>
+  sbvTrigger(book.VAULT, book.UNFIT, holiday) ?? { direction: 'IN', amountCents: CIT_LIMITS.holidayWithdrawCents, unfitSurrenderCents: 0, reason: 'holiday', trigger: L('', '') };
+
+/**
+ * The SBV run for the case the learner picked on the sheet's toggle: the live rule when it already points that way, else the same
+ * case sized for a demo. A deposit sends what is over the $1M floor (at most $1.5M) with the unfit notes on hand; a withdrawal is
+ * the holiday / Tết buffer. Never more than the vault holds.
+ */
+export function sbvCasePlan(book: Readonly<Record<CitAccountId, number>>, holiday: boolean, mode: SbvMode): SbvTrigger {
+  const auto = sbvPlan(book, holiday);
+  if (sbvMode(auto.direction) === mode) return auto;
+  if (mode === 'WITHDRAW') return { direction: 'IN', amountCents: CIT_LIMITS.holidayWithdrawCents, unfitSurrenderCents: 0, reason: 'holiday', trigger: L('Holiday cash withdrawal', 'Rút tiền mặt dự phòng dịp lễ') };
+  const spare = Math.max(0, Math.min(CIT_LIMITS.holidayWithdrawCents, book.VAULT - CIT_LIMITS.branchFloorCents));
+  // With nothing over the floor and no unfit notes, a token deposit still shows the run (never more than the vault holds).
+  const amountCents = spare > 0 || book.UNFIT > 0 ? spare : Math.min(1_000_000, Math.max(0, book.VAULT));
+  // A vault at or under its floor has no surplus to deposit: the run goes only because the learner picked it (forced, a demo).
+  const forced = book.VAULT <= CIT_LIMITS.branchFloorCents ? { forced: true as const } : {};
+  return { direction: 'OUT', amountCents, unfitSurrenderCents: book.UNFIT, reason: amountCents > 0 ? 'ceiling' : 'unfit', ...forced, trigger: L('Deposit surplus and unfit notes at the SBV', 'Nộp tiền thừa và tiền không đủ tiêu chuẩn vào NHNN') };
 }
 
 // The day's runs
@@ -370,7 +410,10 @@ export function citDay(day: number): readonly CitPlanned[] {
       });
     } else if (slot.kind === 'SBV') {
       const t = sbvTrigger(book.VAULT, book.UNFIT, isHolidayEve(day));
-      if (t) order = citOrder({ ...base, scenario: 'SBV', ...t });
+      if (t) {
+        const { reason: _reason, ...trigger } = t;
+        order = citOrder({ ...base, scenario: 'SBV', ...trigger });
+      }
     } else {
       const t = branchTrigger(book.VAULT);
       if (t) order = citOrder({ ...base, scenario: 'BRANCH_BALANCING', ...t });
@@ -448,6 +491,8 @@ export interface CitManual {
   lead?: number;
   /** An ATM run whose van has reached the ATM: the retail cassette has been filled from it (dueAtmRefills). */
   refilled?: boolean;
+  /** An SBV run's case, picked on its sheet; without one the live rule decides (sbvPlan). */
+  sbv?: SbvMode;
 }
 
 /** A manual run's order, raised against the book as it stands at dispatch; a trigger that would not fire still sends a sensible demo amount. */
@@ -463,8 +508,8 @@ export function manualOrder(day: number, n: number, m: CitManual, book: Readonly
     return citOrder({ ...base, scenario: 'TELLER', direction: 'IN', amountCents, unfitBp: 250, trigger: manual('till surplus back to the vault, sorted fit / unfit', 'nộp dư quỹ quầy về kho, phân loại Fit / Unfit') });
   }
   if (m.kind === 'DOORSTEP') return citOrder({ ...base, scenario: 'DOORSTEP', direction: 'IN', client: DOORSTEP_CLIENTS[0], amountCents: 30_000_000, unfitBp: 150, trigger: manual(`bulk cash pickup at ${DOORSTEP_CLIENTS[0]}`, `thu tiền mặt tại ${DOORSTEP_CLIENTS[0]}`) });
-  const t = sbvTrigger(book.VAULT, book.UNFIT, isHolidayEve(day)) ?? { direction: 'IN' as const, amountCents: CIT_LIMITS.holidayWithdrawCents, unfitSurrenderCents: 0, trigger: L('', '') };
-  return citOrder({ ...base, scenario: 'SBV', ...t, trigger: manual(t.direction === 'OUT' ? 'deposit at the SBV' : 'withdraw from the SBV', t.direction === 'OUT' ? 'nộp tiền vào NHNN' : 'rút tiền từ NHNN') });
+  const { reason: _reason, ...t } = m.sbv ? sbvCasePlan(book, isHolidayEve(day), m.sbv) : sbvPlan(book, isHolidayEve(day));
+  return citOrder({ ...base, scenario: 'SBV', ...t, trigger: manual(t.forced ? 'forced deposit at the SBV (demo)' : t.direction === 'OUT' ? 'deposit at the SBV' : 'withdraw from the SBV', t.forced ? 'nộp cưỡng chế vào NHNN (Demo)' : t.direction === 'OUT' ? 'nộp tiền vào NHNN' : 'rút tiền từ NHNN') });
 }
 
 /** The day's manual runs as planned runs, each sized against the book its dispatch minute saw (earlier manual runs included). */

@@ -1,4 +1,5 @@
 import { tr } from '../../i18n/locale';
+import { LoadingBayPanel } from '../ops/LoadingBayPanel';
 import { AcronymNotes } from './AcronymNotes';
 import { t } from '../../i18n/t';
 import { lazy, memo, Suspense, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
@@ -753,6 +754,7 @@ function InspectorDrawer() {
       {(open || mounted) && content.kind === 'station' && <StationPanel id={content.id} />}
       {(open || mounted) && content.kind === 'worker' && <WorkerPanel station={content.station} workerId={content.workerId} />}
       {(open || mounted) && content.kind === 'transaction' && <TransactionPanel id={content.id} />}
+      {(open || mounted) && content.kind === 'bay' && <LoadingBayPanel />}
       {(open || mounted) && content.kind === 'subprocess' && (
         <Suspense fallback={null}>
           <SubProcessInfoDrawer infoKey={content.key} />

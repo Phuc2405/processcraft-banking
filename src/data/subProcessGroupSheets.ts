@@ -243,7 +243,7 @@ export const GROUP_SHEETS: readonly SubProcessInfo[] = [
     gl: [dr('ops', 'CASA'), cr('ops', 'CASH_ATM'), cr('ops', 'FEE_INCOME'), cr('ops', 'NAPAS_FEE'), dr('ops', 'CASH_ATM'), cr('ops', 'CASA')],
     legal: ['circ-36-2012', 'circ-18-2024', 'iso-8583'],
     kpi: { sla: L('Dispense < 30 s', 'Nhả tiền < 30 giây'), strPct: 99, note: L('Uptime and fee-file match rate are the machine’s scorecard.', 'Thời gian hoạt động và tỷ lệ khớp file phí là thước đo của máy.') },
-    related: ['flow-3', 'cassette-jam', 'cit-vault'],
+    related: ['flow-3', 'cassette-jam', 'flow-9'],
     place: 'ATM_CASH',
   },
   {
@@ -275,7 +275,7 @@ export const GROUP_SHEETS: readonly SubProcessInfo[] = [
     gl: [dr('ops', 'CASH_ATM'), cr('ops', 'CASH_VAULT'), dr('ops', 'CASA'), cr('ops', 'ATM_SUSPENSE'), dr('ops', 'ATM_SUSPENSE'), cr('ops', 'CASA'), cr('ops', 'CASH_ATM')],
     legal: ['circ-36-2012', 'circ-01-2014', 'circ-13-2018'],
     kpi: { sla: L('Jam resolved by EOD · refill before empty', 'Xử lý kẹt trong ngày · Tiếp quỹ trước khi cạn'), strPct: 60, note: L('2930 balance at close must be zero.', 'Số dư 2930 cuối ngày phải bằng 0.') },
-    related: ['atm-napas', 'cit-vault', 'flow-4'],
+    related: ['atm-napas', 'flow-9', 'flow-4'],
     place: 'ATM_CASH',
   },
 
@@ -338,7 +338,7 @@ export const GROUP_SHEETS: readonly SubProcessInfo[] = [
     gl: [dr('ops', 'CASH_TILL'), cr('ops', 'CASA'), dr('ops', 'CASH_VAULT'), cr('ops', 'CASH_TILL')],
     legal: ['circ-01-2014', 'circ-13-2018'],
     kpi: { sla: L('Counter < 5 min · surplus to vault before the next customer', 'Quầy < 5 phút · Chuyển dư vào kho trước khách tiếp theo'), strPct: null, note: L('Till over limit should never outlast one transaction.', 'Ngăn kéo vượt hạn mức không được kéo dài quá một giao dịch.') },
-    related: ['flow-6', 'cash-ctr', 'cit-vault'],
+    related: ['flow-6', 'cash-ctr', 'flow-9'],
     place: 'TELLER_CASH',
   },
   {

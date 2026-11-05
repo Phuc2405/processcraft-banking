@@ -1,101 +1,124 @@
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { useMemo, useRef, type RefObject } from 'react';
+import { useMemo, useRef } from 'react';
 import { MeshBasicMaterial, RingGeometry, SphereGeometry, type Group, type Mesh } from 'three';
 import { LANES, type V2 } from '../../../engine/plan/layout3d';
 import { pathLength, pointAlongPath } from '../../../engine/plan/path';
 import { motion } from '../../../engine/simulation/motion';
-import { flowBeat, type NodeMode } from '../../../sim/flowBeat';
+import { LOADING_BAY, LOADING_DOOR } from '../../../engine/world/citRun';
+import { AISLE, BACK_LANE, LANE_EXIT, LOT_SIDE } from '../../../engine/world/parking';
+import { nodeMode, type NodeMode } from '../../../sim/flowBeat';
+import { travelU, type HopStop } from '../../../sim/hopPlayer';
 import type { PlaceId } from '../../../sim/topology';
-import { badgeHops, flowIcon, hopSteps, orbArrived, orbProgress, type HopStep } from '../../../sim/transactionPath';
-import { HopBadge } from '../HopBadge';
-import { useBankStore } from '../../../store/bankStore';
+import { hopPlayerStore, useHopPlayer } from '../../../store/hopPlayerStore';
 import { useMessages } from '../../../utils/i18nHelper';
 import { stpMessages } from '../../ops/stp.messages';
+import { HopBadge, hopTone, useBadgeSteps } from '../HopBadge';
 import { placeXZ } from './tour3d';
 
 /**
- * The learner's payment made visible in 3D: one glowing energy orb travelling the wire from its last stop into the station it is
- * at, a floating step badge over the orb (`1. POS Gate ➔ 2. STP Engine ➔ 3. Core Banking`), and a pulsing LED ring round the
- * station only once the orb has reached it (it is being processed there), with who decides there (⚡ STP rules or 👤 a person).
- * Violet for STP, amber for manual. Only the payment's own wires are lit (OfficeScene's Lanes reads transactionPath too).
+ * The learner's run in 3D, drawn from the one hop player (sim/hopPlayer.ts) the 2D map reads too. At a stop: a pulsing LED ring and
+ * the step badge over it, with who decides there (⚡ STP rules or 👤 a person). Between stops: the badge hides and one glowing orb
+ * carries the run's icon along that wire only (a cash run arcs over the floor, peaking at 1.6 m). Violet for STP, amber for a desk,
+ * gold for cash.
  */
 
-const TONE: Readonly<Record<NodeMode, string>> = { STP: '#a78bfa', MANUAL: '#fbbf24' };
-/** Flyweight: one orb core, one halo, one material each per mode, shared by every hop of every payment. */
+const MODE_TONE: Readonly<Record<NodeMode, string>> = { STP: '#a78bfa', MANUAL: '#fbbf24' };
+/** Flyweight: one orb core, one halo and one ring shape for every hop, and one material per colour. */
 const CORE = new SphereGeometry(0.17, 14, 12);
 const HALO = new SphereGeometry(0.34, 14, 12);
-const CORE_MAT: Readonly<Record<NodeMode, MeshBasicMaterial>> = { STP: new MeshBasicMaterial({ color: '#f5f3ff', toneMapped: false }), MANUAL: new MeshBasicMaterial({ color: '#fffbeb', toneMapped: false }) };
-const HALO_MAT: Readonly<Record<NodeMode, MeshBasicMaterial>> = {
-  STP: new MeshBasicMaterial({ color: TONE.STP, transparent: true, opacity: 0.3, depthWrite: false, toneMapped: false }),
-  MANUAL: new MeshBasicMaterial({ color: TONE.MANUAL, transparent: true, opacity: 0.3, depthWrite: false, toneMapped: false }),
-};
 const RING = new RingGeometry(2.05, 2.3, 48);
-const RING_MAT: Readonly<Record<NodeMode, MeshBasicMaterial>> = {
-  STP: new MeshBasicMaterial({ color: TONE.STP, transparent: true, opacity: 0.6, toneMapped: false }),
-  MANUAL: new MeshBasicMaterial({ color: TONE.MANUAL, transparent: true, opacity: 0.6, toneMapped: false }),
+const CORE_MAT = new MeshBasicMaterial({ color: '#fffbeb', toneMapped: false });
+const MATS = new Map<string, { halo: MeshBasicMaterial; ring: MeshBasicMaterial }>();
+const matsOf = (tone: string): { halo: MeshBasicMaterial; ring: MeshBasicMaterial } => {
+  let m = MATS.get(tone);
+  if (!m) {
+    m = { halo: new MeshBasicMaterial({ color: tone, transparent: true, opacity: 0.3, depthWrite: false, toneMapped: false }), ring: new MeshBasicMaterial({ color: tone, transparent: true, opacity: 0.6, toneMapped: false }) };
+    MATS.set(tone, m);
+  }
+  return m;
 };
 const WIRE_Y = 0.42;
+/** A cash hop's arc peak, metres over the wire: high enough to clear a counter, low enough to stay in the room. */
+export const CASH_HOP_PEAK = 1.6;
+/** The step badge's height over a stop, metres: just over a standing person and a desk's screens, comfortably in view. */
+export const BADGE_Y_3D = 2.3;
+/**
+ * Where an off-site end (the SBV, a corporate client, HQ) is drawn: on the back lane's exit carriageway, where the van leaves the
+ * site (parking.LANE_EXIT). The hop runs there along the van's own drive aisle, so it crosses no parked car, hedge or tree.
+ */
+export const OFFSITE: V2 = LANE_EXIT;
+const DRIVE_AISLE: readonly V2[] = [
+  [LOT_SIDE * AISLE, LOADING_BAY.z],
+  [LOT_SIDE * AISLE, BACK_LANE.out],
+];
 
-/** The wire's points from `from` to `to`: the lane between them (either way round), else a straight line. */
-function wire(from: PlaceId, to: PlaceId): readonly V2[] {
-  const lane = LANES.find((l) => (l.from === from && l.to === to) || (l.from === to && l.to === from));
-  if (!lane) return [placeXZ(from), placeXZ(to)];
-  return lane.from === from ? lane.points : [...lane.points].reverse();
+/** A stop on the floor: its desk, the loading bay, or the way off-site past it. */
+export function stopXZ(stop: HopStop): V2 {
+  if (stop.place) return placeXZ(stop.place);
+  return stop.cit === 'BAY' ? [LOADING_BAY.x, LOADING_BAY.z] : OFFSITE;
 }
 
-/** The orb and its badge, crossing the wire into `to` once, on the motion clock (so it stops when the bank pauses), then held at the stop. */
-function Orb({ from, to, mode, hops, icon, onArrive }: { from: PlaceId | null; to: PlaceId; mode: NodeMode; hops: readonly HopStep[]; icon: string; onArrive: (arrived: boolean) => void }) {
-  const path = useMemo(() => (from ? wire(from, to) : [placeXZ(to)]), [from, to]);
+/** The floor path from one stop to the next: the lane between two desks (either way round), the vault's loading door to the bay, else straight. */
+export function hopPath3D(a: HopStop, b: HopStop): V2[] {
+  if (a.place && b.place) {
+    const [from, to]: [PlaceId, PlaceId] = [a.place, b.place];
+    const lane = LANES.find((l) => (l.from === from && l.to === to) || (l.from === to && l.to === from));
+    if (lane) return lane.from === from ? [...lane.points] : [...lane.points].reverse();
+  }
+  const door = (a.cit === 'VAULT' && b.cit === 'BAY') || (a.cit === 'BAY' && b.cit === 'VAULT');
+  if (door) return [stopXZ(a), LOADING_DOOR, stopXZ(b)];
+  // The bay and an off-site end: out (or in) along the drive aisle and the back lane, as the van drives it.
+  if (a.cit === 'BAY' && b.cit && b.cit !== 'VAULT' && !b.place) return [stopXZ(a), ...DRIVE_AISLE, OFFSITE];
+  if (b.cit === 'BAY' && a.cit && a.cit !== 'VAULT' && !a.place) return [OFFSITE, ...[...DRIVE_AISLE].reverse(), stopXZ(b)];
+  return [stopXZ(a), stopXZ(b)];
+}
+
+/** The orb crossing one wire, placed every frame from the player (no re-render per frame). */
+function Orb({ from, to, icon, tone, cash }: { from: HopStop; to: HopStop; icon: string; tone: string; cash: boolean }) {
+  const path = useMemo(() => hopPath3D(from, to), [from, to]);
   const len = useMemo(() => pathLength(path), [path]);
   const group = useRef<Group>(null);
   const halo = useRef<Mesh>(null);
-  // When the orb left its last stop, on the motion clock; set on the first frame after this hop mounts.
-  const start = useRef<number | null>(null);
-  const arrived = useRef(false);
   useFrame(() => {
-    if (start.current === null) start.current = motion.t;
-    const elapsed = from ? motion.t - start.current : Infinity;
-    const [x, z] = len > 0 ? pointAlongPath(path, orbProgress(elapsed) * len) : path[0]!;
-    group.current?.position.set(x, WIRE_Y, z);
+    const play = hopPlayerStore.getState().play;
+    const u = play ? travelU(play) : 1;
+    const [x, z] = pointAlongPath(path, u * len);
+    group.current?.position.set(x, WIRE_Y + (cash ? CASH_HOP_PEAK * Math.sin(Math.PI * u) : 0), z);
     halo.current?.scale.setScalar(1 + 0.18 * Math.sin(motion.t * 7));
-    const now = orbArrived(elapsed);
-    if (now !== arrived.current) {
-      arrived.current = now;
-      onArrive(now);
-    }
   });
   return (
-    <group ref={group} name="flow-orb" userData={{ from, to, mode }}>
-      <mesh geometry={CORE} material={CORE_MAT[mode]} renderOrder={9} />
-      <mesh ref={halo} geometry={HALO} material={HALO_MAT[mode]} renderOrder={9} />
-      {/* The moving icon: what the payment is (a card from a POS, a box of records at night…), riding the orb along the wire. */}
+    <group ref={group} name="flow-orb" userData={{ from, to }}>
+      <mesh geometry={CORE} material={CORE_MAT} renderOrder={9} />
+      <mesh ref={halo} geometry={HALO} material={matsOf(tone).halo} renderOrder={9} />
       <Html position={[0, 0.55, 0]} center zIndexRange={[32, 0]} style={{ pointerEvents: 'none' }}>
         <span data-testid="flow-icon-3d" className="text-[18px] drop-shadow-[0_0_6px_rgba(0,0,0,0.6)]">
           {icon}
         </span>
       </Html>
-      <Html position={[0, 1.15, 0]} center zIndexRange={[31, 0]} style={{ pointerEvents: 'none' }}>
-        <HopBadge hops={hops} tone={TONE[mode]} />
-      </Html>
     </group>
   );
 }
 
-function StationPulse({ at, mode, ring }: { at: PlaceId; mode: NodeMode; ring: RefObject<Group> }) {
+/** The stop the run stands at: a pulsing ring, the step badge and, at a desk, who decides there. */
+function StopMarker({ stop, tone, mode, children }: { stop: HopStop; tone: string; mode: NodeMode | null; children: React.ReactNode }) {
   const m = useMessages(stpMessages);
-  const [x, z] = placeXZ(at);
-  useFrame(() => {
-    if (ring.current?.visible) ring.current.scale.setScalar(1 + 0.12 * Math.sin(motion.t * 5));
-  });
+  const ring = useRef<Group>(null);
+  const [x, z] = stopXZ(stop);
+  useFrame(() => ring.current?.scale.setScalar(1 + 0.12 * Math.sin(motion.t * 5)));
   return (
     <group position={[x, 0.04, z]} name="flow-station-pulse">
-      <group ref={ring} visible={false}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} geometry={RING} material={RING_MAT[mode]} />
+      <group ref={ring}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} geometry={RING} material={matsOf(tone).ring} />
       </group>
-      <Html position={[0, 3.3, 0]} center zIndexRange={[30, 0]} style={{ pointerEvents: 'none' }}>
-        <div role="status" data-testid="flow-node-badge-3d" data-mode={mode} className="whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-bold shadow-lg backdrop-blur-md" style={{ borderColor: `${TONE[mode]}aa`, background: 'rgba(15,23,42,0.82)', color: TONE[mode], boxShadow: `0 0 14px ${TONE[mode]}55` }}>
-          {m(`node_${mode}`)}
+      <Html position={[0, BADGE_Y_3D, 0]} center zIndexRange={[31, 0]} style={{ pointerEvents: 'none' }}>
+        <div className="flex flex-col items-center gap-1">
+          {children}
+          {mode && (
+            <div role="status" data-testid="flow-node-badge-3d" data-mode={mode} className="whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-bold shadow-lg backdrop-blur-md" style={{ borderColor: `${MODE_TONE[mode]}aa`, background: 'rgba(15,23,42,0.9)', color: MODE_TONE[mode] }}>
+              {m(`node_${mode}`)}
+            </div>
+          )}
         </div>
       </Html>
     </group>
@@ -103,23 +126,25 @@ function StationPulse({ at, mode, ring }: { at: PlaceId; mode: NodeMode; ring: R
 }
 
 export function TransactionFlow3D() {
-  // Read only where the payment is, so this re-renders when it moves rather than on every beat.
-  const key = useBankStore((s) => (s.presetTrace ? `${s.presetTrace.at}|${s.presetTrace.done}|${s.presetTrace.route.join('>')}` : ''));
-  const view = useMemo(() => {
-    if (!key) return null;
-    const [at, done, route] = key.split('|');
-    const trace = { route: route!.split('>') as PlaceId[], at: Number(at), done: done === 'true' };
-    const beat = flowBeat(trace);
-    return beat ? { beat, hops: badgeHops(hopSteps(trace)), icon: flowIcon(trace.route) } : null;
-  }, [key]);
-  const ring = useRef<Group>(null);
-  if (!view) return null;
-  const { beat, hops, icon } = view;
+  const session = useHopPlayer((s) => s.session);
+  const index = useHopPlayer((s) => s.play?.index ?? -1);
+  const phase = useHopPlayer((s) => s.play?.phase ?? null);
+  const steps = useBadgeSteps(session, index);
+  const stop = session?.stops[index];
+  if (!session || !stop || !phase) return null;
+  const mode = stop.place ? nodeMode(stop.place) : null;
+  const tone = session.kind === 'cit' ? hopTone(session, undefined) : MODE_TONE[mode ?? 'STP'];
+  const next = session.stops[index + 1];
   return (
-    <group name="transaction-flow" userData={{ route: beat.route }}>
-      {/* Keyed by the hop, so each wire's orb starts from its own beginning. */}
-      <Orb key={`${beat.from ?? ''}>${beat.at}`} from={beat.from} to={beat.at} mode={beat.mode} hops={hops} icon={icon} onArrive={(on) => ring.current && (ring.current.visible = on)} />
-      <StationPulse key={beat.at} at={beat.at} mode={beat.mode} ring={ring} />
+    <group name="transaction-flow" userData={{ id: session.id, index, phase }}>
+      {phase === 'travel' && next ? (
+        // Keyed by the hop, so each wire's orb starts from its own beginning.
+        <Orb key={`${index}`} from={stop} to={next} icon={session.icon} tone={tone} cash={session.kind === 'cit'} />
+      ) : (
+        <StopMarker key={`${index}`} stop={stop} tone={tone} mode={session.kind === 'payment' ? mode : null}>
+          <HopBadge hops={steps} tone={tone} complete={phase === 'final'} />
+        </StopMarker>
+      )}
     </group>
   );
 }

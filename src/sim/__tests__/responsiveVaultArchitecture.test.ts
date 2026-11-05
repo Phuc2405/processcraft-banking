@@ -94,8 +94,8 @@ describe('collateral and cash are separate stations, in 2D and 3D', () => {
   });
 
   it('points every cash sheet at the vault and the collateral desk at the collateral sheet', () => {
-    for (const k of ['cit-vault', '06-cit-atm', '06-cit-doorstep', '06-cit-sbv', '06-cit-teller-vault'] as const) expect(subProcessInfo(k).place, k).toBe('MAIN_CASH_VAULT');
-    expect(infoKeyForPlace('MAIN_CASH_VAULT')).toBe('cit-vault');
+    for (const k of ['flow-9', '09-cit-atm', '09-cit-doorstep', '09-cit-sbv', '09-cit-teller-vault'] as const) expect(subProcessInfo(k).place, k).toBe('MAIN_CASH_VAULT');
+    expect(infoKeyForPlace('MAIN_CASH_VAULT')).toBe('flow-9');
     expect(infoKeyForPlace('COLLATERAL_VAULT')).toBe('collateral');
   });
 
@@ -261,7 +261,7 @@ describe('the drawer, the top menu and the dock: every sub-process opens its les
     expect(MENU_CHOICES.filter((c) => c.kind === 'cit')).toHaveLength(4);
     expect(src('components/bank/PresetDock.tsx')).not.toContain('CitDemoMenu');
     setActiveLocale('vi');
-    for (const k of ['06-cit-atm', '06-cit-doorstep', '06-cit-sbv', '06-cit-teller-vault'] as const) {
+    for (const k of ['09-cit-atm', '09-cit-doorstep', '09-cit-sbv', '09-cit-teller-vault'] as const) {
       const html = renderToStaticMarkup(createElement(SubProcessInfoView, { info: subProcessInfo(k), liveStr: 0 }));
       expect(html, k).toContain('data-testid="cit-run-scenario"');
     }
@@ -272,7 +272,7 @@ describe('the drawer, the top menu and the dock: every sub-process opens its les
     const desk = slaTelemetry(subProcessInfo('disputes'), view, null);
     expect(desk).toMatchObject({ kind: 'desk', queue: view.stations.DISPUTE_DESK.queueLength });
     const manual: CitManual[] = [{ kind: 'SBV', at: 10 * 60 }];
-    expect(slaTelemetry(subProcessInfo('06-cit-sbv'), view, citAt(3, 10 * 60 + 30, manual))).toEqual({ kind: 'cit', status: 'ARRIVED' });
+    expect(slaTelemetry(subProcessInfo('09-cit-sbv'), view, citAt(3, 10 * 60 + 30, manual))).toEqual({ kind: 'cit', status: 'ARRIVED' });
     const html = renderToStaticMarkup(createElement(SubProcessInfoView, { info: subProcessInfo('disputes'), liveStr: 0.5, liveSla: desk }));
     expect(html).toContain('data-testid="spi-sla-live" data-kind="desk"');
   });
@@ -292,9 +292,9 @@ describe('the CIT lock and the ATM balance follow the run, not a timer', () => {
       const manual: CitManual[] = [{ kind, at: 600 }];
       const plan = manualPlan(3, manual)[0]!;
       expect(citDone(plan)).toBe(citSchedule(plan).SETTLED);
-      expect(citDemoBlock(citAt(3, citDone(plan) - 1, manual), false, false)).toBe('busy');
-      expect(citDemoBlock(citAt(3, citDone(plan), manual), false, false)).toBeNull();
-      expect(citDemoBlock(citAt(3, citDone(plan), manual), false, true)).toBe('busy');
+      expect(citDemoBlock(citAt(3, citDone(plan) - 1, manual), false)).toBe('busy');
+      expect(citDemoBlock(citAt(3, citDone(plan), manual), false)).toBeNull();
+      expect(citDemoBlock(citAt(3, citDone(plan), manual), true)).toBe('busy');
     }
     expect(src('engine/simulation/WorldEngine.ts')).toContain('this.lot.cit.vanOut()');
   });
@@ -341,7 +341,7 @@ describe('subtle wires and moving icons', () => {
     expect(flowIcon(['OUT_APPROVED', 'EOD_BATCH'])).toBe('📦');
     expect(flowIcon(['GATE_QR'])).toBe('💸');
     expect(flowIcon([])).toBe('💠');
-    expect(src('components/bank/BankMap.tsx')).toContain('data-testid="flow-icon-2d"');
+    expect(src('components/bank/HopBadge.tsx')).toContain('data-testid="flow-icon-2d"');
     expect(src('components/bank/office/TransactionFlow3D.tsx')).toContain('data-testid="flow-icon-3d"');
   });
 });

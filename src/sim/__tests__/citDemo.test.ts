@@ -197,10 +197,11 @@ describe('no CIT dropdown on the bottom dock: the runs start from their sheets a
     citStore.setState({ day: -1, manual: [] });
   });
 
-  it('keeps the dock clean of any CIT menu', () => {
+  it('gives Flow 09 one CIT scenario dropdown in the dock, and a picked child its own run', () => {
     const dock = readFileSync(join(__dirname, '../../components/bank/PresetDock.tsx'), 'utf8');
-    expect(dock).not.toContain('CitDemoMenu');
     expect(dock).not.toContain('CitDemoButtons');
+    expect(dock).toMatch(/citFlow \? \(\s*<CitDemoPicker \/>/);
+    expect(dock).toContain('<CitDockButton kind={cit} />');
   });
 
   it('shows "Xe CIT đang vận chuyển..." on the run buttons and blocks every option while a van is en route or in count', () => {

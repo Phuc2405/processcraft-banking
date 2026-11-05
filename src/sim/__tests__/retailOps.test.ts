@@ -8,7 +8,19 @@ import { AML_DEEP_SECTIONS, RETAIL_DEEP_DIVES } from '../../data/advancedKnowled
 import { dayIntroStore } from '../../components/bank/dayIntro';
 import { RETAIL_TOPICS } from '../../data/retailKnowledge';
 import { scenarioJournals, TOPIC_MODULES } from '../../data/retailTopicModules';
-import { confirmShiftSnap, executeDemo, releaseDueDemos, runDemo, selectSubProcess, stayForShift } from '../../components/bank/retailOpsActions';
+import { confirmShiftSnap, executeDemo as executeDemoNow, releaseDueDemos, runDemo as runDemoNow, selectSubProcess, stayForShift } from '../../components/bank/retailOpsActions';
+import { demoSessionStore } from '../../store/demoSessionStore';
+import type { DemoActionId } from '../../sim/demoActions';
+
+// Each button press here is a fresh demo: the previous one is closed first, as a learner would cancel it (or let it finish).
+const executeDemo = (id: DemoActionId): void => {
+  demoSessionStore.getState().finish();
+  executeDemoNow(id);
+};
+const runDemo = (id: DemoActionId): void => {
+  demoSessionStore.getState().finish();
+  runDemoNow(id);
+};
 import { shiftQueueStore } from '../../store/shiftQueueStore';
 import { DEMO_GROUPS, demoGroupsIn, groupMembers, groupScope, showsGroupsOf } from '../demoGroups';
 import { modeOf, shiftOf, shiftSnap } from '../demoSchedule';
@@ -42,8 +54,8 @@ const entry = (lines: readonly OpsLine[] | undefined): string[] => (lines ?? [])
 afterEach(() => setActiveLocale('en'));
 
 describe('the eight guided flows carry the six sub-processes', () => {
-  it('keeps exactly the eight flows', () => {
-    expect(FLOW_IDS).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  it('keeps the eight payment flows plus Flow 09 (cash in transit)', () => {
+    expect(FLOW_IDS).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
   });
 
   it('maps each sub-process to the flow the brief names', () => {
@@ -158,6 +170,7 @@ describe('the eight guided flows carry the six sub-processes', () => {
 describe('every demo button runs one pipeline', () => {
   beforeEach(() => {
     retailOpsStore.getState().reset();
+    demoSessionStore.getState().finish();
   });
 
   it('opens the inspector on a real payment and the retail journal, for every button but the night cycle', () => {

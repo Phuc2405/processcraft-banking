@@ -2,6 +2,7 @@
 
 import { VI_DICTIONARY } from '../../i18n/viDictionary';
 import { edgeId, WIRES, type CashEndpoint, type DepartmentId, type PlaceId } from '../../sim/topology';
+import type { CashWire } from '../../sim/cashWires';
 import type { BoxSide, Pt } from '../../types/geometry';
 
 /** The branch itself is the BUILDING (the old stage). */
@@ -694,6 +695,8 @@ export const wireById = (id: string): Wire | undefined => BY_ID.get(id);
 
 /** The path a packet takes along a wire, or null if the wire is not on the map. */
 export const pathOfWire = (id: string): string | null => BY_ID.get(id)?.path ?? null;
+/** The points of a wire's whole run, from its `from` end: what a moving icon follows. */
+export const pointsOfWire = (id: string): readonly Pt[] | null => BY_ID.get(id)?.points ?? null;
 
 /** The wires touching `place` (its own, in and out), or null when nothing is pointed at: what hovering a node lights up. */
 export function connectedWires(place: PlaceId | null, wires: readonly Wire[] = BANK_WIRES): ReadonlySet<string> | null {
@@ -758,6 +761,12 @@ export const TIP_SIDE: Readonly<Record<PlaceId, TipSide>> = Object.fromEntries((
  * corridor between the band's departments (y 928) and the decline floor bus (y 960), to the ATM up the map's right-hand margin,
  * and straight down into the CIT loading bay under the vault.
  */
+/** The CIT loading bay card on the map's bottom-right edge, right under the Central Cash Vault. */
+export const CIT_BAY = { x: 1350, y: 900, w: 180, h: 166 } as const;
+/** The bay card's off-site ends along its bottom row, left to right (CitBay2D draws them; the hop player parks its badge on them). */
+export const BAY_ENDPOINTS = ['ATM', 'HQ', 'SBV', 'CORP'] as const;
+export const bayEndpointAt = (i: number): Pt => [CIT_BAY.x + 18 + (i * (CIT_BAY.w - 36)) / (BAY_ENDPOINTS.length - 1), CIT_BAY.y + CIT_BAY.h - 14];
+
 export const CASH_CORRIDOR = { x: 1306, y: 944 } as const;
 export const CASH_LINES: Readonly<Record<CashEndpoint, readonly Pt[]>> = (() => {
   const v = PLACE_BOX.MAIN_CASH_VAULT;
@@ -772,5 +781,44 @@ export const CASH_LINES: Readonly<Record<CashEndpoint, readonly Pt[]>> = (() => 
   };
 })();
 
-/** An SVG path through a cash line's corners. */
-export const cashLinePath = (e: CashEndpoint): string => CASH_LINES[e].map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(' ');
+/**
+ * The CIT hall's handover to the till: out of the bay's left side, along its own lane under the decline floor bus (y 960), and up
+ * into the teller card beside the vault's teller line (so the two never share a stroke).
+ */
+export const BAY_TELLER_LINE: readonly Pt[] = (() => {
+  const teller = PLACE_BOX.TELLER_CASH;
+  const lane = 1010;
+  return [[CIT_BAY.x, lane], [teller.cx + 16, lane], [teller.cx + 16, teller.cy + teller.h / 2]];
+})();
+
+/** Every gold wire's corners (cashWires.ts names them): the three vault lines, then the bay ↔ teller handover. */
+export const cashWirePoints = (w: CashWire): readonly Pt[] => (w === 'BAY_TELLER' ? BAY_TELLER_LINE : CASH_LINES[w]);
+
+/** A run shorter than this holds no words: its label is a direction chip on the wire. */
+const LABEL_MIN_RUN = 60;
+export interface CashWireLabel {
+  x: number;
+  y: number;
+  /** Rotated to read along a vertical run (it sits on the wire, so it never reaches a card's header beside it). */
+  vertical: boolean;
+  /** Too short a run for words (vault ↔ bay): an arrow chip only, its words in the tooltip. */
+  chip: boolean;
+}
+/**
+ * Where a wire's direction label sits: centred ON the middle of its longest run, inside a padded badge, so it never climbs into the
+ * card headers above or beside the wire (the Central Cash Vault, the CIT hall, the ATM). A vertical run reads rotated along it.
+ */
+export function cashWireLabel(w: CashWire): CashWireLabel {
+  const pts = cashWirePoints(w);
+  const len = (a: Pt, b: Pt): number => Math.hypot(b[0] - a[0], b[1] - a[1]);
+  let best: [Pt, Pt] = [pts[0]!, pts[1] ?? pts[0]!];
+  for (let i = 1; i < pts.length; i++) if (len(pts[i - 1]!, pts[i]!) > len(best[0], best[1])) best = [pts[i - 1]!, pts[i]!];
+  return { x: (best[0][0] + best[1][0]) / 2, y: (best[0][1] + best[1][1]) / 2, vertical: best[0][0] === best[1][0], chip: len(best[0], best[1]) < LABEL_MIN_RUN };
+}
+export const cashLineLabelAt = (w: CashWire): Pt => {
+  const l = cashWireLabel(w);
+  return [l.x, l.y];
+};
+
+/** An SVG path through a wire's corners. */
+export const cashWirePath = (w: CashWire): string => cashWirePoints(w).map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(' ');

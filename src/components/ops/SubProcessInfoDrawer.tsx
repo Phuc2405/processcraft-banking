@@ -3,13 +3,16 @@ import { regDocById } from '../../data/regulatoryRegistry';
 import { ACTORS, glLine, subProcessInfo, type ActorId, type InfoKey, type SubProcessInfo } from '../../data/subProcessRegistry';
 import { demoActionById } from '../../sim/demoActions';
 import { sheetDemo } from '../../sim/sheetDemo';
-import { runDemo } from '../bank/retailOpsActions';
+import { runDemoAnytime } from '../bank/retailOpsActions';
 import { GUIDED_FLOWS } from '../../sim/guidedFlows';
 import { isStation } from '../../sim/topology';
 import { bankStore, useBankStore } from '../../store/bankStore';
 import { uiStore } from '../../store/uiStore';
 import { pick, useLocale, useMessages } from '../../utils/i18nHelper';
-import { CitDemoButtons, CitRunButton, useCit } from './CitPanel';
+import { CitRunButton, SbvCaseToggle, useCit } from './CitPanel';
+import { RunOrCancel, useDemoLocked } from '../bank/DemoSession';
+import { SBV_CASE_SHEETS } from '../../data/subProcessCitSheets';
+import { useCitStore } from '../../store/citStore';
 import { citMessages } from './cit.messages';
 import { slaTelemetry, type SlaTelemetry } from '../../sim/sheetTelemetry';
 import { subProcessInfoMessages } from './subProcessInfo.messages';
@@ -40,9 +43,9 @@ const Bullets = ({ items, tone }: { items: readonly string[]; tone: string }) =>
 );
 
 /**
- * The sheet's "▶ Run this scenario": a CIT child dispatches its run (CitRunButton holds its lock); any other sheet sends its scenario
- * through the dock's one pipeline (runDemo), which lights the payment's own path, starts its energy orb on both maps and opens the
- * payment in the inspector, on its first step.
+ * The sheet's "▶ Run this scenario", for a sheet with one demo case: the 📖 lesson on the far left and the action centred on the
+ * same line. A CIT child dispatches its run (CitRunButton holds its lock); any other sheet runs its scenario at any hour
+ * (runDemoAnytime). While a demo runs, the button is "Hủy demo".
  */
 function RunScenario({ infoKey }: { infoKey: InfoKey }) {
   const m = useMessages(subProcessInfoMessages);
@@ -52,17 +55,25 @@ function RunScenario({ infoKey }: { infoKey: InfoKey }) {
   if (demo.kind === 'cit') return <CitRunButton kind={demo.demo} />;
   const action = demoActionById(demo.id);
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-violet-300/30 bg-violet-400/[0.07] p-2.5 backdrop-blur-sm" data-testid="spi-run-scenario" data-demo={demo.id}>
-      <button
-        type="button"
-        onClick={() => runDemo(demo.id)}
-        title={action.hint()}
-        data-testid="spi-run"
-        className="whitespace-nowrap rounded-lg bg-gradient-to-r from-violet-300 to-sky-400 px-3.5 py-1.5 text-[12.5px] font-bold text-slate-950 shadow-lg shadow-violet-500/20 transition hover:brightness-110"
-      >
-        {m('runScenario')}
-      </button>
-      <p className="w-full text-[11px] leading-snug text-slate-400">
+    <div className="space-y-2 rounded-xl border border-violet-300/30 bg-violet-400/[0.07] p-2.5 backdrop-blur-sm" data-testid="spi-run-scenario" data-demo={demo.id}>
+      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2" data-testid="spi-single-case">
+        <LessonLink lessonKey={infoKey} className="h-7 w-7 rounded-md bg-white/10 text-[13px] ring-1 ring-white/15" />
+        <div className="flex justify-center">
+          <RunOrCancel>
+            <button
+              type="button"
+              onClick={() => runDemoAnytime(demo.id)}
+              title={action.hint()}
+              data-testid="spi-run"
+              className="whitespace-nowrap rounded-lg bg-gradient-to-r from-violet-300 to-sky-400 px-3.5 py-1.5 text-[12.5px] font-bold text-slate-950 shadow-lg shadow-violet-500/20 transition hover:brightness-110"
+            >
+              {m('runScenario')}
+            </button>
+          </RunOrCancel>
+        </div>
+        <span className="h-7 w-7" aria-hidden="true" />
+      </div>
+      <p className="text-[11px] leading-snug text-slate-400">
         {action.icon} {action.label()}
         {dayOver ? ` · ${m('runNextDay')}` : ''}
       </p>
@@ -75,7 +86,9 @@ export function SubProcessInfoDrawer({ infoKey }: { infoKey: InfoKey }) {
   const str = useBankStore((s) => s.view.stp.rate);
   const stations = useBankStore((s) => s.view.stations);
   const cit = useCit();
-  const info = subProcessInfo(infoKey);
+  const sbvCase = useCitStore((s) => s.sbvCase);
+  // The SBV sheet follows its toggle: all six sections are the picked case's own (deposit or withdrawal).
+  const info = infoKey === '09-cit-sbv' ? SBV_CASE_SHEETS[sbvCase] : subProcessInfo(infoKey);
   return <SubProcessInfoView info={info} liveStr={str} liveSla={slaTelemetry(info, { stations }, cit)} />;
 }
 
@@ -104,6 +117,9 @@ export function SubProcessInfoView({ info, liveStr, liveSla = null }: { info: Su
     if (isStation(info.place)) bank.select({ kind: 'station', id: info.place });
   };
   const duty = actor ? info.actors.find((a) => a.id === actor) : null;
+  const locked = useDemoLocked();
+  // A sheet with one demo case carries its 📖 on the run row, so the header shows it only for the others.
+  const singleCase = sheetDemo(info.key) !== null;
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-gradient-to-b from-slate-900/70 to-slate-950/80 backdrop-blur-xl" data-testid="subprocess-drawer" data-key={info.key} data-mode={info.mode}>
       <header className="shrink-0 border-b border-white/10 p-3.5" style={{ background: `linear-gradient(180deg, ${accent}26, transparent)` }}>
@@ -124,7 +140,7 @@ export function SubProcessInfoView({ info, liveStr, liveSla = null }: { info: Su
               <h2 className="min-w-0 text-[16px] font-bold leading-tight text-slate-50" data-testid="inspector-title">
                 <span aria-hidden="true">{info.icon}</span> {pick(info.title, locale)}
               </h2>
-              <LessonLink lessonKey={info.key} className="h-6 w-6 rounded-md bg-white/10 text-[13px] ring-1 ring-white/15" />
+              {!singleCase && <LessonLink lessonKey={info.key} className="h-6 w-6 rounded-md bg-white/10 text-[13px] ring-1 ring-white/15" />}
             </div>
           </div>
           <button type="button" onClick={() => bankStore.getState().clearSelection()} aria-label={m('close')} title={m('close')} data-testid="spi-close" className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-300 transition hover:bg-white/10 hover:text-white">
@@ -134,6 +150,7 @@ export function SubProcessInfoView({ info, liveStr, liveSla = null }: { info: Su
       </header>
       <div className="bk-scroll min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain p-3" data-testid="inspector-body">
         <RunScenario infoKey={info.key} />
+        {info.key === '09-cit-sbv' && <SbvCaseToggle />}
         <Section title={m('overview')} testId="overview">
           <p className="text-[12.5px] leading-relaxed text-slate-200">{pick(info.overview, locale)}</p>
           <button type="button" onClick={showOnMap} data-testid="spi-show" className="mt-2 rounded-lg bg-white/10 px-2.5 py-1 text-[11.5px] font-semibold text-slate-100 hover:bg-white/15">
@@ -215,14 +232,13 @@ export function SubProcessInfoView({ info, liveStr, liveSla = null }: { info: Su
           </div>
           <p className="mt-1.5 text-[11.5px] leading-snug text-slate-400">{pick(info.kpi.note, locale)}</p>
         </Section>
-        {info.key === 'cit-vault' && <CitDemoButtons />}
         {info.related.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 pt-1" data-testid="spi-related">
             <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">{m('related')}</span>
             {info.related.map((k) => {
               const r = subProcessInfo(k);
               return (
-                <button key={k} type="button" onClick={() => go(k)} data-testid={`spi-go-${k}`} className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-slate-200 ring-1 ring-white/15 hover:bg-white/10">
+                <button key={k} type="button" onClick={() => go(k)} disabled={locked} data-testid={`spi-go-${k}`} className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-slate-200 ring-1 ring-white/15 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40">
                   {r.icon} {r.code}
                 </button>
               );

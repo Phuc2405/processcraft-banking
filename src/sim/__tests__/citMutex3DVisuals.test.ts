@@ -19,7 +19,7 @@ import { citStore } from '../../store/citStore';
 import { retailOpsStore } from '../../store/retailOpsStore';
 import { crewAt } from '../citCrew';
 import { bayProgress, citAt, citDone, CIT_DEMOS, CIT_TIMING, citAccount, citSchedule, manualPlan, type CitManual } from '../citEngine';
-import { flowBeat, routeMode } from '../flowBeat';
+import { nodeMode } from '../flowBeat';
 import { stationName, stationTitle } from '../terms';
 import { STATIONS } from '../topology';
 
@@ -40,18 +40,17 @@ describe('strict full-lifecycle CIT mutex', () => {
       const lock = citAt(DAY, m, manual).lock;
       expect(lock?.run.order.id, `+${m - AT}`).toBe(`CIT-${DAY}-M1`);
       stages.add(lock!.stage);
-      expect(citDemoBlock(citAt(DAY, m, manual), false, false)).toBe('busy');
+      expect(citDemoBlock(citAt(DAY, m, manual), false)).toBe('busy');
     }
     expect([...stages]).toEqual(['EN_ROUTE', 'ARRIVED', 'IN_COUNT', 'DELIVERED']);
     expect(citAt(DAY, done, manual).lock).toBeNull();
-    expect(citDemoBlock(citAt(DAY, done, manual), false, false)).toBeNull();
+    expect(citDemoBlock(citAt(DAY, done, manual), false)).toBeNull();
   });
 
-  it('stays locked while the 3D van is still out, and on a finished day', () => {
+  it('stays locked while the 3D van is still out, but never for the hour (after-hours demos play solo)', () => {
     const idle = citAt(DAY, AT, []);
-    expect(citDemoBlock(idle, false, false)).toBeNull();
-    expect(citDemoBlock(idle, false, true)).toBe('busy');
-    expect(citDemoBlock(idle, true, false)).toBe('dayOver');
+    expect(citDemoBlock(idle, false)).toBeNull();
+    expect(citDemoBlock(idle, true)).toBe('busy');
   });
 
   describe('through the store pipeline', () => {
@@ -90,21 +89,18 @@ describe('strict full-lifecycle CIT mutex', () => {
 describe('the four CIT child sub-processes', () => {
   const KEYS = Object.values(CIT_INFO_KEYS);
 
-  it('registers exactly the four keys under Flow 06, each running its own demo', () => {
-    expect(KEYS).toEqual(['06-cit-atm', '06-cit-doorstep', '06-cit-sbv', '06-cit-teller-vault']);
+  it('registers exactly the four keys under Flow 09, each running its own demo', () => {
+    expect(KEYS).toEqual(['09-cit-atm', '09-cit-doorstep', '09-cit-sbv', '09-cit-teller-vault']);
     for (const kind of CIT_DEMOS) {
       const key = CIT_INFO_KEYS[kind];
       expect(INFO_KEYS).toContain(key);
       expect(citDemoOfKey(key)).toBe(kind);
-      expect(subProcessInfo(key).flow).toBe(6);
+      expect(subProcessInfo(key).flow).toBe(9);
     }
-    expect(citDemoOfKey('cit-vault')).toBeNull();
-    // The menu lists them under Flow 06, after its own sub-groups and before Flow 07.
+    expect(citDemoOfKey('flow-9')).toBeNull();
+    // The menu lists them under Flow 09, its last rows.
     const ids = MENU_CHOICES.map((c) => (c.kind === 'cit' ? c.key : c.kind === 'flow' ? `flow-${c.flow}` : c.sub));
-    const six = ids.indexOf('flow-6');
-    const seven = ids.indexOf('flow-7');
-    for (const k of KEYS) expect(ids.indexOf(k)).toBeGreaterThan(six);
-    for (const k of KEYS) expect(ids.indexOf(k)).toBeLessThan(seven);
+    expect(ids.slice(ids.indexOf('flow-9') + 1)).toEqual(KEYS);
   });
 
   it('carries the titles, Circular 01/2014 and every GL line its demo posts', () => {
@@ -137,9 +133,9 @@ describe('the four CIT child sub-processes', () => {
       expect(html).toContain('Thông tư');
     }
     setActiveLocale('en');
-    expect(renderToStaticMarkup(createElement(SubProcessInfoView, { info: subProcessInfo('06-cit-sbv'), liveStr: 0 }))).toContain('▶ Run this scenario');
+    expect(renderToStaticMarkup(createElement(SubProcessInfoView, { info: subProcessInfo('09-cit-sbv'), liveStr: 0 }))).toContain('▶ Run this scenario');
     // The domain sheet links to its four children.
-    for (const k of KEYS) expect(subProcessInfo('cit-vault').related).toContain(k);
+    for (const k of KEYS) expect(subProcessInfo('flow-9').related).toContain(k);
   });
 });
 
@@ -229,12 +225,9 @@ describe('synchronised arrival', () => {
 });
 
 describe('3D transaction flow beat', () => {
-  it('says who decides at the station the payment is at, and what kind of route it is', () => {
-    expect(routeMode(['GATE_POS', 'LEDGER_DEBIT'])).toBe('STP');
-    expect(routeMode(['GATE_POS', 'BNPL'])).toBe('HYBRID');
-    expect(routeMode(['TELLER_CASH'])).toBe('MANUAL');
-    expect(flowBeat({ route: ['GATE_POS', 'STP_ENGINE', 'BNPL'], at: 1, done: false })).toEqual({ from: 'GATE_POS', at: 'STP_ENGINE', mode: 'STP', route: 'HYBRID' });
-    expect(flowBeat({ route: ['GATE_POS', 'STP_ENGINE', 'BNPL'], at: 2, done: false })?.mode).toBe('MANUAL');
-    expect(flowBeat({ route: ['GATE_POS'], at: 0, done: true })).toBeNull();
+  it('says who decides at a station: a rule (STP) or a person (MANUAL), nobody at an outcome', () => {
+    expect(nodeMode('STP_ENGINE')).toBe('STP');
+    expect(nodeMode('TELLER_CASH')).toBe('MANUAL');
+    expect(nodeMode('OUT_APPROVED')).toBeNull();
   });
 });

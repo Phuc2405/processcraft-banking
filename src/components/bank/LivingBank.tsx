@@ -5,6 +5,8 @@ import { useBankStore } from '../../store/bankStore';
 import { installAmbientVisits } from '../../store/ambientVisits';
 import { installDeskOccupancy } from '../../store/deskOccupancy';
 import { installCitSync } from '../ops/citActions';
+import { installHopPlayer } from './hopDriver';
+import { CancelDemoDialog, installDemoSession } from './DemoSession';
 import { useAcademyStore } from '../../store/academyStore';
 import { AcademySplitLayout } from '../academy/AcademySplitLayout';
 import { GuidedBar, ResumeWalkthrough, WalkChip } from '../education/GuidedWalkthrough';
@@ -124,7 +126,7 @@ export function LivingBank() {
   useBankClock();
   // The day's walk-ins at the Savings Desk and the Savings & Collateral Desk, and the count of everyone at a counter on its badge.
   useEffect(() => {
-    const stops = [installAmbientVisits(), installDeskOccupancy(), installCitSync()];
+    const stops = [installAmbientVisits(), installDeskOccupancy(), installCitSync(), installHopPlayer(), installDemoSession()];
     return () => stops.forEach((stop) => stop());
   }, []);
   const viewMode = useBankStore((s) => s.viewMode);
@@ -194,6 +196,7 @@ export function LivingBank() {
         <DayReportModal />
       </OnDemand>
       <ShiftPrompt />
+      <CancelDemoDialog />
       <CourseCatalog />
       <OnDemand open={hubOpen}>
         <LearningHub />

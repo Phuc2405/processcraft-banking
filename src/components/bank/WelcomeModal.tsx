@@ -5,6 +5,7 @@ import { formatNodes, useMessages, type Translate } from '../../utils/i18nHelper
 import { LanguageToggle } from '../shell/LanguageToggle';
 import { ScopeNote } from '../shell/ScopeNote';
 import { welcomeMessages } from './welcomeModal.messages';
+import { guarded } from './DemoSession';
 import { analystWorkspaceMessages, type AnalystWorkspaceKey } from './analystWorkspace.messages';
 import { ROLE_ICON, ROLE_STATION, type StaffRoleId } from '../../sim/staffRoleplay';
 
@@ -150,14 +151,15 @@ export function WelcomeModal({ onOpenAcademy, onChooseBank }: { onOpenAcademy: (
 
   if (!open) return null;
 
-  const enterBank = (nextScope: BankState['scope'], resetDepth = false): void => {
+  // Under the one execution lock: while a demo runs, no mode switch reaches the bank (the run keeps the map).
+  const enterBank = guarded((nextScope: BankState['scope'], resetDepth = false): void => {
     const s = bankStore.getState();
     s.setScope(nextScope);
     s.setDimension('2d');
     if (resetDepth) s.setDataDepth('standard');
     onChooseBank();
     close();
-  };
+  });
   const actions: ModeActions = {
     enterBank,
     openAcademy: () => {
@@ -166,10 +168,10 @@ export function WelcomeModal({ onOpenAcademy, onChooseBank }: { onOpenAcademy: (
     },
     toggleRoles: () => setRolesOpen((v) => !v),
   };
-  const startShift = (role: StaffRoleId): void => {
+  const startShift = guarded((role: StaffRoleId): void => {
     enterBank('advanced');
     bankStore.getState().openStaffDesk(ROLE_STATION[role]);
-  };
+  });
 
   // Above the header's language switch (z-60): this window has its own. No backdrop blur: the bank stays in view around a compact window, and a live 3D canvas is not re-blurred.
   return (
@@ -192,7 +194,7 @@ export function WelcomeModal({ onOpenAcademy, onChooseBank }: { onOpenAcademy: (
         <div className="bk-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 sm:px-5" data-testid="welcome-body">
           <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2" data-testid="welcome-modes">
             {WELCOME_MODES.map((mode) => (
-              <ModeCard key={mode.id} mode={mode} current={mode.isCurrent({ scope, academyOpen, staffDesk })} {...(mode.id === 'roleplay' ? { expanded: rolesOpen } : {})} onPick={() => mode.pick(actions)} m={m} />
+              <ModeCard key={mode.id} mode={mode} current={mode.isCurrent({ scope, academyOpen, staffDesk })} {...(mode.id === 'roleplay' ? { expanded: rolesOpen } : {})} onPick={guarded(() => mode.pick(actions))} m={m} />
             ))}
           </div>
           {rolesOpen && <RoleMenu onPick={startShift} m={m} />}

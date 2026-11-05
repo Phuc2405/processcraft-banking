@@ -2,10 +2,13 @@ import { formatMoney } from '../../sim/kpis';
 import { citAccount, citAt, citDemoBusy, dueAtmRefills, type CitDemo, type CitSnapshot } from '../../sim/citEngine';
 import { OPS_LIMITS } from '../../sim/retailOps';
 import { bankStore } from '../../store/bankStore';
+import { CIT_FLOW } from '../../types/viewport';
 import { citStore } from '../../store/citStore';
 import { notificationStore } from '../../store/notificationStore';
 import { retailOpsStore } from '../../store/retailOpsStore';
 import { opsStamp } from '../bank/retailOpsActions';
+import { demoLocked } from '../bank/DemoSession';
+import { demoSessionStore } from '../../store/demoSessionStore';
 
 /** The CIT demo dispatch: the one pipeline behind the dock's CIT menu, the inspector's buttons, and the retail ATM refill. */
 
@@ -20,14 +23,14 @@ export function citNow(): CitSnapshot {
   return citAt(day, minute, manualOf(day));
 }
 
-export type CitDemoBlock = 'dayOver' | 'busy' | null;
+export type CitDemoBlock = 'busy' | null;
 
 /**
- * Why a demo cannot be dispatched now, or null: the day is over, or the lock holds (the learner's run is not SETTLED yet, or the 3D
- * van has not finished its exit route and despawned). It releases the moment both are done. One mutex for the vault inspector and
- * the drawer's "run this scenario".
+ * Why a demo cannot be dispatched now, or null: only the lock (the learner's run is not SETTLED yet, or the 3D van has not finished
+ * its exit route and despawned). It releases the moment both are done. The hour never blocks it: after closing, or once the day is
+ * over, the run plays on its own (every dispatch pauses the bank first). One mutex for the vault inspector, the bay, the dock and the drawer.
  */
-export const citDemoBlock = (cit: CitSnapshot, dayOver: boolean, van: boolean = citStore.getState().van): CitDemoBlock => (dayOver ? 'dayOver' : citDemoBusy(cit) || van ? 'busy' : null);
+export const citDemoBlock = (cit: CitSnapshot, van: boolean = citStore.getState().van): CitDemoBlock => (citDemoBusy(cit) || van ? 'busy' : null);
 
 /** The dispatch toast's header: a van leaves for every run but the till run, which is an internal walk between the counter and the vault. */
 export const dispatchTitle = (kind: CitDemo): { en: string; vi: string } =>
@@ -40,15 +43,20 @@ function retailShortfall(): number {
 }
 
 /**
- * Sends a van now: the dispatch posts at once (Dr 1131 / Cr source), and the run walks its states with the bank's clock (or alone,
- * while paused). An ATM run fills the retail cassette only when its van reaches the machine (settleAtmRefills), not here.
+ * Sends a van now: the dispatch posts at once (Dr 1131 / Cr source), and the run walks its states alone while the bank stays paused. An ATM run fills the retail cassette only when its van reaches the machine (settleAtmRefills), not here.
  */
-export function dispatchCitDemo(kind: CitDemo): boolean {
-  const { day, minute, dayOver } = bankStore.getState().view;
-  if (citDemoBlock(citNow(), dayOver)) return false;
+export function dispatchCitDemo(kind: CitDemo, focus = true): boolean {
+  const bank = bankStore.getState();
+  const { day, minute } = bank.view;
+  if (citDemoBlock(citNow()) || demoLocked()) return false;
+  // Every demo pauses the bank first: the run plays on its own, and the clock stays paused after it until the learner presses Play.
+  if (bank.playing) bank.pause();
+  // A CIT demo lights its own route (Flow 09, this child) in the guided scope; the retail cassette's refill keeps its flow.
+  if (focus && bank.scope === 'beginner' && !bank.spotlight) bank.selectSubProcess(kind, CIT_FLOW);
   const refill = kind === 'ATM' ? retailShortfall() : 0;
   if (!citStore.getState().dispatch(kind, day, minute, refill)) return false;
   const id = `CIT-${day}-M${citStore.getState().manual.length}`;
+  demoSessionStore.getState().start({ kind: 'cit', runId: id });
   const run = citNow().runs.find((r) => r.planned.order.id === id)?.run;
   const lines = run?.entries[0]?.lines ?? [];
   const text = (dr: string, cr: string) => lines.map((l) => `${l.dr ? dr : cr} ${citAccount(l.account).code} ${formatMoney(l.dr || l.cr)}`).join(' · ');
@@ -66,7 +74,7 @@ export function dispatchCitDemo(kind: CitDemo): boolean {
 
 /** The retail cassette's "CIT refill": a real van run when one can leave, else the cassette alone (a van is already on the road). */
 export function refillAtmByCit(): void {
-  if (!dispatchCitDemo('ATM')) retailOpsStore.getState().refillCassette(opsStamp());
+  if (!dispatchCitDemo('ATM', false)) retailOpsStore.getState().refillCassette(opsStamp());
 }
 
 /**
@@ -89,7 +97,7 @@ export const CIT_SOLO_MS = 300;
 /** Today's dispatch a paused bank plays on its own, as its index in the store, or -1: the learner's van that has not settled yet. */
 export function citSoloIndex(bank: Pick<typeof bankStore, 'getState'> = bankStore): number {
   const s = bank.getState();
-  if (s.playing || s.view.dayOver) return -1;
+  if (s.playing) return -1;
   const open = citDemoBusy(citNow());
   if (!open) return -1;
   return citStore.getState().manual.findIndex((_, i) => open.order.id === `CIT-${s.view.day}-M${i + 1}`);

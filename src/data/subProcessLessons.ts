@@ -11,7 +11,7 @@ import type { InfoKey } from './subProcessKeys';
 export type LessonKey = InfoKey | DemoGroupId;
 
 export const SUBPROCESS_LESSON: Readonly<Record<LessonKey, string>> = {
-  // The eight flows
+  // The nine flows
   'flow-1': 'card-pos-auth',
   'flow-2': 'card-3ds-token',
   'flow-3': 'retail-atm',
@@ -19,13 +19,13 @@ export const SUBPROCESS_LESSON: Readonly<Record<LessonKey, string>> = {
   'flow-5': 'retail-ekyc-risk',
   'flow-6': 'retail-teller-vault',
   'flow-7': 'retail-wallet-qr',
-  'flow-8': 'flow-swift',
+  'flow-8': 'aml-swift-disputes',
   // Core sub-groups
   'card-auth': 'card-pos-auth',
   'token-3ds': 'card-3ds-token',
   'eod-batch': 'retail-eod-recon',
   'ekyc-onboard': 'retail-ekyc-risk',
-  'cash-ctr': 'aml-typologies',
+  'cash-ctr': 'aml-cash-ctr',
   'swift-remit': 'flow-swift',
   disputes: 'flow-dispute',
   // Retail sub-processes: each has a lesson of its own
@@ -42,11 +42,11 @@ export const SUBPROCESS_LESSON: Readonly<Record<LessonKey, string>> = {
   collateral: opsLessonAnchor('collateral'),
   'auto-pay': opsLessonAnchor('auto-pay'),
   // The CIT domain and its four children
-  'cit-vault': 'cit-concept',
-  '06-cit-atm': 'cit-atm',
-  '06-cit-doorstep': 'cit-doorstep',
-  '06-cit-sbv': 'cit-sbv',
-  '06-cit-teller-vault': 'cit-teller',
+  'flow-9': 'cit-concept',
+  '09-cit-atm': 'cit-atm',
+  '09-cit-doorstep': 'cit-doorstep',
+  '09-cit-sbv': 'cit-sbv',
+  '09-cit-teller-vault': 'cit-teller',
   // AML
   'aml-sanctions': 'aml-cft',
 };

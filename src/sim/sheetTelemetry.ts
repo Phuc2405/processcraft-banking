@@ -10,7 +10,7 @@ import type { BankView } from './types';
 
 export type SlaTelemetry = { kind: 'desk'; waitMin: number; queue: number } | { kind: 'cit'; status: CitStatus | 'IDLE' } | null;
 
-const CASH_SHEETS: ReadonlySet<string> = new Set(['cit-vault', '06-cit-atm', '06-cit-doorstep', '06-cit-sbv', '06-cit-teller-vault']);
+const CASH_SHEETS: ReadonlySet<string> = new Set(['flow-9', '09-cit-atm', '09-cit-doorstep', '09-cit-sbv', '09-cit-teller-vault']);
 
 export function slaTelemetry(info: Pick<SubProcessInfo, 'key' | 'place'>, view: Pick<BankView, 'stations'>, cit: CitSnapshot | null): SlaTelemetry {
   if (CASH_SHEETS.has(info.key)) {

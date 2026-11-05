@@ -104,7 +104,7 @@ describe('engine parity', () => {
   });
 
   it('the CIT sheet carries every CIT account code the engine posts, scheduled or dispatched', () => {
-    const codes = new Set(glOf('cit-vault').map((l) => l.split(' ')[1]));
+    const codes = new Set(glOf('flow-9').map((l) => l.split(' ')[1]));
     const manual: CitManual[] = CIT_DEMOS.map((kind, i) => ({ kind, at: 8 * 60 + i * 90 }));
     const usedCodes = new Set<string>();
     for (const day of [1, 2, 3, 4, 5, 6, 7]) {
@@ -157,9 +157,9 @@ describe('codes and citations in prose', () => {
   });
 
   it('cites the domain rule on each cash and credit sheet', () => {
-    for (const k of ['cit-vault', 'flow-6', 'teller-vault', 'cassette-jam'] as const) expect(subProcessInfo(k).legal, k).toContain('circ-01-2014');
+    for (const k of ['flow-9', 'flow-6', 'teller-vault', 'cassette-jam'] as const) expect(subProcessInfo(k).legal, k).toContain('circ-01-2014');
     for (const k of ['bnpl-credit', 'credit-risk', 'flow-2'] as const) expect(subProcessInfo(k).legal, k).toContain('circ-31-2024');
-    for (const k of ['flow-2', 'flow-4', 'flow-8', 'swift-remit', 'cit-vault'] as const) expect(subProcessInfo(k).legal, k).toContain('iso-20022');
+    for (const k of ['flow-2', 'flow-4', 'flow-8', 'swift-remit', 'flow-9'] as const) expect(subProcessInfo(k).legal, k).toContain('iso-20022');
     for (const k of ['aml-sanctions', 'cash-ctr', 'flow-6'] as const) expect(subProcessInfo(k).legal.some((id) => regDocById(id)?.regulator === 'AUSTRAC' || regDocById(id)?.issuer === 'AUSTRAC'), k).toBe(true);
   });
 });

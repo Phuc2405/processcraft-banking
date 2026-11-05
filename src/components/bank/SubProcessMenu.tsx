@@ -1,27 +1,27 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { pick, useLocale } from '../../i18n/locale';
 import { flowText, GUIDED_FLOWS } from '../../sim/guidedFlows';
-import { demoGroup, demoGroupsIn, showsGroupsOf, type DemoGroupId } from '../../sim/demoGroups';
-import { bankStore, useBankStore, type Selection } from '../../store/bankStore';
-import { CIT_INFO_KEYS, infoKeyForChoice, type CitInfoKey, type InfoKey } from '../../data/subProcessKeys';
+import { demoGroup, demoGroupsIn, groupOf, showsGroupsOf, type DemoGroupId } from '../../sim/demoGroups';
+import { bankStore, citChildOf, useBankStore, type Selection } from '../../store/bankStore';
+import { citDemoOfKey, CIT_INFO_KEYS, infoKeyForChoice, type CitInfoKey, type InfoKey } from '../../data/subProcessKeys';
 import { CIT_SHEETS } from '../../data/subProcessCitSheets';
 import { subProcessInfoMessages } from '../ops/subProcessInfo.messages';
 import { inspectorCoversMap, topBand } from './ViewportControls';
-import { FLOW_IDS, type FlowId } from '../../types/viewport';
+import { CIT_FLOW, FLOW_IDS, type FlowId } from '../../types/viewport';
 import { useMessages } from '../../utils/i18nHelper';
 import { AdaptivePopover, listboxKey } from '../shell/AdaptivePopover';
 import { retailOpsMessages } from './retailOps.messages';
 import { selectSubProcess } from './retailOpsActions';
 import { LessonLink } from '../ops/LessonLink';
+import { demoLocked, useDemoLocked } from './DemoSession';
 
 /**
- * What the menu offers, in order: each of the eight flows, with its child sub-groups under it, and under Flow 06 the CIT domain's
+ * What the menu offers, in order: each of the nine flows, with its child sub-groups under it, and under Flow 09 the CIT domain's
  * four child sub-processes (each opens its sheet with a "run this scenario" button). A flow with a single sub-group lists none:
  * picking the flow already shows that group's buttons, so a nested row would only repeat its parent.
  */
-export type MenuChoice = { kind: 'flow'; flow: FlowId } | { kind: 'sub'; flow: FlowId; sub: DemoGroupId } | { kind: 'cit'; flow: 6; key: CitInfoKey };
+export type MenuChoice = { kind: 'flow'; flow: FlowId } | { kind: 'sub'; flow: FlowId; sub: DemoGroupId } | { kind: 'cit'; flow: typeof CIT_FLOW; key: CitInfoKey };
 
-const CIT_FLOW = 6 as const;
 const citChoices = (flow: FlowId): MenuChoice[] => (flow === CIT_FLOW ? Object.values(CIT_INFO_KEYS).map((key): MenuChoice => ({ kind: 'cit', flow: CIT_FLOW, key })) : []);
 
 export const MENU_CHOICES: readonly MenuChoice[] = FLOW_IDS.flatMap((flow): MenuChoice[] => [{ kind: 'flow', flow }, ...(showsGroupsOf(flow) ? demoGroupsIn(flow).map((g): MenuChoice => ({ kind: 'sub', flow, sub: g.id })) : []), ...citChoices(flow)]);
@@ -44,22 +44,27 @@ export function SubProcessMenu() {
   const spi = useMessages(subProcessInfoMessages);
   const locale = useLocale();
   const flow = useBankStore((s) => s.flow);
-  const sub = useBankStore((s) => s.subProcess);
+  const sub = useBankStore((s) => groupOf(s.subProcess));
   const setFlow = useBankStore((s) => s.setActiveFlow);
   const [open, setOpen] = useState(false);
+  // While a demo runs the menu is locked: no flow switch mid-run (cancel the demo, or let it finish).
+  const locked = useDemoLocked();
+  useEffect(() => {
+    if (locked) setOpen(false);
+  }, [locked]);
   const infoOpen = useBankStore((s) => s.selection.kind === 'subprocess');
   // The sheet open when the list opened: hovering previews other sheets, and closing without a pick brings it back.
   const before = useRef<Selection | null>(null);
-  const selected = MENU_CHOICES.findIndex((c) => (sub && showsGroupsOf(flow) ? c.kind === 'sub' && c.sub === sub : c.kind === 'flow' && c.flow === flow));
+  const citChild = useBankStore(citChildOf);
+  const selected = MENU_CHOICES.findIndex((c) => (citChild ? c.kind === 'cit' && citDemoOfKey(c.key) === citChild : sub && showsGroupsOf(flow) ? c.kind === 'sub' && c.sub === sub : c.kind === 'flow' && c.flow === flow));
   const [active, setActive] = useState(selected);
   const trigger = useRef<HTMLButtonElement>(null);
   const listId = useId();
   const accent = GUIDED_FLOWS[flow].accent;
   // A single-group flow's group is shown as its flow, as the menu lists it.
   const group = sub && showsGroupsOf(flow) ? sub : null;
-  // A CIT child picked from the menu names the menu while its sheet is open.
-  const citKey = useBankStore((s) => (s.selection.kind === 'subprocess' && CIT_SHEET_OF.has(s.selection.key) ? (s.selection.key as CitInfoKey) : null));
-  const cit = citKey && flow === CIT_FLOW ? CIT_SHEET_OF.get(citKey)! : null;
+  // A CIT child picked from the menu names the menu (and owns the map's highlight and the dock) until another choice is made.
+  const cit = citChild ? CIT_SHEET_OF.get(CIT_INFO_KEYS[citChild])! : null;
   const title = cit ? `${cit.icon} ${pick(cit.title, locale)}` : group ? pick(demoGroup(group).title, locale) : `${GUIDED_FLOWS[flow].code}. ${flowText(flow).title}`;
   // The lesson of what the menu names: the CIT child, the sub-group (or the single group of its flow), else the flow.
   const lessonKey = cit ? cit.key as CitInfoKey : (sub && demoGroup(sub).flow === flow ? sub : `flow-${flow}` as const);
@@ -82,10 +87,10 @@ export function SubProcessMenu() {
   };
 
   const choose = (c: MenuChoice | undefined): void => {
-    if (!c) return;
+    if (!c || demoLocked()) return;
     if (c.kind === 'flow') setFlow(c.flow);
     else if (c.kind === 'sub') selectSubProcess(c.sub);
-    else setFlow(c.flow);
+    else bankStore.getState().selectSubProcess(citDemoOfKey(c.key)!, CIT_FLOW);
     before.current = null;
     // A CIT child's sheet is where its scenario runs from, so it always opens.
     showInfo(c, c.kind === 'cit');
@@ -124,14 +129,17 @@ export function SubProcessMenu() {
         aria-controls={listId}
         aria-activedescendant={open ? `${listId}-${active}` : undefined}
         aria-label={m('selectSubProcess')}
-        title={group ? pick(demoGroup(group).title, locale) : flowText(flow).blurb}
+        title={locked ? m('demoLocked') : group ? pick(demoGroup(group).title, locale) : flowText(flow).blurb}
+        disabled={locked}
+        data-locked={locked || undefined}
         onClick={() => setOpen((o) => !o)}
         onKeyDown={onKeyDown}
         data-testid="flow-menu"
         data-flow={flow}
         data-sub={sub ?? undefined}
-        className="flex w-full min-w-0 max-w-[min(420px,90vw)] items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/95 px-3 py-1.5 text-[12px] font-semibold text-slate-100 shadow-xl transition hover:bg-slate-900"
+        className="flex w-full min-w-0 max-w-[min(420px,90vw)] items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/95 px-3 py-1.5 text-[12px] font-semibold text-slate-100 shadow-xl transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
       >
+        {locked && <span aria-hidden="true">🔒</span>}
         <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: accent, boxShadow: `0 0 8px ${accent}` }} aria-hidden="true" />
         <span className="min-w-0 truncate" data-testid="flow-menu-title">
           {title}
@@ -178,11 +186,6 @@ export function SubProcessMenu() {
                   </span>
                 )}
                 <span className="min-w-0 flex-1">{label}</span>
-                {c.kind === 'cit' && (
-                  <span className="shrink-0 rounded bg-cyan-400/15 px-1 font-mono text-[9.5px] font-bold text-cyan-200 ring-1 ring-cyan-300/30" aria-hidden="true">
-                    CIT
-                  </span>
-                )}
                 {on && (
                   <span aria-hidden="true" style={{ color: accent }}>
                     ✓
