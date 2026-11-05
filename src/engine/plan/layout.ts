@@ -454,7 +454,8 @@ const ROUTES: Record<string, RouteSpec> = {
   'ATM_CASH>OUT_APPROVED': R(['l', 10], ['r', 10], { quiet: true }),
   'ATM_CASH>SUSPENSE': R(['b', -70], ['t', 40], { via: [[1120, 614], [1040, 614]], quiet: true }),
   'COLLATERAL_VAULT>SAVINGS_DESK': R(['t'], ['b'], { labelAt: [1480, 618] }),
-  'SAVINGS_DESK>LEDGER_DEBIT': R(['t'], ['t', 20], { via: [[1440, 24], [800, 24]], labelAt: [1200, 24] }),
+  // Its own lane under the band's decline lane (y 44), clear of the 8 / 19 / 30 decline corridor it used to squeeze into.
+  'SAVINGS_DESK>LEDGER_DEBIT': R(['t'], ['t', 20], { via: [[1440, 55], [800, 55]], labelAt: [1200, 55] }),
   // Phase 8 band: declines drop beside the trunk to the floor lane and climb the right-hand gutter, each on its own lane of every run (DECLINE_LANES), until the reject gateway collects them (GATEWAYS) and one trunk carries them into Declined.
   ...bandRoutes(
     BAND_ROW_2D,

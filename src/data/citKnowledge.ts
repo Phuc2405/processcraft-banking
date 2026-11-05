@@ -60,8 +60,12 @@ const SCENARIOS: KbTable = {
   }),
 };
 
+/** The CIT legal basis: the article's footer and the CIT flashcards. */
+export const CIT_REF = L('SBV Circular 01/2014/TT-NHNN (cash receipt, storage and transport)', 'Thông tư 01/2014/TT-NHNN (giao nhận, bảo quản, vận chuyển tiền mặt)');
+
 export const CIT_ARTICLE = {
   id: 'cit-vault',
+  basis: CIT_REF,
   title: L('Vault management, cash in transit (CIT) and Circular 01/2014/TT-NHNN', 'Nghiệp vụ Quản lý Kho quỹ, Vận chuyển tiền mặt (CIT) & Tuân thủ Thông tư 01/2014/TT-NHNN'),
   intro: L(
     'Cash is the one asset a bank can lose by walking out of the door. Vault management keeps the right amount in the right place (the vault, the ATMs, HQ, the central bank); cash in transit moves it in sealed bags under dual control; and every step has a GL entry, so the books always say where the cash physically is.',

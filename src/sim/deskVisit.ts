@@ -5,6 +5,7 @@
  * 2D map and the 3D office. It only draws people: the simulation, its KPIs and its seeded days never see it.
  */
 
+import { actorStatus, type ActorStatus } from './actorStatus';
 import type { PresetId } from './presets';
 import type { OpsActionId } from './retailOps';
 
@@ -84,10 +85,8 @@ export interface VisitGeometry {
 
 export type VisitPhase = 'walk' | 'queue' | 'transact' | 'leave';
 
-/** What the label over a person's head says: on the way in, waiting their turn, at the counter, finished and on the way out. */
-export type VisitStatus = 'arriving' | 'waiting' | 'processing' | 'done';
-const PHASE_STATUS: Readonly<Record<VisitPhase, VisitStatus>> = { walk: 'arriving', queue: 'waiting', transact: 'processing', leave: 'done' };
-export const statusOfPhase = (phase: VisitPhase): VisitStatus => PHASE_STATUS[phase];
+/** What the label over a visitor's head says (actorStatus.ts: the same words as every other actor's). */
+export const statusOfPhase = (phase: VisitPhase): ActorStatus => actorStatus('visit', phase)!;
 
 export interface VisitFigure {
   /** Stable across frames: `c0`, `c1`… for customers, `officer` for the officer. */

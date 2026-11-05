@@ -1,0 +1,322 @@
+{
+ "flow-1": {
+  "code": "POS-01",
+  "gl": [
+   "Dr 1110 core:CUST_CASA_HOLD",
+   "Cr 2110 core:CARD_CLEARING_PAYABLE",
+   "Dr 2010 ops:CASA",
+   "Cr 4520 ops:FEE_INCOME"
+  ],
+  "legal": [
+   "circ-18-2024",
+   "iso-8583",
+   "pci-dss"
+  ],
+  "steps": [
+   "Terminal sends the 0100 authorisation request.",
+   "Core banking checks the available balance and limits.",
+   "Authorisation hold: Dr CASA hold / Cr card clearing payable.",
+   "0110 response: RC 00 approved or RC 51 insufficient funds.",
+   "23:00 batch captures the hold and settles the merchant."
+  ],
+  "stepsVi": [
+   "Máy POS gửi điện cấp phép 0100.",
+   "Core Banking kiểm tra số dư khả dụng và hạn mức.",
+   "Phong tỏa cấp phép: Nợ phong tỏa CASA / Có phải trả bù trừ thẻ.",
+   "Điện trả lời 0110: RC 00 chấp thuận hoặc RC 51 không đủ số dư.",
+   "Lô 23:00 ghi nhận khoản phong tỏa và quyết toán cho ĐVCNT."
+  ]
+ },
+ "flow-2": {
+  "code": "WEB-02",
+  "gl": [
+   "Dr 1310 core:BNPL_RECEIVABLE",
+   "Cr 2110 core:CARD_CLEARING_PAYABLE",
+   "Dr 1320 ops:LOAN",
+   "Cr 1113 ops:INTERBANK"
+  ],
+  "legal": [
+   "emv-3ds",
+   "circ-31-2024",
+   "iso-20022",
+   "au-nccp-2009"
+  ],
+  "steps": [
+   "DPAN detokenised and dCVV validated, or 3DS AReq scored.",
+   "Medium risk: OTP challenge shifts liability to the issuer.",
+   "Pay-in-4: fast-fail on CIC 3–5, STP when every rule passes.",
+   "Funds check and hold, then the 0110 response."
+  ],
+  "stepsVi": [
+   "Giải mã DPAN và kiểm tra dCVV, hoặc chấm điểm 3DS AReq.",
+   "Rủi ro trung bình: thử thách OTP chuyển trách nhiệm sang NH phát hành.",
+   "Trả góp: loại sớm CIC nhóm 3–5, STP khi đạt mọi quy tắc.",
+   "Kiểm tra số dư và phong tỏa, rồi điện trả lời 0110."
+  ]
+ },
+ "flow-3": {
+  "code": "ATM-03",
+  "gl": [
+   "Dr 2010 ops:CASA",
+   "Cr 1011 ops:CASH_ATM",
+   "Cr 4520 ops:FEE_INCOME",
+   "Cr 3510 ops:NAPAS_FEE",
+   "Dr 2930 ops:ATM_SUSPENSE"
+  ],
+  "legal": [
+   "circ-36-2012",
+   "circ-18-2024",
+   "iso-8583"
+  ],
+  "steps": [
+   "Card read and PIN verified (three tries).",
+   "Notes validated and counted, or dispensed.",
+   "Withdrawal: Dr 2010 / Cr 1011 cash + Cr 4520 fee + Cr 3510 NAPAS.",
+   "Jam: debit parked in TK 2930 until the cash count.",
+   "Cassette < 15%: CIT replenishment is dispatched."
+  ],
+  "stepsVi": [
+   "Đọc thẻ và xác thực PIN (ba lần thử).",
+   "Kiểm tra, đếm tiền nộp, hoặc nhả tiền rút.",
+   "Rút: Nợ 2010 / Có 1011 tiền + Có 4520 phí + Có 3510 NAPAS.",
+   "Kẹt tiền: khoản trừ treo TK 2930 đến khi kiểm quỹ.",
+   "Hộp tiền < 15%: điều xe CIT tiếp quỹ."
+  ]
+ },
+ "flow-4": {
+  "code": "EOD-04",
+  "gl": [
+   "Dr 2110 core:CARD_CLEARING_PAYABLE",
+   "Cr 1210 core:SCHEME_NOSTRO",
+   "Dr 1910 core:RECON_SUSPENSE"
+  ],
+  "legal": [
+   "decree-52-2024",
+   "iso-20022",
+   "circ-13-2018"
+  ],
+  "steps": [
+   "Cut-off: authorised-but-unsettled holds queue for the batch.",
+   "Clearing (presentment) file built and sent.",
+   "Scheme net settlement: Dr customer / Cr CASA hold.",
+   "3-way match; breaks post to TK 1910 reconciliation suspense."
+  ],
+  "stepsVi": [
+   "Chốt sổ: khoản phong tỏa chưa quyết toán vào lô.",
+   "Lập và gửi file bù trừ (presentment).",
+   "Quyết toán ròng: Nợ khách hàng / Có phong tỏa CASA.",
+   "Đối chiếu 3 bên; chênh lệch vào TK 1910 treo đối soát."
+  ]
+ },
+ "flow-5": {
+  "code": "KYC-05",
+  "gl": [
+   "Dr 1410 core:A2A_INSTANT_SETTLEMENT",
+   "Cr 2010 core:CUST_CASA"
+  ],
+  "legal": [
+   "circ-16-2020",
+   "circ-17-2024",
+   "law-14-2022"
+  ],
+  "steps": [
+   "Chip and OCR read of the CCCD.",
+   "Liveness and face match; a failure is EKYC_LIVENESS_FAILED.",
+   "Sanctions / PEP fuzzy screen (Jaro-Winkler ≥ 85 holds).",
+   "Account opened: Dr 1410 / Cr 2010 opening deposit."
+  ],
+  "stepsVi": [
+   "Đọc chip và OCR CCCD.",
+   "Kiểm tra người thật và so khớp; lỗi là EKYC_LIVENESS_FAILED.",
+   "Sàng lọc gần đúng cấm vận / PEP (Jaro-Winkler ≥ 85 bị giữ).",
+   "Mở tài khoản: Nợ 1410 / Có 2010 khoản nộp đầu."
+  ]
+ },
+ "flow-6": {
+  "code": "TLR-06",
+  "gl": [
+   "Dr 1011 ops:CASH_TILL",
+   "Cr 2010 ops:CASA",
+   "Dr 1011 ops:CASH_VAULT",
+   "Cr 1011 ops:CASH_TILL"
+  ],
+  "legal": [
+   "circ-01-2014",
+   "decision-11-2023",
+   "law-14-2022",
+   "au-ttr"
+  ],
+  "steps": [
+   "Kiosk STP check: amount < CTR line and no AML hit.",
+   "Teller count against the till; suspect notes recorded.",
+   "Deposit: Dr 1012 teller cash / Cr 2010 CASA.",
+   "Till > $50,000: counter locked until the vault transfer.",
+   "CTR filed at $10,000 or more."
+  ],
+  "stepsVi": [
+   "Kiểm tra STP kiosk: dưới ngưỡng CTR và không cảnh báo AML.",
+   "Kiểm đếm theo ngăn kéo; ghi nhận tiền nghi giả.",
+   "Nộp: Nợ 1012 tiền mặt quầy / Có 2010 CASA.",
+   "Ngăn kéo > $50,000: khóa quầy đến khi nộp kho.",
+   "Lập CTR từ $10,000."
+  ]
+ },
+ "flow-7": {
+  "code": "QR-07",
+  "gl": [
+   "Dr 2010 ops:CASA",
+   "Cr 1113 ops:INTERBANK",
+   "Cr 1950 ops:WALLET_SETTLEMENT"
+  ],
+  "legal": [
+   "decree-52-2024",
+   "circ-40-2024",
+   "iso-20022"
+  ],
+  "steps": [
+   "EMVCo TLV parse and CRC-16 check of tag 63.",
+   "Over 10M VND: face match ≥ 85% with liveness.",
+   "FDS score ≥ 70 declines as FDS_HIGH_RISK_DEVICE.",
+   "Dr 2010 / Cr 1410 instant settlement."
+  ],
+  "stepsVi": [
+   "Phân tích TLV EMVCo và kiểm tra CRC-16 thẻ 63.",
+   "Trên 10 triệu VND: so khớp khuôn mặt ≥ 85% kèm người thật.",
+   "Điểm FDS ≥ 70 bị từ chối FDS_HIGH_RISK_DEVICE.",
+   "Nợ 2010 / Có 1410 quyết toán tức thì."
+  ]
+ },
+ "flow-8": {
+  "code": "SWF-08",
+  "gl": [
+   "Dr 2010 core:CUST_CASA",
+   "Cr 1430 core:SWIFT_NOSTRO",
+   "Cr 2510 core:AML_RESTRAINED_FUNDS",
+   "Dr 1510 core:DISPUTE_RECEIVABLE"
+  ],
+  "legal": [
+   "iso-20022",
+   "fatf-recs",
+   "au-ifti",
+   "law-14-2022"
+  ],
+  "steps": [
+   "pacs.008 validation: EndToEndId, BICs, amount and currency.",
+   "Sanctions screen; a hit freezes funds in TK 2510.",
+   "Dr 2010 / Cr 1430 correspondent nostro.",
+   "Returns and chargebacks decided at the disputes desk."
+  ],
+  "stepsVi": [
+   "Kiểm tra pacs.008: EndToEndId, BIC, số tiền và tiền tệ.",
+   "Sàng lọc cấm vận; trùng khớp phong tỏa vào TK 2510.",
+   "Nợ 2010 / Có 1430 Nostro đại lý.",
+   "Hoàn trả và hoàn tiền thẻ do bộ phận tra soát quyết định."
+  ]
+ },
+ "token-3ds": {
+  "code": "3DS-01",
+  "gl": [
+   "Dr 1110 core:CUST_CASA_HOLD",
+   "Cr 2110 core:CARD_CLEARING_PAYABLE",
+   "Dr 5010 core:FRAUD_LOSS_EXPENSE"
+  ],
+  "legal": [
+   "emv-3ds",
+   "pci-dss",
+   "circ-18-2024"
+  ],
+  "steps": [
+   "Detokenise DPAN → FPAN; validate dCVV window.",
+   "Score below threshold: frictionless.",
+   "In the band: OTP challenge; above: reject."
+  ],
+  "stepsVi": [
+   "Giải mã DPAN → FPAN; kiểm tra thời hạn dCVV.",
+   "Điểm dưới ngưỡng: không ma sát.",
+   "Trong khoảng: thử thách OTP; trên ngưỡng: từ chối."
+  ]
+ },
+ "bnpl-credit": {
+  "code": "BNPL-01",
+  "gl": [
+   "Dr 1320 ops:LOAN",
+   "Cr 1113 ops:INTERBANK",
+   "Dr 2010 ops:CASA"
+  ],
+  "legal": [
+   "circ-31-2024",
+   "circ-39-2016",
+   "au-nccp-2009",
+   "au-rg-209"
+  ],
+  "steps": [
+   "Fast-fail gates: biometric, FDS device, CIC 3–5.",
+   "STP rule check on amount, DTI, eKYC and CIC.",
+   "Fallback to the appraisal desk with flags.",
+   "Approved: Dr 1320 receivable / Cr merchant settlement."
+  ],
+  "stepsVi": [
+   "Cổng loại sớm: sinh trắc, thiết bị FDS, CIC 3–5.",
+   "Kiểm tra quy tắc STP: số tiền, DTI, eKYC và CIC.",
+   "Chuyển quầy thẩm định kèm cờ.",
+   "Duyệt: Nợ 1320 phải thu / Có quyết toán cửa hàng."
+  ]
+ },
+ "cit-vault": {
+  "code": "CIT-01",
+  "gl": [
+   "Dr 1131 cit:TRANSIT",
+   "Cr 1111 cit:VAULT",
+   "Dr 1113 cit:ATM",
+   "Dr 1112 cit:UNFIT",
+   "Dr 1121 cit:SBV",
+   "Cr 4211 cit:CORP"
+  ],
+  "legal": [
+   "circ-01-2014",
+   "circ-13-2018",
+   "iso-20022"
+  ],
+  "steps": [
+   "Trigger: ATM < $10k, vault > $5M or < $1M, SBV surplus, doorstep schedule — or a manual demo dispatch.",
+   "EN_ROUTE: Dr 1131 / Cr source.",
+   "ARRIVED: seal and two custodians verified; a mismatch is minuted.",
+   "IN_COUNT: fit / unfit sort, shortfall found.",
+   "DELIVERED: Dr destination (+1112 unfit) / Cr 1131; SETTLED when 1131 = 0."
+  ],
+  "stepsVi": [
+   "Kích hoạt: ATM < $10k, kho > $5M hoặc < $1M, thừa tiền nộp NHNN, lịch thu tận nơi — hoặc lệnh điều xe thủ công.",
+   "Đang vận chuyển: Nợ 1131 / Có nơi xuất.",
+   "Đã đến: kiểm niêm phong và hai thủ quỹ; sai lệch phải lập biên bản.",
+   "Kiểm đếm: phân loại đủ / không đủ TC, phát hiện thiếu.",
+   "Đã giao: Nợ nơi nhận (+1112) / Có 1131; Tất toán khi 1131 = 0."
+  ]
+ },
+ "aml-sanctions": {
+  "code": "AML-01",
+  "gl": [
+   "Dr 2010 core:CUST_CASA",
+   "Cr 2510 core:AML_RESTRAINED_FUNDS",
+   "Cr 1430 core:SWIFT_NOSTRO"
+  ],
+  "legal": [
+   "law-14-2022",
+   "decree-19-2023",
+   "fatf-recs",
+   "au-smr",
+   "au-amlctf-2006"
+  ],
+  "steps": [
+   "Fuzzy match (Jaro-Winkler ≥ 85) holds the payment.",
+   "Analyst compares DOB, nationality and documents.",
+   "False positive: release to STP (Dr 2010 / Cr nostro).",
+   "True match: block, Cr 2510 restrained funds, file the report."
+  ],
+  "stepsVi": [
+   "So khớp gần đúng (Jaro-Winkler ≥ 85) giữ giao dịch.",
+   "Chuyên viên so ngày sinh, quốc tịch và hồ sơ.",
+   "Cảnh báo nhầm: giải tỏa về STP (Nợ 2010 / Có Nostro).",
+   "Trùng thật: chặn, Có 2510 tiền phong tỏa, lập báo cáo."
+  ]
+ }
+}

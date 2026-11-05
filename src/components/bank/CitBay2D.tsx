@@ -1,18 +1,25 @@
 import { memo } from 'react';
 import { PLACE_BOX } from '../../engine/plan/layout';
-import { CIT_STRATEGIES, type CitAccountId, type CitSnapshot } from '../../sim/citEngine';
+import { actorStatus } from '../../sim/actorStatus';
+import { crewOf, vaultPulseAt, type CrewPoint } from '../../sim/citCrew';
+import { citBayRun, citDemoOpen, CIT_STRATEGIES, type CitAccountId, type CitSnapshot } from '../../sim/citEngine';
 import { formatMoney } from '../../sim/kpis';
 import { beatLive, useBankStore } from '../../store/bankStore';
 import { useMessages } from '../../utils/i18nHelper';
 import { citMessages } from '../ops/cit.messages';
 import { useCit } from '../ops/CitPanel';
+import { ActorStatusBadge } from './ActorStatusBadge';
+import { H, Person, W } from './DeskVisitors2D';
 
-/** The loading bay on the map's bottom-right edge, under the vault: the van, the custodian and the cassettes moving between them. */
+/** The loading bay on the map's bottom-right edge, under the vault: the van, and its crew walking between the van and the vault. */
 export const CIT_BAY = { x: 1336, y: 772, w: 208, h: 216 } as const;
 
 const VAULT = PLACE_BOX.COLLATERAL_VAULT;
 const VAULT_BOTTOM = VAULT.cy + VAULT.h / 2;
 const VAN_Y = CIT_BAY.y + 148;
+/** The crew's walk on the 2D map: straight up from the van's door to the vault's, the custodian on the left, the guard on the right. */
+const WALK = { x: CIT_BAY.x + CIT_BAY.w / 2, van: VAN_Y - 6, vault: VAULT_BOTTOM + H / 2 + 2 } as const;
+const LANE = { custodian: -13, guard: 13 } as const;
 const ENDPOINTS: ReadonlyArray<{ account: CitAccountId; icon: string }> = [
   { account: 'ATM', icon: '🏧' },
   { account: 'HQ_VAULT', icon: '🏛️' },
@@ -22,8 +29,36 @@ const ENDPOINTS: ReadonlyArray<{ account: CitAccountId; icon: string }> = [
 
 export const CitBay2D = memo(function CitBay2D() {
   const select = useBankStore((s) => s.select);
-  return <CitBayView cit={useCit()} live={useBankStore(beatLive)} onOpen={() => select({ kind: 'station', id: 'COLLATERAL_VAULT' })} />;
+  const cit = useCit();
+  // A paused bank still plays the learner's own van (a pause-isolated demo): the bay animates, nothing else does.
+  const solo = useBankStore((s) => !s.playing) && citDemoOpen(cit) !== null;
+  const live = useBankStore(beatLive) || solo;
+  return <CitBayView cit={cit} live={live} onOpen={() => select({ kind: 'station', id: 'COLLATERAL_VAULT' })} />;
 });
+
+/** A crew member on the 2D walk: the same figure and badge as a customer at a counter (DeskVisitors2D, ActorStatusBadge). */
+function CrewFigure2D({ role, flow, p }: { role: 'custodian' | 'guard'; flow: 'IN' | 'OUT'; p: CrewPoint }) {
+  const y = WALK.van + (WALK.vault - WALK.van) * p.along;
+  const status = actorStatus('cit', `${flow}:${p.stage}`);
+  return (
+    <div
+      className="bk-visit-figure pointer-events-none absolute left-0 top-0 z-[23]"
+      style={{ transform: `translate(${WALK.x + LANE[role] - W / 2}px, ${y - H / 2}px)`, transition: 'transform 300ms linear' }}
+      data-phase={p.walking ? 'walk' : 'transact'}
+      data-testid={`cit-crew-${role}`}
+      data-stage={p.stage}
+      data-carrying={p.carrying}
+    >
+      <Person shirt={role === 'guard' ? '#1e293b' : '#0e7490'} officer={role === 'guard'} />
+      {p.carrying && (
+        <span className="absolute -right-2 top-3 text-[12px]" aria-hidden="true">
+          💼
+        </span>
+      )}
+      {status && <ActorStatusBadge status={status} />}
+    </div>
+  );
+}
 
 export function CitBayView({ cit, live, onOpen }: { cit: CitSnapshot; live: boolean; onOpen: () => void }) {
   const m = useMessages(citMessages);
@@ -31,11 +66,19 @@ export function CitBayView({ cit, live, onOpen }: { cit: CitSnapshot; live: bool
   const moving = run && run.status !== 'SETTLED' ? run : null;
   const route = moving ? CIT_STRATEGIES[moving.order.scenario].route(moving.order.direction) : null;
   const other = route ? (route.from === 'VAULT' ? route.to : route.from) : null;
-  const atBay = !!moving && (cit.vaultFlow !== null || moving.status !== 'EN_ROUTE');
+  const atBay = citBayRun(cit) !== null;
   const flow = cit.vaultFlow;
+  const crew = cit.bay ? crewOf(cit.bay.flow, cit.bay.u) : null;
+  const post = cit.bay ? vaultPulseAt(cit.bay.flow, cit.bay.u) : null;
   return (
-    <>
+    <div data-frozen={!live} data-testid="cit-bay-layer" className="contents">
       {flow && <div aria-hidden="true" className={`pointer-events-none absolute z-[21] rounded-xl ${flow === 'OUT' ? 'bk-vault-out' : 'bk-vault-in'}`} style={{ left: VAULT.cx - VAULT.w / 2 - 4, top: VAULT.cy - VAULT.h / 2 - 4, width: VAULT.w + 8, height: VAULT.h + 8 }} data-testid="cit-vault-pulse" data-flow={flow} />}
+      {post && (
+        // The vault's own line as the cash crosses its door: gold Dr 1111 in, orange Cr 1111 out.
+        <span aria-hidden="true" className={`bk-cit-count pointer-events-none absolute z-[24] rounded-full px-1.5 py-px font-mono text-[10px] font-bold ${post === 'IN' ? 'bg-amber-400/25 text-amber-200 ring-1 ring-amber-300' : 'bg-orange-500/25 text-orange-200 ring-1 ring-orange-400'}`} style={{ left: VAULT.cx + VAULT.w / 2 - 54, top: VAULT.cy - VAULT.h / 2 - 10 }} data-testid="cit-vault-post" data-flow={post}>
+          {post === 'IN' ? 'Dr 1111' : 'Cr 1111'}
+        </span>
+      )}
       <button
         type="button"
         onClick={onOpen}
@@ -49,9 +92,6 @@ export function CitBayView({ cit, live, onOpen }: { cit: CitSnapshot; live: bool
         <span className="absolute left-2 top-1.5 text-[10.5px] font-bold uppercase tracking-wider text-cyan-200">{m('bay')}</span>
         <span key={cit.book.VAULT} className="bk-cit-count absolute right-2 top-1.5 font-mono text-[10.5px] font-bold tabular-nums text-amber-200" data-testid="cit-vault-counter">
           {formatMoney(cit.book.VAULT)}
-        </span>
-        <span className="absolute left-1/2 top-[34px] -translate-x-1/2 text-[18px]" aria-hidden="true">
-          👮
         </span>
         <span className={`absolute left-1/2 -translate-x-1/2 text-[26px] transition-opacity duration-500 ${atBay ? 'opacity-100' : 'opacity-25'}`} style={{ top: VAN_Y - CIT_BAY.y - 18 }} aria-hidden="true" data-testid="cit-van">
           🚚
@@ -69,15 +109,8 @@ export function CitBayView({ cit, live, onOpen }: { cit: CitSnapshot; live: bool
           ))}
         </span>
       </button>
-      {flow && (
-        <div aria-hidden="true" className="pointer-events-none absolute z-[22]" style={{ left: VAULT.cx - 8, top: VAULT_BOTTOM, height: VAN_Y - VAULT_BOTTOM }} data-testid="cit-particles" data-flow={flow}>
-          {[0, 1, 2].map((i) => (
-            <span key={i} className={`absolute left-0 top-0 text-[14px] ${flow === 'OUT' ? 'bk-cit-down' : 'bk-cit-up'}`} style={{ animationDelay: `${i * 0.6}s`, animationPlayState: live ? 'running' : 'paused', ['--cit-dist' as string]: `${VAN_Y - VAULT_BOTTOM}px` }}>
-              💼
-            </span>
-          ))}
-        </div>
-      )}
-    </>
+      {cit.bay && crew?.custodian && <CrewFigure2D role="custodian" flow={cit.bay.flow} p={crew.custodian} />}
+      {cit.bay && crew?.guard && <CrewFigure2D role="guard" flow={cit.bay.flow} p={crew.guard} />}
+    </div>
   );
 }

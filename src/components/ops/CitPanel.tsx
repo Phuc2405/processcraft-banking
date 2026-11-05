@@ -5,6 +5,7 @@ import {
   advance,
   citAccount,
   citAt,
+  CIT_DEMOS,
   citOrder,
   CIT_STATUSES,
   CIT_STRATEGIES,
@@ -12,13 +13,17 @@ import {
   logIncident,
   startRun,
   verifySeal,
+  type CitDemo,
   type CitDirection,
+  type CitManual,
   type CitLine,
   type CitRun,
   type CitScenario,
   type CitSnapshot,
 } from '../../sim/citEngine';
 import { useBankStore } from '../../store/bankStore';
+import { useCitStore } from '../../store/citStore';
+import { citDemoBlock, dispatchCitDemo } from './citActions';
 import { pick, useLocale, useMessages } from '../../utils/i18nHelper';
 import { SectionTitle } from '../bank/ui';
 import { citMessages } from './cit.messages';
@@ -27,7 +32,39 @@ import { citMessages } from './cit.messages';
 export function useCit(): CitSnapshot {
   const day = useBankStore((s) => s.view.day);
   const minute = useBankStore((s) => s.view.minute);
-  return useMemo(() => citAt(day, minute), [day, minute]);
+  const manual = useCitStore((s) => (s.day === day ? s.manual : NONE));
+  return useMemo(() => citAt(day, minute, manual), [day, minute, manual]);
+}
+
+const NONE: readonly CitManual[] = [];
+
+export const DEMO_ICON: Readonly<Record<CitDemo, string>> = { ATM: '🏧', DOORSTEP: '🏬', SBV: '🏦' };
+
+/** The three manual van dispatches laid out as buttons, in the vault's inspector and on the CIT sheet (the dock has CitDemoMenu). */
+export function CitDemoButtons({ compact = false }: { compact?: boolean }) {
+  const m = useMessages(citMessages);
+  const cit = useCit();
+  const dayOver = useBankStore((s) => s.view.dayOver);
+  const block = citDemoBlock(cit, dayOver);
+  return (
+    <span className="flex flex-wrap items-center gap-1.5" role="group" aria-label={m('demoGroup')} data-testid="cit-demo-buttons" data-block={block ?? 'none'}>
+      {CIT_DEMOS.map((kind) => {
+        return (
+          <button
+            key={kind}
+            type="button"
+            onClick={() => dispatchCitDemo(kind)}
+            disabled={block !== null}
+            title={block ? m(`demoBlock_${block}`) : m(`demoHint_${kind}`)}
+            data-testid={`cit-demo-${kind}`}
+            className="whitespace-nowrap rounded-lg bg-cyan-400 px-3 py-1.5 text-[12px] font-bold text-cyan-950 shadow transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <span aria-hidden="true">{DEMO_ICON[kind]}</span> {m(compact ? `demoOption_${kind}` : `demo_${kind}`)}
+          </button>
+        );
+      })}
+    </span>
+  );
 }
 
 /** A CIT journal: Dr lines first, Cr indented, the 1131 counter-entries ringed. */
@@ -133,9 +170,9 @@ function RunCard({ run, start }: { run: CitRun; start?: number }) {
 }
 
 /** The inspector's CIT section for the vault: balances, the active run and the day's runs. */
-export const CitInspector = () => <CitInspectorView cit={useCit()} />;
+export const CitInspector = () => <CitInspectorView cit={useCit()} demos />;
 
-export function CitInspectorView({ cit }: { cit: CitSnapshot }) {
+export function CitInspectorView({ cit, demos = false }: { cit: CitSnapshot; demos?: boolean }) {
   const m = useMessages(citMessages);
   const locale = useLocale();
   const started = cit.runs.filter((r) => r.run);
@@ -156,6 +193,11 @@ export function CitInspectorView({ cit }: { cit: CitSnapshot }) {
           </div>
         ))}
       </div>
+      {demos && (
+        <div className="mb-2">
+          <CitDemoButtons compact />
+        </div>
+      )}
       {cit.active ? <RunCard run={cit.active.run} start={cit.active.planned.start} /> : <p className="text-[12px] text-slate-500">{m('noRuns')}</p>}
       {started.length > 1 && (
         <ul className="mt-2 space-y-0.5 text-[11.5px]" data-testid="cit-runs">

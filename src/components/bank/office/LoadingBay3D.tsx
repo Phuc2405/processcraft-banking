@@ -4,14 +4,16 @@ import type { Group } from 'three';
 import { MeshBasicMaterial } from 'three';
 import { CustomerFigure } from './Avatars';
 import { CARRY_PATH, LOADING_BAY, LOADING_DOOR, VAN_REAR, type CitPhase, type CitRun, type Load } from '../../../engine/world/citRun';
+import { TAG_STYLE } from '../personStatus';
+import { Html } from '@react-three/drei';
 import { Sign, useMerged } from './Dressing';
 import { box, type Part } from './kit';
-import { FLOOR_SLAB } from '../../../engine/plan/layout3d';
+import { FLOOR_SLAB, STATION_POSES } from '../../../engine/plan/layout3d';
 import { glow, solid } from './materials';
 import { CitMarker, bodyParts } from './Vehicles3D';
 import { LENGTH, WIDTH } from '../../../engine/world/vehicles';
 
-/** The cash-in-transit run to the vault (citRun.ts says where everything is). */
+/** The cash-in-transit run to the vault and its crew on foot (citRun.ts says where everything is, sim/citCrew.ts when). */
 
 const HX = FLOOR_SLAB.w / 2;
 const GROUND_Y = -0.03;
@@ -41,7 +43,7 @@ function bayParts(): Part[] {
   return out;
 }
 
-/** The van's rear doors, hinged at their outer edges; and what the guard carries. */
+/** The van's rear doors, hinged at their outer edges. */
 function RearDoors({ doors }: { doors: { current: number } }) {
   const left = useRef<Group>(null);
   const right = useRef<Group>(null);
@@ -66,25 +68,77 @@ function RearDoors({ doors }: { doors: { current: number } }) {
   );
 }
 
-function Carried({ load }: { load: Load }) {
-  return load === 'bag' ? (
-    // A sealed cash bag, grey canvas with a red tag.
-    <group position={[0.2, 0.42, 0.06]}>
-      <mesh>
-        <boxGeometry args={[0.16, 0.22, 0.2]} />
-        <meshStandardMaterial color="#6b7280" roughness={0.9} />
-      </mesh>
-      <mesh position={[0, 0.13, 0]}>
-        <boxGeometry args={[0.05, 0.05, 0.05]} />
-        <meshStandardMaterial color="#dc2626" />
-      </mesh>
-    </group>
-  ) : (
-    // A steel cash box, carried in front in both hands.
+/** The steel cash cassette box, carried in front in both hands. */
+function Carried() {
+  return (
     <mesh position={[0, 0.5, 0.2]}>
       <boxGeometry args={[0.34, 0.2, 0.24]} />
       <meshStandardMaterial color="#9ca3af" metalness={0.7} roughness={0.3} />
     </mesh>
+  );
+}
+
+/** Each of the run's people on foot: their look and the shirt they wear. */
+const ROLES = [
+  { role: 'custodian', index: 61, shirt: '#0e7490', wear: 'none' },
+  { role: 'guard', index: 83, shirt: '#1e293b', wear: 'guard' },
+  { role: 'staff', index: 57, shirt: '#7c3aed', wear: 'none' },
+] as const;
+type Role = (typeof ROLES)[number]['role'];
+type Look = { visible: boolean; walking: boolean; carrying: Load | null };
+const HIDDEN: Look = { visible: false, walking: false, carrying: null };
+
+/** One of the run's people, moved every frame from the pose; re-rendered only when how they look changes. Their status badge is PeopleTags3D's, as everyone's. */
+function CrewMember({ run, role, index, shirt, wear }: { run: CitRun; role: Role; index: number; shirt: string; wear: 'none' | 'guard' }) {
+  const group = useRef<Group>(null);
+  const [look, setLook] = useState<Look>(HIDDEN);
+  useFrame(() => {
+    const f = run.pose().crew.find((c) => c.role === role);
+    if (group.current) {
+      group.current.visible = !!f;
+      if (f) {
+        group.current.position.set(f.at[0], GROUND_Y, f.at[1]);
+        group.current.rotation.y = f.heading;
+      }
+    }
+    const next: Look = f ? { visible: true, walking: f.walking, carrying: f.carrying } : HIDDEN;
+    if (next.visible !== look.visible || next.walking !== look.walking || next.carrying !== look.carrying) setLook(next);
+  });
+  return (
+    <group ref={group} visible={false} name={`cit-${role}`}>
+      {look.visible && <CustomerFigure index={index} shirt={shirt} walking={look.walking} scale={0.72} wear={wear} />}
+      {look.carrying && <Carried />}
+    </group>
+  );
+}
+
+const VAULT = STATION_POSES.COLLATERAL_VAULT;
+const PULSE = { IN: '#facc15', OUT: '#f97316' } as const;
+
+/** The vault's glow while cash crosses its door: gold for a deposit (Dr 1111), orange for a withdrawal (Cr 1111). */
+function VaultPulse({ run }: { run: CitRun }) {
+  const ring = useRef<Group>(null);
+  const [flow, setFlow] = useState<'IN' | 'OUT' | null>(null);
+  useFrame(({ clock }) => {
+    const f = run.pose().vaultPulse;
+    if (f !== flow) setFlow(f);
+    if (ring.current) ring.current.scale.setScalar(1 + 0.08 * Math.sin(clock.elapsedTime * 6));
+  });
+  if (!flow) return null;
+  return (
+    <group position={[VAULT.x, 0.02, VAULT.z]} name="cit-vault-pulse">
+      <group ref={ring}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[1.9, 2.2, 40]} />
+          <meshBasicMaterial color={PULSE[flow]} transparent opacity={0.85} toneMapped={false} />
+        </mesh>
+      </group>
+      <Html position={[0, 1.6, 0]} center zIndexRange={[11, 0]} style={{ pointerEvents: 'none' }}>
+        <div data-testid="cit-vault-post" style={{ ...TAG_STYLE, color: PULSE[flow] }}>
+          {flow === 'IN' ? 'Dr 1111' : 'Cr 1111'}
+        </div>
+      </Html>
+    </group>
   );
 }
 
@@ -96,11 +150,10 @@ export function LoadingBay3D({ run }: { run: CitRun }) {
   const lights = useMerged(() => parts.lights, [parts]);
   const van = useRef<Group>(null);
   const shutter = useRef<Group>(null);
-  const guard = useRef<Group>(null);
   const blinkLeft = useRef<Group>(null);
   const blinkRight = useRef<Group>(null);
   const doors = useMemo(() => ({ current: 0 }), []);
-  const [look, setLook] = useState<{ phase: CitPhase; guard: boolean; walking: boolean; carrying: Load | null; staff: boolean }>({ phase: run.phase, guard: false, walking: false, carrying: null, staff: false });
+  const [phase, setPhase] = useState<CitPhase>(run.phase);
   useFrame(({ clock }) => {
     const p = run.pose();
     if (van.current) {
@@ -118,15 +171,7 @@ export function LoadingBay3D({ run }: { run: CitRun }) {
     // Left is the van's own -z side (it faces +x at yaw 0), right its +z side.
     if (blinkLeft.current) blinkLeft.current.visible = p.signal === 1 && on;
     if (blinkRight.current) blinkRight.current.visible = p.signal === -1 && on;
-    if (guard.current) {
-      guard.current.visible = p.guard !== null;
-      if (p.guard) {
-        guard.current.position.set(p.guard.at[0], GROUND_Y, p.guard.at[1]);
-        guard.current.rotation.y = p.guard.heading;
-      }
-    }
-    const next = { phase: p.phase, guard: p.guard !== null, walking: p.guard?.walking ?? false, carrying: p.guard?.carrying ?? null, staff: p.shutter > 0.6 };
-    if (next.phase !== look.phase || next.guard !== look.guard || next.walking !== look.walking || next.carrying !== look.carrying || next.staff !== look.staff) setLook(next);
+    if (p.phase !== phase) setPhase(p.phase);
   });
   return (
     <group name="cit-loading-bay">
@@ -143,12 +188,6 @@ export function LoadingBay3D({ run }: { run: CitRun }) {
           <boxGeometry args={[0.06, 0.06, 0.3]} />
         </mesh>
       </group>
-      {look.staff && (
-        // A member of the vault's staff in the open doorway, facing out, taking the cash in.
-        <group position={[-HX + 0.25, 0, LOADING_DOOR[1]]} rotation={[0, -Math.PI / 2, 0]} name="cit-vault-staff">
-          <CustomerFigure index={57} shirt="#7c3aed" scale={0.72} />
-        </group>
-      )}
       <group ref={van} visible={false} name="cit-van">
         <mesh geometry={body} material={solid} castShadow />
         <mesh geometry={lights} material={glow} />
@@ -165,12 +204,13 @@ export function LoadingBay3D({ run }: { run: CitRun }) {
             ))}
           </group>
         ))}
-        {look.phase !== 'away' && <CitMarker />}
+        {phase !== 'away' && <CitMarker />}
       </group>
-      <group ref={guard} visible={false} name="cit-guard">
-        {look.guard && <CustomerFigure index={83} shirt="#1e293b" walking={look.walking} scale={0.72} wear="guard" />}
-        {look.carrying && <Carried load={look.carrying} />}
-      </group>
+      {/* The custodian and the guard step out of the cab and walk to the vault and back; the vault's staff walks out to open the door. */}
+      {ROLES.map((r) => (
+        <CrewMember key={r.role} run={run} {...r} />
+      ))}
+      <VaultPulse run={run} />
     </group>
   );
 }

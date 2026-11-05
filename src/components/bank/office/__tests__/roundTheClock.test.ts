@@ -171,8 +171,8 @@ describe('the car park never jams', () => {
     // Nobody back at their car waits long for the lot's turn.
     // Drivers now get out at the side door and walk round the tail, a few metres more each way.
     expect(longestWait).toBeLessThan(50);
-    // The cash van got its turns too.
-    expect(lot.cit.runs).toBeGreaterThan(2);
+    // The cash van got its turns too (each stop now walks the crew down the corridor to the vault and back).
+    expect(lot.cit.runs).toBeGreaterThanOrEqual(2);
   });
 
   it('empties at closing time, and starts empty when the office is opened after hours', () => {

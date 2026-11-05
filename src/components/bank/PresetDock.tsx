@@ -19,6 +19,13 @@ import { retailOpsMessages } from './retailOps.messages';
 import { opsStamp, runDemo } from './retailOpsActions';
 import { topBand, useInspectorCovers, useMeasuredBox, useRightInset, useTopBand } from './ViewportControls';
 import { dockLayout } from './dockOverflow';
+import { CitDemoMenu } from '../ops/CitDemoMenu';
+import { refillAtmByCit } from '../ops/citActions';
+import type { FlowId } from '../../types/viewport';
+
+/** The flows whose dock carries the CIT van dispatches (ATM cash and the teller vault), and the room their one menu takes inline. */
+export const CIT_DOCK_FLOWS: readonly FlowId[] = [3, 6];
+const CIT_DOCK_PX = 210;
 
 /** The one demo bar of the guided flow in focus, anchored at the bottom of the map in the Beginner scope. Every control runs through runDemo. */
 
@@ -201,7 +208,9 @@ function PresetDockView() {
   const title = group ? pick(group.title, locale) : `${f.code}. ${ft.title}`;
   const free = mapW > 0 ? mapW - right - 24 : 1280;
   // One row only: what the title, the lesson link and the padding leave of the free width must hold every pill, or the whole area is a dropdown.
-  const budget = free - Math.round(title.length * 6.2 + 24) - (lesson ? 30 : 0) - 32;
+  // The cash flows carry the CIT dispatch menu beside their own buttons.
+  const citDemos = CIT_DOCK_FLOWS.includes(flow);
+  const budget = free - Math.round(title.length * 6.2 + 24) - (lesson ? 30 : 0) - (citDemos ? CIT_DOCK_PX : 0) - 32;
   const windowW = typeof window === 'undefined' ? Infinity : window.innerWidth;
   const compact = dockIsCompact(mapW - right, shortMap, windowW);
   const dropdown = compact || dockLayout(actions.map((a) => ({ id: a.id, variant: a.variant, text: `${a.icon} ${a.label()}` })), budget, windowW) === 'dropdown';
@@ -243,10 +252,11 @@ function PresetDockView() {
       )}
       {flow === 3 && cassetteLow && (
         // Only while a refill is due: the warning has no payment to inspect, so its one action lives here.
-        <button type="button" onClick={() => retailOpsStore.getState().refillCassette(opsStamp())} data-testid="dock-cassette-refill" className="shrink-0 whitespace-nowrap rounded-lg bg-amber-400 px-3 py-1.5 text-[12px] font-bold text-amber-950 shadow hover:bg-amber-300">
+        <button type="button" onClick={refillAtmByCit} data-testid="dock-cassette-refill" className="shrink-0 whitespace-nowrap rounded-lg bg-amber-400 px-3 py-1.5 text-[12px] font-bold text-amber-950 shadow hover:bg-amber-300">
           🚚 {m('citRefill')}
         </button>
       )}
+      {citDemos && <CitDemoMenu />}
       <WaitingChips />
       {running && !compact && (
         <span className="whitespace-nowrap text-[11px] text-slate-400" role="status" data-testid="preset-running">

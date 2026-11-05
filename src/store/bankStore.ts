@@ -23,6 +23,7 @@ import { quizFor } from '../sim/walkQuiz';
 import { compareDays, type Comparison } from '../sim/whatIf';
 import { focusScope, type DemoGroupId } from '../sim/demoGroups';
 import type { FlowScope } from '../sim/guidedFlows';
+import type { InfoKey } from '../data/subProcessKeys';
 import { browserStorage, clampInspectorWidth, clearBank, loadAuditLog, loadBank, loadCareer, loadPrefs, loadRetailLedger, saveAuditLog, saveCareer, saveRetailLedger, loadUiPrefs, loadStp, saveBank, savePrefs, saveStp, saveUiPrefs, type BankPrefs, type BankSaveResult, type KeyValueStorage, type LabelMode, type UiPrefs, type ViewMode } from './bankPersistence';
 
 export type { ProcessId };
@@ -35,7 +36,9 @@ export type Selection =
   | { kind: 'station'; id: StationId }
   | { kind: 'worker'; station: StationId; workerId: string }
   /** A payment the learner sent with a preset action, followed along its route. */
-  | { kind: 'transaction'; id: string };
+  | { kind: 'transaction'; id: string }
+  /** A sub-process's fact sheet (data/subProcessRegistry.ts). */
+  | { kind: 'subprocess'; key: InfoKey };
 
 export type BankSaveStatus = 'unavailable' | 'pristine' | 'saved' | 'error';
 

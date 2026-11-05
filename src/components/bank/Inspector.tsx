@@ -1,7 +1,7 @@
 import { tr } from '../../i18n/locale';
 import { AcronymNotes } from './AcronymNotes';
 import { t } from '../../i18n/t';
-import { memo, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { lazy, memo, Suspense, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { formatClock } from '../../sim/clock';
 import { modelForStation } from '../../data/mentalModels';
@@ -27,6 +27,10 @@ import { analystWorkspaceMessages, type AnalystWorkspaceKey } from './analystWor
 import { isAutomatedNode } from '../../sim/nodeKind';
 import { InfoTip } from './InfoTip';
 import { CitInspector } from '../ops/CitPanel';
+import { infoKeyForPlace } from '../../data/subProcessKeys';
+import { subProcessInfoMessages } from '../ops/subProcessInfo.messages';
+
+const SubProcessInfoDrawer = lazy(() => import('../ops/SubProcessInfoDrawer').then((m) => ({ default: m.SubProcessInfoDrawer })));
 import { ServerRackGraphic } from './ServerRack';
 import { selfScaling, useNodeCopy, type NodeCopy } from './useNodeCopy';
 import { FatigueBar, fatigueLook, MachineFace, PacketGlyph, RUN_STATUS, SEVERITY_BOX, SEVERITY_DOT, SEVERITY_TEXT, SectionTitle, Sparkline, Stat, STATUS_DOT_CLASS, statusLabel, STATUS_TEXT_CLASS, WorkerFace, waitText, kindLabel } from './ui';
@@ -351,6 +355,8 @@ function StationPanel({ id }: { id: StationId }) {
   const stats = sv.stats;
   const copy = useNodeCopy(id);
   const names = displayNames(sv.workers, (w) => copy.workerName(w, sv.workers.indexOf(w)));
+  const infoKey = infoKeyForPlace(id);
+  const spi = useMessages(subProcessInfoMessages);
 
   return (
     <>
@@ -385,6 +391,13 @@ function StationPanel({ id }: { id: StationId }) {
         </div>
 
         {entry && <DeskEntryButton entry={entry} exceptions={exceptions} disabled={dayOver} onOpen={() => openStaffDesk(id)} ws={ws} />}
+
+        {infoKey && (
+          <button type="button" onClick={() => select({ kind: 'subprocess', key: infoKey })} data-testid="station-subprocess-info" className="flex w-full items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-2 text-left text-[12.5px] font-semibold text-slate-100 transition hover:bg-white/[0.08]">
+            ℹ️ <span className="min-w-0 flex-1">{spi('open')}</span>
+            <span aria-hidden="true" className="text-slate-400">›</span>
+          </button>
+        )}
 
         {id === 'COLLATERAL_VAULT' && <CitInspector />}
 
@@ -700,7 +713,7 @@ function InspectorDrawer() {
   return (
     <aside
       // Inspector text (numbers, logs, names) stays selectable and copyable; only the map behind it is drag-only.
-      className={`absolute bottom-0 right-0 top-0 z-40 flex max-w-full select-text flex-col border-l border-slate-800 bg-slate-900/95 shadow-2xl ease-out will-change-transform ${dragWidth === null ? 'transition-transform duration-200' : ''} ${open ? 'translate-x-0' : 'pointer-events-none translate-x-full'}`}
+      className={`absolute bottom-0 right-0 top-0 z-40 flex max-w-full select-text flex-col border-l shadow-2xl ${content.kind === 'subprocess' ? 'border-white/10 bg-slate-900/60 backdrop-blur-xl' : 'border-slate-800 bg-slate-900/95'} ease-out will-change-transform ${dragWidth === null ? 'transition-transform duration-200' : ''} ${open ? 'translate-x-0' : 'pointer-events-none translate-x-full'}`}
       // On a map too narrow to share, the drawer is a full-width sheet (useInspectorCovers): the map's floating controls wait for it to close.
       style={{ width: covers ? '100%' : width }}
       data-covers={covers || undefined}
@@ -737,6 +750,11 @@ function InspectorDrawer() {
       {(open || mounted) && content.kind === 'station' && <StationPanel id={content.id} />}
       {(open || mounted) && content.kind === 'worker' && <WorkerPanel station={content.station} workerId={content.workerId} />}
       {(open || mounted) && content.kind === 'transaction' && <TransactionPanel id={content.id} />}
+      {(open || mounted) && content.kind === 'subprocess' && (
+        <Suspense fallback={null}>
+          <SubProcessInfoDrawer infoKey={content.key} />
+        </Suspense>
+      )}
     </aside>
   );
 }

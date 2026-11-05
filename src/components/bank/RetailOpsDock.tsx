@@ -8,6 +8,7 @@ import { cassetteStatus, OPS_ACCOUNTS, OPS_LIMITS, opsAccount, opsNatural, opsTr
 import { useBankStore } from '../../store/bankStore';
 import { retailOpsStore, useRetailOpsStore } from '../../store/retailOpsStore';
 import { opsStamp } from './retailOpsActions';
+import { refillAtmByCit } from '../ops/citActions';
 
 /** The retail operations journal: what the latest demo did in plain words and which retail accounts it moved, shown inside the transaction inspector. */
 
@@ -147,7 +148,7 @@ function CassetteGauge() {
       </span>
       <span className="tabular-nums">{status.pct}%</span>
       {status.drill && <span className="rounded bg-amber-400/15 px-1 text-[10.5px] font-semibold text-amber-200">{m('sensorDrill')}</span>}
-      <button type="button" onClick={() => retailOpsStore.getState().refillCassette(opsStamp())} data-testid="ops-cassette-refill" className="rounded bg-slate-800 px-2 py-0.5 font-semibold text-slate-100 hover:bg-slate-700">
+      <button type="button" onClick={refillAtmByCit} data-testid="ops-cassette-refill" className="rounded bg-slate-800 px-2 py-0.5 font-semibold text-slate-100 hover:bg-slate-700">
         🚚 {m('citRefill')}
       </button>
     </div>

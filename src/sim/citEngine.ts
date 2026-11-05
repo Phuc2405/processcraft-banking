@@ -401,10 +401,86 @@ export interface CitSnapshot {
   book: Record<CitAccountId, number>;
   /** Cash moving out of (Cr 1111) or into (Dr 1111) the branch vault right now. */
   vaultFlow: VaultFlow;
+  /** The run stopped at the vault's loading bay and how far through that stop it is (0-1): what the crew's walk follows (citCrew.ts). */
+  bay: { id: string; flow: 'IN' | 'OUT'; u: number } | null;
 }
 
-export function citAt(day: number, minute: number): CitSnapshot {
-  const runs = citDay(day).map((planned) => ({ planned, run: runAt(planned, minute) }));
+// Manual demo dispatches
+
+export type CitDemo = 'ATM' | 'DOORSTEP' | 'SBV';
+export const CIT_DEMOS: readonly CitDemo[] = ['ATM', 'DOORSTEP', 'SBV'];
+/** At most this many manual runs a day, so the derived plan stays small. */
+export const CIT_DEMO_CAP = 12;
+
+/**
+ * A van the learner dispatched by hand at `at`. `refillCents` is the retail ATM cassette's shortfall at that moment, which sizes an
+ * ATM run. `lead` is how many minutes the run has played on its own while the bank was paused (a pause-isolated demo): the run is
+ * that far ahead of the bank's clock, and nothing else moved.
+ */
+export interface CitManual {
+  kind: CitDemo;
+  at: number;
+  refillCents?: number;
+  lead?: number;
+}
+
+/** A manual run's order, raised against the book as it stands at dispatch; a trigger that would not fire still sends a sensible demo amount. */
+export function manualOrder(day: number, n: number, m: CitManual, book: Readonly<Record<CitAccountId, number>>): CitOrder {
+  const base = { id: `CIT-${day}-M${n}`, sealId: `SEAL-${day}M${String(n).padStart(4, '0')}`, custodians: [CUSTODIANS[n % CUSTODIANS.length]!, CUSTODIANS[(n + 1) % CUSTODIANS.length]!] as const };
+  const manual = (en: string, vi: string): Localized<string> => L(`Manual dispatch: ${en}`, `Điều xe thủ công: ${vi}`);
+  if (m.kind === 'ATM') {
+    const amountCents = m.refillCents && m.refillCents > 0 ? m.refillCents : (atmTrigger(book.ATM, 0)?.amountCents ?? Math.max(CIT_LIMITS.atmTargetCents - book.ATM, 2_000_000));
+    return citOrder({ ...base, scenario: 'ATM_CDM', direction: 'OUT', amountCents, trigger: manual(m.refillCents ? 'retail ATM cassette shortfall' : 'ATM top-up', m.refillCents ? 'bù hộp tiền ATM bán lẻ' : 'tiếp quỹ ATM') });
+  }
+  if (m.kind === 'DOORSTEP') return citOrder({ ...base, scenario: 'DOORSTEP', direction: 'IN', client: DOORSTEP_CLIENTS[0], amountCents: 30_000_000, unfitBp: 150, trigger: manual(`bulk cash pickup at ${DOORSTEP_CLIENTS[0]}`, `thu tiền mặt tại ${DOORSTEP_CLIENTS[0]}`) });
+  const t = sbvTrigger(book.VAULT, book.UNFIT, isHolidayEve(day)) ?? { direction: 'IN' as const, amountCents: CIT_LIMITS.holidayWithdrawCents, unfitSurrenderCents: 0, trigger: L('', '') };
+  return citOrder({ ...base, scenario: 'SBV', ...t, trigger: manual(t.direction === 'OUT' ? 'deposit at the SBV' : 'withdraw from the SBV', t.direction === 'OUT' ? 'nộp tiền vào NHNN' : 'rút tiền từ NHNN') });
+}
+
+/** The day's manual runs as planned runs, each sized against the book its dispatch minute saw (earlier manual runs included). */
+export function manualPlan(day: number, manual: readonly CitManual[]): CitPlanned[] {
+  const out: CitPlanned[] = [];
+  manual.slice(0, CIT_DEMO_CAP).forEach((m, i) => {
+    const book = snapshotOf(day, m.at, out).book;
+    out.push({ order: manualOrder(day, i + 1, m, book), start: m.at - (m.lead ?? 0) });
+  });
+  return out;
+}
+
+export function citAt(day: number, minute: number, manual: readonly CitManual[] = []): CitSnapshot {
+  return snapshotOf(day, minute, manualPlan(day, manual));
+}
+
+/** The run the van is standing at the loading bay for: loading an outflow, or arrived with an inflow. */
+export function citBayRun(cit: CitSnapshot): CitRun | null {
+  const run = cit.active?.run;
+  if (!run || run.status === 'SETTLED') return null;
+  return cit.vaultFlow !== null || run.status !== 'EN_ROUTE' ? run : null;
+}
+
+/** The states in which a van is on the road or at a counting table: a demo dispatch waits until none of the learner's vans is in one. */
+export const CIT_BUSY: readonly CitStatus[] = ['EN_ROUTE', 'ARRIVED', 'IN_COUNT'];
+const isManual = (o: CitOrder): boolean => o.id.includes('-M');
+
+/** The learner's van still on its run (en route, arrived or in count), or null: the one mutex for every demo dispatch. */
+export const citDemoBusy = (cit: CitSnapshot): CitRun | null => cit.runs.find((r) => r.run && isManual(r.run.order) && CIT_BUSY.includes(r.run.status))?.run ?? null;
+
+/** The learner's van that has not settled yet: a paused bank plays it on its own until it does. */
+export const citDemoOpen = (cit: CitSnapshot): CitRun | null => cit.runs.find((r) => r.run && isManual(r.run.order) && r.run.status !== 'SETTLED')?.run ?? null;
+
+/** Which way cash crosses the vault's loading bay on a run: out of the vault into the van, or in from the van. */
+export const bayFlow = (o: CitOrder): 'IN' | 'OUT' => (CIT_STRATEGIES[o.scenario].route(o.direction).from === 'VAULT' ? 'OUT' : 'IN');
+
+/** How far through its stop at the vault's bay a run is at `minute`, 0-1, or null when the van is not at the bay (citCrew.ts walks the crew by it). */
+export function bayProgress(p: CitPlanned, minute: number): number | null {
+  const at = citSchedule(p);
+  const [from, to] = bayFlow(p.order) === 'OUT' ? [at.EN_ROUTE, at.ARRIVED] : [at.IN_COUNT, at.SETTLED];
+  return minute >= from && minute < to ? (minute - from) / (to - from) : null;
+}
+
+function snapshotOf(day: number, minute: number, extra: readonly CitPlanned[]): CitSnapshot {
+  const plan = extra.length ? [...citDay(day), ...extra].sort((a, b) => a.start - b.start) : citDay(day);
+  const runs = plan.map((planned) => ({ planned, run: runAt(planned, minute) }));
   const started = runs.filter((r): r is { planned: CitPlanned; run: CitRun } => r.run !== null);
   const active = [...started].reverse().find((r) => r.run.status !== 'SETTLED') ?? started[started.length - 1] ?? null;
   const journal = started.flatMap((r) => r.run.entries);
@@ -414,5 +490,10 @@ export function citAt(day: number, minute: number): CitSnapshot {
     if (run.status === 'EN_ROUTE' && from === 'VAULT') vaultFlow = 'OUT';
     if ((run.status === 'IN_COUNT' || run.status === 'DELIVERED') && to === 'VAULT') vaultFlow = 'IN';
   }
-  return { runs, active, journal, book: bookAfter(journal), vaultFlow };
+  let bay: CitSnapshot['bay'] = null;
+  for (const { planned } of runs) {
+    const u = bayProgress(planned, minute);
+    if (u !== null) bay = { id: planned.order.id, flow: bayFlow(planned.order), u };
+  }
+  return { runs, active, journal, book: bookAfter(journal), vaultFlow, bay };
 }

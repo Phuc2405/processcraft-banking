@@ -4,6 +4,7 @@ import { noticeText } from '../../i18n/simVi';
 import { useBankStore } from '../../store/bankStore';
 import { installAmbientVisits } from '../../store/ambientVisits';
 import { installDeskOccupancy } from '../../store/deskOccupancy';
+import { installCitSync } from '../ops/citActions';
 import { useAcademyStore } from '../../store/academyStore';
 import { AcademySplitLayout } from '../academy/AcademySplitLayout';
 import { GuidedBar, ResumeWalkthrough, WalkChip } from '../education/GuidedWalkthrough';
@@ -123,7 +124,7 @@ export function LivingBank() {
   useBankClock();
   // The day's walk-ins at the Savings Desk and the Collateral Vault, and the count of everyone at a counter on its badge.
   useEffect(() => {
-    const stops = [installAmbientVisits(), installDeskOccupancy()];
+    const stops = [installAmbientVisits(), installDeskOccupancy(), installCitSync()];
     return () => stops.forEach((stop) => stop());
   }, []);
   const viewMode = useBankStore((s) => s.viewMode);

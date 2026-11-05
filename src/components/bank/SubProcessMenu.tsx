@@ -2,7 +2,10 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { pick, useLocale } from '../../i18n/locale';
 import { flowText, GUIDED_FLOWS } from '../../sim/guidedFlows';
 import { demoGroup, demoGroupsIn, showsGroupsOf, type DemoGroupId } from '../../sim/demoGroups';
-import { useBankStore } from '../../store/bankStore';
+import { bankStore, useBankStore, type Selection } from '../../store/bankStore';
+import { infoKeyForChoice, type InfoKey } from '../../data/subProcessKeys';
+import { subProcessInfoMessages } from '../ops/subProcessInfo.messages';
+import { inspectorCoversMap, topBand } from './ViewportControls';
 import { FLOW_IDS, type FlowId } from '../../types/viewport';
 import { useMessages } from '../../utils/i18nHelper';
 import { AdaptivePopover, listboxKey } from '../shell/AdaptivePopover';
@@ -18,15 +21,28 @@ export type MenuChoice = { kind: 'flow'; flow: FlowId } | { kind: 'sub'; flow: F
 export const MENU_CHOICES: readonly MenuChoice[] = FLOW_IDS.flatMap((flow): MenuChoice[] => [{ kind: 'flow', flow }, ...(showsGroupsOf(flow) ? demoGroupsIn(flow).map((g): MenuChoice => ({ kind: 'sub', flow, sub: g.id })) : [])]);
 
 const choiceId = (c: MenuChoice): string => (c.kind === 'flow' ? `flow-${c.flow}` : `flow-sub-${c.sub}`);
+const choiceInfo = (c: MenuChoice): InfoKey => infoKeyForChoice(c.flow, c.kind === 'sub' ? c.sub : null);
+
+/** Shows a choice's fact sheet in the right drawer, unless the drawer would cover the map or is busy with a desk or a payment. */
+export function showInfo(c: MenuChoice, force = false): void {
+  const bank = bankStore.getState();
+  const free = bank.selection.kind === 'none' || bank.selection.kind === 'subprocess';
+  if (!force && (!free || inspectorCoversMap(topBand.getState().mapW, bank.inspectorWidth, true))) return;
+  bank.select({ kind: 'subprocess', key: choiceInfo(c) });
+}
 
 /** The compact replacement for the row of flow pills: one button naming what is lit, opening a keyboard-navigable list. */
 export function SubProcessMenu() {
   const m = useMessages(retailOpsMessages);
+  const spi = useMessages(subProcessInfoMessages);
   const locale = useLocale();
   const flow = useBankStore((s) => s.flow);
   const sub = useBankStore((s) => s.subProcess);
   const setFlow = useBankStore((s) => s.setActiveFlow);
   const [open, setOpen] = useState(false);
+  const infoOpen = useBankStore((s) => s.selection.kind === 'subprocess');
+  // The sheet open when the list opened: hovering previews other sheets, and closing without a pick brings it back.
+  const before = useRef<Selection | null>(null);
   const selected = MENU_CHOICES.findIndex((c) => (sub && showsGroupsOf(flow) ? c.kind === 'sub' && c.sub === sub : c.kind === 'flow' && c.flow === flow));
   const [active, setActive] = useState(selected);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -37,14 +53,28 @@ export function SubProcessMenu() {
   const title = group ? pick(demoGroup(group).title, locale) : `${GUIDED_FLOWS[flow].code}. ${flowText(flow).title}`;
 
   useEffect(() => {
-    if (open) setActive(selected);
+    if (open) {
+      setActive(selected);
+      before.current = infoOpen ? bankStore.getState().selection : null;
+    } else if (before.current) {
+      bankStore.getState().select(before.current);
+      before.current = null;
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  const hover = (i: number): void => {
+    setActive(i);
+    const c = MENU_CHOICES[i];
+    if (c && before.current) showInfo(c);
+  };
 
   const choose = (c: MenuChoice | undefined): void => {
     if (!c) return;
     if (c.kind === 'flow') setFlow(c.flow);
     else selectSubProcess(c.sub);
+    before.current = null;
+    showInfo(c);
     setOpen(false);
     trigger.current?.focus();
   };
@@ -64,11 +94,11 @@ export function SubProcessMenu() {
     else if (next === 'close') {
       e.stopPropagation();
       setOpen(false);
-    } else setActive(next);
+    } else hover(next);
   };
 
   return (
-    <div className="bk-slide-down min-w-0" data-testid="flow-bar">
+    <div className="bk-slide-down flex min-w-0 items-center gap-1" data-testid="flow-bar">
       <button
         ref={trigger}
         type="button"
@@ -94,6 +124,17 @@ export function SubProcessMenu() {
           ▼
         </span>
       </button>
+      <button
+        type="button"
+        onClick={() => (infoOpen ? bankStore.getState().clearSelection() : showInfo(MENU_CHOICES[selected] ?? { kind: 'flow', flow }, true))}
+        aria-pressed={infoOpen}
+        aria-label={spi('open')}
+        title={spi('open')}
+        data-testid="flow-info"
+        className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl border text-[13px] shadow-xl transition ${infoOpen ? 'border-sky-400/70 bg-sky-500/20 text-sky-100' : 'border-slate-700 bg-slate-950/95 text-slate-300 hover:bg-slate-900'}`}
+      >
+        ℹ️
+      </button>
       {open && (
         <AdaptivePopover anchor={trigger} onClose={() => setOpen(false)} width={360} id={listId} label={m('selectSubProcess')} testId="flow-menu-list" activeIndex={active}>
           {MENU_CHOICES.map((c, i) => {
@@ -109,7 +150,7 @@ export function SubProcessMenu() {
                 data-index={i}
                 data-testid={choiceId(c)}
                 data-level={parent ? 1 : 2}
-                onPointerMove={() => setActive(i)}
+                onPointerMove={() => hover(i)}
                 onClick={() => choose(c)}
                 className={`flex cursor-pointer items-center gap-2 rounded-lg py-1 pr-2 ${parent ? `pl-2 text-[12px] font-bold text-slate-100 ${i > 0 ? 'mt-1' : ''}` : 'ml-3.5 border-l border-slate-700 pl-3 text-[11.5px] text-slate-300'} ${i === active ? 'bg-slate-800' : ''}`}
               >
