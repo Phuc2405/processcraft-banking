@@ -370,6 +370,22 @@ export const LESSON_CONTENT: Readonly<Record<string, LessonContent>> = {
       { code: null, title: 'Override without a reason', detail: 'An override with no recorded reason fails audit, whatever the outcome.' },
     ],
   },
+  '7.4': {
+    realWorldScenario: 'At 10:00 the van collects WinMart’s $300,000 sealed bag. As vault custodian you receive it at the loading bay, check the seal with a second custodian, count it and post the entries.',
+    stepByStepFlow: [
+      { actor: OPS, action: 'EN_ROUTE: the van signs for the sealed bag at the client. Dr 1131 Cash in transit / Cr 4211 corporate deposit (provisional).' },
+      { actor: OPS, action: 'ARRIVED: two different custodians check the seal number against the manifest and both sign (4-eye).' },
+      { actor: OPS, action: 'IN_COUNT: the bag is opened and counted; torn or soiled notes are sorted out as unfit.' },
+      { actor: LEDGER, action: 'DELIVERED: Dr 1111 vault (fit) and Dr 1112 (unfit) / Cr 1131; a shortfall reverses part of the provisional credit (Dr 4211).' },
+      { actor: LEDGER, action: 'SETTLED: 1131 is back to zero for this run.' },
+    ],
+    whyItMatters: 'Cash on the road belongs to no desk, so 1131 is where it lives until it is counted. A run that settles with 1131 not at zero means cash is missing somewhere between two signatures.',
+    edgeCasesAndErrors: [
+      { code: null, title: 'Seal mismatch', detail: 'The run is held at ARRIVED: the incident is minuted and the bag is counted in full under dual control with the client’s representative.' },
+      { code: null, title: 'One custodian signs twice', detail: 'The 4-eye check fails and the count never starts.' },
+      { code: null, title: 'Unfit notes in an ATM', detail: 'Unfit cash stays on 1112 until the SBV deposit; it is never loaded into a cassette.' },
+    ],
+  },
 };
 
 /** The content of a level, or throws: every level must have one. */

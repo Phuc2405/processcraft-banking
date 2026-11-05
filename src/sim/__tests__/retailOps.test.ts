@@ -787,10 +787,10 @@ describe('English terminology', () => {
 });
 
 describe('the Academy keeps its chapters and takes the quiz', () => {
-  it('has the six reference tabs in the Knowledge Base, the STP article and the regulatory registry included', () => {
+  it('has the seven reference tabs in the Knowledge Base, the STP and CIT articles and the regulatory registry included', () => {
     const tabs = renderToStaticMarkup(createElement(KnowledgeTabs, { tab: 'core', onTab: () => undefined }));
-    expect(tabs.match(/role="tab"/g)).toHaveLength(6);
-    for (const id of ['core', 'aml', 'stp', 'retail', 'flashcards', 'legal']) expect(tabs).toContain(`kb-tab-${id}`);
+    expect(tabs.match(/role="tab"/g)).toHaveLength(7);
+    for (const id of ['core', 'aml', 'stp', 'cit', 'retail', 'flashcards', 'legal']) expect(tabs).toContain(`kb-tab-${id}`);
     expect(tabs).not.toContain('kb-tab-quiz');
   });
 

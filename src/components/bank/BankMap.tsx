@@ -20,6 +20,7 @@ import { MapLegend } from './MapLegend';
 import type { Move, StationView } from '../../sim/types';
 import { academyFocusOf, activeFlowOf, activeScopeOf, beatLive, useBankStore } from '../../store/bankStore';
 import { AtmCassetteBadge } from './RetailOpsDock';
+import { CitBay2D } from './CitBay2D';
 import { GUIDED_FLOWS, type FlowScope } from '../../sim/guidedFlows';
 import type { FlowId } from '../../types/viewport';
 import { StepPreviewBody } from './StepPreview';
@@ -830,6 +831,7 @@ function BankMapView() {
               </div>
             )}
             {!focus && <AtmCassetteBadge />}
+            {!focus && <CitBay2D />}
             {!focus && <DeskCrowd2D />}
             {!focus && <DeskVisitors2D />}
             {focus && <SpotlightToken focus={focus} />}

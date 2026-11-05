@@ -92,6 +92,7 @@ export const ACADEMY_CHAPTERS: readonly AcademyChapter[] = [
     { title: 'The straight-through lane', goal: 'A small, clean Pay-in-4 case skips the appraisal desk: the STP engine checks eKYC, DTI, CIC and the limit and posts it in milliseconds.', flow: 2, node: 'auth_engine', place: 'STP_ENGINE' },
     { title: 'Tuning the thresholds', goal: 'Raising the STP limit or the DTI cap drains the human queue and widens the default exposure. One dial at a time, watching STR and bad debt together.', flow: 2, node: 'auth_engine', place: 'STP_ENGINE' },
     { title: 'Manual fallback and fast-fail', goal: 'A case outside the rules falls back to the desk with its flags for a manual override; bad debt (CIC 3-5) is refused at the gate.', flow: 2, node: 'auth_engine', place: 'BNPL' },
+    { title: 'Cash in transit and the vault', goal: 'An armoured van moves cash between the vault, the ATMs, HQ, corporate clients and the SBV. Every run goes through TK 1131 and must leave it at zero once settled.', flow: 6, node: 'savings_collateral', place: 'COLLATERAL_VAULT' },
   ]),
 ];
 

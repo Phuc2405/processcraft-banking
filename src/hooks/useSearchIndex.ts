@@ -15,6 +15,7 @@ import { REG_DOCUMENTS } from '../data/regulatoryRegistry';
 import { CORE_LEDGER_ARTICLE, isIntermediate } from '../data/knowledgeBase';
 import { AML_ARTICLE } from '../data/amlKnowledge';
 import { STP_ARTICLE } from '../data/stpKnowledge';
+import { CIT_ARTICLE } from '../data/citKnowledge';
 import { RETAIL_TOPICS } from '../data/retailKnowledge';
 import { TOPIC_MODULES } from '../data/retailTopicModules';
 import { pick } from '../i18n/locale';
@@ -223,6 +224,17 @@ export function knowledgeEntries(locale: Locale): SearchEntry[] {
       label: pick(sec.title, locale),
       detail: stp,
       keys: fold([...LOCALES_BOTH.flatMap((l) => [pick(sec.title, l), 'rule' in sec && sec.rule ? pick(sec.rule, l) : '']), 'STP', 'straight-through', 'xu ly tu dong', 'STR'].join(' | ')),
+      action: { kind: 'knowledge', anchor: sec.id },
+    });
+  }
+  const cit = pick(CIT_ARTICLE.title, locale);
+  for (const sec of CIT_ARTICLE.sections) {
+    out.push({
+      id: `kb:section:${sec.id}`,
+      category: 'kb',
+      label: pick(sec.title, locale),
+      detail: cit,
+      keys: fold([...LOCALES_BOTH.flatMap((l) => [pick(sec.title, l), 'rule' in sec && sec.rule ? pick(sec.rule, l) : '']), 'CIT', 'cash in transit', 'van chuyen tien mat', 'kho quy', '1131', '1111', '1112'].join(' | ')),
       action: { kind: 'knowledge', anchor: sec.id },
     });
   }
