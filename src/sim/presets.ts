@@ -1,7 +1,7 @@
 /** The preset actions of the guided flows: one click sends a scripted customer into the live bank ("Swipe $20"), or, for the night flow, runs the clock to 23:00. */
 
 import type { BankingPayload, CardType } from '../types/processLearning';
-import type { FlowId } from '../types/viewport';
+import type { FlowId, PaymentFlowId } from '../types/viewport';
 import type { BankRules } from './rules';
 import type { CheckoutKind, Customer, DeclineReason, ExtendedContext } from './types';
 import { opsActionById, type OpsActionId } from './retailOps';
@@ -82,7 +82,8 @@ export const PRESETS: readonly PresetDef[] = [
 
 export const presetsFor = (flow: FlowId): PresetDef[] => PRESETS.filter((p) => p.flow === flow);
 /** The preset that shows a guided flow at its clearest, which is what "Simulate this Flow" sends. */
-export const PRIMARY_PRESET: Readonly<Record<FlowId, PresetId>> = { 1: 'pos-20', 2: 'token-45', 3: 'cdm-200', 4: 'eod', 5: 'ekyc-open', 6: 'teller-12k', 7: 'qr-780', 8: 'swift-6800' };
+/** The headline payment of each payment flow (Flow 09 moves cash, not payments: its runs are CIT dispatches). */
+export const PRIMARY_PRESET: Readonly<Record<PaymentFlowId, PresetId>> = { 1: 'pos-20', 2: 'token-45', 3: 'cdm-200', 4: 'eod', 5: 'ekyc-open', 6: 'teller-12k', 7: 'qr-780', 8: 'swift-6800' };
 export const presetById = (id: string): PresetDef | undefined => PRESETS.find((p) => p.id === id);
 
 /** A fixed moment the virtual card's code is checked against; the dynamic CVV is issued a few seconds before it. */

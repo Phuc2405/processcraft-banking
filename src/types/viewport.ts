@@ -3,9 +3,13 @@
 export type Scope = 'beginner' | 'advanced';
 export type Dimension = '2d' | '3d';
 export type DataDepth = 'standard' | 'expert';
-export type FlowId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+export type FlowId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
-export const FLOW_IDS: readonly FlowId[] = [1, 2, 3, 4, 5, 6, 7, 8];
+export const FLOW_IDS: readonly FlowId[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+/** The cash-in-transit and vault domain (Flow 09): its runs are CIT dispatches, not payments, so it has no payment preset. */
+export const CIT_FLOW = 9 as const;
+export type PaymentFlowId = Exclude<FlowId, typeof CIT_FLOW>;
+export const isPaymentFlow = (f: FlowId): f is PaymentFlowId => f !== CIT_FLOW;
 
 export interface ViewportSettings {
   scope: Scope;

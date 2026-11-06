@@ -1,50 +1,99 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { pick, useLocale } from '../../i18n/locale';
 import { flowText, GUIDED_FLOWS } from '../../sim/guidedFlows';
-import { demoGroup, demoGroupsIn, showsGroupsOf, type DemoGroupId } from '../../sim/demoGroups';
-import { useBankStore } from '../../store/bankStore';
-import { FLOW_IDS, type FlowId } from '../../types/viewport';
+import { demoGroup, demoGroupsIn, groupOf, showsGroupsOf, type DemoGroupId } from '../../sim/demoGroups';
+import { bankStore, citChildOf, useBankStore, type Selection } from '../../store/bankStore';
+import { citDemoOfKey, CIT_INFO_KEYS, infoKeyForChoice, type CitInfoKey, type InfoKey } from '../../data/subProcessKeys';
+import { CIT_SHEETS } from '../../data/subProcessCitSheets';
+import { subProcessInfoMessages } from '../ops/subProcessInfo.messages';
+import { inspectorCoversMap, topBand } from './ViewportControls';
+import { CIT_FLOW, FLOW_IDS, type FlowId } from '../../types/viewport';
 import { useMessages } from '../../utils/i18nHelper';
 import { AdaptivePopover, listboxKey } from '../shell/AdaptivePopover';
 import { retailOpsMessages } from './retailOps.messages';
 import { selectSubProcess } from './retailOpsActions';
+import { LessonLink } from '../ops/LessonLink';
+import { demoLocked, useDemoLocked } from './DemoSession';
 
 /**
- * What the menu offers, in order: each of the eight flows, with its child sub-groups under it. A flow with a single sub-group lists
- * none: picking the flow already shows that group's buttons, so a nested row would only repeat its parent.
+ * What the menu offers, in order: each of the nine flows, with its child sub-groups under it, and under Flow 09 the CIT domain's
+ * four child sub-processes (each opens its sheet with a "run this scenario" button). A flow with a single sub-group lists none:
+ * picking the flow already shows that group's buttons, so a nested row would only repeat its parent.
  */
-export type MenuChoice = { kind: 'flow'; flow: FlowId } | { kind: 'sub'; flow: FlowId; sub: DemoGroupId };
+export type MenuChoice = { kind: 'flow'; flow: FlowId } | { kind: 'sub'; flow: FlowId; sub: DemoGroupId } | { kind: 'cit'; flow: typeof CIT_FLOW; key: CitInfoKey };
 
-export const MENU_CHOICES: readonly MenuChoice[] = FLOW_IDS.flatMap((flow): MenuChoice[] => [{ kind: 'flow', flow }, ...(showsGroupsOf(flow) ? demoGroupsIn(flow).map((g): MenuChoice => ({ kind: 'sub', flow, sub: g.id })) : [])]);
+const citChoices = (flow: FlowId): MenuChoice[] => (flow === CIT_FLOW ? Object.values(CIT_INFO_KEYS).map((key): MenuChoice => ({ kind: 'cit', flow: CIT_FLOW, key })) : []);
 
-const choiceId = (c: MenuChoice): string => (c.kind === 'flow' ? `flow-${c.flow}` : `flow-sub-${c.sub}`);
+export const MENU_CHOICES: readonly MenuChoice[] = FLOW_IDS.flatMap((flow): MenuChoice[] => [{ kind: 'flow', flow }, ...(showsGroupsOf(flow) ? demoGroupsIn(flow).map((g): MenuChoice => ({ kind: 'sub', flow, sub: g.id })) : []), ...citChoices(flow)]);
+
+const choiceId = (c: MenuChoice): string => (c.kind === 'flow' ? `flow-${c.flow}` : c.kind === 'sub' ? `flow-sub-${c.sub}` : `flow-cit-${c.key}`);
+const choiceInfo = (c: MenuChoice): InfoKey => (c.kind === 'cit' ? c.key : infoKeyForChoice(c.flow, c.kind === 'sub' ? c.sub : null));
+const CIT_SHEET_OF = new Map(CIT_SHEETS.map((s) => [s.key, s]));
+
+/** Shows a choice's fact sheet in the right drawer, unless the drawer would cover the map or is busy with a desk or a payment. */
+export function showInfo(c: MenuChoice, force = false): void {
+  const bank = bankStore.getState();
+  const free = bank.selection.kind === 'none' || bank.selection.kind === 'subprocess';
+  if (!force && (!free || inspectorCoversMap(topBand.getState().mapW, bank.inspectorWidth, true))) return;
+  bank.select({ kind: 'subprocess', key: choiceInfo(c) });
+}
 
 /** The compact replacement for the row of flow pills: one button naming what is lit, opening a keyboard-navigable list. */
 export function SubProcessMenu() {
   const m = useMessages(retailOpsMessages);
+  const spi = useMessages(subProcessInfoMessages);
   const locale = useLocale();
   const flow = useBankStore((s) => s.flow);
-  const sub = useBankStore((s) => s.subProcess);
+  const sub = useBankStore((s) => groupOf(s.subProcess));
   const setFlow = useBankStore((s) => s.setActiveFlow);
   const [open, setOpen] = useState(false);
-  const selected = MENU_CHOICES.findIndex((c) => (sub && showsGroupsOf(flow) ? c.kind === 'sub' && c.sub === sub : c.kind === 'flow' && c.flow === flow));
+  // While a demo runs the menu is locked: no flow switch mid-run (cancel the demo, or let it finish).
+  const locked = useDemoLocked();
+  useEffect(() => {
+    if (locked) setOpen(false);
+  }, [locked]);
+  const infoOpen = useBankStore((s) => s.selection.kind === 'subprocess');
+  // The sheet open when the list opened: hovering previews other sheets, and closing without a pick brings it back.
+  const before = useRef<Selection | null>(null);
+  const citChild = useBankStore(citChildOf);
+  const selected = MENU_CHOICES.findIndex((c) => (citChild ? c.kind === 'cit' && citDemoOfKey(c.key) === citChild : sub && showsGroupsOf(flow) ? c.kind === 'sub' && c.sub === sub : c.kind === 'flow' && c.flow === flow));
   const [active, setActive] = useState(selected);
   const trigger = useRef<HTMLButtonElement>(null);
   const listId = useId();
   const accent = GUIDED_FLOWS[flow].accent;
   // A single-group flow's group is shown as its flow, as the menu lists it.
   const group = sub && showsGroupsOf(flow) ? sub : null;
-  const title = group ? pick(demoGroup(group).title, locale) : `${GUIDED_FLOWS[flow].code}. ${flowText(flow).title}`;
+  // A CIT child picked from the menu names the menu (and owns the map's highlight and the dock) until another choice is made.
+  const cit = citChild ? CIT_SHEET_OF.get(CIT_INFO_KEYS[citChild])! : null;
+  const title = cit ? `${cit.icon} ${pick(cit.title, locale)}` : group ? pick(demoGroup(group).title, locale) : `${GUIDED_FLOWS[flow].code}. ${flowText(flow).title}`;
+  // The lesson of what the menu names: the CIT child, the sub-group (or the single group of its flow), else the flow.
+  const lessonKey = cit ? cit.key as CitInfoKey : (sub && demoGroup(sub).flow === flow ? sub : `flow-${flow}` as const);
 
   useEffect(() => {
-    if (open) setActive(selected);
+    if (open) {
+      setActive(selected);
+      before.current = infoOpen ? bankStore.getState().selection : null;
+    } else if (before.current) {
+      bankStore.getState().select(before.current);
+      before.current = null;
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  const hover = (i: number): void => {
+    setActive(i);
+    const c = MENU_CHOICES[i];
+    if (c && before.current) showInfo(c);
+  };
+
   const choose = (c: MenuChoice | undefined): void => {
-    if (!c) return;
+    if (!c || demoLocked()) return;
     if (c.kind === 'flow') setFlow(c.flow);
-    else selectSubProcess(c.sub);
+    else if (c.kind === 'sub') selectSubProcess(c.sub);
+    else bankStore.getState().selectSubProcess(citDemoOfKey(c.key)!, CIT_FLOW);
+    before.current = null;
+    // A CIT child's sheet is where its scenario runs from, so it always opens.
+    showInfo(c, c.kind === 'cit');
     setOpen(false);
     trigger.current?.focus();
   };
@@ -64,11 +113,13 @@ export function SubProcessMenu() {
     else if (next === 'close') {
       e.stopPropagation();
       setOpen(false);
-    } else setActive(next);
+    } else hover(next);
   };
 
   return (
-    <div className="bk-slide-down min-w-0" data-testid="flow-bar">
+    <div className="bk-slide-down flex min-w-0 items-center gap-1" data-testid="flow-bar">
+      {/* Left of the menu, so it stays in reach when a narrow screen truncates the title. */}
+      <LessonLink lessonKey={lessonKey} className="h-8 w-8 rounded-xl border border-slate-700 bg-slate-950/95 text-[13px] shadow-xl hover:bg-slate-900" />
       <button
         ref={trigger}
         type="button"
@@ -78,14 +129,17 @@ export function SubProcessMenu() {
         aria-controls={listId}
         aria-activedescendant={open ? `${listId}-${active}` : undefined}
         aria-label={m('selectSubProcess')}
-        title={group ? pick(demoGroup(group).title, locale) : flowText(flow).blurb}
+        title={locked ? m('demoLocked') : group ? pick(demoGroup(group).title, locale) : flowText(flow).blurb}
+        disabled={locked}
+        data-locked={locked || undefined}
         onClick={() => setOpen((o) => !o)}
         onKeyDown={onKeyDown}
         data-testid="flow-menu"
         data-flow={flow}
         data-sub={sub ?? undefined}
-        className="flex w-full min-w-0 max-w-[min(420px,90vw)] items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/95 px-3 py-1.5 text-[12px] font-semibold text-slate-100 shadow-xl transition hover:bg-slate-900"
+        className="flex w-full min-w-0 max-w-[min(420px,90vw)] items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/95 px-3 py-1.5 text-[12px] font-semibold text-slate-100 shadow-xl transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
       >
+        {locked && <span aria-hidden="true">🔒</span>}
         <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: accent, boxShadow: `0 0 8px ${accent}` }} aria-hidden="true" />
         <span className="min-w-0 truncate" data-testid="flow-menu-title">
           {title}
@@ -94,12 +148,24 @@ export function SubProcessMenu() {
           ▼
         </span>
       </button>
+      <button
+        type="button"
+        onClick={() => (infoOpen ? bankStore.getState().clearSelection() : showInfo(MENU_CHOICES[selected] ?? { kind: 'flow', flow }, true))}
+        aria-pressed={infoOpen}
+        aria-label={spi('open')}
+        title={spi('open')}
+        data-testid="flow-info"
+        className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl border text-[13px] shadow-xl transition ${infoOpen ? 'border-sky-400/70 bg-sky-500/20 text-sky-100' : 'border-slate-700 bg-slate-950/95 text-slate-300 hover:bg-slate-900'}`}
+      >
+        ℹ️
+      </button>
       {open && (
         <AdaptivePopover anchor={trigger} onClose={() => setOpen(false)} width={360} id={listId} label={m('selectSubProcess')} testId="flow-menu-list" activeIndex={active}>
           {MENU_CHOICES.map((c, i) => {
             const on = i === selected;
             const parent = c.kind === 'flow';
-            const label = parent ? flowText(c.flow).title : pick(demoGroup(c.sub).title, locale);
+            const cit = c.kind === 'cit' ? CIT_SHEET_OF.get(c.key) : undefined;
+            const label = parent ? flowText(c.flow).title : c.kind === 'sub' ? pick(demoGroup(c.sub).title, locale) : `${cit?.icon ?? ''} ${cit ? pick(cit.title, locale) : ''}`;
             return (
               <li
                 key={choiceId(c)}
@@ -109,7 +175,8 @@ export function SubProcessMenu() {
                 data-index={i}
                 data-testid={choiceId(c)}
                 data-level={parent ? 1 : 2}
-                onPointerMove={() => setActive(i)}
+                data-kind={c.kind}
+                onPointerMove={() => hover(i)}
                 onClick={() => choose(c)}
                 className={`flex cursor-pointer items-center gap-2 rounded-lg py-1 pr-2 ${parent ? `pl-2 text-[12px] font-bold text-slate-100 ${i > 0 ? 'mt-1' : ''}` : 'ml-3.5 border-l border-slate-700 pl-3 text-[11.5px] text-slate-300'} ${i === active ? 'bg-slate-800' : ''}`}
               >

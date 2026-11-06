@@ -24,7 +24,7 @@ export const AUTOMATED_NODES = [
 ] as const satisfies readonly StationId[];
 
 /** The 8 desks people still run: underwriting, the night back office, the teller counter, AML compliance and disputes. */
-export const HUMAN_NODES = ['BNPL', 'EOD_BATCH', 'EOD_VISA', 'SUSPENSE', 'RECON', 'TELLER_CASH', 'AML_DESK', 'DISPUTE_DESK', 'SAVINGS_DESK', 'COLLATERAL_VAULT'] as const satisfies readonly StationId[];
+export const HUMAN_NODES = ['BNPL', 'EOD_BATCH', 'EOD_VISA', 'SUSPENSE', 'RECON', 'TELLER_CASH', 'AML_DESK', 'DISPUTE_DESK', 'SAVINGS_DESK', 'COLLATERAL_VAULT', 'MAIN_CASH_VAULT'] as const satisfies readonly StationId[];
 
 const AUTOMATED: ReadonlySet<StationId> = new Set(AUTOMATED_NODES);
 
@@ -78,6 +78,7 @@ export const NODE_FAMILY: Readonly<Record<StationId, NodeFamily>> = {
   DISPUTE_DESK: 'dispute',
   SAVINGS_DESK: 'savings',
   COLLATERAL_VAULT: 'savings',
+  MAIN_CASH_VAULT: 'teller',
   GATE_SWIFT: 'swift',
   STP_ENGINE: 'stp',
 };

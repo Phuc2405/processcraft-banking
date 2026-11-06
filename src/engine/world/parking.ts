@@ -19,6 +19,20 @@ export const LOT = {
 /** The lot is on the left of the branch. */
 export const LOT_SIDE = -1;
 
+/**
+ * The low hedge along the lot's front, by the pavement, as |x| and z: two runs with a gap where the footway (FOOTWAY) meets the
+ * pavement, so whoever walks between the street and the side doors goes through the gap, never through the hedge.
+ */
+export const LOT_HEDGE_GAP = 1.6;
+export const LOT_HEDGES: ReadonlyArray<{ x0: number; x1: number; z0: number; z1: number }> = (() => {
+  const footway = -CAR_PARK_FOOTWAY_X;
+  const z = { z0: LOT.z1 - 0.24, z1: LOT.z1 };
+  return [
+    { x0: LOT.x0, x1: footway - LOT_HEDGE_GAP / 2, ...z },
+    { x0: footway + LOT_HEDGE_GAP / 2, x1: LOT.x1, ...z },
+  ];
+})();
+
 /** The strip of shade trees along the lot's outer edge, as |x|. */
 export const TREE_STRIP = { x0: LOT.x1, x1: LOT.x1 + 0.6, x: LOT.x1 + 0.3 } as const;
 
@@ -421,10 +435,24 @@ export class ParkingLot {
   /** The cash van drives in (or backs out and leaves) only while the lot is still and its lane is clear, and holds the lot's turn while it drives; it gives way to anyone on foot in front of it. */
   private stepCit(h: number, onFoot: readonly V2[]): void {
     const laneFree = this.cit.phase === 'away' ? !this.vehicles.some((v) => v.phase === 'approaching') : this.cit.phase === 'close' ? this.departing.length === 0 : true;
-    this.cit.step(h, this.mover === null && laneFree, onFoot);
+    this.driveCit(h, this.mover === null && laneFree, onFoot);
+  }
+
+  /** Steps the van, which holds the lot's turn while it drives. */
+  private driveCit(h: number, lotFree: boolean, onFoot: readonly V2[]): void {
+    this.cit.step(h, lotFree, onFoot);
     if (this.cit.needsLane()) {
       if (this.mover === null) this.mover = CIT_MOVER;
     } else if (this.mover === CIT_MOVER) this.mover = null;
+  }
+
+  /**
+   * Steps the cash van alone (a paused bank playing a CIT demo): everyone else stands frozen, so the lot is always the van's. A car
+   * frozen mid-turn by the pause would otherwise hold the lane for ever, the van would never back out and despawn, and the CIT lock
+   * (which waits for the van) would never release.
+   */
+  stepCitAlone(h: number): void {
+    this.driveCit(h, true, []);
   }
 
   /** A newcomer sets off up the lane (one at a time, and not while the cash van is on it) and takes a free bay; it needs the lot only at the gate. */
@@ -489,8 +517,8 @@ export class ParkingLot {
   }
 
   /** People walking between their bay and the branch. */
-  walkers(): Array<{ id: string; x: number; z: number; heading: number }> {
-    const out: Array<{ id: string; x: number; z: number; heading: number }> = [];
+  walkers(): Array<{ id: string; x: number; z: number; heading: number; phase: 'walkingIn' | 'walkingOut' }> {
+    const out: Array<{ id: string; x: number; z: number; heading: number; phase: 'walkingIn' | 'walkingOut' }> = [];
     for (const v of this.vehicles) {
       if (v.phase !== 'walkingIn' && v.phase !== 'walkingOut') continue;
       const path = slotRoutes(this.slots[v.slot]!).walk;
@@ -499,7 +527,7 @@ export class ParkingLot {
       const d = Math.min(len, v.t * WALK_PACE);
       const [x, z] = pointAlongPath(p, d);
       const [px, pz] = pointAlongPath(p, Math.min(len, d + 0.05));
-      out.push({ id: v.id, x, z, heading: Math.atan2(px - x, pz - z) });
+      out.push({ id: v.id, x, z, heading: Math.atan2(px - x, pz - z), phase: v.phase });
     }
     return out;
   }

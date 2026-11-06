@@ -1,10 +1,10 @@
 import { demoActionById, demoBlocked, type DemoActionId } from '../../sim/demoActions';
 import { demoGroup, type DemoGroupId } from '../../sim/demoGroups';
-import { inWindow, modeOf, shiftOf, shiftSnap, slotLabel } from '../../sim/demoSchedule';
+import { demoMinute, inWindow, modeOf, shiftOf, shiftSnap, slotLabel } from '../../sim/demoSchedule';
 import { shiftQueueStore } from '../../store/shiftQueueStore';
 import { DESK_VISITS } from '../../sim/deskVisit';
 import { simStamp } from '../../sim/ledgerStreams';
-import { opsCustomer, presetById, type PresetId } from '../../sim/presets';
+import { opsCustomer, presetById, presetCustomer, type PresetId } from '../../sim/presets';
 import { formatAud } from '../../engine/money';
 import { opsAccount, type OpsActionId } from '../../sim/retailOps';
 import { opsStpVerdict } from '../../sim/stpEngine';
@@ -12,6 +12,13 @@ import { notificationStore } from '../../store/notificationStore';
 import { bankStore } from '../../store/bankStore';
 import { deskVisitStore } from '../../store/deskVisitStore';
 import { retailOpsStore } from '../../store/retailOpsStore';
+import { demoSessionStore } from '../../store/demoSessionStore';
+import { hopPlayerStore } from '../../store/hopPlayerStore';
+import { vaultFlowStore } from '../../store/vaultFlowStore';
+import { demoLocked } from './DemoSession';
+import { simulateFlow } from '../../store/academySync';
+import { academyStore } from '../../store/academyStore';
+import type { FlowId } from '../../types/viewport';
 
 /** The bank's time for a journal of the retail book. */
 export function opsStamp(): string {
@@ -44,12 +51,44 @@ function runPresetDemo(id: PresetId): void {
     retail.settleEod(opsStamp());
     retail.setLastTx(null);
     announce();
+    const replay = bankStore.getState().sandboxTrace;
+    if (replay) demoSessionStore.getState().start({ kind: 'sandbox', id: replay.id });
     return;
   }
   const trace = bankStore.getState().presetTrace;
   if (!trace) return;
   retail.applyPreset(id, trace.plan.outcome, opsStamp());
   retail.setLastTx(trace.id);
+  startPaymentSession();
+}
+
+/** The learner's payment is now the running demo: the navigation locks until it (and its hop replay) is over. */
+function startPaymentSession(): void {
+  const id = bankStore.getState().presetTxId;
+  if (id) demoSessionStore.getState().start({ kind: 'payment', id });
+}
+
+/**
+ * "[▶ Simulate this Flow]" from the Academy, under the one execution lock: refused while a demo runs; otherwise it closes the lessons,
+ * plays the flow's main payment (paused first, like every demo) and opens its session, so the navigation locks until it is over.
+ */
+export function simulateGuidedFlow(flow: FlowId): void {
+  if (demoLocked()) return;
+  simulateFlow(academyStore, bankStore, flow);
+  startPaymentSession();
+}
+
+/**
+ * Before the night cycle: everything earlier flows left on screen goes (the learner's payment, the hop replay, the vault's cash
+ * echoes, the counter visitors, the buttons waiting for a shift), so EoD plays as one stream. The simulation's own queues are not
+ * touched: the day's customers are real and the night batch settles them.
+ */
+export function purgeForEod(): void {
+  bankStore.getState().clearDemo();
+  hopPlayerStore.getState().reset();
+  vaultFlowStore.getState().clear();
+  deskVisitStore.getState().clear();
+  shiftQueueStore.getState().clear();
 }
 
 function runOpsDemo(id: OpsActionId): void {
@@ -65,6 +104,7 @@ function runOpsDemo(id: OpsActionId): void {
   }
   bank.runDemoCustomer(customer);
   retail.setLastTx(bankStore.getState().presetTxId);
+  startPaymentSession();
   // A savings or collateral case brings people to those desks, on both maps. A system flow never does, nor a case the STP engine takes.
   const route = opsStpVerdict(id, bank.stp)?.route;
   const straight = route === 'STP' || route === 'REJECT';
@@ -80,7 +120,10 @@ function runOpsDemo(id: OpsActionId): void {
 export function executeDemo(id: DemoActionId): void {
   const def = demoActionById(id);
   const bank = bankStore.getState();
-  if (demoBlocked(id, { dayOver: bank.view.dayOver, minute: bank.view.minute })) return;
+  if (demoLocked() || demoBlocked(id, { dayOver: bank.view.dayOver, minute: bank.view.minute })) return;
+  // Every demo pauses the bank first: its payment plays alone (a solo run) and the clock stays paused after it until Play.
+  if (bank.playing) bank.pause();
+  if (id === 'eod') purgeForEod();
   // Run once: a copy still waiting for its shift is now done.
   shiftQueueStore.getState().unqueue(id);
   if (bank.scope !== 'beginner' || bank.flow !== def.flow) bank.setActiveFlow(def.flow);
@@ -93,20 +136,13 @@ export function executeDemo(id: DemoActionId): void {
  * window asks first (the prompt of ShiftPrompt.tsx): move the clock to its slot the same day, or wait in the queue for the shift.
  */
 export function runDemo(id: DemoActionId): void {
-  let bank = bankStore.getState();
-  // A 24/7 digital channel (VietQR, FacePay, cards, 3DS, wallets, eKYC, instant transfers) is never refused for the hour. Even once
-  // today has closed at midnight it runs at once: the bank rolls into the next day (the clock restarts at 07:00) and serves it.
+  if (demoLocked()) return;
+  const bank = bankStore.getState();
+  // A 24/7 digital channel (VietQR, FacePay, cards, 3DS, wallets, eKYC, instant transfers) is never refused for the hour. Once today
+  // has closed it plays in the sandbox at the time it is: the clock never jumps (no roll into tomorrow's 07:00).
   if (shiftOf(id) === 'always' && bank.view.dayOver && id !== 'cassette-low' && id !== 'cassette-refill') {
-    bank.startNextDay();
-    bank = bankStore.getState();
-    notificationStore.getState().push({
-      tone: 'info',
-      icon: '🌙',
-      title: { en: 'Digital channel, 24/7', vi: 'Kênh số, 24/7' },
-      body: { en: 'Today had closed, so the bank rolled into the next day to serve this digital payment at once.', vi: 'Ngày hôm nay đã khép sổ, nên ngân hàng chuyển sang ngày mới để xử lý ngay giao dịch số này.' },
-      deferred: false,
-      source: `always:${id}`,
-    });
+    runSandboxDemo(id);
+    return;
   }
   const snap = shiftSnap(id, bank.view.minute);
   // A day that is over stops everything but a counter button, which can still replay today up to 16:30.
@@ -116,6 +152,40 @@ export function runDemo(id: DemoActionId): void {
     return;
   }
   executeDemo(id);
+}
+
+/**
+ * The sheet's "▶ Run this scenario": a manual demo override that runs at any hour, never waiting for a shift and never moving the
+ * clock. It plays as an isolated solo run (the bank paused, only this payment moving). On a day already closed, which takes no more
+ * payments, it plays in a sandbox instead: a throwaway copy of today runs the payment and the hop player shows its route, while the
+ * bank stays on its closed day with its books untouched.
+ */
+export function runDemoAnytime(id: DemoActionId): void {
+  if (demoLocked()) return;
+  const bank = bankStore.getState();
+  if (bank.view.dayOver && demoBlocked(id, { dayOver: true, minute: bank.view.minute })) {
+    runSandboxDemo(id);
+    return;
+  }
+  executeDemo(id);
+}
+
+/** A closed day's demo, played in the sandbox: nothing of the bank moves, and the session locks until its replay is over. */
+function runSandboxDemo(id: DemoActionId): void {
+  const bank = bankStore.getState();
+  const customer = presetById(id) ? presetCustomer(id as PresetId, bank.sim.rules) : opsCustomer(id as OpsActionId, undefined, bank.stp);
+  const def = demoActionById(id);
+  if (bank.scope !== 'beginner' || bank.flow !== def.flow) bank.setActiveFlow(def.flow);
+  const trace = customer ? bankStore.getState().runSandbox(customer, demoMinute(id, bank.view.minute)) : null;
+  if (trace) demoSessionStore.getState().start({ kind: 'sandbox', id: trace.id });
+  notificationStore.getState().push({
+    tone: 'info',
+    icon: '🧪',
+    title: { en: 'Sandbox replay', vi: 'Chạy thử trong sandbox' },
+    body: { en: 'Today has closed, so this scenario plays in an isolated sandbox: the bank stays on its closed day and its books are untouched.', vi: 'Hôm nay đã khép sổ, nên kịch bản chạy trong sandbox tách biệt: ngân hàng giữ nguyên ngày đã đóng và sổ sách không thay đổi.' },
+    deferred: false,
+    source: `sandbox:${id}`,
+  });
 }
 
 /** The prompt's Confirm: move the clock to the button's slot (forward, or a same-day replay back to 16:30), then run it. */
@@ -130,7 +200,7 @@ export function confirmShiftSnap(): void {
     bank.resetDay();
     bankStore.getState().skipTo(snap.target);
   } else if (id !== 'eod') {
-    // The night cycle moves the clock to 23:00 itself, and starts it playing.
+    // The EoD demo moves the clock to 23:00 itself (its designated slot), and stays paused.
     bank.skipTo(snap.target);
   }
   executeDemo(id);
@@ -156,7 +226,7 @@ export function stayForShift(): void {
  */
 export function releaseDueDemos(): void {
   const { view, playing, solo } = bankStore.getState();
-  if (view.dayOver || !playing || solo) return;
+  if (view.dayOver || !playing || solo || demoLocked()) return;
   const [next] = shiftQueueStore.getState().release((w) => inWindow(w.shift, view.minute)).slice(0, 1);
   if (!next) return;
   // Others that are due wait for the next clock change.
@@ -173,5 +243,6 @@ export function releaseDueDemos(): void {
 
 /** Lights a sub-group's own path and narrows the dock to its buttons. */
 export function selectSubProcess(group: DemoGroupId): void {
+  if (demoLocked()) return;
   bankStore.getState().selectSubProcess(group, demoGroup(group).flow);
 }

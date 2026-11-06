@@ -1,24 +1,29 @@
-import { memo, useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { activeLocale, pick, tr, useLocale } from '../../i18n/locale';
 import { acronymHint } from './codeGlossary';
 import { demoActionById, demoActionsFor, demoBlocked, type DemoAction } from '../../sim/demoActions';
-import { demoGroup, isOpsGroup, showsGroupsOf } from '../../sim/demoGroups';
+import { demoGroup, groupOf, showsGroupsOf } from '../../sim/demoGroups';
 import { shiftOf, shiftSnap } from '../../sim/demoSchedule';
 import { shiftQueueStore, useShiftQueue } from '../../store/shiftQueueStore';
 import { flowText, GUIDED_FLOWS } from '../../sim/guidedFlows';
 import type { PresetVariant } from '../../sim/presets';
 import { cassetteStatus } from '../../sim/retailOps';
-import { opsLessonAnchor } from '../../data/retailOpsKnowledge';
-import { activeFlowOf, useBankStore } from '../../store/bankStore';
+import { activeFlowOf, citChildOf, useBankStore } from '../../store/bankStore';
 import { formatAud } from '../../engine/money';
 import { retailOpsStore, useRetailOpsStore } from '../../store/retailOpsStore';
-import { uiStore } from '../../store/uiStore';
 import { useMessages } from '../../utils/i18nHelper';
-import { AdaptivePopover, listboxKey } from '../shell/AdaptivePopover';
+import { ScenarioPicker } from './ScenarioPicker';
+import { RunOrCancel } from './DemoSession';
 import { retailOpsMessages } from './retailOps.messages';
 import { opsStamp, runDemo } from './retailOpsActions';
 import { topBand, useInspectorCovers, useMeasuredBox, useRightInset, useTopBand } from './ViewportControls';
 import { dockLayout } from './dockOverflow';
+import { refillAtmByCit } from '../ops/citActions';
+import { LessonLink } from '../ops/LessonLink';
+import { CitDemoPicker, CitDockButton } from '../ops/CitPanel';
+import { CIT_FLOW } from '../../types/viewport';
+import { CIT_INFO_KEYS } from '../../data/subProcessKeys';
+import { CIT_SHEETS } from '../../data/subProcessCitSheets';
 
 /** The one demo bar of the guided flow in focus, anchored at the bottom of the map in the Beginner scope. Every control runs through runDemo. */
 
@@ -64,85 +69,21 @@ function DemoButton({ action }: { action: DemoAction }) {
   );
 }
 
-/** The bar on a narrow or short map: pick a scenario from a list that opens upwards, then run it. */
+/** The bar on a narrow or short map: pick a scenario from the shared dropdown (ScenarioPicker), then run it. */
 function DemoSelector({ actions }: { actions: readonly DemoAction[] }) {
   const m = useMessages(retailOpsMessages);
-  const [picked, setPicked] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const listId = useId();
+  const [picked, setPicked] = useState<string>(actions[0]?.id ?? '');
   const chosen = actions.find((a) => a.id === picked) ?? actions[0];
-  const [active, setActive] = useState(0);
   const { disabled, title } = useDemoState(chosen);
-  useEffect(() => {
-    if (open) setActive(Math.max(0, actions.findIndex((a) => a.id === chosen?.id)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-  const choose = (a: DemoAction | undefined): void => {
-    if (a) setPicked(a.id);
-    setOpen(false);
-    trigger.current?.focus();
-  };
-  const onKeyDown = (e: KeyboardEvent): void => {
-    if (!open) {
-      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-        e.preventDefault();
-        setOpen(true);
-      }
-      return;
-    }
-    const next = listboxKey(e.key, active, actions.length);
-    if (next === null) return;
-    e.preventDefault();
-    if (next === 'pick') choose(actions[active]);
-    else if (next === 'close') {
-      e.stopPropagation();
-      setOpen(false);
-    } else setActive(next);
-  };
+  const items = actions.map((a) => ({ id: a.id, icon: a.icon, label: a.label(), hint: a.hint(), dot: DOT[a.variant] }));
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-2" data-testid="demo-selector">
-      <button
-        ref={trigger}
-        type="button"
-        role="combobox"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={listId}
-        aria-activedescendant={open ? `${listId}-${active}` : undefined}
-        aria-label={m('selectScenario')}
-        title={m('selectScenario')}
-        onClick={() => setOpen((o) => !o)}
-        onKeyDown={onKeyDown}
-        data-testid="demo-select"
-        data-picked={chosen?.id}
-        className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-[12px] font-semibold text-slate-100 transition hover:bg-slate-800"
-      >
-        <span className={`shrink-0 text-[10px] text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true">
-          🔼
-        </span>
-        <span className="min-w-0 truncate">{chosen ? chosen.label() : m('selectScenario')}</span>
-      </button>
-      <button type="button" onClick={() => chosen && runDemo(chosen.id)} disabled={disabled} title={title} data-testid="demo-run" className="shrink-0 whitespace-nowrap rounded-lg bg-emerald-500 px-3 py-1.5 text-[12px] font-bold text-emerald-950 shadow transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">
-        ▶ {m('runDemo')}
-      </button>
-      {open && (
-        <AdaptivePopover anchor={trigger} onClose={() => setOpen(false)} direction="up" width={380} maxVh={0.45} maxPx={320} align="start" id={listId} label={m('selectScenario')} testId="demo-select-list" activeIndex={active}>
-          {actions.map((a, i) => (
-            <li key={a.id} id={`${listId}-${i}`} role="option" aria-selected={a.id === chosen?.id} data-index={i} data-testid={`demo-option-${a.id}`} data-variant={a.variant} title={a.hint()} onPointerMove={() => setActive(i)} onClick={() => choose(a)} className={`flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] font-semibold text-slate-100 ${i === active ? 'bg-slate-800' : ''}`}>
-              <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${DOT[a.variant]}`} />
-              <span aria-hidden="true">{a.icon}</span>
-              <span className="min-w-0 flex-1">{a.label()}</span>
-              {a.id === chosen?.id && (
-                <span aria-hidden="true" className="text-emerald-300">
-                  ✓
-                </span>
-              )}
-            </li>
-          ))}
-        </AdaptivePopover>
-      )}
-    </div>
+    <ScenarioPicker items={items} picked={chosen?.id ?? ''} onPick={setPicked} label={m('selectScenario')} testId="demo">
+      <RunOrCancel>
+        <button type="button" onClick={() => chosen && runDemo(chosen.id)} disabled={disabled} title={title} data-testid="demo-run" className="shrink-0 whitespace-nowrap rounded-lg bg-emerald-500 px-3 py-1.5 text-[12px] font-bold text-emerald-950 shadow transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">
+          ▶ {m('runDemo')}
+        </button>
+      </RunOrCancel>
+    </ScenarioPicker>
   );
 }
 
@@ -175,7 +116,9 @@ function PresetDockView() {
   const m = useMessages(retailOpsMessages);
   const locale = useLocale();
   const flow = useBankStore(activeFlowOf);
-  const sub = useBankStore((s) => s.subProcess);
+  const sub = useBankStore((s) => groupOf(s.subProcess));
+  // Flow 09's dock is the CIT dispatch: the picked child's own run (top menu → Flow 09 → child), else the scenario dropdown.
+  const citPicked = useBankStore(citChildOf);
   const solid = useBankStore((s) => s.viewMode === '3d');
   const running = useBankStore((s) => s.presetTrace !== null && !s.presetTrace.done);
   const right = useRightInset();
@@ -187,7 +130,7 @@ function PresetDockView() {
   const cassetteLow = cassetteStatus(useRetailOpsStore((s) => s.book)).low;
   const box = useRef<HTMLDivElement>(null);
   // What stands on top of the bar (the ledger) keeps clear of it, whatever height the bar takes.
-  useMeasuredBox(box, (b) => topBand.setState({ demoDock: b }), [flow, sub, shortMap, mapW, right, vault, cassetteLow, waitingCount]);
+  useMeasuredBox(box, (b) => topBand.setState({ demoDock: b }), [flow, sub, citPicked, shortMap, mapW, right, vault, cassetteLow, waitingCount]);
   useEffect(() => {
     if (!flow || covered) topBand.setState({ demoDock: null });
   }, [flow, covered]);
@@ -197,14 +140,18 @@ function PresetDockView() {
   const actions = demoActionsFor(flow, sub);
   // A single-group flow's dock is titled by its flow, as the menu lists it; the 📖 lesson is the retail book's, so core groups have none.
   const group = sub && showsGroupsOf(flow) ? demoGroup(sub) : null;
-  const lesson = sub && isOpsGroup(sub) ? sub : null;
-  const title = group ? pick(group.title, locale) : `${f.code}. ${ft.title}`;
+  // Every sub-process has a lesson now (data/subProcessLessons.ts): the group's, or its flow's.
+  const lesson = sub && demoGroup(sub).flow === flow ? sub : (`flow-${flow}` as const);
+  const cit = flow === CIT_FLOW ? citPicked : null;
+  const citFlow = flow === CIT_FLOW;
+  const citSheet = cit ? CIT_SHEETS.find((c) => c.key === CIT_INFO_KEYS[cit]) : undefined;
+  const title = citSheet ? pick(citSheet.title, locale) : group ? pick(group.title, locale) : `${f.code}. ${ft.title}`;
   const free = mapW > 0 ? mapW - right - 24 : 1280;
   // One row only: what the title, the lesson link and the padding leave of the free width must hold every pill, or the whole area is a dropdown.
-  const budget = free - Math.round(title.length * 6.2 + 24) - (lesson ? 30 : 0) - 32;
+  const budget = free - Math.round(title.length * 6.2 + 24) - 30 - 32;
   const windowW = typeof window === 'undefined' ? Infinity : window.innerWidth;
   const compact = dockIsCompact(mapW - right, shortMap, windowW);
-  const dropdown = compact || dockLayout(actions.map((a) => ({ id: a.id, variant: a.variant, text: `${a.icon} ${a.label()}` })), budget, windowW) === 'dropdown';
+  const dropdown = !citFlow && (compact || dockLayout(actions.map((a) => ({ id: a.id, variant: a.variant, text: `${a.icon} ${a.label()}` })), budget, windowW) === 'dropdown');
   return (
     // The middle of what the inspector and the zoom toolbar leave free, so the bar never slides under them.
     <div
@@ -216,6 +163,7 @@ function PresetDockView() {
       data-testid="preset-dock"
       data-flow={flow}
       data-sub={sub ?? undefined}
+      data-cit={cit ?? undefined}
       data-compact={compact}
       data-layout={dropdown ? 'dropdown' : 'inline'}
     >
@@ -224,16 +172,16 @@ function PresetDockView() {
           {title}
         </span>
       )}
-      {lesson && (
-        <button type="button" onClick={() => uiStore.getState().openKnowledge(opsLessonAnchor(lesson))} title={m('openThisSubProcessS')} aria-label={m('openThisSubProcessS')} data-testid={`ops-lesson-${lesson}`} className="shrink-0 text-[13px]">
-          📖
-        </button>
-      )}
-      {dropdown ? (
+      <LessonLink lessonKey={cit ? CIT_INFO_KEYS[cit] : lesson} className="text-[13px]" />
+      {cit ? (
+        <CitDockButton kind={cit} />
+      ) : citFlow ? (
+        <CitDemoPicker />
+      ) : dropdown ? (
         // Keyed by the list: another flow starts from its own first scenario.
         <DemoSelector key={`${flow}-${sub ?? ''}`} actions={actions} />
       ) : (
-        actions.map((a) => <DemoButton key={a.id} action={a} />)
+        <RunOrCancel>{actions.map((a) => <DemoButton key={a.id} action={a} />)}</RunOrCancel>
       )}
       {flow === 6 && vault && (
         // The transfer is mandatory, so it stays one click away even with the inspector closed.
@@ -243,7 +191,7 @@ function PresetDockView() {
       )}
       {flow === 3 && cassetteLow && (
         // Only while a refill is due: the warning has no payment to inspect, so its one action lives here.
-        <button type="button" onClick={() => retailOpsStore.getState().refillCassette(opsStamp())} data-testid="dock-cassette-refill" className="shrink-0 whitespace-nowrap rounded-lg bg-amber-400 px-3 py-1.5 text-[12px] font-bold text-amber-950 shadow hover:bg-amber-300">
+        <button type="button" onClick={refillAtmByCit} data-testid="dock-cassette-refill" className="shrink-0 whitespace-nowrap rounded-lg bg-amber-400 px-3 py-1.5 text-[12px] font-bold text-amber-950 shadow hover:bg-amber-300">
           🚚 {m('citRefill')}
         </button>
       )}

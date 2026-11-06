@@ -5,6 +5,7 @@ export const knowledgeBaseMessages = defineMessages('knowledgeBase', {
   title: { en: '📖 Knowledge Base', vi: '📖 Thư viện kiến thức' },
   subtitle: { en: 'Reference articles behind the desks and the core ledger', vi: 'Bài viết tham khảo về các quầy nghiệp vụ và sổ cái lõi' },
   onThisPage: { en: 'On this page', vi: 'Nội dung' },
+  legalBasis: { en: 'Legal basis', vi: 'Cơ sở pháp lý' },
   tabsLabel: { en: 'Knowledge Base categories', vi: 'Danh mục kiến thức' },
   tabCore: { en: '📒 Core ledger', vi: '📒 Sổ cái lõi' },
   tabAml: { en: '🛡️ AML compliance', vi: '🛡️ Tuân thủ AML' },

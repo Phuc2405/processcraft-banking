@@ -3,7 +3,7 @@ import { Canvas } from '@react-three/fiber';
 import { Component, memo, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type KeyboardEvent, type ReactNode } from 'react';
 import { activeFlowOf, floatingBarsHiddenOf, useBankStore } from '../../../store/bankStore';
 import { OfficeScene } from './OfficeScene';
-import { bindContextEvents, disposeObject, disposeRenderer, type RendererLike, type SceneNode } from './webglSafety';
+import { bindContextEvents, ContextGuard, disposeObject, disposeRenderer, type ContextState, type RendererLike, type SceneNode } from './webglSafety';
 import { notificationStore } from '../../../store/notificationStore';
 import { TourLayer3D } from './TourLayer3D';
 import { CAMERA_DIRECTION, CAMERA_DISTANCE } from '../../../engine/plan/layout3d';
@@ -275,15 +275,16 @@ function Office3DView() {
   const resumeOffered = useBankStore((s) => s.leftTour !== null);
   const [resetKey, setResetKey] = useState(0);
   const [ready, setReady] = useState(false);
-  const [lost, setLost] = useState(false);
+  const [context, setContext] = useState<ContextState>('live');
   const back = useCallback(() => setViewMode('2d'), [setViewMode]);
   // The live renderer and scene, so the unmount (a 2D <-> 3D toggle) can free their GPU memory, and the context listeners can be unbound.
-  const three = useRef<{ gl: RendererLike; scene: SceneNode; unbind: () => void } | null>(null);
+  const three = useRef<{ gl: RendererLike; scene: SceneNode; unbind: () => void; guard: ContextGuard } | null>(null);
   useEffect(
     () => () => {
       const t3 = three.current;
       three.current = null;
       if (!t3) return;
+      t3.guard.dispose();
       t3.unbind();
       disposeObject(t3.scene);
       disposeRenderer(t3.gl);
@@ -307,7 +308,7 @@ function Office3DView() {
   useMeasuredBox(toolbar, (b) => topBand.setState({ toolbar: b }), [toolbarTop, tight, folded, wraps, labelMode, touring, showMenu, kickoff, covered]);
   const legendRight = useBankStore((s) => 76 + (s.selection.kind !== 'none' ? s.inspectorWidth : 0));
 
-  if (lost) return <Unavailable reason="The graphics context was lost." onBack={back} />;
+  if (context === 'lost') return <Unavailable reason="The graphics context was lost." onBack={back} />;
 
   const k = CAMERA_DISTANCE / Math.sqrt(CAMERA_DIRECTION[0] ** 2 + CAMERA_DIRECTION[1] ** 2 + 1);
 
@@ -325,31 +326,37 @@ function Office3DView() {
           dpr={[1, 1.5]}
           camera={{ position: [CAMERA_DIRECTION[0] * k, k, CAMERA_DIRECTION[1] * k], zoom: 28, near: 0.1, far: 400 }}
           gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
-          onCreated={({ gl, scene }) => {
+          onCreated={({ gl, scene, invalidate }) => {
             setReady(true);
-            const unbind = bindContextEvents(gl.domElement, {
-              // The GPU took the context away: never crash, fall back to the 2D blueprint (the same bank, the same clock, still paused if it was).
-              onLost: () => {
-                setLost(true);
-                notificationStore.getState().push({
-                  tone: 'warning',
-                  icon: '🧊',
-                  title: { en: '3D view paused by the browser', vi: 'Trình duyệt đã tạm dừng chế độ 3D' },
-                  body: { en: 'The graphics context was lost, so the bank is shown on the 2D blueprint. Nothing was lost.', vi: 'Mất ngữ cảnh đồ họa nên ngân hàng được hiển thị trên sơ đồ 2D. Không có dữ liệu nào bị mất.' },
-                  deferred: false,
-                  source: 'webgl-lost',
-                });
-                back();
-              },
-              onRestored: () => setLost(false),
+            // The GPU took the context away: never crash. Three.js rebuilds its GPU state when the browser hands the context back, so
+            // wait for that; only a context that does not come back (or keeps going) sends the bank to the 2D blueprint.
+            const guard = new ContextGuard((state) => {
+              setContext(state);
+              if (state === 'live') invalidate();
+              if (state !== 'lost') return;
+              notificationStore.getState().push({
+                tone: 'warning',
+                icon: '🧊',
+                title: { en: '3D view paused by the browser', vi: 'Trình duyệt đã tạm dừng chế độ 3D' },
+                body: { en: 'The graphics context was lost and did not come back, so the bank is shown on the 2D blueprint. Nothing was lost.', vi: 'Mất ngữ cảnh đồ họa và không khôi phục được nên ngân hàng được hiển thị trên sơ đồ 2D. Không có dữ liệu nào bị mất.' },
+                deferred: false,
+                source: 'webgl-lost',
+              });
+              back();
             });
-            three.current = { gl, scene, unbind };
+            const unbind = bindContextEvents(gl.domElement, { onLost: () => guard.lost(), onRestored: () => guard.restored() });
+            three.current = { gl, scene, unbind, guard };
           }}
         >
           <OfficeScene resetKey={resetKey} />
         </Canvas>
       </OfficeBoundary>
 
+      {context === 'restoring' && (
+        <div className="pointer-events-none absolute inset-0 z-[46] grid place-items-center bg-slate-950/40 text-[13px] font-semibold text-slate-100" role="status" data-testid="office-3d-restoring">
+          {t('Restoring the 3D view…')}
+        </div>
+      )}
       {!ready && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center text-[13px] text-slate-500" role="status">
           Building the office…

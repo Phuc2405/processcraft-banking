@@ -72,6 +72,7 @@ import {
   wireLane,
   ZOOM_LIMITS,
   STATION_POSES,
+  isWallStation,
 } from '../../../../engine/plan/layout3d';
 
 /** The Ingestion Gates in the order they stand down the left of the floor. */
@@ -90,7 +91,8 @@ describe('the office floor', () => {
       const pose = deskPose(id);
       expect(pose.x).toBeCloseTo((box.cx - BUILDING.width / 2) / WORLD_SCALE, 9);
       expect(pose.z).toBeCloseTo((box.cy - BUILDING.height / 2) / WORLD_SCALE, 9);
-      expect(pose.w).toBe(COUNTER.w);
+      // The central cash vault is the round door in the wall, not a counter.
+      expect(pose.w).toBe(isWallStation(id) ? 2.2 : COUNTER.w);
     }
     expect(STATION_POSES.GATE_VIRTUAL.x).toBeLessThan(STATION_POSES.SEC_VAULT.x);
     expect(STATION_POSES.GATE_VIRTUAL.z).toBeLessThan(STATION_POSES.GATE_POS.z);

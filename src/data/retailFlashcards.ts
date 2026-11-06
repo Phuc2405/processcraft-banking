@@ -11,6 +11,8 @@ import { ACRONYM_DETAILS, AUDITED_ACRONYMS } from './acronyms';
 import { FLASHCARD_DETAIL } from './flashcardDetails';
 import type { OpsFlashcard } from './retailOpsKnowledge';
 import { citExampleJournal, citOrder, type CitLine, type CitOrderInput } from '../sim/citEngine';
+import { STP_REF } from './stpKnowledge';
+import { CIT_REF } from './citKnowledge';
 
 const L = (en: string, vi: string): Localized<string> => ({ en, vi });
 
@@ -126,7 +128,6 @@ const TOPIC_CARDS: readonly RetailFlashcard[] = [
 ];
 
 const STP_TAG = L('STP automation', 'Xử lý tự động STP');
-const STP_REF = L('SBV Circular 31/2024/TT-NHNN & the ISO 20022 e-payment message standard', 'Thông tư 31/2024/TT-NHNN & Tiêu chuẩn giao dịch điện tử ISO 20022');
 
 /** The STP cards: what straight-through processing is, how an exception falls back, and the fast-fail gate. */
 const STP_CARDS: readonly RetailFlashcard[] = [
@@ -151,7 +152,7 @@ const STP_CARDS: readonly RetailFlashcard[] = [
     rule: L('It breaks two rules (over the $500 limit, over the 23% DTI cap), so it queues at the BNPL appraisal desk with its flags.', 'Vi phạm hai quy tắc (vượt hạn mức $500, vượt trần DTI 23%), nên vào Quầy thẩm định BNPL kèm cờ lý do.'),
     lines: [],
     detail: L('The underwriter checks the CIC history and approves by manual override or refuses; the override is logged.', 'Chuyên viên kiểm tra lịch sử CIC rồi duyệt ngoại lệ hoặc từ chối; lần duyệt ngoại lệ được ghi vết.'),
-    reference: L('Simulator STP policy · NCCP responsible lending', 'Chính sách STP của mô phỏng · cho vay có trách nhiệm NCCP'),
+    reference: STP_REF,
   },
   {
     id: 'retail-stp-fastfail',
@@ -162,12 +163,11 @@ const STP_CARDS: readonly RetailFlashcard[] = [
     rule: L('No: bad debt (CIC groups 3 to 5) is refused at the online gate, before any human slot is used.', 'Không: nợ xấu (CIC nhóm 3 đến 5) bị từ chối ngay tại cổng trực tuyến, trước khi chiếm chỗ của nhân viên.'),
     lines: [],
     detail: L('A failed biometric (BIOMETRIC_AUTH_FAILED) or a high-risk device (FDS_HIGH_RISK_DEVICE) is fast-failed the same way.', 'Sinh trắc học thất bại (BIOMETRIC_AUTH_FAILED) hoặc thiết bị rủi ro cao (FDS_HIGH_RISK_DEVICE) cũng bị loại sớm như vậy.'),
-    reference: L('SBV Circular 31/2024/TT-NHNN (debt groups)', 'Thông tư 31/2024/TT-NHNN (phân loại nợ)'),
+    reference: STP_REF,
   },
 ];
 
 const CIT_TAG = L('Vault & CIT', 'Kho quỹ & CIT');
-const CIT_REF = L('SBV Circular 01/2014/TT-NHNN (cash receipt, storage and transport)', 'Thông tư 01/2014/TT-NHNN (giao nhận, bảo quản, vận chuyển tiền mặt)');
 const citJournal = (i: CitOrderInput): readonly CitLine[] => citExampleJournal(citOrder(i));
 
 /** The CIT & vault cards: one per scenario, the fitness sort and the 4-eye seal. Journals come from the CIT engine. */

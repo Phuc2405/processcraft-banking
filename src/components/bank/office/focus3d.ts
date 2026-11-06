@@ -1,5 +1,6 @@
-import { focusScope, type DemoGroupId } from '../../../sim/demoGroups';
+import { focusScope, type FocusSub } from '../../../sim/demoGroups';
 import type { PlaceId } from '../../../sim/topology';
+import type { LivePath } from '../../../sim/transactionPath';
 import type { FlowId } from '../../../types/viewport';
 import { LANES, type V2 } from '../../../engine/plan/layout3d';
 import { pathLength, pointAlongPath } from '../../../engine/plan/path';
@@ -10,6 +11,24 @@ import { pathLength, pointAlongPath } from '../../../engine/plan/path';
 
 /** How strongly the rest of the office fades: to 20% round a pointed-at desk, to 10% outside a sub-process (guided scenario). */
 export const DIM = { hover: 0.2, flow: 0.1 } as const;
+
+/**
+ * The wires' ambient glow: idle lanes sit dimmed in the background, and a live path's halo glows just enough ("vừa đủ"), never a
+ * neon that hides the scene.
+ */
+export const LANE_GLOW = { idle: 0.55, halo: 0.2 } as const;
+
+/** The vault's cash arcs: a faint idle line, a highlighted one (its flow is active, or a station it touches is hovered), and a live one lit softly (never a neon). */
+export const GLOW = { idle: 0.14, lit: 0.34, live: 0.45 } as const;
+
+/**
+ * The 3D scene's GPU budget, one place for every knob: particles at half their old density (cash sparks, lane pulses, weather
+ * drift, dust and rain) and the baked contact shadows at a light 256 px, so a long session never runs the WebGL context out of memory.
+ */
+export const GPU_BUDGET = { particles: 0.5, shadowPx: 256 } as const;
+
+/** `n` particles at the budget's density, never fewer than one. */
+export const budgeted = (n: number): number => Math.max(1, Math.round(n * GPU_BUDGET.particles));
 
 /** How far the unrelated lanes and badges fade round a pointed-at desk. */
 export const LANE_DIM = 0.15;
@@ -28,23 +47,27 @@ export function neighbours(place: PlaceId): ReadonlySet<PlaceId> {
 }
 
 /** The opacity a desk (or kiosk) is drawn at: full when it is in focus, faded otherwise. A pointed-at desk wins over a scenario. */
-export function deskFocus(place: PlaceId, hover: PlaceId | null, flow: FlowId | null, sub: DemoGroupId | null = null): number {
+export function deskFocus(place: PlaceId, hover: PlaceId | null, flow: FlowId | null, sub: FocusSub | null = null): number {
   if (hover) return neighbours(hover).has(place) ? 1 : DIM.hover;
   if (flow) return focusScope(flow, sub).places.has(place) ? 1 : DIM.flow;
   return 1;
 }
 
-/** The lanes lit now: the pointed-at desk's own, else the guided scenario's; and how much the others fade. */
-export function litLanes(hover: PlaceId | null, flow: FlowId | null, sub: DemoGroupId | null = null): { lanes: ReadonlySet<string>; dim: number } {
-  if (hover) return { lanes: new Set(LANES.filter((l) => l.from === hover || l.to === hover).map((l) => l.id)), dim: LANE_DIM };
-  if (flow) return { lanes: focusScope(flow, sub).wires, dim: DIM.flow };
-  return { lanes: new Set(), dim: 1 };
+/**
+ * The lanes lit now and how much the others fade: the pointed-at desk's own; else, while the learner's payment runs, only the wires
+ * it has crossed and is crossing (its orb is then the one moving light, so `pulses` is off); else the guided scenario's.
+ */
+export function litLanes(hover: PlaceId | null, flow: FlowId | null, sub: FocusSub | null = null, path: LivePath | null = null): { lanes: ReadonlySet<string>; dim: number; pulses: boolean } {
+  if (hover) return { lanes: new Set(LANES.filter((l) => l.from === hover || l.to === hover).map((l) => l.id)), dim: LANE_DIM, pulses: true };
+  if (path) return { lanes: new Set(LANES.filter((l) => path.all.has(l.id)).map((l) => l.id)), dim: DIM.flow, pulses: false };
+  if (flow) return { lanes: focusScope(flow, sub).wires, dim: DIM.flow, pulses: true };
+  return { lanes: new Set(), dim: 1, pulses: true };
 }
 
 export type BadgeFocus = 'lit' | 'dim' | 'plain' | 'faded';
 
 /** How a lane's condition badge shows. */
-export function badgeFocus(l: { id?: string; from: PlaceId; to: PlaceId }, hover: PlaceId | null, flow: FlowId | null = null, sub: DemoGroupId | null = null): BadgeFocus {
+export function badgeFocus(l: { id?: string; from: PlaceId; to: PlaceId }, hover: PlaceId | null, flow: FlowId | null = null, sub: FocusSub | null = null): BadgeFocus {
   if (hover !== null) return l.from === hover || l.to === hover ? 'lit' : 'dim';
   if (flow !== null) return l.id !== undefined && focusScope(flow, sub).wires.has(l.id) ? 'plain' : 'faded';
   return 'plain';
@@ -71,7 +94,7 @@ export function dashLane(points: readonly V2[], dash?: readonly [number, number]
 }
 
 /** Light pulses on a lit lane: how many ride it at once, and how fast (world units a second). */
-export const PULSE = { perLane: 2, speed: 3.2 } as const;
+export const PULSE = { perLane: budgeted(2), speed: 3.2 } as const;
 
 /** Where pulse `k` of a lane of length `len` is at time `t`: evenly spaced, looping from the start. */
 export const pulseDistance = (len: number, k: number, t: number): number => (len <= 0 ? 0 : (((t * PULSE.speed + (k * len) / PULSE.perLane) % len) + len) % len);

@@ -29,7 +29,11 @@ export type FlowNodeId =
   | 'swift_gateway'
   | 'dispute_desk'
   // Phase 2/4
-  | 'savings_collateral';
+  | 'savings_collateral'
+  // Flow 09: cash in transit
+  | 'cash_vault'
+  | 'cit_bay'
+  | 'cash_endpoint';
 
 /** The flow-to-node contract, exactly as the brief names it. */
 export const GUIDED_FLOW_NODES: Readonly<Record<FlowId, readonly FlowNodeId[]>> = {
@@ -41,6 +45,7 @@ export const GUIDED_FLOW_NODES: Readonly<Record<FlowId, readonly FlowNodeId[]>> 
   6: ['teller_counter', 'aml_screen', 'casa_posting', 'savings_collateral'],
   7: ['qr_gateway', 'facepay', 'fds_engine', 'aml_screen', 'casa_posting'],
   8: ['swift_gateway', 'facepay', 'fds_engine', 'aml_screen', 'casa_posting', 'dispute_desk'],
+  9: ['cash_vault', 'cit_bay', 'cash_endpoint'],
 };
 
 export interface FlowStep {
@@ -172,6 +177,18 @@ export const GUIDED_FLOWS: Readonly<Record<FlowId, FlowDef>> = {
       step('dispute_desk', ['DISPUTE_DESK'], 'Disputes & Returns', 'If something went wrong, a specialist decides the claim and refunds the customer.', 'pacs.004 payment return, card chargeback (120-day SLA) or ATM mismatch from the electronic journal.'),
     ],
   },
+  9: {
+    id: 9,
+    code: '09',
+    title: 'Cash in Transit & Vault (CIT)',
+    accent: '#facc15',
+    blurb: 'Physical cash, not payments: the Central Cash Vault feeds the teller tills and the ATM / CDM, and the armoured van carries cash between the CIT loading bay, corporate clients and the State Bank (SBV).',
+    steps: [
+      step('cash_vault', ['MAIN_CASH_VAULT'], 'Central Cash Vault', 'Cash leaves or comes back to the vault under two custodians.', 'Cr 1111 on a dispatch, Dr 1111 (fit) / Dr 1112 (unfit) on a receipt; TK 1131 holds it on the road.'),
+      step('cit_bay', [], 'CIT Loading Bay', 'The sealed bags are checked and loaded into, or unloaded from, the armoured van.', '4-eye seal check at ARRIVED; a mismatch is minuted and the bag recounted under dual control.'),
+      step('cash_endpoint', ['TELLER_CASH', 'ATM_CASH'], 'Till, ATM / CDM, Client or SBV', 'The cash reaches the teller till, the ATM cassette, the corporate client or the State Bank.', 'Dr 1113 ATM, Dr 1111 till, Dr 1121 SBV, or Dr 1111 / Cr 4211 for a corporate pickup; SETTLED once 1131 nets to zero.'),
+    ],
+  },
 };
 
 /** The flow and step a logical node plays in, for a flow that uses it. */
@@ -182,7 +199,7 @@ const PLACES_CACHE = new Map<FlowId, ReadonlySet<PlaceId>>();
 export function flowPlaces(flow: FlowId): ReadonlySet<PlaceId> {
   let set = PLACES_CACHE.get(flow);
   if (!set) {
-    set = new Set(GUIDED_FLOWS[flow].steps.flatMap((s) => s.places));
+    set = withCashVault(new Set(GUIDED_FLOWS[flow].steps.flatMap((s) => s.places)));
     PLACES_CACHE.set(flow, set);
   }
   return set;
@@ -206,6 +223,12 @@ export interface FlowScope {
 }
 
 const SCOPE_CACHE = new Map<FlowId, FlowScope>();
+/** A scope that touches a cash endpoint (the teller's till or the ATM's cassette) also lights the Central Cash Vault that feeds it. */
+export function withCashVault(places: Set<PlaceId>): Set<PlaceId> {
+  if (places.has('TELLER_CASH') || places.has('ATM_CASH')) places.add('MAIN_CASH_VAULT');
+  return places;
+}
+
 export function flowScope(flow: FlowId): FlowScope {
   const cached = SCOPE_CACHE.get(flow);
   if (cached) return cached;
@@ -329,6 +352,15 @@ const FLOW_VI: Readonly<Record<FlowId, FlowWords>> = {
       { name: 'Rà soát AML & Cấm vận', standard: 'Chuyên viên xác nhận trùng cấm vận hoặc giải phóng giao dịch bị giữ.', expert: 'Xác nhận trùng OFAC → AML_SANCTION_MATCH, tiền chuyển vào 2510 Tiền bị phong tỏa AML; nếu không thì lập STR hoặc giải phóng.' },
       { name: 'Tài khoản thanh toán của khách', standard: 'Khách bị ghi nợ và ngân hàng nước ngoài được thanh toán.', expert: 'Nợ 2010 Tài khoản của khách / Có 1430 Nostro tại ngân hàng đại lý (SWIFT).' },
       { name: 'Khiếu nại & Hoàn trả', standard: 'Nếu có sự cố, chuyên viên quyết định khiếu nại và hoàn tiền cho khách.', expert: 'Hoàn trả pacs.004, tra soát thẻ (thời hạn 120 ngày) hoặc lệch tiền ATM theo nhật ký điện tử.' },
+    ],
+  },
+  9: {
+    title: 'Vận chuyển tiền mặt & Quản lý Kho quỹ (CIT)',
+    blurb: 'Tiền mặt vật lý, không phải giao dịch thanh toán: Kho Quỹ Trung Tâm cấp tiền cho quầy và ATM / CDM, xe chở tiền chạy giữa Sảnh Giao Nhận CIT, khách hàng doanh nghiệp và Ngân hàng Nhà nước (NHNN).',
+    steps: [
+      { name: 'Kho Quỹ Trung Tâm', standard: 'Tiền rời kho hoặc về kho dưới sự giám sát của hai thủ quỹ.', expert: 'Có 1111 khi xuất quỹ, Nợ 1111 (đủ TC) / Nợ 1112 (không đủ TC) khi nhập; TK 1131 giữ tiền trên đường.' },
+      { name: 'Sảnh Giao Nhận CIT', standard: 'Túi niêm phong được kiểm tra và chất lên, hoặc dỡ xuống, xe chở tiền.', expert: 'Kiểm niêm phong 4 mắt khi Đã đến; sai lệch phải lập biên bản và kiểm đếm lại dưới kiểm soát kép.' },
+      { name: 'Quầy, ATM / CDM, Khách hàng hoặc NHNN', standard: 'Tiền đến ngăn kéo giao dịch viên, hộp tiền ATM, khách hàng doanh nghiệp hoặc NHNN.', expert: 'Nợ 1113 ATM, Nợ 1111 quầy, Nợ 1121 NHNN, hoặc Nợ 1111 / Có 4211 khi thu tận nơi; Tất toán khi 1131 về 0.' },
     ],
   },
 };

@@ -10,7 +10,7 @@ import { glow, pane, solid } from './materials';
 import { GuardCabin3D } from './GuardCabin3D';
 import { LoadingBay3D } from './LoadingBay3D';
 import { PARKING_PLAN } from '../../../engine/world/guardCabin';
-import { AISLE, CIT_CLEAR, FOOTWAY, LOT, LOT_SIDE, ROWS, SIDE_DOORS_LEFT, TREE_STRIP, WALKWAY, type LotKind, type ParkingLot } from '../../../engine/world/parking';
+import { AISLE, CIT_CLEAR, FOOTWAY, LOT, LOT_HEDGES, LOT_SIDE, ROWS, SIDE_DOORS_LEFT, TREE_STRIP, WALKWAY, type LotKind, type ParkingLot } from '../../../engine/world/parking';
 import { bodyParts, Rider } from './Vehicles3D';
 import { outfitOf, outfitShirt } from '../../../engine/world/weather';
 import { useWeather } from './useWeather';
@@ -45,9 +45,9 @@ function lotParts(): { solid: Part[]; glass: Part[]; lit: Part[] } {
     box([s * LOT.x1, 0.03, midZ], [0.12, 0.12, d], KERB),
     box([(s * (LOT.x0 + gate0)) / 2, 0.03, LOT.z0], [gate0 - LOT.x0, 0.12, 0.12], KERB),
     box([(s * (gate1 + LOT.x1)) / 2, 0.03, LOT.z0], [LOT.x1 - gate1, 0.12, 0.12], KERB),
-    // A low hedge along the front, by the pavement.
-    box([s * mid, 0.22, LOT.z1 - 0.12], [w, 0.5, 0.24], '#3f7d3a'),
   );
+  // A low hedge along the front, by the pavement, open where the footway meets it (the walkers' gap: parking.ts LOT_HEDGES).
+  for (const h of LOT_HEDGES) parts.push(box([(s * (h.x0 + h.x1)) / 2, 0.22, (h.z0 + h.z1) / 2], [h.x1 - h.x0, 0.5, h.z1 - h.z0], '#3f7d3a'));
   // Bay lines: one at each end of every bay, and one along the back of each row.
   for (const row of ROWS) {
     const a = (row.a0 + row.a1) / 2;

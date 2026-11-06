@@ -33,8 +33,12 @@ const RULES: KbTable = {
   ],
 };
 
+/** The STP legal basis: the article's footer and every STP flashcard. */
+export const STP_REF = L('SBV Circular 31/2024/TT-NHNN & the ISO 20022 e-payment message standard', 'Thông tư 31/2024/TT-NHNN & Tiêu chuẩn giao dịch điện tử ISO 20022');
+
 export const STP_ARTICLE = {
   id: 'stp-automation',
+  basis: STP_REF,
   title: L('Straight-Through Processing (STP): automation in modern core banking', 'Xử lý tự động STP: tự động hóa trong Core Banking hiện đại'),
   intro: L(
     'Straight-Through Processing means a case travels from the customer’s request to the posted ledger entry with no human touch. The rules a clerk would apply run as code in the core banking engine; only the exceptions reach a desk. Done well it cuts queues and cost; done badly it automates mistakes at machine speed.',

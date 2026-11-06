@@ -183,6 +183,107 @@ export const AML_ARTICLE = {
       keywords: ['red flag', 'dau hieu do', 'dau hieu bat thuong', 'sop', 'quy trinh', 'thao tac', 'checklist'],
     },
     {
+      id: 'aml-cash-ctr',
+      title: L('2c. Large cash transactions (CTR) and smurfing review', '2c. Giao dịch tiền mặt giá trị lớn (CTR) & rà soát chia nhỏ'),
+      paragraphs: [
+        L(
+          'Every cash deposit or withdrawal of $10,000 or more at the teller is reported as a Cash Transaction Report (CTR), whatever the customer’s reason. The report is routine: it is not an accusation, and the customer is served as usual.',
+          'Mọi giao dịch nộp hoặc rút tiền mặt từ $10,000 tại quầy đều được báo cáo bằng Báo cáo giao dịch tiền mặt giá trị lớn (CTR), bất kể lý do của khách. Đây là báo cáo định kỳ: không phải lời buộc tội, khách vẫn được phục vụ bình thường.',
+        ),
+        L(
+          'Smurfing is what the CTR invites: the same customer, or a ring of helpers, keeps each deposit just under the line. The desk looks at the day as a whole, not at one slip: several cash deposits close together that add up over the line are reviewed as one.',
+          'Chia nhỏ (smurfing) là phản ứng mà CTR dễ kéo theo: cùng một khách, hoặc một nhóm người giúp, giữ mỗi lần nộp ngay dưới ngưỡng. Bàn AML xem cả ngày giao dịch chứ không xem từng phiếu: nhiều lần nộp tiền mặt sát nhau cộng lại vượt ngưỡng được rà soát như một.',
+        ),
+      ],
+      advanced: [
+        L(
+          'A CTR is filed on facts (the amount), a suspicious transaction report (STR / SAR) on judgement (the pattern). One deposit can need both: a $12,000 cash deposit from a day-old account is reported for its size and reviewed for its profile.',
+          'CTR được lập theo dữ kiện (số tiền), báo cáo giao dịch đáng ngờ (STR / SAR) theo nhận định (mẫu hình). Một giao dịch có thể cần cả hai: khoản nộp $12,000 tiền mặt vào tài khoản mới mở một ngày được báo cáo vì giá trị và rà soát vì hồ sơ.',
+        ),
+      ],
+      table: {
+        columns: [L('Case', 'Tình huống'), L('CTR?', 'CTR?'), L('Review', 'Rà soát')],
+        rows: [
+          [L('One $12,000 cash deposit', 'Nộp một lần $12,000 tiền mặt'), L('Yes', 'Có'), L('Only if the profile does not fit', 'Chỉ khi không khớp hồ sơ')],
+          [L('Three deposits of $9,500 in an hour', 'Ba lần nộp $9,500 trong một giờ'), L('No single one over the line', 'Không lần nào vượt ngưỡng'), L('Yes: structuring', 'Có: chia nhỏ giao dịch')],
+          [L('A shop banking its takings daily', 'Cửa hàng nộp doanh thu hằng ngày'), L('When over the line', 'Khi vượt ngưỡng'), L('No, if the volume matches its trade', 'Không, nếu khớp doanh số')],
+        ],
+      },
+      rule: L('File the CTR on the amount; review the pattern across the day, never one slip at a time.', 'Lập CTR theo số tiền; rà soát mẫu hình theo cả ngày, không xét từng phiếu riêng lẻ.'),
+      keywords: ['ctr', 'cash transaction report', 'bao cao giao dich tien mat', 'smurfing', 'structuring', 'chia nho', 'teller', 'quay', '10000'],
+    },
+    {
+      id: 'aml-swift-disputes',
+      title: L('2d. Flow 08: SWIFT transfers, sanctions screening and returns', '2d. Luồng 08: Chuyển tiền SWIFT, sàng lọc cấm vận & hoàn trả'),
+      paragraphs: [
+        L(
+          'A transfer abroad leaves as an ISO 20022 pacs.008. Before it goes, the beneficiary and the banks on the route are screened against the sanctions lists (OFAC, UN, EU); a match is frozen and reported, never sent and never explained to the customer.',
+          'Lệnh chuyển ra nước ngoài đi dưới dạng pacs.008 theo ISO 20022. Trước khi gửi, người thụ hưởng và các ngân hàng trên tuyến được đối chiếu danh sách cấm vận (OFAC, LHQ, EU); trùng khớp thì phong tỏa và báo cáo, không gửi đi và không giải thích với khách.',
+        ),
+        L(
+          'When the money comes back (a pacs.004 return: account closed, name mismatch) or a cardholder disputes a payment, the claims desk matches it to the original before anyone is refunded: the funds wait in suspense until they are matched.',
+          'Khi tiền bị trả về (pacs.004: tài khoản đã đóng, sai tên) hoặc chủ thẻ khiếu nại một giao dịch, quầy tra soát khớp với giao dịch gốc trước khi hoàn tiền: tiền nằm ở tài khoản treo cho đến khi khớp.',
+        ),
+      ],
+      advanced: [
+        L(
+          'Large cross-border transfers are reported as they are sent, and a transfer split to stay under the line is structuring across borders: the same rule as at the counter.',
+          'Chuyển tiền quốc tế giá trị lớn được báo cáo khi gửi đi, và lệnh chia nhỏ để ở dưới ngưỡng là chia nhỏ giao dịch xuyên biên giới: cùng quy tắc như tại quầy.',
+        ),
+      ],
+      flow: [
+        L('pacs.008 validated (BIC, amount, currency)', 'Kiểm tra pacs.008 (BIC, số tiền, loại tiền)'),
+        L('Sanctions and AML screening', 'Sàng lọc cấm vận và AML'),
+        L('Sent through the correspondent (nostro)', 'Gửi qua ngân hàng đại lý (nostro)'),
+        L('Return or dispute: matched in suspense, then refunded', 'Hoàn trả hoặc khiếu nại: khớp tại tài khoản treo rồi hoàn tiền'),
+      ],
+      rule: L('Screen before you send; match before you refund.', 'Sàng lọc trước khi gửi; khớp lệnh trước khi hoàn tiền.'),
+      keywords: ['swift', 'pacs.008', 'pacs.004', 'sanctions', 'cam van', 'ofac', 'return', 'hoan tra', 'dispute', 'tra soat', 'flow 08'],
+    },
+    {
+      id: 'aml-swift-ledger',
+      title: L('2e. Flow 08 in the core ledger: an accounting walkthrough', '2e. Luồng 08 trên sổ cái: hạch toán từng bước'),
+      paragraphs: [
+        L(
+          'Every step of a cross-border transfer is one balanced entry in the core ledger (Dr = Cr). The customer’s current account (TK 2010, a liability: what the bank owes them) goes down when they pay; the correspondent nostro (TK 1430, an asset: the bank’s money held abroad) goes down when the correspondent pays the beneficiary.',
+          'Mỗi bước của lệnh chuyển tiền quốc tế là một bút toán cân bằng trên sổ cái (Nợ = Có). Tài khoản thanh toán của khách (TK 2010, nợ phải trả: tiền ngân hàng nợ khách) giảm khi khách chuyển đi; tài khoản Nostro tại ngân hàng đại lý (TK 1430, tài sản: tiền của ngân hàng gửi ở nước ngoài) giảm khi ngân hàng đại lý trả cho người thụ hưởng.',
+        ),
+        L(
+          'A sanctions hit never reaches the nostro: the money moves from the customer’s account into restrained funds (TK 2510) and stays there, silently, until compliance clears it (reversed back to 2010) or the authorities order it seized.',
+          'Lệnh trùng cấm vận không bao giờ đi tới Nostro: tiền chuyển từ tài khoản khách sang tiền bị phong tỏa (TK 2510) và nằm ở đó, không thông báo, cho đến khi bộ phận tuân thủ giải tỏa (đảo về TK 2010) hoặc cơ quan chức năng ra lệnh tịch thu.',
+        ),
+        L(
+          'A return (pacs.004) runs the payment backwards: the nostro is credited again and the customer is refunded. A card chargeback is different: the cardholder is credited at once against a dispute receivable, which the scheme clears if the cardholder wins, or the bank takes back if the merchant wins.',
+          'Lệnh hoàn trả (pacs.004) chạy ngược bút toán thanh toán: Nostro được ghi tăng lại và khách được hoàn tiền. Hoàn tiền thẻ (chargeback) thì khác: chủ thẻ được ghi Có ngay đối ứng với khoản phải thu tra soát, khoản này được tổ chức thẻ thanh toán nếu chủ thẻ thắng, hoặc ngân hàng thu lại nếu đơn vị chấp nhận thẻ thắng.',
+        ),
+      ],
+      advanced: [
+        L(
+          'The nostro is reconciled every day against the correspondent’s MT950 / camt.053 statement: an item on one side only goes to suspense until it is matched, never straight to profit or loss.',
+          'Nostro được đối chiếu hằng ngày với sao kê MT950 / camt.053 của ngân hàng đại lý: khoản chỉ có ở một bên được đưa vào tài khoản treo cho đến khi khớp, không bao giờ ghi thẳng vào lãi lỗ.',
+        ),
+      ],
+      table: {
+        columns: [L('Event', 'Nghiệp vụ'), L('Debit', 'Ghi Nợ'), L('Credit', 'Ghi Có')],
+        rows: [
+          [L('Transfer sent (pacs.008)', 'Chuyển tiền đi (pacs.008)'), L('TK 2010 customer CASA', 'TK 2010 tiền gửi của khách'), L('TK 1430 correspondent nostro', 'TK 1430 Nostro đại lý')],
+          [L('Sanctions hit: frozen', 'Trùng cấm vận: phong tỏa'), L('TK 2010 customer CASA', 'TK 2010 tiền gửi của khách'), L('TK 2510 restrained funds', 'TK 2510 tiền bị phong tỏa')],
+          [L('False positive: released', 'Cảnh báo nhầm: giải tỏa'), L('TK 2510 restrained funds', 'TK 2510 tiền bị phong tỏa'), L('TK 2010 customer CASA', 'TK 2010 tiền gửi của khách')],
+          [L('Return received (pacs.004)', 'Nhận hoàn trả (pacs.004)'), L('TK 1430 correspondent nostro', 'TK 1430 Nostro đại lý'), L('TK 2010 customer CASA', 'TK 2010 tiền gửi của khách')],
+          [L('Chargeback: provisional credit', 'Chargeback: ghi Có tạm thời'), L('Dispute receivable', 'Phải thu tra soát'), L('TK 2010 customer CASA', 'TK 2010 tiền gửi của khách')],
+          [L('Cardholder wins: scheme pays', 'Chủ thẻ thắng: tổ chức thẻ trả'), L('Scheme nostro', 'Nostro tổ chức thẻ'), L('Dispute receivable', 'Phải thu tra soát')],
+        ],
+      },
+      flow: [
+        L('Dr 2010 / Cr 1430: the transfer leaves', 'Nợ 2010 / Có 1430: tiền chuyển đi'),
+        L('Hit? Dr 2010 / Cr 2510 instead, silently', 'Trùng cấm vận? Thay bằng Nợ 2010 / Có 2510, không thông báo'),
+        L('Nostro reconciled against the statement', 'Đối chiếu Nostro với sao kê'),
+        L('Return or dispute: the entry runs back, matched first', 'Hoàn trả / tra soát: bút toán đảo, khớp trước'),
+      ],
+      rule: L('One event, one balanced entry: Dr equals Cr, and a frozen payment never touches the nostro.', 'Một nghiệp vụ, một bút toán cân bằng: Nợ bằng Có, và lệnh bị phong tỏa không bao giờ chạm tới Nostro.'),
+      keywords: ['flow 08', 'swift', 'hach toan', 'accounting', 'ledger', 'so cai', 'nostro', '1430', '2010', '2510', 'chargeback', 'pacs.004', 'but toan'],
+    },
+    {
       id: 'aml-rules',
       title: L('3. Legal rules & compliance', '3. Quy định Pháp lý & Tuân thủ'),
       paragraphs: [

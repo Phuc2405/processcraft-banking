@@ -1,11 +1,11 @@
 /**
- * Cash-in-transit (CIT) and vault operations: the four armoured-van scenarios, the vault's cash-fitness sort and the double-entry
+ * Cash-in-transit (CIT) and vault operations: the four armoured-van scenarios and the teller-till run carried on foot, the vault's cash-fitness sort and the double-entry
  * book they post to. A run's lifecycle is a State pattern (EN_ROUTE → ARRIVED → IN_COUNT → DELIVERED → SETTLED, each state
  * owning its guard and its posting); each scenario's GL legs are a Strategy. Pure: the day's runs are derived from the day number
  * and the clock, so pausing, replaying or reloading can never post a run twice.
  *
  * A book of its own, like the retail book: its GL numbers are the ones the CIT brief names (1111 vault, 1112 unfit cash, 1113 ATM,
- * 1121 SBV, 1131 cash in transit, 4211 corporate deposits). 1111 is split by where the cash physically is (branch vault, HQ vault).
+ * 1121 SBV, 1131 cash in transit, 4211 corporate deposits). 1111 is split by where the cash physically is (branch vault, HQ vault, teller tills).
  */
 
 import type { Localized } from '../i18n/localeCore';
@@ -16,6 +16,7 @@ const L = (en: string, vi: string): Localized<string> => ({ en, vi });
 export const CIT_ACCOUNTS = [
   { id: 'VAULT', code: '1111', name: L('Main vault · Branch A', 'Quỹ chính · Chi nhánh A') },
   { id: 'HQ_VAULT', code: '1111', name: L('Central vault · HQ', 'Quỹ Kho trung tâm · Hội sở') },
+  { id: 'TILL', code: '1111', name: L('Teller tills · counters', 'Quỹ nghiệp vụ quầy GDV') },
   { id: 'UNFIT', code: '1112', name: L('Unfit cash awaiting the SBV', 'Tiền không đủ tiêu chuẩn lưu thông chờ nộp NHNN') },
   { id: 'ATM', code: '1113', name: L('Cash at ATM / CDM', 'Tiền mặt tại ATM / CDM') },
   { id: 'SBV', code: '1121', name: L('Deposits at the SBV', 'Tiền gửi tại NHNN') },
@@ -40,19 +41,21 @@ export const CIT_LIMITS = {
   sbvLineCents: 520_000_000,
   unfitSurrenderCents: 1_000_000,
   holidayWithdrawCents: 150_000_000,
+  /** The teller till's float after its surplus goes back to the vault (the till's own cap is $50,000). */
+  tillFloatCents: 2_000_000,
   noteCents: 1_000,
 } as const;
 
 /** Debit-positive opening balances of the day book; corporate deposits are the balancing figure. */
 export const CIT_OPENING: Readonly<Record<CitAccountId, number>> = (() => {
-  const b: Record<CitAccountId, number> = { VAULT: 460_000_000, HQ_VAULT: 2_000_000_000, UNFIT: 1_200_000, ATM: 800_000, SBV: 5_000_000_000, TRANSIT: 0, CORP: 0 };
+  const b: Record<CitAccountId, number> = { VAULT: 460_000_000, HQ_VAULT: 2_000_000_000, TILL: 6_500_000, UNFIT: 1_200_000, ATM: 800_000, SBV: 5_000_000_000, TRANSIT: 0, CORP: 0 };
   b.CORP = -CIT_ACCOUNT_IDS.reduce((s, id) => s + b[id], 0);
   return b;
 })();
 
 // Scenarios (Strategy)
 
-export type CitScenario = 'ATM_CDM' | 'BRANCH_BALANCING' | 'DOORSTEP' | 'SBV';
+export type CitScenario = 'ATM_CDM' | 'BRANCH_BALANCING' | 'DOORSTEP' | 'SBV' | 'TELLER';
 /** Relative to the branch vault: OUT leaves it (or the CDM's cassette, for a collection: IN), IN arrives at it. */
 export type CitDirection = 'OUT' | 'IN';
 
@@ -62,6 +65,8 @@ interface CitStrategy {
   route: (d: CitDirection) => { from: CitAccountId; to: CitAccountId };
   /** The vault's count sorts fit from unfit notes. */
   sorts: (d: CitDirection) => boolean;
+  /** An armoured van carries it (false: custodians carry it across the floor, so no van comes to the bay). */
+  van: boolean;
 }
 
 export const CIT_STRATEGIES: Readonly<Record<CitScenario, CitStrategy>> = {
@@ -70,24 +75,35 @@ export const CIT_STRATEGIES: Readonly<Record<CitScenario, CitStrategy>> = {
     label: L('ATM / CDM replenishment', 'Tiếp quỹ ATM / CDM'),
     route: (d) => (d === 'OUT' ? { from: 'VAULT', to: 'ATM' } : { from: 'ATM', to: 'VAULT' }),
     sorts: (d) => d === 'IN',
+    van: true,
   },
   BRANCH_BALANCING: {
     icon: '🏛️',
     label: L('Branch ↔ HQ vault balancing', 'Điều chuyển tồn quỹ Chi nhánh ↔ Kho Trung ương'),
     route: (d) => (d === 'OUT' ? { from: 'VAULT', to: 'HQ_VAULT' } : { from: 'HQ_VAULT', to: 'VAULT' }),
     sorts: () => false,
+    van: true,
   },
   DOORSTEP: {
     icon: '🔐',
     label: L('Doorstep banking (corporate pickup)', 'Thu tiền mặt tận nơi (Khách hàng DN)'),
     route: () => ({ from: 'CORP', to: 'VAULT' }),
     sorts: () => true,
+    van: true,
   },
   SBV: {
     icon: '🏦',
     label: L('SBV vault operation', 'Nộp / Rút tiền mặt tại NHNN'),
     route: (d) => (d === 'OUT' ? { from: 'VAULT', to: 'SBV' } : { from: 'SBV', to: 'VAULT' }),
     sorts: () => false,
+    van: true,
+  },
+  TELLER: {
+    icon: '🗄️',
+    label: L('Teller till replenishment & fit / unfit sort', 'Tiếp quỹ Quầy GDV & Phân loại tiền Fit / Unfit'),
+    route: (d) => (d === 'OUT' ? { from: 'VAULT', to: 'TILL' } : { from: 'TILL', to: 'VAULT' }),
+    sorts: (d) => d === 'IN',
+    van: false,
   },
 };
 
@@ -109,6 +125,8 @@ export interface CitOrder {
   shortCents: number;
   /** Unfit notes surrendered with an SBV deposit. */
   unfitSurrenderCents: number;
+  /** An SBV deposit the learner forced from a vault at or under its floor (the toggle's demo case, not a live rule): "Nộp cưỡng chế (Demo)". */
+  forced?: true;
   trigger: Localized<string>;
 }
 
@@ -132,6 +150,7 @@ export function citOrder(i: CitOrderInput): CitOrder {
     unfitBp: Math.min(10_000, Math.max(0, Math.round(i.unfitBp ?? 0))),
     shortCents: i.scenario === 'DOORSTEP' ? Math.min(amountCents, note(i.shortCents ?? 0)) : 0,
     unfitSurrenderCents: i.scenario === 'SBV' && i.direction === 'OUT' ? note(i.unfitSurrenderCents ?? 0) : 0,
+    ...(i.forced && i.scenario === 'SBV' && i.direction === 'OUT' ? { forced: true as const } : {}),
     trigger: i.trigger ?? L('Manual order', 'Lệnh điều quỹ thủ công'),
   };
 }
@@ -291,12 +310,49 @@ export function branchTrigger(vaultCents: number): CitTrigger {
   return null;
 }
 
-export function sbvTrigger(vaultCents: number, unfitCents: number, holiday: boolean): (CitTrigger & { unfitSurrenderCents: number }) | null {
-  if (holiday) return { direction: 'IN', amountCents: CIT_LIMITS.holidayWithdrawCents, unfitSurrenderCents: 0, trigger: L('Holiday cash withdrawal', 'Rút tiền mặt dự phòng dịp lễ') };
+/** Why the bank goes to the SBV: a deposit for a vault over its ceiling or a pile of unfit notes, a withdrawal for a vault under its floor or a holiday / Tết buffer. */
+export type SbvReason = 'ceiling' | 'unfit' | 'floor' | 'holiday';
+/** OUT of the vault to the SBV is a deposit (Nộp tiền về NHNN), IN from it a withdrawal (Rút tiền từ NHNN). */
+export type SbvMode = 'DEPOSIT' | 'WITHDRAW';
+export const sbvMode = (d: CitDirection): SbvMode => (d === 'OUT' ? 'DEPOSIT' : 'WITHDRAW');
+export type SbvTrigger = NonNullable<CitTrigger> & { unfitSurrenderCents: number; reason: SbvReason; forced?: true };
+
+export function sbvTrigger(vaultCents: number, unfitCents: number, holiday: boolean): SbvTrigger | null {
+  if (holiday) return { direction: 'IN', amountCents: CIT_LIMITS.holidayWithdrawCents, unfitSurrenderCents: 0, reason: 'holiday', trigger: L('Holiday cash withdrawal', 'Rút tiền mặt dự phòng dịp lễ') };
+  if (vaultCents < CIT_LIMITS.branchFloorCents)
+    return { direction: 'IN', amountCents: CIT_LIMITS.branchTargetCents - vaultCents, unfitSurrenderCents: 0, reason: 'floor', trigger: L('Vault under its $1M floor: withdraw from the SBV', 'Tồn quỹ dưới mức sàn $1M: rút tiền từ NHNN') };
   const surplus = Math.max(0, vaultCents - CIT_LIMITS.sbvLineCents);
   const surrender = unfitCents >= CIT_LIMITS.unfitSurrenderCents ? unfitCents : 0;
   if (surplus === 0 && surrender === 0) return null;
-  return { direction: 'OUT', amountCents: surplus, unfitSurrenderCents: surrender, trigger: L('Deposit surplus and unfit notes at the SBV', 'Nộp tiền thừa và tiền không đủ tiêu chuẩn vào NHNN') };
+  return { direction: 'OUT', amountCents: surplus, unfitSurrenderCents: surrender, reason: surplus > 0 ? 'ceiling' : 'unfit', trigger: L('Deposit surplus and unfit notes at the SBV', 'Nộp tiền thừa và tiền không đủ tiêu chuẩn vào NHNN') };
+}
+
+/**
+ * What an SBV run started now would do (one source for the manual dispatch, the drawer's badge and the dock's tooltip): the trigger
+ * that fires, or with none a holiday / Tết buffer withdrawal, so a demo always has something to show.
+ */
+/** Why an SBV run went, read back from its order (the badge on a run already on the road). */
+export const sbvReasonOf = (o: Pick<CitOrder, 'direction' | 'amountCents'>): SbvReason =>
+  o.direction === 'OUT' ? (o.amountCents > 0 ? 'ceiling' : 'unfit') : o.amountCents === CIT_LIMITS.holidayWithdrawCents ? 'holiday' : 'floor';
+
+export const sbvPlan = (book: Readonly<Record<CitAccountId, number>>, holiday: boolean): SbvTrigger =>
+  sbvTrigger(book.VAULT, book.UNFIT, holiday) ?? { direction: 'IN', amountCents: CIT_LIMITS.holidayWithdrawCents, unfitSurrenderCents: 0, reason: 'holiday', trigger: L('', '') };
+
+/**
+ * The SBV run for the case the learner picked on the sheet's toggle: the live rule when it already points that way, else the same
+ * case sized for a demo. A deposit sends what is over the $1M floor (at most $1.5M) with the unfit notes on hand; a withdrawal is
+ * the holiday / Tết buffer. Never more than the vault holds.
+ */
+export function sbvCasePlan(book: Readonly<Record<CitAccountId, number>>, holiday: boolean, mode: SbvMode): SbvTrigger {
+  const auto = sbvPlan(book, holiday);
+  if (sbvMode(auto.direction) === mode) return auto;
+  if (mode === 'WITHDRAW') return { direction: 'IN', amountCents: CIT_LIMITS.holidayWithdrawCents, unfitSurrenderCents: 0, reason: 'holiday', trigger: L('Holiday cash withdrawal', 'Rút tiền mặt dự phòng dịp lễ') };
+  const spare = Math.max(0, Math.min(CIT_LIMITS.holidayWithdrawCents, book.VAULT - CIT_LIMITS.branchFloorCents));
+  // With nothing over the floor and no unfit notes, a token deposit still shows the run (never more than the vault holds).
+  const amountCents = spare > 0 || book.UNFIT > 0 ? spare : Math.min(1_000_000, Math.max(0, book.VAULT));
+  // A vault at or under its floor has no surplus to deposit: the run goes only because the learner picked it (forced, a demo).
+  const forced = book.VAULT <= CIT_LIMITS.branchFloorCents ? { forced: true as const } : {};
+  return { direction: 'OUT', amountCents, unfitSurrenderCents: book.UNFIT, reason: amountCents > 0 ? 'ceiling' : 'unfit', ...forced, trigger: L('Deposit surplus and unfit notes at the SBV', 'Nộp tiền thừa và tiền không đủ tiêu chuẩn vào NHNN') };
 }
 
 // The day's runs
@@ -354,7 +410,10 @@ export function citDay(day: number): readonly CitPlanned[] {
       });
     } else if (slot.kind === 'SBV') {
       const t = sbvTrigger(book.VAULT, book.UNFIT, isHolidayEve(day));
-      if (t) order = citOrder({ ...base, scenario: 'SBV', ...t });
+      if (t) {
+        const { reason: _reason, ...trigger } = t;
+        order = citOrder({ ...base, scenario: 'SBV', ...trigger });
+      }
     } else {
       const t = branchTrigger(book.VAULT);
       if (t) order = citOrder({ ...base, scenario: 'BRANCH_BALANCING', ...t });
@@ -375,6 +434,12 @@ export function citSchedule(p: CitPlanned): Record<CitStatus, number> {
   const delay = tampered(p.order) ? CIT_TIMING.incident : 0;
   return { EN_ROUTE: p.start, ARRIVED: p.start + CIT_TIMING.ARRIVED, IN_COUNT: p.start + CIT_TIMING.IN_COUNT + delay, DELIVERED: p.start + CIT_TIMING.DELIVERED + delay, SETTLED: p.start + CIT_TIMING.SETTLED + delay };
 }
+
+/**
+ * When a run's GL is over: SETTLED. The demo lock releases here, or once the 3D van has driven off the bay and despawned if that is
+ * later (citStore.van, citActions.citDemoBlock): no arbitrary extra hold.
+ */
+export const citDone = (p: CitPlanned): number => citSchedule(p).SETTLED;
 
 /** A planned run as it stands at `minute`, walked through the state machine; null before dispatch. */
 export function runAt(p: CitPlanned, minute: number): CitRun | null {
@@ -401,10 +466,105 @@ export interface CitSnapshot {
   book: Record<CitAccountId, number>;
   /** Cash moving out of (Cr 1111) or into (Dr 1111) the branch vault right now. */
   vaultFlow: VaultFlow;
+  /** The run stopped at the vault's loading bay and how far through that stop it is (0-1): what the crew's walk follows (citCrew.ts). */
+  bay: { id: string; flow: 'IN' | 'OUT'; u: number } | null;
+  /** The learner's run holding the one-dispatch lock and where it is (its state), from dispatch until it is SETTLED. */
+  lock: { run: CitRun; stage: CitStatus } | null;
 }
 
-export function citAt(day: number, minute: number): CitSnapshot {
-  const runs = citDay(day).map((planned) => ({ planned, run: runAt(planned, minute) }));
+// Manual demo dispatches
+
+export type CitDemo = 'ATM' | 'DOORSTEP' | 'SBV' | 'TELLER';
+export const CIT_DEMOS: readonly CitDemo[] = ['ATM', 'DOORSTEP', 'SBV', 'TELLER'];
+/** At most this many manual runs a day, so the derived plan stays small. */
+export const CIT_DEMO_CAP = 12;
+
+/**
+ * A van the learner dispatched by hand at `at`. `refillCents` is the retail ATM cassette's shortfall at that moment, which sizes an
+ * ATM run. `lead` is how many minutes the run has played on its own while the bank was paused (a pause-isolated demo): the run is
+ * that far ahead of the bank's clock, and nothing else moved.
+ */
+export interface CitManual {
+  kind: CitDemo;
+  at: number;
+  refillCents?: number;
+  lead?: number;
+  /** An ATM run whose van has reached the ATM: the retail cassette has been filled from it (dueAtmRefills). */
+  refilled?: boolean;
+  /** An SBV run's case, picked on its sheet; without one the live rule decides (sbvPlan). */
+  sbv?: SbvMode;
+}
+
+/** A manual run's order, raised against the book as it stands at dispatch; a trigger that would not fire still sends a sensible demo amount. */
+export function manualOrder(day: number, n: number, m: CitManual, book: Readonly<Record<CitAccountId, number>>): CitOrder {
+  const base = { id: `CIT-${day}-M${n}`, sealId: `SEAL-${day}M${String(n).padStart(4, '0')}`, custodians: [CUSTODIANS[n % CUSTODIANS.length]!, CUSTODIANS[(n + 1) % CUSTODIANS.length]!] as const };
+  const manual = (en: string, vi: string): Localized<string> => L(`Manual dispatch: ${en}`, `Điều xe thủ công: ${vi}`);
+  if (m.kind === 'ATM') {
+    const amountCents = m.refillCents && m.refillCents > 0 ? m.refillCents : (atmTrigger(book.ATM, 0)?.amountCents ?? Math.max(CIT_LIMITS.atmTargetCents - book.ATM, 2_000_000));
+    return citOrder({ ...base, scenario: 'ATM_CDM', direction: 'OUT', amountCents, trigger: manual(m.refillCents ? 'retail ATM cassette shortfall' : 'ATM top-up', m.refillCents ? 'bù hộp tiền ATM bán lẻ' : 'tiếp quỹ ATM') });
+  }
+  if (m.kind === 'TELLER') {
+    const amountCents = Math.max(book.TILL - CIT_LIMITS.tillFloatCents, 1_000_000);
+    return citOrder({ ...base, scenario: 'TELLER', direction: 'IN', amountCents, unfitBp: 250, trigger: manual('till surplus back to the vault, sorted fit / unfit', 'nộp dư quỹ quầy về kho, phân loại Fit / Unfit') });
+  }
+  if (m.kind === 'DOORSTEP') return citOrder({ ...base, scenario: 'DOORSTEP', direction: 'IN', client: DOORSTEP_CLIENTS[0], amountCents: 30_000_000, unfitBp: 150, trigger: manual(`bulk cash pickup at ${DOORSTEP_CLIENTS[0]}`, `thu tiền mặt tại ${DOORSTEP_CLIENTS[0]}`) });
+  const { reason: _reason, ...t } = m.sbv ? sbvCasePlan(book, isHolidayEve(day), m.sbv) : sbvPlan(book, isHolidayEve(day));
+  return citOrder({ ...base, scenario: 'SBV', ...t, trigger: manual(t.forced ? 'forced deposit at the SBV (demo)' : t.direction === 'OUT' ? 'deposit at the SBV' : 'withdraw from the SBV', t.forced ? 'nộp cưỡng chế vào NHNN (Demo)' : t.direction === 'OUT' ? 'nộp tiền vào NHNN' : 'rút tiền từ NHNN') });
+}
+
+/** The day's manual runs as planned runs, each sized against the book its dispatch minute saw (earlier manual runs included). */
+export function manualPlan(day: number, manual: readonly CitManual[]): CitPlanned[] {
+  const out: CitPlanned[] = [];
+  manual.slice(0, CIT_DEMO_CAP).forEach((m, i) => {
+    const book = snapshotOf(day, m.at, out).book;
+    out.push({ order: manualOrder(day, i + 1, m, book), start: m.at - (m.lead ?? 0) });
+  });
+  return out;
+}
+
+/**
+ * Today's manual ATM runs whose van has reached the machine (DELIVERED, about 55 minutes after dispatch) and whose retail
+ * cassette has not been filled yet, as indexes into `manual`: the retail balance moves when the cash arrives, not at dispatch.
+ */
+export function dueAtmRefills(day: number, minute: number, manual: readonly CitManual[]): number[] {
+  const plan = manualPlan(day, manual);
+  return manual.flatMap((m, i) => (m.kind === 'ATM' && !m.refilled && plan[i] && minute >= citSchedule(plan[i]!).DELIVERED ? [i] : []));
+}
+
+export function citAt(day: number, minute: number, manual: readonly CitManual[] = []): CitSnapshot {
+  return snapshotOf(day, minute, manualPlan(day, manual));
+}
+
+/** The run the van is standing at the loading bay for: loading an outflow, or arrived with an inflow (a till run needs no van). */
+export function citBayRun(cit: CitSnapshot): CitRun | null {
+  const run = cit.active?.run;
+  if (!run || run.status === 'SETTLED' || !CIT_STRATEGIES[run.order.scenario].van) return null;
+  return cit.vaultFlow !== null || run.status !== 'EN_ROUTE' ? run : null;
+}
+
+const isManual = (o: CitOrder): boolean => o.id.includes('-M');
+
+/**
+ * The one-dispatch mutex: the learner's run from dispatch until it is SETTLED (citDone), or null. A paused
+ * bank plays that run on its own until then. Scheduled runs never hold it.
+ */
+export const citDemoBusy = (cit: CitSnapshot): CitRun | null => cit.lock?.run ?? null;
+
+/** Which way cash crosses the vault's loading bay on a run: out of the vault into the van, or in from the van. */
+export const bayFlow = (o: CitOrder): 'IN' | 'OUT' => (CIT_STRATEGIES[o.scenario].route(o.direction).from === 'VAULT' ? 'OUT' : 'IN');
+
+/** How far through its stop at the vault's bay a run is at `minute`, 0-1, or null when the van is not at the bay (citCrew.ts walks the crew by it). */
+export function bayProgress(p: CitPlanned, minute: number): number | null {
+  if (!CIT_STRATEGIES[p.order.scenario].van) return null;
+  const at = citSchedule(p);
+  // An inflow's crew steps out the moment the van stops (ARRIVED), as its rear doors open: no gap between parking and the walk.
+  const [from, to] = bayFlow(p.order) === 'OUT' ? [at.EN_ROUTE, at.ARRIVED] : [at.ARRIVED, at.SETTLED];
+  return minute >= from && minute < to ? (minute - from) / (to - from) : null;
+}
+
+function snapshotOf(day: number, minute: number, extra: readonly CitPlanned[]): CitSnapshot {
+  const plan = extra.length ? [...citDay(day), ...extra].sort((a, b) => a.start - b.start) : citDay(day);
+  const runs = plan.map((planned) => ({ planned, run: runAt(planned, minute) }));
   const started = runs.filter((r): r is { planned: CitPlanned; run: CitRun } => r.run !== null);
   const active = [...started].reverse().find((r) => r.run.status !== 'SETTLED') ?? started[started.length - 1] ?? null;
   const journal = started.flatMap((r) => r.run.entries);
@@ -414,5 +574,12 @@ export function citAt(day: number, minute: number): CitSnapshot {
     if (run.status === 'EN_ROUTE' && from === 'VAULT') vaultFlow = 'OUT';
     if ((run.status === 'IN_COUNT' || run.status === 'DELIVERED') && to === 'VAULT') vaultFlow = 'IN';
   }
-  return { runs, active, journal, book: bookAfter(journal), vaultFlow };
+  let bay: CitSnapshot['bay'] = null;
+  for (const { planned } of runs) {
+    const u = bayProgress(planned, minute);
+    if (u !== null) bay = { id: planned.order.id, flow: bayFlow(planned.order), u };
+  }
+  const open = runs.find((r) => r.run && isManual(r.run.order) && minute < citDone(r.planned));
+  const lock = open?.run ? { run: open.run, stage: open.run.status } : null;
+  return { runs, active, journal, book: bookAfter(journal), vaultFlow, bay, lock };
 }

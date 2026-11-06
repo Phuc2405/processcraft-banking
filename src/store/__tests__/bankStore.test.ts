@@ -6,7 +6,7 @@ import { DEFAULT_RULES } from '../../sim/rules';
 import { spotPlan } from '../../sim/spotlightPlan';
 import { quizzesOf } from '../../sim/walkQuiz';
 import { BANK_KEY, decodeBank, decodePrefs, decodeUiPrefs, encodeBank, INSPECTOR_WIDTH, loadBank, loadPrefs, memoryStorage, PREFS_KEY, saveBank, UI_PREFS_KEY, type KeyValueStorage } from '../bankPersistence';
-import { createBankStore, PROCESS_IDS, processesAt, quizPending } from '../bankStore';
+import { createBankStore, EOD_CASE_ROUTE, PROCESS_IDS, processesAt, quizPending } from '../bankStore';
 
 const FIXED = () => new Date('2026-10-11T00:00:00Z');
 const make = (storage: KeyValueStorage | null = memoryStorage()) => createBankStore({ storage, now: FIXED, seed: 7 });
@@ -224,7 +224,8 @@ describe('saving', () => {
     expect(s.view.day).toBe(2);
     expect(s.view.history).toHaveLength(1);
     expect(s.view.suspense.items).toBe(saved!.carry.suspense.length);
-    expect(s.notice?.message).toMatch(/day 2/);
+    // No "welcome back" toast: the start-of-day banner already greets the reloaded day.
+    expect(s.notice).toBeNull();
   });
 
   it('keeps the rules across a reload', () => {
@@ -431,7 +432,9 @@ describe('the relaxed clock', () => {
     const demo = make();
     demo.getState().runPreset('eod');
     expect(demo.getState().view.minute).toBe(EOD_START);
-    expect(demo.getState().playing).toBe(true);
+    // The EoD demo is one batch case, paused: the rest of the night waits for Play.
+    expect(demo.getState().playing).toBe(false);
+    expect(demo.getState().sandboxTrace?.route).toEqual([...EOD_CASE_ROUTE]);
   });
 
   it('does nothing when it is already night, or the day is over', () => {

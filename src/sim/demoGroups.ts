@@ -7,8 +7,10 @@
  */
 
 import type { Localized } from '../i18n/localeCore';
-import type { FlowId } from '../types/viewport';
-import { flowScope, type FlowScope } from './guidedFlows';
+import { CIT_FLOW, type FlowId } from '../types/viewport';
+import { CIT_DEMOS, type CitDemo } from './citEngine';
+import { citScope } from './citRoute';
+import { flowScope, withCashVault, type FlowScope } from './guidedFlows';
 import { planCheckout, buildGraphs } from './processes';
 import { PRESETS, presetCustomer, type PresetDef } from './presets';
 import { OPS_ACTIONS, opsSubProcess, type OpsActionDef, type OpsSubProcessId } from './retailOps';
@@ -113,7 +115,7 @@ const SCOPES = new Map<DemoGroupId, FlowScope>();
 export function groupScope(id: DemoGroupId): FlowScope {
   const cached = SCOPES.get(id);
   if (cached) return cached;
-  const places = new Set<PlaceId>(groupMembers(id).flatMap(memberPlaces));
+  const places = withCashVault(new Set<PlaceId>(groupMembers(id).flatMap(memberPlaces)));
   const departments = new Set<DepartmentId>();
   for (const p of places) if (isStation(p)) departments.add(STATIONS[p].department);
   const scope: FlowScope = { places, departments, wires: new Set(WIRES.filter(([a, b]) => places.has(a) && places.has(b)).map(([a, b]) => edgeId(a, b))) };
@@ -121,5 +123,19 @@ export function groupScope(id: DemoGroupId): FlowScope {
   return scope;
 }
 
-/** What the map lights: the chosen group, else the flow. */
-export const focusScope = (flow: FlowId, group: DemoGroupId | null): FlowScope => (group && demoGroup(group).flow === flow ? groupScope(group) : flowScope(flow));
+/**
+ * A sub-process in focus, one first-class target for the menu, the map and the dock: a demo group, or (in Flow 09) a CIT child.
+ * The store keeps one field of this type (bankStore.subProcess); these narrow it.
+ */
+export type FocusSub = DemoGroupId | CitDemo;
+export const isCitDemo = (s: FocusSub | null): s is CitDemo => s !== null && (CIT_DEMOS as readonly string[]).includes(s);
+/** The CIT child in focus, or null for a demo group (or nothing). */
+export const citDemoOf = (s: FocusSub | null): CitDemo | null => (isCitDemo(s) ? s : null);
+/** The demo group in focus, or null for a CIT child (or nothing). */
+export const groupOf = (s: FocusSub | null): DemoGroupId | null => (s !== null && !isCitDemo(s) ? s : null);
+
+/** What the map lights: Flow 09's CIT route (never a payment desk), the chosen group, else the flow. */
+export const focusScope = (flow: FlowId, sub: FocusSub | null): FlowScope => {
+  if (flow === CIT_FLOW) return citScope(isCitDemo(sub) ? sub : null);
+  return sub && !isCitDemo(sub) && demoGroup(sub).flow === flow ? groupScope(sub) : flowScope(flow);
+};

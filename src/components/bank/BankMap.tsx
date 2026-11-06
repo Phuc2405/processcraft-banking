@@ -5,6 +5,7 @@ import { tr, useLocale } from '../../i18n/locale';
 import { useDeskVisited } from '../../store/deskVisitStore';
 import { acronymHint } from './codeGlossary';
 import { DeskCrowd2D } from './DeskCrowd2D';
+import { isolateMoves, useDemoLocked } from './DemoSession';
 import { DeskVisitors2D } from './DeskVisitors2D';
 import { t } from '../../i18n/t';
 import { feedText } from '../../i18n/feedVi';
@@ -19,8 +20,13 @@ import { DEPARTMENTS, DEPARTMENT_IDS, STATIONS, type DepartmentId, type External
 import { MapLegend } from './MapLegend';
 import type { Move, StationView } from '../../sim/types';
 import { academyFocusOf, activeFlowOf, activeScopeOf, beatLive, useBankStore } from '../../store/bankStore';
+import { useLivePath } from './useLivePath';
+import { onPath } from '../../sim/transactionPath';
 import { AtmCassetteBadge } from './RetailOpsDock';
 import { CitBay2D } from './CitBay2D';
+import { HopLayer2D } from './HopBadge';
+import { hopStopOf, useHopPlayer } from '../../store/hopPlayerStore';
+import { CashLines2D } from './CashLines2D';
 import { GUIDED_FLOWS, type FlowScope } from '../../sim/guidedFlows';
 import type { FlowId } from '../../types/viewport';
 import { StepPreviewBody } from './StepPreview';
@@ -36,6 +42,8 @@ import { useTerms, type Terms } from './useTerms';
 import { useSmartZoom, type ViewInsets } from '../../hooks/useSmartZoom';
 import { useFitScale, useZoomPan } from '../../hooks/useZoomPan';
 import { useNavStore } from '../../store/navStore';
+import { useWireHoverStore } from '../../store/wireHoverStore';
+import { wireNodeOf, type WireNode } from '../../sim/cashWires';
 import { roleForStation } from '../../sim/staffRoleplay';
 import { DESK_HEAT, deskHeat, type DeskHeat } from '../../sim/deskHeat';
 import { useMessages } from '../../utils/i18nHelper';
@@ -568,7 +576,7 @@ function wireStyle(to: string, from: string): { base: string; glow: string; dash
   if (to === 'OUT_DECLINED') return { base: '#7f1d1d', glow: '#fb7185', dash: '5 4' };
   if (from === 'OUT_APPROVED' || from.startsWith('EOD_') || from === 'RECON' || from === 'SUSPENSE' || to === 'OUT_SETTLED') return { base: '#78350f', glow: '#fbbf24' };
   if (to === 'CUSTOMER_OTP' || from === 'CUSTOMER_OTP') return { base: '#4c1d95', glow: '#a78bfa', dash: '3 3' };
-  if (from === 'COLLATERAL_VAULT') return { base: '#155e75', glow: '#22d3ee', dash: '7 3' };
+  if (from === 'COLLATERAL_VAULT' || from === 'MAIN_CASH_VAULT') return { base: '#155e75', glow: '#22d3ee', dash: '7 3' };
   return { base: '#334155', glow: '#38bdf8' };
 }
 
@@ -609,6 +617,10 @@ function GatewayMark({ g, opacity, glow, active, accent, ridden }: { g: Gateway;
 
 function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; tick: number; focus: Focus | null; flow: FlowFocus | null; active: PlaceId | null }) {
   const heat = useWireHeat(moves, tick);
+  // While the learner's payment runs in a guided flow, only its own path is lit (not the whole flow): the wires it has crossed glow, the one it is crossing runs.
+  const live = useLivePath();
+  const path = flow && !focus ? live : null;
+  const inPath = (id: string): boolean => (path ? onPath(path, id) : flow ? flow.scope.wires.has(id) : true);
   // The wires the token is on right now glow brightest; the ones it has already ridden stay lit.
   const current = new Set(focus && !focus.tour.intro ? wiresOfRoute(focus.current.route) : []);
   // Hovering a line lights that line; hovering or selecting a node lights its own paths.
@@ -628,7 +640,7 @@ function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; t
         const st = wireStyle(w.to, w.from);
         const h = focus ? 0 : (heat[w.id] ?? 0);
         const inScope = !focus || focus.scope.wires.has(w.id);
-        const inFlow = !flow || flow.scope.wires.has(w.id);
+        const inFlow = !flow || inPath(w.id);
         const ridden = focus?.trail.has(w.id) ?? false;
         const on = linked?.has(w.id) ?? false;
         const shown = inScope && inFlow && (!linked || on);
@@ -638,6 +650,9 @@ function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; t
           <g key={w.id} data-wire={w.id} data-lit={focus ? inScope : flow ? inFlow : linked ? on : undefined} data-ridden={ridden || undefined} opacity={shown ? 1 : 0.15} style={focus && !inScope ? { filter: 'blur(1px)' } : flow && !inFlow ? { filter: 'grayscale(1)' } : undefined}>
             <path d={w.strokePath ?? d} fill="none" stroke={on ? st.glow : focus && inScope ? `${focus.accent}66` : flow && inFlow ? `${flow.accent}88` : st.base} strokeWidth={on ? 2.6 : 2} {...(st.dash ? { strokeDasharray: st.dash } : {})} {...(w.gateway ? {} : { markerEnd: `url(#bk-arrow-${st.base.slice(1)})` })} />
             {h > 0.05 && <path d={d} fill="none" stroke={st.glow} strokeWidth={2 + Math.min(h, 6) * 0.3} strokeLinecap="round" opacity={Math.min(0.55, 0.1 + h * 0.07)} style={{ transition: 'opacity 400ms' }} />}
+            {path && inFlow && flow && (
+              <path d={d} fill="none" stroke={flow.accent} strokeWidth={path.current.has(w.id) ? 3.6 : 2.6} strokeLinecap="round" className={path.current.has(w.id) ? 'bk-tour-path bk-flow' : 'bk-tour-path'} style={{ filter: `drop-shadow(0 0 5px ${flow.accent})` }} data-testid={`flow-path-wire-${w.id}`} data-active={path.current.has(w.id) || undefined} />
+            )}
             {focus && ridden && (
               <path
                 d={d}
@@ -656,7 +671,7 @@ function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; t
       {GATEWAYS.map((g) => {
         const members = gatewayCarries(g);
         const inScope = !focus || members.some((id) => focus.scope.wires.has(id));
-        const inFlow = !flow || members.some((id) => flow.scope.wires.has(id));
+        const inFlow = !flow || members.some(inPath);
         const on = linked ? members.some((id) => linked.has(id)) : false;
         const glow = focus ? 0 : Math.max(0, ...members.map((id) => heat[id] ?? 0));
         const ridden = focus ? members.some((id) => focus.trail.has(id)) : false;
@@ -773,14 +788,20 @@ function BankMapView() {
   const terms = useTerms();
   const activeFlow = useBankStore(activeFlowOf);
   const presetId = useBankStore((s) => s.presetTxId);
-  const presetPlace = useBankStore((s) => (s.presetTrace && !s.presetTrace.done ? (s.presetTrace.route[s.presetTrace.at] ?? null) : null));
+  // Where the hop player stands: the desk the learner's run is being processed at now (sim/hopPlayer.ts).
+  const presetPlace = useHopPlayer((s) => (s.play?.phase === 'travel' ? null : (hopStopOf(s)?.place ?? null)));
   const activeScope = useBankStore(activeScopeOf);
   const flow = useMemo<FlowFocus | null>(() => (activeFlow && activeScope ? { flow: activeFlow, accent: GUIDED_FLOWS[activeFlow].accent, scope: activeScope } : null), [activeFlow, activeScope]);
   const flowHereAt = flow ? presetPlace : null;
   // The node the Academy split view is teaching pulses like the learner's own payment does.
   const academyAt = useBankStore(academyFocusOf);
   // The learner's own payment goes first, so it is always one of the tokens that wear a badge.
-  const moves = useMemo(() => (presetId ? [...view.moves].sort((a, b) => Number(b.packetId === presetId) - Number(a.packetId === presetId)) : view.moves), [view.moves, presetId]);
+  // A running demo shows its own case alone: no other flow's packets, and no queues at the counters (DemoSession.isolateMoves).
+  const isolated = useDemoLocked();
+  const moves = useMemo(() => {
+    const own = isolateMoves(view.moves, isolated, presetId);
+    return presetId ? [...own].sort((a, b) => Number(b.packetId === presetId) - Number(a.packetId === presetId)) : own;
+  }, [view.moves, presetId, isolated]);
   const litMoves = useMemo(() => (flow ? moves.filter((m) => flow.scope.wires.has(m.edge)) : moves), [moves, flow]);
   const dimMoves = useMemo(() => (flow ? moves.filter((m) => !flow.scope.wires.has(m.edge)) : []), [moves, flow]);
 
@@ -788,9 +809,17 @@ function BankMapView() {
   const selectedStation = selection.kind === 'station' ? selection.id : selection.kind === 'worker' ? selection.station : null;
   // The node under the pointer (or, failing that, the selected desk) has its paths lit and every other wire dimmed.
   const [hovered, setHovered] = useState<PlaceId | null>(null);
+  const setWireHover = useWireHoverStore((s) => s.set);
   const onPointerOver = (e: ReactPointerEvent): void => {
-    const id = ((e.target as Element).closest?.('[data-place]')?.getAttribute('data-place') ?? null) as PlaceId | null;
+    const target = e.target as Element;
+    const id = (target.closest?.('[data-place]')?.getAttribute('data-place') ?? null) as PlaceId | null;
     if (id !== hovered) setHovered(id);
+    // The cash network's station under the pointer (a desk card, or the CIT hall, which has no PlaceId) lights its gold wires.
+    setWireHover((target.closest?.('[data-wire-node]')?.getAttribute('data-wire-node') as WireNode | null) ?? wireNodeOf(id));
+  };
+  const onPointerLeave = (): void => {
+    setHovered(null);
+    setWireHover(null);
   };
   const spotlit: PlaceId | null = focus ? focus.current.place : null;
 
@@ -807,7 +836,7 @@ function BankMapView() {
             data-active-place={hovered ?? selectedStation ?? undefined}
             onClick={(e) => e.target === e.currentTarget && !panned.current && clearSelection()}
             onPointerOver={onPointerOver}
-            onPointerLeave={() => setHovered(null)}
+            onPointerLeave={onPointerLeave}
           >
             {DEPARTMENT_IDS.map((id) => (
               <DepartmentFrame key={id} id={id} focus={focus} flow={flow} terms={terms} />
@@ -831,8 +860,10 @@ function BankMapView() {
               </div>
             )}
             {!focus && <AtmCassetteBadge />}
+            {!focus && <HopLayer2D accent={flow?.accent} />}
+            {!focus && <CashLines2D />}
             {!focus && <CitBay2D />}
-            {!focus && <DeskCrowd2D />}
+            {!focus && !isolated && <DeskCrowd2D />}
             {!focus && <DeskVisitors2D />}
             {focus && <SpotlightToken focus={focus} />}
             <SearchGlow />

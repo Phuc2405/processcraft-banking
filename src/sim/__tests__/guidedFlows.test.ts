@@ -5,7 +5,7 @@ import { WORK_START } from '../clock';
 import { flowPlaces, flowScope, GUIDED_FLOW_NODES, GUIDED_FLOWS, isNodeFocused, stepAt, stepStatus } from '../guidedFlows';
 import { journalLines, journalText, plainFacts, rawMessage, responseCodeFor } from '../isoMessages';
 import { presetCustomer, presetsFor, type PresetId } from '../presets';
-import { hasWire, isStation, STATIONS } from '../topology';
+import { hasWire, isStation, STATIONS, hasCashLine } from '../topology';
 
 const vp = (over: Partial<ViewportSettings> = {}): ViewportSettings => ({ scope: 'beginner', dimension: '2d', dataDepth: 'standard', activeFlow: 1, ...over });
 
@@ -49,7 +49,7 @@ describe('guided flows', () => {
     for (const f of [1, 2, 3, 4] as const) {
       for (const p of flowPlaces(f)) {
         if (!isStation(p) || STATIONS[p].department === 'LEDGER') continue;
-        expect([...flowPlaces(f)].some((q) => q !== p && (hasWire(p, q) || hasWire(q, p)))).toBe(true);
+        expect([...flowPlaces(f)].some((q) => q !== p && (hasWire(p, q) || hasWire(q, p) || hasCashLine(p, q)))).toBe(true);
       }
     }
   });

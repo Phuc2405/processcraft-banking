@@ -185,7 +185,10 @@ export function stationProp(id: StationId): PropParts {
     case 'SAVINGS_DESK':
       return ledgerBook('#047857');
     case 'COLLATERAL_VAULT':
-      return strongbox();
+      return ledgerBook('#065f46');
+    // The central vault is the round steel door itself (Dressing.VaultRoom): no desk, no prop.
+    case 'MAIN_CASH_VAULT':
+      return { solid: [], glow: [] };
     case 'DISPUTE_DESK':
       return ledgerBook('#7c2d12');
     case 'GATE_SWIFT':

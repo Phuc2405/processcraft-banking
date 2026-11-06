@@ -8,7 +8,19 @@ import { AML_DEEP_SECTIONS, RETAIL_DEEP_DIVES } from '../../data/advancedKnowled
 import { dayIntroStore } from '../../components/bank/dayIntro';
 import { RETAIL_TOPICS } from '../../data/retailKnowledge';
 import { scenarioJournals, TOPIC_MODULES } from '../../data/retailTopicModules';
-import { confirmShiftSnap, executeDemo, releaseDueDemos, runDemo, selectSubProcess, stayForShift } from '../../components/bank/retailOpsActions';
+import { confirmShiftSnap, executeDemo as executeDemoNow, releaseDueDemos, runDemo as runDemoNow, selectSubProcess, stayForShift } from '../../components/bank/retailOpsActions';
+import { demoSessionStore } from '../../store/demoSessionStore';
+import type { DemoActionId } from '../../sim/demoActions';
+
+// Each button press here is a fresh demo: the previous one is closed first, as a learner would cancel it (or let it finish).
+const executeDemo = (id: DemoActionId): void => {
+  demoSessionStore.getState().finish();
+  executeDemoNow(id);
+};
+const runDemo = (id: DemoActionId): void => {
+  demoSessionStore.getState().finish();
+  runDemoNow(id);
+};
 import { shiftQueueStore } from '../../store/shiftQueueStore';
 import { DEMO_GROUPS, demoGroupsIn, groupMembers, groupScope, showsGroupsOf } from '../demoGroups';
 import { modeOf, shiftOf, shiftSnap } from '../demoSchedule';
@@ -30,7 +42,7 @@ import { flowPlaces, flowScope } from '../guidedFlows';
 import { isOpsQuestion, localQuestion, quizFor } from '../academyKnowledge';
 import { journalLines } from '../isoMessages';
 import { applyPresetJournal, settleEod, OPS_SUB_CHAPTER, cassetteStatus, decodeBook, openingBook, OPS_ACCOUNTS, OPS_ACTIONS, OPS_LIMITS, OPS_SUBPROCESSES, opsActionById, opsFlowOf, opsJournalBalanced, opsNatural, opsTrial, refillCassette, resolveTicket, runOpsAction, transferToVault, type OpsActionId, type OpsLine } from '../retailOps';
-import { hasWire, isStation, STATIONS } from '../topology';
+import { hasWire, isStation, STATIONS, hasCashLine } from '../topology';
 
 const AT = 'D1 09:00:00';
 const pickLabel = (t: { en: string }): string => t.en;
@@ -42,8 +54,8 @@ const entry = (lines: readonly OpsLine[] | undefined): string[] => (lines ?? [])
 afterEach(() => setActiveLocale('en'));
 
 describe('the eight guided flows carry the six sub-processes', () => {
-  it('keeps exactly the eight flows', () => {
-    expect(FLOW_IDS).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  it('keeps the eight payment flows plus Flow 09 (cash in transit)', () => {
+    expect(FLOW_IDS).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
   });
 
   it('maps each sub-process to the flow the brief names', () => {
@@ -58,7 +70,7 @@ describe('the eight guided flows carry the six sub-processes', () => {
     for (const f of [3, 7] as const) {
       for (const p of flowPlaces(f)) {
         if (!isStation(p) || STATIONS[p].department === 'LEDGER') continue;
-        expect([...flowPlaces(f)].some((q) => q !== p && (hasWire(p, q) || hasWire(q, p))), `${f} ${p}`).toBe(true);
+        expect([...flowPlaces(f)].some((q) => q !== p && (hasWire(p, q) || hasWire(q, p) || hasCashLine(p, q))), `${f} ${p}`).toBe(true);
       }
     }
   });
@@ -141,7 +153,8 @@ describe('the eight guided flows carry the six sub-processes', () => {
   });
 
   it('offers every flow and its sub-groups in the menu, flattening a flow with only one group, with no count badges', () => {
-    expect(MENU_CHOICES).toHaveLength(FLOW_IDS.length + FLOW_IDS.filter(showsGroupsOf).reduce((n, f) => n + demoGroupsIn(f).length, 0));
+    // Plus the CIT domain's four child sub-processes under Flow 06.
+    expect(MENU_CHOICES).toHaveLength(FLOW_IDS.length + FLOW_IDS.filter(showsGroupsOf).reduce((n, f) => n + demoGroupsIn(f).length, 0) + 4);
     for (const f of [4, 5, 7] as const) {
       expect(showsGroupsOf(f), `flow ${f}`).toBe(false);
       expect(MENU_CHOICES.some((c) => c.kind === 'sub' && c.flow === f), `flow ${f}`).toBe(false);
@@ -157,6 +170,7 @@ describe('the eight guided flows carry the six sub-processes', () => {
 describe('every demo button runs one pipeline', () => {
   beforeEach(() => {
     retailOpsStore.getState().reset();
+    demoSessionStore.getState().finish();
   });
 
   it('opens the inspector on a real payment and the retail journal, for every button but the night cycle', () => {

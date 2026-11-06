@@ -18,11 +18,13 @@ import type { BankView, Customer, PacketTrace } from '../sim/types';
 import type { QuizAnswer } from '../types/tour';
 import { addToTally, advanceIncident, buildTaskCase, caseJournal, nextRetailSeq, RETAIL_TASK, type RetailScenarioId, CHALLENGE, clampCrisisBatch, CRISIS_BATCH, crisisJournalLines, crisisOver, comboXp, STAFF_XP_PER_CORRECT, EMPTY_SHIFT_LOG, EMPTY_TALLY, gradeTaskCase, incidentErrorXp, incidentRules, isOverride, openingLedger, postJournal, recordCareerDecision, rollCrisis, roleForStation, ROLE_STATION, startIncident, type ActiveIncident, type IncidentId, type BadgeId, type CareerProgress, type ChallengeTally, type JournalEntry, type LedgerLine, type RetailLedger, type StaffCase, type StaffDecision, type StaffDecisionResult, type StaffRoleId, type StaffScene, type StaffTaskNo, vaultReplenishment, workingTask } from '../sim/staffRoleplay';
 import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../sim/presets';
-import type { DataDepth, Dimension, FlowId, Scope, ViewportSettings } from '../types/viewport';
+import { CIT_FLOW, isPaymentFlow, type DataDepth, type Dimension, type FlowId, type Scope, type ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
 import { compareDays, type Comparison } from '../sim/whatIf';
-import { focusScope, type DemoGroupId } from '../sim/demoGroups';
+import { citDemoOf, focusScope, groupOf, type FocusSub } from '../sim/demoGroups';
+import type { CitDemo } from '../sim/citEngine';
 import type { FlowScope } from '../sim/guidedFlows';
+import type { InfoKey } from '../data/subProcessKeys';
 import { browserStorage, clampInspectorWidth, clearBank, loadAuditLog, loadBank, loadCareer, loadPrefs, loadRetailLedger, saveAuditLog, saveCareer, saveRetailLedger, loadUiPrefs, loadStp, saveBank, savePrefs, saveStp, saveUiPrefs, type BankPrefs, type BankSaveResult, type KeyValueStorage, type LabelMode, type UiPrefs, type ViewMode } from './bankPersistence';
 
 export type { ProcessId };
@@ -35,7 +37,11 @@ export type Selection =
   | { kind: 'station'; id: StationId }
   | { kind: 'worker'; station: StationId; workerId: string }
   /** A payment the learner sent with a preset action, followed along its route. */
-  | { kind: 'transaction'; id: string };
+  | { kind: 'transaction'; id: string }
+  /** A sub-process's fact sheet (data/subProcessRegistry.ts). */
+  | { kind: 'subprocess'; key: InfoKey }
+  /** The CIT loading bay (its van, seal, crew and today's run log). */
+  | { kind: 'bay' };
 
 export type BankSaveStatus = 'unavailable' | 'pristine' | 'saved' | 'error';
 
@@ -73,6 +79,11 @@ export interface LeftTour {
   step: number;
   answers: Record<number, QuizAnswer>;
 }
+
+/** A route the hop player replays on its own (a closed-day sandbox payment, the EoD demo's batch case). */
+export type DemoReplay = Pick<PacketTrace, 'id' | 'route'>;
+/** The EoD demo's one case: a settled payment packed into tonight's batch, cleared with Visa and matched three ways. */
+export const EOD_CASE_ROUTE = ['OUT_APPROVED', 'EOD_BATCH', 'EOD_VISA', 'RECON', 'OUT_SETTLED'] as const satisfies readonly PlaceId[];
 
 /** The seed every new bank starts with, so everyone's first week is the same lesson plan. */
 export const DEFAULT_SEED = 2026;
@@ -342,9 +353,20 @@ export interface BankState {
   runPreset(id: PresetId): void;
   /** Sends any scripted customer into the bank and follows it in the inspector: what every demo button comes down to. */
   runDemoCustomer(customer: Customer): void;
-  /** The retail sub-process in focus inside the flow, or null for the whole flow. */
-  subProcess: DemoGroupId | null;
-  selectSubProcess(sub: DemoGroupId, flow: FlowId): void;
+  /**
+   * A demo the hop player replays on its own, nothing else moving: a closed day's payment run in a throwaway copy of today at its
+   * designated time, or the EoD demo's one batch case. The bank's clock and books never move for it.
+   */
+  sandboxTrace: DemoReplay | null;
+  runSandbox(customer: Customer, minute: number): DemoReplay | null;
+  /** Stops the learner's demo where it is (Cancel demo): the clock paused, its payment and sandbox no longer followed. */
+  clearDemo(): void;
+  /**
+   * The sub-process in focus inside the flow, or null for the whole flow: a demo group, or in Flow 09 a CIT child (its route alone
+   * is lit and the dock runs it). One field, so a CIT child is as much a process target as any group (demoGroups.FocusSub).
+   */
+  subProcess: FocusSub | null;
+  selectSubProcess(sub: FocusSub, flow: FlowId): void;
   /** Lights a guided flow on the map and plays its main preset payment (the "Simulate this Flow" deep link from the Academy). */
   triggerGuidedFlow(flow: FlowId): void;
 
@@ -573,6 +595,8 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
     /** Beats a solo run has played, and the most it may play before it stops anyway. */
     let soloBeats = 0;
     const SOLO_BEAT_LIMIT = 120;
+    /** Sandbox replays so far: each gets an id of its own, so the hop player never mistakes one for another. */
+    let sandboxRuns = 0;
 
     return {
       sim,
@@ -596,6 +620,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
       flow: ui.flow,
       presetTxId: null,
       presetTrace: null,
+      sandboxTrace: null,
       solo: false,
       stepView: null,
       focusPlace: null,
@@ -613,7 +638,8 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
 
       saveStatus: storage ? (saved ? 'saved' : 'pristine') : 'unavailable',
       lastSavedAt: saved?.savedAt || null,
-      notice: saved ? { kind: 'info', message: `Welcome back. The bank is on day ${saved.day}.` } : null,
+      // No "welcome back" toast: the start-of-day banner (DayIntroBanner) already opens on the first look at the bank.
+      notice: null,
 
       staffDesk: null,
       pendingQueueMap: {},
@@ -1060,11 +1086,11 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         const s = get();
         if (!def || s.sim.dayOver) return;
         if (id === 'eod') {
-          if (s.sim.minute >= EOD_START) {
-            set({ ...endTour(false), playing: true, solo: false });
-            return;
-          }
-          s.jumpToEod(true);
+          // One case: the clock moves to the scenario's own 23:00 if it is not there and stays paused; the hop player walks a single
+          // batch item through clearing, settlement and reconciliation. The rest of the night batch waits for Play.
+          leaveTour();
+          if (s.sim.minute < EOD_START) s.sim.stepUntil(EOD_START);
+          refresh({ presetTxId: null, sandboxTrace: { id: `eod${++sandboxRuns}`, route: [...EOD_CASE_ROUTE] }, playing: false, solo: false, selection: { kind: 'none' } });
           return;
         }
         const customer = presetCustomer(id, s.sim.rules);
@@ -1089,9 +1115,27 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         });
       },
 
+      runSandbox: (customer, minute) => {
+        // Today from its own start, played alone (nobody walks in) to the scenario's own time (demoSchedule.demoMinute), then the one payment.
+        const box = rebuildToday();
+        for (let i = 0; i < 2_000 && box.minute < minute && !box.dayOver; i++) box.step({ admit: false });
+        const id = box.inject(customer);
+        for (let i = 0; id && i < SOLO_BEAT_LIMIT && !box.traceOf(id)?.done; i++) box.step({ admit: false });
+        const trace = id ? box.traceOf(id) : null;
+        const sandboxTrace = trace ? { ...trace, id: `sbx${++sandboxRuns}-${trace.id}` } : null;
+        set({ sandboxTrace });
+        return sandboxTrace;
+      },
+      clearDemo: () => {
+        deskVisitStore.getState().freeze();
+        set({ playing: false, solo: false, presetTxId: null, presetTrace: null, sandboxTrace: null });
+      },
+
       triggerGuidedFlow: (flow) => {
+        // A demo like any other: the bank pauses first, so the flow's payment plays alone and the clock stays paused after it.
+        if (get().playing) get().pause();
         get().setActiveFlow(flow);
-        if (flow <= 8) get().runPreset(PRIMARY_PRESET[flow]);
+        if (isPaymentFlow(flow)) get().runPreset(PRIMARY_PRESET[flow]);
       },
 
       setWalkCollapsed: (collapsed) => set({ walkCollapsed: collapsed }),
@@ -1297,9 +1341,14 @@ export const kickoffOpenOf = (s: Pick<BankState, 'spotlight'>): boolean => s.spo
 /** Whether the floating dock and the weather bar stand aside: for a tour's kickoff card, and for the day's report. */
 export const floatingBarsHiddenOf = (s: Pick<BankState, 'spotlight' | 'reportOpen'>): boolean => kickoffOpenOf(s) || s.reportOpen;
 /** What the map lights now: the chosen sub-process's path, else the whole flow's; null with no flow in focus. */
+/** The sub-process a map focuses inside the active flow: a CIT child only in Flow 09, a demo group only outside it. */
+export const focusSubOf = (s: Pick<BankState, 'flow' | 'subProcess'>): FocusSub | null => (s.flow === CIT_FLOW ? citDemoOf(s.subProcess) : groupOf(s.subProcess));
+/** The CIT child in focus: Flow 09's picked child, else null. */
+export const citChildOf = (s: Pick<BankState, 'flow' | 'subProcess'>): CitDemo | null => (s.flow === CIT_FLOW ? citDemoOf(s.subProcess) : null);
+
 export const activeScopeOf = (s: Pick<BankState, 'scope' | 'flow' | 'spotlight' | 'subProcess'>): FlowScope | null => {
   const flow = activeFlowOf(s);
-  return flow ? focusScope(flow, s.subProcess) : null;
+  return flow ? focusScope(flow, focusSubOf(s)) : null;
 };
 /**
  * Whether the payments of the beat on screen may move: while the bank plays (a solo demo run included), or on the beat the learner

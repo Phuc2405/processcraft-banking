@@ -183,7 +183,8 @@ describe('what the screen reads', () => {
         expect(w.activity.length).toBeGreaterThan(5);
       }
       expect(s.queueLength).toBeGreaterThanOrEqual(s.queue.length);
-      expect(s.stats.lines.length).toBeGreaterThan(0);
+      // The vault's one line (its cash movements today) is added by the inspector from the CIT and retail books.
+      if (id !== 'MAIN_CASH_VAULT') expect(s.stats.lines.length).toBeGreaterThan(0);
     }
     const desk = v.stations.SEC_3DS;
     expect(desk.stats.processedToday).toBeGreaterThan(50);

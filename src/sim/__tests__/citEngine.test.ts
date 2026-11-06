@@ -307,19 +307,32 @@ describe('CIT on screen: map bay, inspector, Knowledge Base, flashcards, Academy
     expect(html).toMatch(/data-account="TRANSIT" data-side="dr" data-code="1131"/);
   });
 
-  it('the loading bay animates cassettes out of the vault (Cr 1111) and into it (Dr 1111)', () => {
+  it('the loading bay walks the crew out of the vault with the cassettes (Cr 1111) and into it with them (Dr 1111)', () => {
     const plan = citDay(5);
     const out = plan.find((x) => leavesVault(x.order))!;
+    // Outflow, a fifth of the way through the stop: the custodian carries the cassettes from the vault to the van, the guard escorts.
     const outHtml = bay(5, out.start + 5);
-    expect(outHtml).toContain('data-testid="cit-particles" data-flow="OUT"');
     expect(outHtml).toContain('bk-vault-out');
-    expect(outHtml.match(/💼/g)).toHaveLength(3);
-    for (const icon of ['🚚', '🏧', '🏛️', '🔐']) expect(outHtml).toContain(icon);
+    expect(outHtml).toMatch(/data-testid="cit-crew-custodian" data-stage="toVan" data-carrying="true"/);
+    expect(outHtml).toMatch(/data-testid="cit-crew-guard" data-stage="toVan" data-carrying="false"/);
+    expect(outHtml).toContain('data-status="arriving"');
+    for (const icon of ['🚚', '🏧', '🏛️', '🔐', '💼']) expect(outHtml).toContain(icon);
+    // At the vault at the start of an outflow: the withdrawal posts (orange Cr 1111).
+    expect(bay(5, out.start)).toMatch(/data-testid="cit-vault-post" data-flow="OUT"/);
     const inbound = plan.find((x) => x.order.scenario === 'DOORSTEP')!;
-    const inHtml = bay(5, citSchedule(inbound).DELIVERED);
-    expect(inHtml).toContain('data-flow="IN"');
-    expect(inHtml).toContain('bk-vault-in');
-    expect(bay(5, 8 * 60)).not.toContain('cit-particles');
+    const at = citSchedule(inbound);
+    // Inflow: the crew steps out as the van stops (ARRIVED); halfway through the stop, in the count, the custodian hands the cassettes over (gold Dr 1111).
+    expect(bay(5, at.ARRIVED)).toMatch(/data-testid="cit-crew-custodian" data-stage="stepOut"/);
+    const deposit = bay(5, Math.round((at.ARRIVED + at.SETTLED) / 2));
+    expect(deposit).toMatch(/data-testid="cit-vault-post" data-flow="IN"/);
+    expect(deposit).toMatch(/data-testid="cit-crew-custodian" data-stage="atVault"/);
+    expect(deposit).toContain('data-status="processing"');
+    // Delivered: walking back to the van, done.
+    const back = bay(5, at.DELIVERED);
+    expect(back).toContain('bk-vault-in');
+    expect(back).toMatch(/data-testid="cit-crew-custodian" data-stage="toVan" data-carrying="false"/);
+    expect(back).toContain('data-status="done"');
+    expect(bay(5, 8 * 60)).not.toContain('cit-crew-');
   });
 
   it('has its own Knowledge Base tab, reached from any cit- anchor, with the drill', () => {

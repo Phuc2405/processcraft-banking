@@ -766,6 +766,11 @@ function SectionArticle({ article, highlight = null, view = 'basic' }: { article
     <article data-testid="kb-article" data-article={a.id} data-view={view} className="text-[15px] leading-relaxed text-slate-200">
       <h3 className="text-[20px] font-extrabold text-slate-50">{pick(a.title, locale)}</h3>
       <p className="mt-1 text-slate-300">{pick(a.intro, locale)}</p>
+      {'basis' in a && (
+        <p className="mt-1.5 text-[13.5px] font-semibold text-indigo-200" data-testid="kb-basis">
+          ⚖️ {m('legalBasis')}: {pick(a.basis, locale)}
+        </p>
+      )}
       <nav aria-label={m('onThisPage')} className="mt-3 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2">
         <div className="text-[12.5px] font-semibold uppercase tracking-wider text-slate-500">{m('onThisPage')}</div>
         <ul className="mt-1 grid gap-x-4 gap-y-0.5 sm:grid-cols-2">

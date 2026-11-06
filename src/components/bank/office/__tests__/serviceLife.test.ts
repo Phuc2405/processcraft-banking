@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { atmosphereAt, GROUND_FOG, WEATHER_MIX } from '../../../../engine/world/atmosphere';
-import { CARRY_PATH, CIT_RUN, LOADING_BAY, LOADING_DOOR, LOADS, VAN_REAR, type CitPhase } from '../../../../engine/world/citRun';
+import { CAB_DOOR, CARRY_PATH, CIT_RUN, CREW_PATH, LOADING_BAY, LOADING_DOOR, VAN_REAR, VAULT_STOP, type CitPhase } from '../../../../engine/world/citRun';
 import { pathLength } from '../../../../engine/plan/path';
 import { chatPhase, MIST_BANKS, MIST_CLIP, MIST_LAYERS } from '../Environment3D';
 import { evacuationRoute, servedExit } from '../../../../engine/world/evacuation';
@@ -47,39 +47,70 @@ describe('the cash van’s run to the vault’s loading bay in the car park', ()
     expect(read('../Parking3D.tsx')).toContain('<LoadingBay3D run={lot.cit} />');
   });
 
-  it('drives in indicating, noses in, opens up, carries the cash round to the door box by box, shuts up and drives off', () => {
+  it('drives in indicating, opens up and walks the crew out the moment it stops, to the vault and back both ways, shuts up and drives off', () => {
     const order: CitPhase[] = [];
-    const carried = new Set<string>();
+    const pulses = new Set<string>();
+    const shown = new Map<string, boolean>();
+    let carried = 0;
     let signalIn = false;
     let signalOut = false;
-    const lot = run(600, (l) => {
+    const near = (a: V2, b: V2): boolean => Math.hypot(a[0] - b[0], a[1] - b[1]) < 0.25;
+    const onWalk = (pt: V2): boolean => {
+      for (let i = 1; i < CREW_PATH.length; i++) {
+        const [ax, az] = CREW_PATH[i - 1]!;
+        const [bx, bz] = CREW_PATH[i]!;
+        const len2 = (bx - ax) ** 2 + (bz - az) ** 2;
+        const k = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((pt[0] - ax) * (bx - ax) + (pt[1] - az) * (bz - az)) / len2));
+        if (Math.hypot(pt[0] - (ax + k * (bx - ax)), pt[1] - (az + k * (bz - az))) < 1e-6) return true;
+      }
+      return false;
+    };
+    let stops = 0;
+    const lot = run(1500, (l) => {
       const p = l.cit.pose();
+      const crew = p.crew.filter((c) => c.role !== 'staff');
+      // Synchronised: on the very frame the van stops, its doors start to open and the crew is already out.
+      if (order[order.length - 1] === 'arrive' && p.phase === 'load') {
+        stops++;
+        expect(crew.length, 'crew out on the stopping frame').toBeGreaterThan(0);
+        expect(p.doors).toBeLessThan(1);
+      }
       if (order[order.length - 1] !== p.phase) order.push(p.phase);
       if (p.phase === 'arrive' && p.signal !== 0) signalIn = true;
       if (p.phase === 'depart' && p.signal !== 0) signalOut = true;
-      // Doors open, the shutter up and the guard out only while it stands in its bay.
-      if (p.doors > 0 || p.shutter > 0 || p.guard) {
+      if (p.vaultPulse) pulses.add(p.vaultPulse);
+      // Doors open, the shutter up and the crew out only while the van stands in its bay.
+      if (p.doors > 0 || p.shutter > 0 || crew.length) {
         expect(p.x).toBe(LOADING_BAY.x);
         expect(p.z).toBe(LOADING_BAY.z);
       }
-      if (p.guard) {
-        // On the walk from the back of the van round its side to the door, never through the van.
-        const [gx, gz] = p.guard.at;
-        expect(gx).toBeGreaterThanOrEqual(VAN_REAR[0] - 1e-6);
-        expect(gx).toBeLessThanOrEqual(LOADING_DOOR[0] + 1e-6);
-        const beside = gz >= LOADING_BAY.z + WIDTH.cit / 2 + 0.2;
-        const behind = gx <= LOADING_BAY.x - LENGTH.cit / 2 - 0.2;
-        expect(beside || behind).toBe(true);
-        if (p.guard.carrying) carried.add(p.guard.carrying);
+      // The rear doors and the shutter open together the moment the van stops, the crew already stepping out.
+      if (p.phase === 'load') expect(p.shutter).toBe(p.doors);
+      for (const c of p.crew) {
+        // Nobody pops in: the crew first shows at the cab door (inflow) or the vault (outflow), the staff at the vault.
+        if (!shown.get(c.role)) expect(near(c.at, CAB_DOOR) || near(c.at, VAULT_STOP), `${c.role} first seen at ${c.at}`).toBe(true);
+        expect(c.status, c.role).not.toBeNull();
+      }
+      for (const role of ['custodian', 'guard', 'staff']) shown.set(role, p.crew.some((c) => c.role === role));
+      for (const c of crew) {
+        // On the walk (round the van, in at the door, along the wall and the front aisle), never across the floor or through the van.
+        expect(onWalk(c.at), `${c.role} at ${c.at}`).toBe(true);
+        if (c.role === 'guard') expect(c.carrying).toBeNull();
+        if (c.carrying) carried++;
       }
     });
-    expect(order.join(' ')).toContain('away arrive open load close depart away');
+    expect(order.join(' ')).toContain('away arrive load close depart away');
     expect(lot.cit.runs).toBeGreaterThanOrEqual(3);
-    expect([...carried].sort()).toEqual([...new Set(LOADS)].sort());
+    expect(stops).toBeGreaterThanOrEqual(3);
+    expect(carried).toBeGreaterThan(0);
+    // On its own timer the van alternates deliveries into the vault (gold, Dr 1111) and collections out of it (orange, Cr 1111).
+    expect([...pulses].sort()).toEqual(['IN', 'OUT']);
     expect(signalIn).toBe(true);
     expect(signalOut).toBe(true);
     expect(CIT_RUN.doors).toBeGreaterThan(0.5);
     expect(pathLength(CARRY_PATH)).toBeGreaterThan(3);
+    expect(CREW_PATH).toContainEqual(LOADING_DOOR);
+    expect(CREW_PATH).toContainEqual(VAN_REAR);
   });
 
   it('drives in the car park only while it is still, holding its turn, and lifts the barrier as it goes through the gate', () => {

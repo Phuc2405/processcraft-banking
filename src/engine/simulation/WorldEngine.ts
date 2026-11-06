@@ -1,4 +1,5 @@
 import { rainOf, sameMix, stepMix, WEATHER_MIX, type Weather } from '../world/atmosphere';
+import type { CrewFlow } from '../../sim/citCrew';
 import { isClosed } from '../world/evacuation';
 import type { FrontGuard, GuardPostPlan } from '../world/guardCabin';
 import { advanceMotion, motion, substeps } from './motion';
@@ -10,6 +11,7 @@ import type { TrafficSim, VehicleState } from '../world/vehicles';
 import { liveMix, newPavementClock, stepPavementClock, type PavementClock } from '../world/weather';
 import { isAutomatedNode } from '../../sim/nodeKind';
 import { STATION_IDS, type StationId } from '../../sim/topology';
+import { isWallStation } from '../plan/layout3d';
 import type { BankView } from '../../sim/types';
 import { ClosingWalkout } from './closingWalkout';
 import { ArrivalWalks, DeskLine, StaffWalks } from './people';
@@ -32,6 +34,8 @@ export interface WorldInputs {
   weather: Weather;
   /** How many are queuing at each desk in the bank now (for closing time's walk-out). */
   queueLength?: (id: StationId) => number;
+  /** A CIT demo is playing in isolation (the bank paused, the learner's van on its run): the van and its crew move, nothing else does. */
+  citSolo?: boolean;
 }
 
 /** What a tick changed that the page outside the engine has to hear about. */
@@ -83,6 +87,11 @@ export class WorldEngine {
   private readonly listeners = new Set<() => void>();
   private seenView: BankView | null = null;
   private seenTick: number | null = null;
+  private citSeen: string | null = null;
+  /** The CIT run the van's current trip is for. */
+  private vanRun: string | null = null;
+  /** The van's stop a paused bank is playing on its own: kept until the van is away again, so a stop is never left half walked. */
+  private citSolo = false;
   private peopleVersion = 0;
   private readonly guards = new Map<GuardPostPlan, FrontGuard>();
   private minute: number;
@@ -186,7 +195,20 @@ export class WorldEngine {
     this.weather = input.weather;
     const frame: WorldFrame = { input, minute: input.minute, closed: isClosed(input.minute), steps: substeps(motion.dt), dt: motion.dt, t: motion.t };
     for (const system of this.systems) system.step(frame);
+    this.stepCitSolo(input);
     return { mixChanged: this.stepSky(input.realDt, input.weather) };
+  }
+
+  /** A paused bank playing a CIT demo on its own: only the van and its crew move, on real time at the bank's speed, until the van is away again. */
+  private stepCitSolo(input: WorldInputs): void {
+    if (input.playing) {
+      this.citSolo = false;
+      return;
+    }
+    if (input.citSolo) this.citSolo = true;
+    if (!this.citSolo) return;
+    for (const h of substeps(Math.min(Math.max(input.realDt, 0), 0.1) * input.speed)) this.lot.stepCitAlone(h);
+    if (!input.citSolo && !this.lot.cit.busy()) this.citSolo = false;
   }
 
   /** A desk's line and the customers served at it. */
@@ -218,10 +240,28 @@ export class WorldEngine {
       this.arrivals.onBeat(view.stations, view.minute, motion.t);
     }
     for (const id of STATION_IDS) {
+      // The vault is a door in the wall: nobody queues at it or walks in to a seat there in 3D.
+      if (isWallStation(id)) continue;
       this.line(id).sync(view.stations[id], view.minute, motion.t);
       this.staff(id).sync(view.stations[id].workers, view.minute);
     }
     this.publishPeople();
+  }
+
+  /** The CIT run the van stands at the bay for (citEngine.citBayRun) and which way its cash goes: the 3D van follows the schedule, arriving once per new run. */
+  onCitBay(runId: string | null, flow: CrewFlow = 'IN'): void {
+    this.lot.cit.follow();
+    if (runId !== null && runId !== this.citSeen && this.lot.cit.phase === 'away') {
+      this.vanRun = runId;
+      this.lot.cit.call(flow);
+    }
+    this.citSeen = runId;
+  }
+
+  /** The run the 3D van is out for (driving in, at the bay or driving off), or null once it has gone: the demo lock waits for it. */
+  citVanRun(): string | null {
+    // The demo lock follows the van alone: it releases the frame the van despawns, even while the vault staffer walks back in.
+    return this.lot.cit.vanOut() ? this.vanRun : null;
   }
 
   /** Hears whenever the people of the desks change (Observer); returns the way to stop. */

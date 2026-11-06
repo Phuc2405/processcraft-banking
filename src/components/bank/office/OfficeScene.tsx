@@ -7,12 +7,14 @@ import { useLocale } from '../../../i18n/locale';
 import { AdditiveBlending, CanvasTexture, Color, ExtrudeGeometry, MeshBasicMaterial, MOUSE, Path, RepeatWrapping, ShapeGeometry, SpriteMaterial, SRGBColorSpace, TOUCH, Vector3, type AmbientLight, type DirectionalLight, type Group, type HemisphereLight } from 'three';
 import { DEPARTMENTS, STATION_IDS, type DepartmentId } from '../../../sim/topology';
 import { prefersReducedMotion } from '../../canvas/timing';
-import { activeFlowOf, bankStore, useBankStore } from '../../../store/bankStore';
+import { activeFlowOf, bankStore, focusSubOf, useBankStore } from '../../../store/bankStore';
 import { uiStore } from '../../../store/uiStore';
 import { sceneCovered } from './sceneCover';
 import { FlowStage3D, useAcademyCamera } from './FlowStage3D';
+import { TransactionFlow3D } from './TransactionFlow3D';
 import { useTerms } from '../useTerms';
 import { Desk3D } from './Desk3D';
+import { VAULT_STATION, VaultCashStreams3D } from './VaultCash3D';
 import { AtmKiosk } from './AtmKiosk';
 import { GateStanchions, Kiosks, Plants, ServerRoom, VaultRoom, Walls } from './Dressing';
 import { Street } from './Street';
@@ -22,7 +24,8 @@ import { Park3D } from './Park3D';
 import { Parking3D } from './Parking3D';
 import { Vehicles3D } from './Vehicles3D';
 import { liveMix, weatherStore } from '../../../engine/world/weather';
-import { badgeFocus, badgeOpacity, dashLane, litLanes, PULSE, pulseDistance, type BadgeFocus } from './focus3d';
+import { badgeFocus, badgeOpacity, dashLane, GPU_BUDGET, LANE_GLOW, litLanes, PULSE, pulseDistance, type BadgeFocus } from './focus3d';
+import { useLivePath } from '../useLivePath';
 import { pathLength, pointAlongPath } from '../../../engine/plan/path';
 import { customerShirt, type V2 } from '../../../engine/plan/layout3d';
 import { ribbonGeometry, roundedRect, roundedRectPath, shade, tint } from './kit';
@@ -63,6 +66,7 @@ import { TourStage, useTourCamera } from './TourStage';
 import { useWorld, WorldProvider } from './WorldProvider';
 
 import { CustomerFigure } from './Avatars';
+import { useDemoLocked } from '../DemoSession';
 
 // Camera
 
@@ -490,7 +494,10 @@ function FloorLabel({ text, color, width, selected }: { text: string; color: str
   );
 }
 
-const DEPARTMENT_IDS = Object.keys(DEPARTMENTS) as DepartmentId[];
+/** Every department with a floor of its own: the cash vault has none (its station is the door in the vault room's back wall). */
+const RUG_IDS = (Object.keys(DEPARTMENTS) as DepartmentId[]).filter((id) => id !== 'CASH');
+/** Every station drawn as a desk or a kiosk. */
+const DESK_IDS = STATION_IDS.filter((id) => id !== VAULT_STATION);
 
 /** A coloured rug for each department, with a border; the name is painted on the floor just outside its front edge. */
 const Rug = memo(function Rug({ id }: { id: DepartmentId }) {
@@ -555,8 +562,9 @@ const Lanes = memo(function Lanes() {
   );
   const hover = useBankStore((s) => (s.spotlight ? null : s.hoverPlace));
   const flow = useBankStore((s) => (s.spotlight ? null : activeFlowOf(s)));
-  const sub = useBankStore((s) => s.subProcess);
-  const { lanes: lit, dim } = useMemo(() => litLanes(hover, flow, sub), [hover, flow, sub]);
+  const sub = useBankStore(focusSubOf);
+  const path = useLivePath();
+  const { lanes: lit, dim, pulses } = useMemo(() => litLanes(hover, flow, sub, path), [hover, flow, sub, path]);
   const litLanes3d = useMemo(
     () =>
       LANES.filter((l) => lit.has(l.id)).map((l) => {
@@ -578,7 +586,7 @@ const Lanes = memo(function Lanes() {
     m.transparent = true;
     return m;
   }, []);
-  const haloMaterial = useMemo(() => new MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.45, depthWrite: false, blending: AdditiveBlending, toneMapped: false }), []);
+  const haloMaterial = useMemo(() => new MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: LANE_GLOW.halo, depthWrite: false, blending: AdditiveBlending, toneMapped: false }), []);
   useEffect(() => () => geometry.dispose(), [geometry]);
   useEffect(() => () => stripe?.dispose(), [stripe]);
   useEffect(() => () => halo?.dispose(), [halo]);
@@ -589,13 +597,13 @@ const Lanes = memo(function Lanes() {
     },
     [material, haloMaterial],
   );
-  material.opacity = lit.size ? dim : 1;
+  material.opacity = lit.size ? dim : LANE_GLOW.idle;
   return (
     <>
       <mesh geometry={geometry} material={material} renderOrder={1} name="office-lanes" />
       {halo && <mesh geometry={halo} material={haloMaterial} renderOrder={2} name="office-lanes-halo" />}
       {stripe && <mesh geometry={stripe} material={tape} renderOrder={2} name="office-lanes-lit" />}
-      {paths.length > 0 && <LanePulses paths={paths} colors={colors} />}
+      {pulses && paths.length > 0 && <LanePulses paths={paths} colors={colors} />}
     </>
   );
 });
@@ -718,7 +726,7 @@ function LaneBadge({ text, at, focus }: { text: string; at: readonly [number, nu
 const LaneLabels = memo(function LaneLabels() {
   useLocale();
   const flow = useBankStore((s) => (s.spotlight ? null : activeFlowOf(s)));
-  const sub = useBankStore((s) => s.subProcess);
+  const sub = useBankStore(focusSubOf);
   const hover = useBankStore((s) => (s.spotlight ? null : s.hoverPlace));
   const always = useBankStore((s) => s.labelMode === 'always' && s.spotlight === null);
   return (
@@ -845,27 +853,33 @@ const TrafficRenderer = memo(function TrafficRenderer() {
 
 /** The people outside the desks' lines: the park, the passers-by, the guard at the main entrance, customers walking in and (at closing time) walking out. */
 const CrowdRenderer = memo(function CrowdRenderer() {
+  // A running demo shows its own case alone: no passers-by, park life or customers walking in (DemoSession.isolateMoves).
+  const isolated = useDemoLocked();
   return (
-    <group name="crowd-renderer">
-      <Evacuation />
-      <Park3D />
-      <Pedestrians />
+    <group name="crowd-renderer" userData={{ isolated }}>
+      {!isolated && <Evacuation />}
+      {!isolated && <Park3D />}
+      {!isolated && <Pedestrians />}
       <GuardCabin3D />
-      <Arrivals />
-      <PeopleTags3D />
+      {!isolated && <Arrivals />}
+      {!isolated && <PeopleTags3D />}
     </group>
   );
 });
 
 /** The desks and the machines, with their staff, lines and badges; the queue ropes; and the payments and signals flowing between them. */
 const DeskRenderer = memo(function DeskRenderer() {
+  const isolated = useDemoLocked();
   return (
     <group name="desk-renderer">
       <GateStanchions />
-      {STATION_IDS.map((id) => (isMachine(id) ? <AtmKiosk key={id} id={id} /> : <Desk3D key={id} id={id} />))}
+      {/* The Central Cash Vault has no desk: the round steel door is the station (Dressing.VaultRoom), clickable on its own. */}
+      {DESK_IDS.map((id) => (isMachine(id) ? <AtmKiosk key={id} id={id} /> : <Desk3D key={id} id={id} />))}
+      <VaultCashStreams3D />
       <Kiosks />
       <Packets />
-      <SignalPulses />
+      {!isolated && <SignalPulses />}
+      <TransactionFlow3D />
       <DeskVisitors3D />
     </group>
   );
@@ -896,10 +910,10 @@ export function OfficeScene({ resetKey }: { resetKey: number }) {
       <Floor />
       <FrameDriver />
       <Environment3D />
-      <ContactShadows position={[0, -0.66, 0]} scale={[FLOOR_SLAB.w + 6, FLOOR_SLAB.d + 6]} far={0.9} blur={2.8} opacity={0.4} resolution={512} frames={1} color="#6b4f35" />
-      {/* Soft contact shadows under every desk, person and plant on the office floor, baked once. */}
-      <ContactShadows position={[0, 0.03, 0]} scale={[FLOOR_SLAB.w, FLOOR_SLAB.d]} far={2.4} blur={2} opacity={0.4} resolution={1024} frames={1} color="#5b4330" />
-      {DEPARTMENT_IDS.map((id) => (
+      <ContactShadows position={[0, -0.66, 0]} scale={[FLOOR_SLAB.w + 6, FLOOR_SLAB.d + 6]} far={0.9} blur={2.8} opacity={0.4} resolution={GPU_BUDGET.shadowPx} frames={1} color="#6b4f35" />
+      {/* Soft contact shadows under every desk, person and plant on the office floor, baked once at the GPU budget's light resolution (as soft under the blur). */}
+      <ContactShadows position={[0, 0.03, 0]} scale={[FLOOR_SLAB.w, FLOOR_SLAB.d]} far={2.4} blur={2} opacity={0.4} resolution={GPU_BUDGET.shadowPx} frames={1} color="#5b4330" />
+      {RUG_IDS.map((id) => (
         <Rug key={id} id={id} />
       ))}
       <Lanes />

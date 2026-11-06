@@ -3,6 +3,9 @@ import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, ty
 import { SPEEDS } from '../../../sim/clock';
 import { bankStore } from '../../../store/bankStore';
 import { deskVisitStore } from '../../../store/deskVisitStore';
+import { citStore, vanOrphaned } from '../../../store/citStore';
+import { bayFlow, citBayRun } from '../../../sim/citEngine';
+import { citNow, citSoloActive } from '../../ops/citActions';
 import type { WorldEngine } from '../../../engine/simulation/WorldEngine';
 import { simulation } from '../useSimulation';
 import { liveMix, weatherStore } from '../../../engine/world/weather';
@@ -28,6 +31,9 @@ export function usePeopleVersion(read: (world: WorldEngine) => number): number {
 function WorldTicker({ world }: { world: WorldEngine }) {
   useFrame((_, dt) => {
     const s = bankStore.getState();
+    // A van whose run has gone (a night run dropped at the day's turn, a cancelled demo) drives off alone and never holds the lock.
+    const vanRun = world.citVanRun();
+    const orphan = vanOrphaned(vanRun, citStore.getState(), s.view.day);
     const { mixChanged } = world.tick({
       realDt: dt,
       // A solo demo stops the clock when its one payment is done: the world keeps moving while people are still at a counter,
@@ -37,9 +43,13 @@ function WorldTicker({ world }: { world: WorldEngine }) {
       minute: s.view.minute,
       weather: weatherStore.getState().weather,
       queueLength: (id) => s.view.stations[id].queueLength,
+      citSolo: !s.playing && (orphan || citSoloActive()),
     });
     // The page's copy of the sky's blend (the gradient behind the canvas), a few times a second while it moves.
     if (mixChanged) weatherStore.setState({ mix: { ...liveMix } });
+    // The dispatch lock holds while the learner's van is still out in 3D: until it has driven off, not only until its run settles.
+    const van = !orphan && (vanRun?.includes('-M') ?? false);
+    if (citStore.getState().van !== van) citStore.setState({ van });
   }, -10);
   return null;
 }
@@ -49,10 +59,21 @@ export function WorldProvider({ children }: { children: ReactNode }) {
   const world = useMemo(() => simulation.createWorld(weatherStore.getState().weather), []);
   // The people of the desks follow the bank as soon as it moves, before anything draws; put away with the scene.
   useEffect(() => {
-    world.onBank(bankStore.getState().view);
-    const stop = bankStore.subscribe((s) => world.onBank(s.view));
+    let seen: [unknown, unknown] = [null, null];
+    const follow = (): void => {
+      const view = bankStore.getState().view;
+      const manual = citStore.getState().manual;
+      world.onBank(view);
+      if (seen[0] === view && seen[1] === manual) return;
+      seen = [view, manual];
+      const run = citBayRun(citNow());
+      world.onCitBay(run?.order.id ?? null, run ? bayFlow(run.order) : 'IN');
+    };
+    follow();
+    const stops = [bankStore.subscribe(follow), citStore.subscribe(follow)];
     return () => {
-      stop();
+      stops.forEach((stop) => stop());
+      citStore.setState({ van: false });
       world.dispose();
     };
   }, [world]);

@@ -7,7 +7,7 @@ import { useStore } from 'zustand';
 import { deskVisitStore, useDeskVisits, visitElapsed, type ActiveVisit } from '../../store/deskVisitStore';
 
 /**
- * The people at the staffed counters (the teller, the disputes desk, the Savings Desk, the Collateral Vault and the Pay-in-4 appraisal
+ * The people at the staffed counters (the teller, the disputes desk, the Savings Desk, the Savings & Collateral Desk and the Pay-in-4 appraisal
  * counter) on the 2D map. Every
  * one follows the same pattern: walk in, queue, work the case at the counter with a status over their head, walk out. They move by
  * writing to their elements each frame, so the map itself never redraws for them, and they hold still while the learner has paused.

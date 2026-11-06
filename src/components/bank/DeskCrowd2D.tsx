@@ -3,8 +3,7 @@ import { CROWD_APPROACH, crowdSlot2d } from '../../engine/plan/deskVisitPaths';
 import { WALKER_STATIONS } from '../../engine/plan/layout3d';
 import { workingCount } from '../../engine/simulation/deskActivity';
 import { CROWD_CAP, crowdSize, crowdStatus, crowdStep, emptyCrowd, type Crowd } from '../../sim/deskCrowd';
-import { useLocale } from '../../i18n/locale';
-import { STATUS_TEXT } from './personStatus';
+import { ActorStatusBadge } from './ActorStatusBadge';
 import type { StationId } from '../../sim/topology';
 import { beatLive, useBankStore } from '../../store/bankStore';
 import { H, Person, SHIRTS, W } from './DeskVisitors2D';
@@ -35,7 +34,6 @@ function CrowdFigure({ id, k, at, serving, leaving, entering }: { id: StationId;
     const t = setTimeout(() => setArriving(false), MOVE_MS);
     return () => clearTimeout(t);
   }, [arriving]);
-  const locale = useLocale();
   const off = entering ? !settled : leaving && settled;
   const phase = off || arriving ? 'walk' : serving ? 'transact' : 'queue';
   const status = crowdStatus({ leaving, arriving, serving, place: at });
@@ -47,11 +45,7 @@ function CrowdFigure({ id, k, at, serving, leaving, entering }: { id: StationId;
       data-testid={`desk-crowd-${id}-${k}`}
     >
       <Person shirt={SHIRTS[k % SHIRTS.length] as string} officer={false} />
-      {status && (
-        <span className="bk-visit-status" data-status={status} aria-hidden="true">
-          {STATUS_TEXT[status][locale]}
-        </span>
-      )}
+      {status && <ActorStatusBadge status={status} />}
     </div>
   );
 }

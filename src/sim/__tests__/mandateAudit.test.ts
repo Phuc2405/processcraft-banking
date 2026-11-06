@@ -6,7 +6,18 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { executeDemo, releaseDueDemos, runDemo, stayForShift } from '../../components/bank/retailOpsActions';
+import { executeDemo as executeDemoNow, releaseDueDemos, runDemo as runDemoNow, stayForShift } from '../../components/bank/retailOpsActions';
+import { demoSessionStore } from '../../store/demoSessionStore';
+
+// Each button press here is a fresh demo: the previous one is closed first, as a learner would cancel it (or let it finish).
+const executeDemo = (id: DemoActionId): void => {
+  demoSessionStore.getState().finish();
+  executeDemoNow(id);
+};
+const runDemo = (id: DemoActionId): void => {
+  demoSessionStore.getState().finish();
+  runDemoNow(id);
+};
 import { RegulatoryRegistry } from '../../components/knowledge/RegulatoryRegistry';
 import { Flashcard, flashcardPoints } from '../../components/knowledge/RetailOpsStudy';
 import { retailOpsMessages } from '../../components/bank/retailOps.messages';
@@ -151,15 +162,16 @@ describe('24/7 digital channels and day counter flows', () => {
     }
   });
 
-  it('runs a digital channel even after midnight, rolling the bank into the next day', () => {
+  it('runs a digital channel even after midnight, in the sandbox: the clock never rolls into the next day', () => {
     bankStore.getState().skipTo(EOD_START);
     bankStore.getState().skipToEndOfDay();
     expect(bankStore.getState().view.dayOver).toBe(true);
     const day = bankStore.getState().view.day;
     runDemo('qr-780');
     expect(shiftQueueStore.getState().prompt).toBeNull();
-    expect(bankStore.getState().view.day).toBe(day + 1);
-    expect(bankStore.getState().presetTrace).not.toBeNull();
+    expect(bankStore.getState().view.day).toBe(day);
+    expect(bankStore.getState().view.dayOver).toBe(true);
+    expect(bankStore.getState().sandboxTrace?.route.length).toBeGreaterThan(1);
   });
 
   it('asks the Day Counter Flows question for a counter task outside 09:00-17:00', () => {

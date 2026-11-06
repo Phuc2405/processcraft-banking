@@ -3,6 +3,8 @@
  * queue: one figure per customer up to a cap, the head at the counter while the desk is working. Pure, so it is tested without a DOM.
  */
 
+import type { ActorStatus } from './actorStatus';
+
 /** Figures shown in a line at most; more are told by a "+N" tag. */
 export const CROWD_CAP = 3;
 
@@ -31,7 +33,7 @@ export function crowdStep(c: Crowd, target: number): { crowd: Crowd; left: numbe
 export const crowdSize = (queueLength: number, working: number): number => queueLength + (working > 0 ? 1 : 0);
 
 /** The status a figure of the line carries (the desk visits' words), or null for one further back, whom the desk's badge counts. */
-export function crowdStatus(f: { leaving: boolean; arriving: boolean; serving: boolean; place: number }): 'arriving' | 'waiting' | 'processing' | 'done' | null {
+export function crowdStatus(f: { leaving: boolean; arriving: boolean; serving: boolean; place: number }): ActorStatus | null {
   if (f.leaving) return 'done';
   if (f.arriving) return 'arriving';
   if (f.place > 0) return null;

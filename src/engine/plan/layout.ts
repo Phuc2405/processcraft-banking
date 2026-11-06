@@ -1,13 +1,15 @@
 /** Where everything sits on the bank map, and the wires between the desks. */
 
 import { VI_DICTIONARY } from '../../i18n/viDictionary';
-import { edgeId, WIRES, type DepartmentId, type PlaceId } from '../../sim/topology';
+import { edgeId, WIRES, type CashEndpoint, type DepartmentId, type PlaceId } from '../../sim/topology';
+import type { CashWire } from '../../sim/cashWires';
 import type { BoxSide, Pt } from '../../types/geometry';
 
 /** The branch itself is the BUILDING (the old stage). */
 export const BUILDING = { width: 1080, height: 1180 } as const;
 // 2D stage (Phase 1A compact grid: EOD moved under the outcome column.
-export const STAGE = { width: 1560, height: 1000 } as const;
+// 1080 high (was 1000) so the Central Cash Vault and its CIT bay have a column of their own under Savings & Collateral.
+export const STAGE = { width: 1560, height: 1080 } as const;
 
 // Right-side clusters (Flows 3 and 4): `right` px of extra free space so the zoom toolbar never covers them and the camera never parks against the edge.
 export const EDGE_PAD = { right: 120, band: 240, centre: 0.55, wide: 0.6 } as const;
@@ -92,6 +94,8 @@ export const PLACE_BOX: Record<PlaceId, PlaceBox> = {
   // Phase 2/4: a column of its own right of the night cycle: the vault feeds the savings desk, which posts straight to the ledger.
   SAVINGS_DESK: card(1440, 548),
   COLLATERAL_VAULT: card(1440, 688),
+  // The Central Cash Vault: under the savings column, with the CIT loading bay right below it (CitBay2D), and gold cash lines to the teller and the ATM (CashLines2D).
+  MAIN_CASH_VAULT: card(1440, 844),
   // The virtual STP node: a slim card in the corridor between the risk desk and Pay-in-4, so the fast lane skips both.
   STP_ENGINE: { cx: 540, cy: 500, w: 150, h: 64 },
 };
@@ -112,6 +116,7 @@ export const DEPT_BOX: Record<DepartmentId, DeptBox> = {
   ATM: { x: 1094, y: 66, w: 192, h: 366 },
   ...bandDepts(BAND_ROW_2D),
   SAVINGS: { x: 1344, y: 466, w: 192, h: 284 },
+  CASH: { x: 1344, y: 762, w: 192, h: 310 },
 };
 
 // Wires
@@ -454,7 +459,8 @@ const ROUTES: Record<string, RouteSpec> = {
   'ATM_CASH>OUT_APPROVED': R(['l', 10], ['r', 10], { quiet: true }),
   'ATM_CASH>SUSPENSE': R(['b', -70], ['t', 40], { via: [[1120, 614], [1040, 614]], quiet: true }),
   'COLLATERAL_VAULT>SAVINGS_DESK': R(['t'], ['b'], { labelAt: [1480, 618] }),
-  'SAVINGS_DESK>LEDGER_DEBIT': R(['t'], ['t', 20], { via: [[1440, 24], [800, 24]], labelAt: [1200, 24] }),
+  // Its own lane under the band's decline lane (y 44), clear of the 8 / 19 / 30 decline corridor it used to squeeze into.
+  'SAVINGS_DESK>LEDGER_DEBIT': R(['t'], ['t', 20], { via: [[1440, 55], [800, 55]], labelAt: [1200, 55] }),
   // Phase 8 band: declines drop beside the trunk to the floor lane and climb the right-hand gutter, each on its own lane of every run (DECLINE_LANES), until the reject gateway collects them (GATEWAYS) and one trunk carries them into Declined.
   ...bandRoutes(
     BAND_ROW_2D,
@@ -689,6 +695,8 @@ export const wireById = (id: string): Wire | undefined => BY_ID.get(id);
 
 /** The path a packet takes along a wire, or null if the wire is not on the map. */
 export const pathOfWire = (id: string): string | null => BY_ID.get(id)?.path ?? null;
+/** The points of a wire's whole run, from its `from` end: what a moving icon follows. */
+export const pointsOfWire = (id: string): readonly Pt[] | null => BY_ID.get(id)?.points ?? null;
 
 /** The wires touching `place` (its own, in and out), or null when nothing is pointed at: what hovering a node lights up. */
 export function connectedWires(place: PlaceId | null, wires: readonly Wire[] = BANK_WIRES): ReadonlySet<string> | null {
@@ -745,3 +753,74 @@ export function tipSideFor(place: PlaceId): TipSide {
 }
 
 export const TIP_SIDE: Readonly<Record<PlaceId, TipSide>> = Object.fromEntries((Object.keys(PLACE_BOX) as PlaceId[]).map((p) => [p, tipSideFor(p)])) as Record<PlaceId, TipSide>;
+
+// Cash lines: the Central Cash Vault to the teller, the ATM and the CIT bay (not payment wires: cash, drawn in gold by CashLines2D)
+
+/**
+ * Each cash line as corners from the vault (first point) to its endpoint (last point): to the teller straight along the clear
+ * corridor between the band's departments (y 928) and the decline floor bus (y 960), to the ATM up the map's right-hand margin,
+ * and straight down into the CIT loading bay under the vault.
+ */
+/** The CIT loading bay card on the map's bottom-right edge, right under the Central Cash Vault. */
+/** 20 px under the vault (y 890), so the vault ↔ bay wire's label badge fits in the gap clear of both cards' text. */
+export const CIT_BAY = { x: 1350, y: 910, w: 180, h: 160 } as const;
+/** The bay card's off-site ends along its bottom row, left to right (CitBay2D draws them; the hop player parks its badge on them). */
+export const BAY_ENDPOINTS = ['ATM', 'HQ', 'SBV', 'CORP'] as const;
+export const bayEndpointAt = (i: number): Pt => [CIT_BAY.x + 18 + (i * (CIT_BAY.w - 36)) / (BAY_ENDPOINTS.length - 1), CIT_BAY.y + CIT_BAY.h - 14];
+
+export const CASH_CORRIDOR = { x: 1306, y: 944 } as const;
+export const CASH_LINES: Readonly<Record<CashEndpoint, readonly Pt[]>> = (() => {
+  const v = PLACE_BOX.MAIN_CASH_VAULT;
+  const teller = PLACE_BOX.TELLER_CASH;
+  const atm = PLACE_BOX.ATM_CASH;
+  const left = v.cx - v.w / 2;
+  const right = v.cx + v.w / 2;
+  return {
+    TELLER: [[left, v.cy + 26], [CASH_CORRIDOR.x, v.cy + 26], [CASH_CORRIDOR.x, CASH_CORRIDOR.y], [teller.cx, CASH_CORRIDOR.y], [teller.cx, teller.cy + teller.h / 2]],
+    ATM: [[right, v.cy - 20], [1550, v.cy - 20], [1550, atm.cy + 20], [atm.cx + atm.w / 2, atm.cy + 20]],
+    BAY: [[v.cx + 40, v.cy + v.h / 2], [v.cx + 40, CIT_BAY.y + 2]],
+  };
+})();
+
+/**
+ * The CIT hall's handover to the till: out of the bay's left side, along its own lane under the decline floor bus (y 960), and up
+ * into the teller card beside the vault's teller line (so the two never share a stroke).
+ */
+export const BAY_TELLER_LINE: readonly Pt[] = (() => {
+  const teller = PLACE_BOX.TELLER_CASH;
+  const lane = 1010;
+  return [[CIT_BAY.x, lane], [teller.cx + 16, lane], [teller.cx + 16, teller.cy + teller.h / 2]];
+})();
+
+/** Every gold wire's corners (cashWires.ts names them): the three vault lines, then the bay ↔ teller handover. */
+export const cashWirePoints = (w: CashWire): readonly Pt[] => (w === 'BAY_TELLER' ? BAY_TELLER_LINE : CASH_LINES[w]);
+
+/** A wire label badge's height, and the clear run it wants either side of its words. */
+export const WIRE_BADGE = { h: 15, margin: 12, edge: 24 } as const;
+/** A label's width at 9 px bold: about 5.4 px a character, padded 6 px each side. */
+export const wireBadgeWidth = (text: string): number => Math.round([...text].length * 5.4 + 12);
+export interface CashWireLabel {
+  x: number;
+  y: number;
+  /** Rotated to read along a vertical run (only when no horizontal run is long enough). */
+  vertical: boolean;
+}
+/**
+ * Where a wire's label sits, for a badge `width` px wide: centred ON the longest horizontal run that holds it with a margin either
+ * side (it never climbs into the card headers above or below the wire), else rotated along a vertical run that does, else (a run too
+ * short for words: the 20 px vault ↔ bay drop) level across the run's middle, kept inside the stage's right edge (the ATM wire).
+ */
+export function cashWireLabel(w: CashWire, width: number): CashWireLabel {
+  const pts = cashWirePoints(w);
+  const runs = pts.slice(1).map((b, i) => ({ a: pts[i]!, b, len: Math.hypot(b[0] - pts[i]![0], b[1] - pts[i]![1]), vertical: b[0] === pts[i]![0] }));
+  const fits = (r: (typeof runs)[number]): boolean => r.len >= width + 2 * WIRE_BADGE.margin;
+  const longest = (list: typeof runs) => list.reduce<(typeof runs)[number] | null>((best, r) => (!best || r.len > best.len ? r : best), null);
+  const run = longest(runs.filter((r) => !r.vertical && fits(r))) ?? longest(runs.filter((r) => r.vertical && fits(r)));
+  if (run) return { x: (run.a[0] + run.b[0]) / 2, y: (run.a[1] + run.b[1]) / 2, vertical: run.vertical };
+  const mid = longest(runs)!;
+  const x = Math.min((mid.a[0] + mid.b[0]) / 2, STAGE.width - WIRE_BADGE.edge - width / 2);
+  return { x, y: (mid.a[1] + mid.b[1]) / 2, vertical: false };
+}
+
+/** An SVG path through a wire's corners. */
+export const cashWirePath = (w: CashWire): string => cashWirePoints(w).map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(' ');

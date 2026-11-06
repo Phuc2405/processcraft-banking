@@ -9,10 +9,10 @@ import { useNodeCopy } from '../useNodeCopy';
 
 afterEach(() => setActiveLocale('en'));
 
-describe('27-node classification', () => {
-  it('splits every station into 17 automated (the STP engine included) and 10 human, with no overlap', () => {
+describe('28-node classification', () => {
+  it('splits every station into 17 automated (the STP engine included) and 11 human (the central cash vault included), with no overlap', () => {
     expect(AUTOMATED_NODES).toHaveLength(17);
-    expect(HUMAN_NODES).toHaveLength(10);
+    expect(HUMAN_NODES).toHaveLength(11);
     expect(new Set([...AUTOMATED_NODES, ...HUMAN_NODES])).toEqual(new Set(STATION_IDS));
   });
 
