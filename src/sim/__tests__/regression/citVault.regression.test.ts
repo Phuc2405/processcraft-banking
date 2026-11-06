@@ -159,7 +159,7 @@ describe('§2.3 the loading bay (Sảnh Giao Nhận CIT) is lit only for Flow 09
   });
 
   it('wires the lit flag to Flow 09 alone, on both maps', () => {
-    expect(src('components/bank/CitBay2D.tsx')).toContain('useBankStore((s) => activeFlowOf(s) === CIT_FLOW)');
+    expect(src('components/bank/CitBay2D.tsx')).toContain('useBankStore((s) => activeFlowOf(s) === CIT_FLOW && bayLit(citChildOf(s)))');
     const bay3d = src('components/bank/office/LoadingBay3D.tsx');
     expect(bay3d).toContain("s.scope === 'beginner' && s.flow === CIT_FLOW");
     expect(bay3d).toContain('opacity: lit || selected || hover ? 1 : 0.4');

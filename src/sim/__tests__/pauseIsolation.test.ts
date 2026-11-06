@@ -25,7 +25,7 @@ describe('a paused bank plays one demo and nothing else', () => {
     expect(queued, 'the bank needs background customers in its queues for this test').toBeGreaterThan(0);
     const before = finished(sim);
     const id = sim.inject(presetCustomer('pos-20', DEFAULT_RULES)!)!;
-    for (let i = 0; i < 40 && !sim.traceOf(id)!.done; i++) sim.step({ admit: false });
+    for (let i = 0; i < 40 && !sim.traceOf(id)!.done; i++) sim.step({ solo: true });
     expect(sim.traceOf(id)!.done).toBe(true);
     // Exactly one more payment finished: the demo's own.
     expect(finished(sim)).toBe(before + 1);

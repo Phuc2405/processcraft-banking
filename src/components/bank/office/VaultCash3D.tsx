@@ -5,8 +5,9 @@ import { BufferGeometry, CatmullRomCurve3, CircleGeometry, Float32BufferAttribut
 import { deskPose } from '../../../engine/plan/layout3d';
 import { LOADING_DOOR, VAULT_DOOR } from '../../../engine/world/citRun';
 import type { CashEndpoint } from '../../../sim/topology';
-import { vaultPost, type CashDir, type VaultCashFlow } from '../../../sim/vaultFlows';
-import { activeFlowOf, citChildOf, useBankStore } from '../../../store/bankStore';
+import { CASH_ICON_SECONDS, vaultPost, type CashDir, type VaultCashFlow } from '../../../sim/vaultFlows';
+import { activeFlowOf, citChildOf, demoGroupOf, useBankStore } from '../../../store/bankStore';
+import { useStageIsolated } from '../DemoSession';
 import { CASH_WIRES, litWires, routeDirs, WIRE_ENDS, type CashWire, type WireNode } from '../../../sim/cashWires';
 import { useCitStore } from '../../../store/citStore';
 import { useWireHover } from '../../../store/wireHoverStore';
@@ -189,7 +190,7 @@ const ICON: Readonly<Record<CashEndpoint, string>> = { TELLER: '🧑‍💼', AT
 
 /** Where spark `i` of `n` is along a stream at time `t`, 0 at the door: OUT runs door → endpoint, IN endpoint → door. */
 export const sparkU = (dir: CashDir, i: number, n: number, t: number): number => {
-  const u = (((t * 0.35 + i / n) % 1) + 1) % 1;
+  const u = (((t / CASH_ICON_SECONDS + i / n) % 1) + 1) % 1;
   return dir === 'OUT' ? u : 1 - u;
 };
 
@@ -291,19 +292,25 @@ export const VaultCashStreams3D = memo(function VaultCashStreams3D() {
     vaultDoorActivity.active = flows.length > 0;
   }, [flows]);
   useEffect(() => () => void (vaultDoorActivity.active = false), []);
-  const live = new Set<CashWire>(flows.map((f) => f.endpoint));
   const flow = useBankStore(activeFlowOf);
   const child = useBankStore((s) => (activeFlowOf(s) === CIT_FLOW ? citChildOf(s) : null));
-  const hover = useWireHover();
-  const route = useMemo(() => litWires(flow, child, hover), [flow, child, hover]);
+  const group = useBankStore(demoGroupOf);
+  // On a demo's stage only its own route shows: no hover lighting, no wire or stream off it (as on the 2D map).
+  const isolated = useStageIsolated();
+  const pointer = useWireHover();
+  const hover = isolated ? null : pointer;
+  const route = useMemo(() => litWires(flow, child, hover, group), [flow, child, hover, group]);
+  const shown = (w: CashWire): boolean => !isolated || (route?.has(w) ?? false);
+  const onStage = flows.filter((f) => shown(f.endpoint));
+  const live = new Set<CashWire>(onStage.map((f) => f.endpoint));
   const sbv = useCitStore((s) => (s.sbvCase === 'DEPOSIT' ? 'OUT' : 'IN'));
   const dirs = useMemo(() => routeDirs(child, sbv), [child, sbv]);
   return (
     <group name="vault-cash-streams" userData={{ flows: flows.map((f) => `${f.endpoint}:${f.dir}`), lit: route ? [...route] : [] }}>
-      <WireLabels3D flows={flows} route={route} dirs={dirs} />
-      {CASH_WIRES.map((w) => (live.has(w) ? null : <primitive key={w} object={STILL_LINE[w][route?.has(w) ? 'lit' : 'idle']} />))}
+      <WireLabels3D flows={onStage} route={route} dirs={dirs} />
+      {CASH_WIRES.map((w) => (live.has(w) || !shown(w) ? null : <primitive key={w} object={STILL_LINE[w][route?.has(w) ? 'lit' : 'idle']} />))}
       {CASH_WIRES.map((w) => (route?.has(w) ? <primitive key={`tube-${w}`} object={LIT_TUBE[w]} /> : null))}
-      {flows.map((f) => (
+      {onStage.map((f) => (
         <Stream key={`${f.endpoint}:${f.dir}`} flow={f} pool={pool} />
       ))}
     </group>

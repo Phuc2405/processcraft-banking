@@ -4,7 +4,8 @@ import { demoMinute, inWindow, modeOf, shiftOf, shiftSnap, slotLabel } from '../
 import { shiftQueueStore } from '../../store/shiftQueueStore';
 import { DESK_VISITS } from '../../sim/deskVisit';
 import { simStamp } from '../../sim/ledgerStreams';
-import { opsCustomer, presetById, presetCustomer, type PresetId } from '../../sim/presets';
+import { flowText } from '../../sim/guidedFlows';
+import { opsCustomer, presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../../sim/presets';
 import { formatAud } from '../../engine/money';
 import { opsAccount, type OpsActionId } from '../../sim/retailOps';
 import { opsStpVerdict } from '../../sim/stpEngine';
@@ -14,11 +15,11 @@ import { deskVisitStore } from '../../store/deskVisitStore';
 import { retailOpsStore } from '../../store/retailOpsStore';
 import { demoSessionStore } from '../../store/demoSessionStore';
 import { hopPlayerStore } from '../../store/hopPlayerStore';
-import { vaultFlowStore } from '../../store/vaultFlowStore';
-import { demoLocked } from './DemoSession';
+import { demoLocked, destroyAllActiveEntities, preScenarioReset } from './DemoSession';
 import { simulateFlow } from '../../store/academySync';
 import { academyStore } from '../../store/academyStore';
 import type { FlowId } from '../../types/viewport';
+import type { Customer } from '../../sim/types';
 
 /** The bank's time for a journal of the retail book. */
 export function opsStamp(): string {
@@ -52,20 +53,32 @@ function runPresetDemo(id: PresetId): void {
     retail.setLastTx(null);
     announce();
     const replay = bankStore.getState().sandboxTrace;
-    if (replay) demoSessionStore.getState().start({ kind: 'sandbox', id: replay.id });
+    if (replay) demoSessionStore.getState().start({ kind: 'sandbox', id: replay.id, name: demoActionById(id).label });
     return;
   }
   const trace = bankStore.getState().presetTrace;
   if (!trace) return;
   retail.applyPreset(id, trace.plan.outcome, opsStamp());
   retail.setLastTx(trace.id);
-  startPaymentSession();
+  startPaymentSession(demoActionById(id).label);
 }
 
-/** The learner's payment is now the running demo: the navigation locks until it (and its hop replay) is over. */
-function startPaymentSession(): void {
+/** The learner's payment is now the running demo, named `name`: the navigation locks until it (and its hop replay) is over. */
+function startPaymentSession(name: () => string): void {
   const id = bankStore.getState().presetTxId;
-  if (id) demoSessionStore.getState().start({ kind: 'payment', id });
+  if (id) demoSessionStore.getState().start({ kind: 'payment', id, name });
+}
+
+/**
+ * A one-off scripted customer as a demo (the AML desk's $12,500 test transfer): refused while a demo runs; otherwise the bank pauses,
+ * the payment plays alone on its solo run and its session locks the clock until it is over. Returns the payment's id, or null.
+ */
+export function runCustomerDemo(customer: Customer, name: () => string): string | null {
+  if (demoLocked()) return null;
+  preScenarioReset();
+  bankStore.getState().runDemoCustomer(customer);
+  startPaymentSession(name);
+  return bankStore.getState().presetTxId;
 }
 
 /**
@@ -74,8 +87,10 @@ function startPaymentSession(): void {
  */
 export function simulateGuidedFlow(flow: FlowId): void {
   if (demoLocked()) return;
+  preScenarioReset();
   simulateFlow(academyStore, bankStore, flow);
-  startPaymentSession();
+  const preset = (PRIMARY_PRESET as Partial<Record<FlowId, PresetId>>)[flow];
+  startPaymentSession(preset ? demoActionById(preset).label : () => flowText(flow).title);
 }
 
 /**
@@ -86,8 +101,7 @@ export function simulateGuidedFlow(flow: FlowId): void {
 export function purgeForEod(): void {
   bankStore.getState().clearDemo();
   hopPlayerStore.getState().reset();
-  vaultFlowStore.getState().clear();
-  deskVisitStore.getState().clear();
+  destroyAllActiveEntities();
   shiftQueueStore.getState().clear();
 }
 
@@ -104,7 +118,7 @@ function runOpsDemo(id: OpsActionId): void {
   }
   bank.runDemoCustomer(customer);
   retail.setLastTx(bankStore.getState().presetTxId);
-  startPaymentSession();
+  startPaymentSession(demoActionById(id).label);
   // A savings or collateral case brings people to those desks, on both maps. A system flow never does, nor a case the STP engine takes.
   const route = opsStpVerdict(id, bank.stp)?.route;
   const straight = route === 'STP' || route === 'REJECT';
@@ -121,8 +135,9 @@ export function executeDemo(id: DemoActionId): void {
   const def = demoActionById(id);
   const bank = bankStore.getState();
   if (demoLocked() || demoBlocked(id, { dayOver: bank.view.dayOver, minute: bank.view.minute })) return;
-  // Every demo pauses the bank first: its payment plays alone (a solo run) and the clock stays paused after it until Play.
-  if (bank.playing) bank.pause();
+  // Every demo pauses the bank first (its payment plays alone, the clock stays paused after it until Play) and clears the stage:
+  // nobody from before (a walk-in, an earlier demo's visitor, a cash echo) stays on it; the demo's own people come with it.
+  preScenarioReset();
   if (id === 'eod') purgeForEod();
   // Run once: a copy still waiting for its shift is now done.
   shiftQueueStore.getState().unqueue(id);
@@ -175,9 +190,10 @@ function runSandboxDemo(id: DemoActionId): void {
   const bank = bankStore.getState();
   const customer = presetById(id) ? presetCustomer(id as PresetId, bank.sim.rules) : opsCustomer(id as OpsActionId, undefined, bank.stp);
   const def = demoActionById(id);
+  preScenarioReset();
   if (bank.scope !== 'beginner' || bank.flow !== def.flow) bank.setActiveFlow(def.flow);
   const trace = customer ? bankStore.getState().runSandbox(customer, demoMinute(id, bank.view.minute)) : null;
-  if (trace) demoSessionStore.getState().start({ kind: 'sandbox', id: trace.id });
+  if (trace) demoSessionStore.getState().start({ kind: 'sandbox', id: trace.id, name: def.label });
   notificationStore.getState().push({
     tone: 'info',
     icon: '🧪',

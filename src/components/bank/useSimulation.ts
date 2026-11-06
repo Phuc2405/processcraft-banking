@@ -8,9 +8,10 @@ import { bankStore } from '../../store/bankStore';
 import { deskPeopleOverlay } from '../../store/deskOccupancy';
 import { deskStatusLine, type DeskStatus } from '../../engine/simulation/deskStatus';
 import { SimulationEngine } from '../../engine/simulation/SimulationEngine';
+import { deskView, subscribeDemo } from './DemoSession';
 
-/** The app's one simulation engine, over the bank store: what both views of the bank read through the hooks below. */
-export const simulation = new SimulationEngine(bankStore, undefined, deskPeopleOverlay);
+/** The app's one simulation engine, over the bank store: what both views of the bank read through the hooks below. Its desks count only the running demo's case (DemoSession.deskView). */
+export const simulation = new SimulationEngine(bankStore, undefined, deskPeopleOverlay, { getState: () => ({ view: deskView() }), subscribe: (fn) => subscribeDemo(fn) });
 
 /** A desk's "X waiting · Y working" status, re-rendering the caller only when that desk's status changes. */
 export function useDeskStatus(id: StationId): DeskStatus {

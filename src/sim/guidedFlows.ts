@@ -365,6 +365,73 @@ const FLOW_VI: Readonly<Record<FlowId, FlowWords>> = {
   },
 };
 
+/** A step's task: what the place DOES there, as a verb phrase (never the place's or account's name), in English and Vietnamese. */
+const A = (en: string, vi: string): { en: string; vi: string } => ({ en, vi });
+
+/** Per flow, per step (in the order of GUIDED_FLOWS[id].steps): the task title the hover card's 📌 banner shows. */
+export const STEP_ACTIONS: Readonly<Record<FlowId, ReadonlyArray<{ en: string; vi: string }>>> = {
+  1: [
+    A('Receive the card authorisation request', 'Tiếp nhận yêu cầu cấp phép thẻ'),
+    A('Debit & check the CASA balance', 'Ghi nợ & Kiểm tra số dư CASA'),
+    A('Return the authorisation answer', 'Trả phản hồi cấp phép'),
+  ],
+  2: [
+    A('Receive the online card payment', 'Tiếp nhận giao dịch thẻ trực tuyến'),
+    A('Detokenise & validate the dCVV', 'Giải mã token & Xác thực dCVV'),
+    A('Score the 3DS risk', 'Chấm điểm rủi ro 3DS'),
+    A('Verify the SMS one-time code', 'Xác thực mã OTP qua SMS'),
+    A('Check funds, hold & authorise', 'Kiểm tra số dư khả dụng, Khóa khoanh giữ tiền & Cấp phép'),
+  ],
+  3: [
+    A('Read the card & verify the PIN', 'Đọc thẻ & Xác minh PIN'),
+    A('Count & validate the notes', 'Kiểm đếm & Xác thực tiền mặt'),
+    A('Post the entry to the customer CASA', 'Hạch toán bút toán vào CASA của khách'),
+  ],
+  4: [
+    A('Queue approved holds for the cut-off', 'Xếp hàng khoản khoanh giữ chờ chốt lô'),
+    A('Build the clearing file', 'Lập tệp bù trừ'),
+    A('Settle net with Visa', 'Quyết toán ròng với Visa'),
+    A('Reconcile three ways & clear suspense', 'Đối soát 3 bên & Xử lý tài khoản treo'),
+  ],
+  5: [
+    A('Verify the identity (eKYC)', 'Xác minh danh tính (eKYC)'),
+    A('Screen sanctions & PEP', 'Sàng lọc cấm vận & PEP'),
+    A('Open the account & post the first deposit', 'Mở tài khoản & Hạch toán khoản nộp đầu tiên'),
+  ],
+  6: [
+    A('Count the cash & check for counterfeits', 'Kiểm đếm tiền mặt & Kiểm tra tiền giả'),
+    A('Detect structured cash deposits', 'Phát hiện chia nhỏ giao dịch tiền mặt'),
+    A('Post the cash entry to CASA', 'Hạch toán bút toán tiền mặt vào CASA'),
+    A('Close deposits & freeze or release pledged savings', 'Tất toán tiền gửi & Phong tỏa / Giải tỏa tiền gửi cầm cố'),
+  ],
+  7: [
+    A('Parse & verify the QR code', 'Đọc & Kiểm tra mã QR'),
+    A('Verify the face (FacePay)', 'Xác thực khuôn mặt (FacePay)'),
+    A('Score the device for fraud', 'Chấm điểm gian lận thiết bị'),
+    A('Review, release or block flagged payments', 'Rà soát, Giải phóng hoặc Chặn giao dịch bị gắn cờ'),
+    A('Debit CASA & settle instantly', 'Ghi nợ CASA & Quyết toán tức thì'),
+  ],
+  8: [
+    A('Validate pacs.008 & convert the currency', 'Kiểm tra pacs.008 & Quy đổi ngoại tệ'),
+    A('Verify the face (FacePay)', 'Xác thực khuôn mặt (FacePay)'),
+    A('Score the device & screen the beneficiary', 'Chấm điểm thiết bị & Sàng lọc người thụ hưởng'),
+    A('Confirm the sanctions match or release', 'Xác nhận trùng cấm vận hoặc Giải phóng'),
+    A('Debit CASA & pay the correspondent', 'Ghi nợ CASA & Thanh toán qua ngân hàng đại lý'),
+    A('Decide the claim & refund', 'Xử lý khiếu nại & Hoàn tiền'),
+  ],
+  9: [
+    A('Dispatch or receive cash under dual control', 'Xuất / Nhập quỹ dưới kiểm soát kép'),
+    A('Check the seals & load or unload the van', 'Kiểm niêm phong & Bốc / Dỡ túi tiền'),
+    A('Deliver the cash & settle the transit', 'Giao tiền & Tất toán tiền đang vận chuyển'),
+  ],
+};
+
+/** A step's task title (📌) in the active language: an action, never the step's place name. */
+export function stepAction(flow: FlowId, step: FlowStep): string {
+  const a = STEP_ACTIONS[flow][GUIDED_FLOWS[flow].steps.indexOf(step)];
+  return a ? a[activeLocale() === 'vi' ? 'vi' : 'en'] : stepText(flow, step).name;
+}
+
 /** A flow's title and tooltip in the active language. */
 export function flowText(id: FlowId): { title: string; blurb: string } {
   if (activeLocale() !== 'vi') return { title: GUIDED_FLOWS[id].title, blurb: GUIDED_FLOWS[id].blurb };

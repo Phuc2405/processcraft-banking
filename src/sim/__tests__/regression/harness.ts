@@ -22,6 +22,7 @@ export const src = (path: string): string => readFileSync(join(__dirname, '../..
 /** Every store back to a fresh, paused D1 07:00 with Flow 01 lit, no demo running and English on screen. */
 export function freshBank(): void {
   demoSessionStore.getState().finish();
+  demoSessionStore.getState().release();
   hopPlayerStore.getState().reset();
   bankStore.getState().pause();
   bankStore.getState().resetDay();

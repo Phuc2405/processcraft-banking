@@ -15,6 +15,8 @@ import { useMessages } from '../../utils/i18nHelper';
 import { amlDecisionMessages } from './amlDecision.messages';
 import { AmlScorecardView, bankNow, DebuffBanner, CaseActions, CaseTime, DEFAULT_DESK_VIEW, deskList, DeskListControls, EscalationPopup, HistoryFooter, KycContextCard, StateBadge, TypologyReview, ViolationBanner, type DeskView } from './AmlReview';
 import { Modal } from '../shell/Modal';
+import { useDemoLocked } from '../bank/DemoSession';
+import { runCustomerDemo } from '../bank/retailOpsActions';
 
 /** The AML / SAR compliance desk, in three steps: 1. */
 
@@ -166,6 +168,7 @@ export function AmlPanel() {
   const [view, setView] = useState<DeskView>(DEFAULT_DESK_VIEW);
   const pruned = useAmlStore((s) => s.pruned);
   const [sent, setSent] = useState<string | null>(null);
+  const locked = useDemoLocked();
   const focus = useUiStore((s) => s.amlFocus);
   const [reviewFocus, setReviewFocus] = useState<string | null>(null);
 
@@ -237,11 +240,11 @@ export function AmlPanel() {
   const close = (): void => uiStore.getState().close();
   const c = alert ? cases[alert.id] : undefined;
 
+  // A demo like every other: the bank pauses and the transfer plays alone (never the live bank, its traffic or its faults).
   const sendTest = (): void => {
     const s = bankStore.getState();
-    const id = s.sendCustomer(amlTestCustomer(s.seed, s.sim.day, s.sim.minute, s.sim.event));
-    setSent(id);
-    if (id && !s.playing) s.play();
+    const id = runCustomerDemo(amlTestCustomer(s.seed, s.sim.day, s.sim.minute, s.sim.event), () => tr({ en: '$12,500 AML test transfer', vi: 'Lệnh chuyển thử AML $12,500' }));
+    if (id) setSent(id);
   };
 
   return (
@@ -306,7 +309,7 @@ export function AmlPanel() {
             <button
               type="button"
               onClick={sendTest}
-              disabled={dayOver || minute >= WORK_END}
+              disabled={dayOver || locked || minute >= WORK_END}
               data-testid="aml-send-test"
               title={tr({ en: 'Send a well-formed $12,500 instant business transfer into the bank to see the >$10,000 rule fire', vi: 'Gửi một lệnh chuyển khoản doanh nghiệp $12,500 hợp lệ vào ngân hàng để thấy quy tắc >$10,000 kích hoạt' })}
               className="rounded-lg bg-slate-800 px-3 py-1.5 text-[14px] font-semibold text-slate-100 ring-1 ring-slate-700 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"

@@ -21,7 +21,7 @@ import { presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../si
 import { CIT_FLOW, isPaymentFlow, type DataDepth, type Dimension, type FlowId, type Scope, type ViewportSettings } from '../types/viewport';
 import { quizFor } from '../sim/walkQuiz';
 import { compareDays, type Comparison } from '../sim/whatIf';
-import { citDemoOf, focusScope, groupOf, type FocusSub } from '../sim/demoGroups';
+import { citDemoOf, focusScope, groupOf, type DemoGroupId, type FocusSub } from '../sim/demoGroups';
 import type { CitDemo } from '../sim/citEngine';
 import type { FlowScope } from '../sim/guidedFlows';
 import type { InfoKey } from '../data/subProcessKeys';
@@ -422,8 +422,6 @@ export interface BankState {
   setStp(next: Partial<StpConfig>): void;
   /** Raises a chargeback on a card purchase from the live ledger (2110 back to 2010). */
   disputeTransaction(txId: string): DisputeResult;
-  /** Sends one hand-made customer into the bank now (the AML desk's test transfer). Returns its id, or null after closing time. */
-  sendCustomer(customer: Customer): string | null;
 }
 
 export interface BankStoreOptions {
@@ -590,7 +588,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
 
     const advance = (beats: number, solo = false): void => {
       const { sim: bank } = get();
-      for (let i = 0; i < beats && !bank.dayOver; i++) bank.step({ admit: !solo });
+      for (let i = 0; i < beats && !bank.dayOver; i++) bank.step({ solo });
     };
     /** Beats a solo run has played, and the most it may play before it stops anyway. */
     let soloBeats = 0;
@@ -830,13 +828,6 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         refresh();
       },
 
-      sendCustomer: (customer) => {
-        const s = get();
-        const id = s.sim.inject(customer);
-        if (id) refresh();
-        return id;
-      },
-
       disputeTransaction: (txId) => {
         const s = get();
         const result = s.sim.disputeTransaction(txId);
@@ -846,7 +837,8 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
 
       play: () => {
         const s = get();
-        if (s.sim.dayOver) return;
+        // A demo's solo run owns the beats: the bank's clock stays paused until it is over (or cancelled).
+        if (s.sim.dayOver || s.solo) return;
         deskVisitStore.getState().thaw();
         set({ ...endTour(false), playing: true, solo: false });
       },
@@ -855,11 +847,16 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         deskVisitStore.getState().freeze();
         set({ playing: false, solo: false });
       },
-      toggle: () => (get().playing ? get().pause() : get().play()),
+      toggle: () => {
+        // Play/Pause is read-only through a demo's solo run: pausing would strand its payment half-way, playing would move the clock.
+        if (get().solo) return;
+        if (get().playing) get().pause();
+        else get().play();
+      },
 
       step: () => {
         const s = get();
-        if (s.sim.dayOver) return;
+        if (s.sim.dayOver || s.solo) return;
         set({ ...endTour(false), playing: false, solo: false });
         advance(1);
         if (s.sim.dayOver) closeDay();
@@ -1120,7 +1117,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
         const box = rebuildToday();
         for (let i = 0; i < 2_000 && box.minute < minute && !box.dayOver; i++) box.step({ admit: false });
         const id = box.inject(customer);
-        for (let i = 0; id && i < SOLO_BEAT_LIMIT && !box.traceOf(id)?.done; i++) box.step({ admit: false });
+        for (let i = 0; id && i < SOLO_BEAT_LIMIT && !box.traceOf(id)?.done; i++) box.step({ solo: true });
         const trace = id ? box.traceOf(id) : null;
         const sandboxTrace = trace ? { ...trace, id: `sbx${++sandboxRuns}-${trace.id}` } : null;
         set({ sandboxTrace });
@@ -1345,6 +1342,8 @@ export const floatingBarsHiddenOf = (s: Pick<BankState, 'spotlight' | 'reportOpe
 export const focusSubOf = (s: Pick<BankState, 'flow' | 'subProcess'>): FocusSub | null => (s.flow === CIT_FLOW ? citDemoOf(s.subProcess) : groupOf(s.subProcess));
 /** The CIT child in focus: Flow 09's picked child, else null. */
 export const citChildOf = (s: Pick<BankState, 'flow' | 'subProcess'>): CitDemo | null => (s.flow === CIT_FLOW ? citDemoOf(s.subProcess) : null);
+/** The picked demo group of the lit flow (not a CIT child), or null. */
+export const demoGroupOf = (s: Pick<BankState, 'scope' | 'flow' | 'spotlight' | 'subProcess'>): DemoGroupId | null => (activeFlowOf(s) ? groupOf(s.subProcess) : null);
 
 export const activeScopeOf = (s: Pick<BankState, 'scope' | 'flow' | 'spotlight' | 'subProcess'>): FlowScope | null => {
   const flow = activeFlowOf(s);
@@ -1355,6 +1354,9 @@ export const activeScopeOf = (s: Pick<BankState, 'scope' | 'flow' | 'spotlight' 
  * just stepped to by hand. A paused bank never replays its last beat: not when the map is drawn again (2D to 3D and back, another
  * flow or sub-process lit), nor when its clock is moved while paused (a skip, a jump, a replay of today).
  */
+/** Whether the bank's own clock is paused: stopped, or only playing a demo's solo run (which never moves the clock). */
+export const clockPaused = (s: Pick<BankState, 'playing' | 'solo'>): boolean => !s.playing || s.solo;
+
 export const beatLive = (s: Pick<BankState, 'playing' | 'stepView' | 'view'>): boolean => s.playing || s.stepView === s.view;
 
 export const activeFlowOf = (s: Pick<BankState, 'scope' | 'flow' | 'spotlight'>): FlowId | null => (s.scope === 'beginner' && !s.spotlight ? s.flow : null);

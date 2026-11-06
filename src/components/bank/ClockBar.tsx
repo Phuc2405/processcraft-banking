@@ -3,9 +3,10 @@ import { t } from '../../i18n/t';
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { DAY_END, DAY_START, formatClock, PHASES, SPEEDS, speedNameText, type Phase } from '../../sim/clock';
 import { eventText } from '../../sim/traffic';
-import { SKIP_TARGETS, useBankStore } from '../../store/bankStore';
+import { clockPaused, SKIP_TARGETS, useBankStore } from '../../store/bankStore';
 import { ledgerUi } from '../../data/ledgerCopy';
 import { fractionToMinute, keyStep, minuteToFraction, SEGMENT_WIDTH } from './timeline';
+import { guarded, useDemoLocked } from './DemoSession';
 
 const PHASE_STYLE: Record<Phase, { chip: string; bar: string; label: string }> = {
   PRE_OPEN: { chip: 'bg-sky-400/10 text-sky-200 ring-sky-400/30', bar: 'bg-sky-500/40', label: 'Pre-open · systems check' },
@@ -14,15 +15,17 @@ const PHASE_STYLE: Record<Phase, { chip: string; bar: string; label: string }> =
   EOD: { chip: 'bg-amber-400/10 text-amber-200 ring-amber-400/30', bar: 'bg-amber-500/50', label: 'EOD night cycle · batch, Visa, reconciliation' },
 };
 
-function IconButton({ label, onClick, disabled, children, tone = 'plain', testId }: { label: string; onClick: () => void; disabled?: boolean; children: ReactNode; tone?: 'plain' | 'primary'; testId?: string }) {
+function IconButton({ label, onClick, disabled, children, tone = 'plain', testId, demoLock }: { label: string; onClick: () => void; disabled?: boolean; children: ReactNode; tone?: 'plain' | 'primary'; testId?: string; demoLock?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
+      aria-disabled={disabled || undefined}
       title={label}
       data-testid={testId}
+      data-demo-lock={demoLock || undefined}
       className={[
         'grid h-9 w-9 place-items-center rounded-lg transition disabled:cursor-not-allowed disabled:opacity-35',
         tone === 'primary' ? 'bg-lime-400 text-slate-950 hover:bg-lime-300' : 'bg-slate-800 text-slate-200 hover:bg-slate-700',
@@ -36,7 +39,8 @@ function IconButton({ label, onClick, disabled, children, tone = 'plain', testId
 const icon = { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'currentColor', 'aria-hidden': true } as const;
 
 /** The 08:00-24:00 bar, and the scrubber on it. */
-function Timeline({ minute, dayOver }: { minute: number; dayOver: boolean }) {
+/** The 08:00-24:00 bar. `locked` (a demo running) makes it read-only: the clock never moves under a demo. */
+function Timeline({ minute, dayOver, locked }: { minute: number; dayOver: boolean; locked: boolean }) {
   const scrubTo = useBankStore((s) => s.scrubTo);
   const bar = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<number | null>(null);
@@ -52,7 +56,7 @@ function Timeline({ minute, dayOver }: { minute: number; dayOver: boolean }) {
   };
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>): void => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || locked) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture?.(e.pointerId);
     e.currentTarget.focus();
@@ -71,6 +75,7 @@ function Timeline({ minute, dayOver }: { minute: number; dayOver: boolean }) {
     if (target !== shown) scrubTo(target);
   };
   const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>): void => {
+    if (locked) return;
     const next = keyStep(e.key, shown);
     if (next === null) return;
     e.preventDefault();
@@ -90,8 +95,10 @@ function Timeline({ minute, dayOver }: { minute: number; dayOver: boolean }) {
         aria-valuemax={DAY_END}
         aria-valuenow={shown}
         aria-valuetext={formatClock(shown)}
-        title={t('Drag or click to jump the bank to that time. Going back replays today from 08:00 with the same customers.')}
+        aria-disabled={locked || undefined}
+        title={locked ? t(DEMO_CLOCK_LOCK) : t('Drag or click to jump the bank to that time. Going back replays today from 08:00 with the same customers.')}
         data-testid="timeline-scrubber"
+        data-demo-lock={locked || undefined}
         data-dragging={drag !== null}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -99,7 +106,7 @@ function Timeline({ minute, dayOver }: { minute: number; dayOver: boolean }) {
         onPointerCancel={() => setDrag(null)}
         onPointerLeave={() => setHover(null)}
         onKeyDown={onKeyDown}
-        className="group relative -my-1.5 cursor-pointer touch-none select-none py-1.5 outline-none focus-visible:rounded focus-visible:ring-2 focus-visible:ring-sky-400/70"
+        className="group relative -my-1.5 cursor-pointer touch-none aria-disabled:cursor-not-allowed aria-disabled:opacity-60 select-none py-1.5 outline-none focus-visible:rounded focus-visible:ring-2 focus-visible:ring-sky-400/70"
       >
         <div className="relative flex h-3 gap-[3px]">
           {PHASES.map((seg) => (
@@ -136,6 +143,9 @@ function Timeline({ minute, dayOver }: { minute: number; dayOver: boolean }) {
     </div>
   );
 }
+
+/** Why the clock's controls are read-only while a demo runs. */
+const DEMO_CLOCK_LOCK = 'The bank is paused while a demo runs: only its case moves. Play, Step and the clock unlock when the demo finishes or is cancelled.';
 
 const speedName = (index: number): string | undefined => speedNameText(SPEEDS[index]?.name);
 
@@ -185,7 +195,8 @@ export function ClockBar() {
   const phase = useBankStore((s) => s.view.phase);
   const event = useBankStore((s) => s.view.event);
   const dayOver = useBankStore((s) => s.view.dayOver);
-  const playing = useBankStore((s) => s.playing);
+  // A demo's solo run plays its one payment on a paused bank: the button shows the bank paused, never playing.
+  const playing = useBankStore((s) => !clockPaused(s));
   const speedIndex = useBankStore((s) => s.speedIndex);
   const historyCount = useBankStore((s) => s.view.history.length);
   const resetDay = useBankStore((s) => s.resetDay);
@@ -197,6 +208,8 @@ export function ClockBar() {
   const skipTo = useBankStore((s) => s.skipTo);
   const jumpToEod = useBankStore((s) => s.jumpToEod);
   const touring = useBankStore((s) => s.spotlight !== null);
+  // A running demo plays at the speed it started with: the speed buttons are read-only until it finishes or is cancelled.
+  const demoRun = useDemoLocked();
   const skipToEndOfDay = useBankStore((s) => s.skipToEndOfDay);
   const startNextDay = useBankStore((s) => s.startNextDay);
   const reopenReport = useBankStore((s) => s.reopenReport);
@@ -238,11 +251,11 @@ export function ClockBar() {
             {eventText(event).title}
           </span>
         </div>
-        <Timeline minute={minute} dayOver={dayOver} />
+        <Timeline minute={minute} dayOver={dayOver} locked={demoRun} />
       </div>
 
       <div className="flex items-center gap-1.5">
-        <IconButton label={playing ? t('Pause the bank') : t('Run the bank')} onClick={toggle} disabled={dayOver} tone="primary" testId="bank-play">
+        <IconButton label={demoRun ? t(DEMO_CLOCK_LOCK) : playing ? t('Pause the bank') : t('Run the bank')} onClick={guarded(toggle)} disabled={dayOver || demoRun} tone="primary" testId="bank-play" demoLock={demoRun}>
           {playing ? (
             <svg {...icon}>
               <rect x="3.5" y="2.5" width="3" height="11" rx="0.8" />
@@ -254,7 +267,7 @@ export function ClockBar() {
             </svg>
           )}
         </IconButton>
-        <IconButton label={t('Advance one beat')} onClick={step} disabled={dayOver} testId="bank-step">
+        <IconButton label={demoRun ? t(DEMO_CLOCK_LOCK) : t('Advance one beat')} onClick={guarded(step)} disabled={dayOver || demoRun} testId="bank-step" demoLock={demoRun}>
           <svg {...icon}>
             <path d="M3 2.5v11l7-5.5z" />
             <rect x="11" y="2.5" width="2.2" height="11" rx="0.8" />
@@ -262,19 +275,21 @@ export function ClockBar() {
         </IconButton>
         <div className="relative ml-1 flex flex-col items-center">
         <div
-            className={`ml-1 flex rounded-lg bg-slate-800 p-0.5 ${touring ? 'ring-1 ring-sky-400/40' : ''}`}
+            className={`ml-1 flex rounded-lg bg-slate-800 p-0.5 ${touring ? 'ring-1 ring-sky-400/40' : demoRun ? 'ring-1 ring-rose-400/40' : ''}`}
             role="group"
             aria-label={t('Speed')}
-            title={touring ? t('The speed is locked to 0.25× while a guided tour runs, so nothing moves ahead of the explanation.') : t('How fast the bank day plays. 1× Relaxed is one tick every 1.5 seconds.')}
+            title={touring ? t('The speed is locked to 0.25× while a guided tour runs, so nothing moves ahead of the explanation.') : demoRun ? t('The speed is read-only while a demo runs: it plays at the speed it started with. It unlocks when the demo finishes or is cancelled.') : t('How fast the bank day plays. 1× Relaxed is one tick every 1.5 seconds.')}
             data-testid="bank-speeds"
-            data-locked={touring}
+            data-locked={touring || demoRun}
+            data-demo-lock={demoRun || undefined}
           >
             {SPEEDS.map((sp, i) => (
               <button
                 key={sp.label}
                 type="button"
-                onClick={() => setSpeed(i)}
-                disabled={touring}
+                onClick={guarded(() => setSpeed(i))}
+                disabled={touring || demoRun}
+                aria-disabled={touring || demoRun}
                 aria-pressed={i === speedIndex}
                 aria-label={sp.name ? `${sp.label} ${speedNameText(sp.name)}` : sp.label}
                 title={sp.name ? `${sp.label} ${speedNameText(sp.name)}` : undefined}
@@ -297,8 +312,8 @@ export function ClockBar() {
           <button
             key={s.id}
             type="button"
-            onClick={() => skipTo(s.target)}
-            disabled={dayOver || minute >= s.target}
+            onClick={guarded(() => skipTo(s.target))}
+            disabled={dayOver || demoRun || minute >= s.target}
             data-testid={`bank-skip-${s.id}`}
             title={tr({ en: `Jump the clock forward to ${formatClock(s.target)}`, vi: `Đưa đồng hồ tới ${formatClock(s.target)}` })}
             className="rounded-md bg-slate-800/80 px-2 py-1.5 text-[11px] font-medium text-slate-300 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-35"
@@ -308,8 +323,8 @@ export function ClockBar() {
         ))}
         <button
           type="button"
-          onClick={() => jumpToEod()}
-          disabled={dayOver || minute >= SKIP_TARGETS.night}
+          onClick={guarded(() => jumpToEod())}
+          disabled={dayOver || demoRun || minute >= SKIP_TARGETS.night}
           data-testid="bank-jump-eod"
           title={t('Jump the clock to 23:00 for the night cycle (batch clearing, Visa settlement, reconciliation). A paused bank stays paused: press Play to watch it')}
           className="rounded-md bg-amber-400/15 px-2 py-1.5 text-[11px] font-semibold text-amber-200 ring-1 ring-amber-400/30 transition hover:bg-amber-400/25 disabled:cursor-not-allowed disabled:opacity-35"
@@ -318,8 +333,8 @@ export function ClockBar() {
         </button>
         <button
           type="button"
-          onClick={skipToEndOfDay}
-          disabled={dayOver}
+          onClick={guarded(skipToEndOfDay)}
+          disabled={dayOver || demoRun}
           data-testid="bank-skip-end"
           title={t('Play the rest of the day at once and see the report')}
           className="rounded-md bg-slate-800/80 px-2 py-1.5 text-[11px] font-medium text-slate-300 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-35"
@@ -333,8 +348,8 @@ export function ClockBar() {
           <LedgerButton />
           <button
             type="button"
-            onClick={resetDay}
-            disabled={!started}
+            onClick={guarded(resetDay)}
+            disabled={!started || demoRun}
             data-testid="bank-reset-day"
             title={tr({ en: `Replay day ${day} from 07:00, as the staff arrive. The same customers arrive, so after changing a rule it shows what that rule does to this very day.`, vi: `Phát lại ngày ${day} từ 07:00, lúc nhân viên đến làm. Cùng các khách hàng sẽ đến, nên sau khi đổi quy tắc bạn thấy quy tắc đó tác động thế nào tới chính ngày này.` })}
             className="rounded-md px-2 py-1.5 text-[11px] font-medium text-slate-300 ring-1 ring-slate-700 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-35"
@@ -348,8 +363,8 @@ export function ClockBar() {
           )}
           <button
             type="button"
-            onClick={startNextDay}
-            disabled={!dayOver}
+            onClick={guarded(startNextDay)}
+            disabled={!dayOver || demoRun}
             data-testid="bank-next-day"
             className={`rounded-md px-3 py-1.5 text-[12px] font-bold transition disabled:cursor-not-allowed disabled:opacity-35 ${dayOver ? 'bg-lime-400 text-slate-950 hover:bg-lime-300' : 'bg-slate-800 text-slate-300'}`}
           >

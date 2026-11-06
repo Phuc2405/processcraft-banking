@@ -97,6 +97,7 @@ export const citMessages = defineMessages('cit', {
   wire_BAY_TELLER_OUT: { en: 'Deliver ➔ Teller', vi: 'Giao quỹ ➔ Quầy GDV' },
   wire_BAY_TELLER_IN: { en: 'Collect ⬅ Teller', vi: 'Nhận quỹ ⬅ Quầy GDV' },
   demoBusy: { en: 'CIT van in transit…', vi: 'Xe CIT đang vận chuyển...' },
+  tillBusy: { en: 'Till rebalance in progress…', vi: 'Đang điều chuyển quỹ nội bộ...' },
   demoSolo: { en: 'Bank paused: this CIT run plays on its own, nothing else moves.', vi: 'Ngân hàng đang tạm dừng: chỉ chuyến CIT này chạy, mọi thứ khác đứng yên.' },
   drillTitle: { en: 'Drill: walk a CIT run through its states', vi: 'Bài tập: đưa một chuyến CIT qua từng trạng thái' },
   drillIntro: { en: 'Pick a scenario and press Next. Watch what each state posts, and try the tampered seal.', vi: 'Chọn tình huống rồi bấm Tiếp. Quan sát mỗi trạng thái hạch toán gì, và thử trường hợp sai niêm phong.' },

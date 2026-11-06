@@ -76,7 +76,7 @@ describe('1. demos at their own time, one case, nothing else on screen', () => {
     expect(s.playing).toBe(false);
     expect(s.presetTxId).toBeNull();
     expect(s.sandboxTrace?.route).toEqual([...EOD_CASE_ROUTE]);
-    expect(demoSessionStore.getState().active).toEqual({ kind: 'sandbox', id: s.sandboxTrace!.id });
+    expect(demoSessionStore.getState().active).toMatchObject({ kind: 'sandbox', id: s.sandboxTrace!.id });
     // The hop player takes that one case (and only it).
     hopPlayerStore.getState().tick(0, [{ id: `sbx:${s.sandboxTrace!.id}`, kind: 'payment', stops: EOD_CASE_ROUTE.map((place) => ({ place, cit: null })), route: [...EOD_CASE_ROUTE], icon: '📦', reached: EOD_CASE_ROUTE.length - 1, over: false }]);
     expect(hopPlayerStore.getState().session?.id).toBe(`sbx:${s.sandboxTrace!.id}`);
@@ -92,7 +92,7 @@ describe('1. demos at their own time, one case, nothing else on screen', () => {
     expect(map).toContain('{!focus && !isolated && <DeskCrowd2D />}');
     const office = src('components/bank/office/OfficeScene.tsx');
     for (const layer of ['Evacuation', 'Park3D', 'Pedestrians', 'Arrivals', 'PeopleTags3D', 'SignalPulses']) expect(office).toContain(`{!isolated && <${layer} />}`);
-    expect(src('components/bank/office/Traffic.tsx')).toContain('isolateMoves(state.view.moves, demoLocked(), state.presetTxId)');
+    expect(src('components/bank/office/Traffic.tsx')).toContain('isolateMoves(state.view.moves, stageIsolated(), state.presetTxId)');
     expect(src('components/bank/office/Desk3D.tsx')).toContain('<group visible={!isolated} name={`desk-queue-${id}`}>');
   });
 });

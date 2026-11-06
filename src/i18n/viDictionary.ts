@@ -390,6 +390,8 @@ export const VI_DICTIONARY: Readonly<Record<string, string>> = {
   "The rota turns every night, so everyone works two nights in three.": "Lịch luân phiên đổi mỗi đêm, nên mọi người làm hai đêm trong ba.",
   "The same bank as an isometric office: desks, staff and customers": "Cùng ngân hàng dưới dạng văn phòng 3D: bàn làm việc, nhân viên và khách hàng",
   "The speed is locked to 0.25× while a guided tour runs, so nothing moves ahead of the explanation.": "Tốc độ bị khóa ở 0.25× khi đang chạy hướng dẫn, để không gì chạy trước lời giải thích.",
+  "The speed is read-only while a demo runs: it plays at the speed it started with. It unlocks when the demo finishes or is cancelled.": "Tốc độ chỉ đọc khi demo đang chạy: demo giữ nguyên tốc độ lúc bắt đầu. Mở lại khi demo chạy xong hoặc bị hủy.",
+  "The bank is paused while a demo runs: only its case moves. Play, Step and the clock unlock when the demo finishes or is cancelled.": "Ngân hàng tạm dừng khi demo đang chạy: chỉ tình huống của demo di chuyển. Nút Chạy, Bước và đồng hồ mở lại khi demo chạy xong hoặc bị hủy.",
   "The speed is locked while the tour runs.": "Tốc độ bị khóa trong khi chạy hướng dẫn.",
   "The team": "Đội ngũ",
   "The transaction log is kept for the day just played. Reloading the page or starting the next day clears it.": "Nhật ký giao dịch chỉ được giữ cho ngày vừa chạy. Tải lại trang hoặc bắt đầu ngày mới sẽ xóa nó.",

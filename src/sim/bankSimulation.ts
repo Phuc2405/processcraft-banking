@@ -246,9 +246,10 @@ export class BankSimulation {
   /** Payments the learner sent with a preset action today, by id, so the inspector can follow them along their route. */
   private scripted = new Map<string, Packet>();
   /** Generated customers kept out of the building during a solo run (see step). */
-  private heldBack: Customer[] = [];
   /** The beat now being played is a solo run: only the scripted demo payments move. */
   private soloBeat = false;
+  /** Minutes the solo runs since the bank last played have taken on the demo's own clock (the bank's clock never moves for them). */
+  private soloClock = 0;
   /** Chaos Monkey: the faults switched on, today's scripted scenario and what they did. */
   private chaosConfig: ChaosConfig = { ...NO_CHAOS };
   private chaosScenario: ChaosScenario = 'NONE';
@@ -387,17 +388,22 @@ export class BankSimulation {
   }
 
   /**
-   * Moves the bank forward by one beat. `admit: false` is a solo run (a demo clicked while the learner had paused): nobody new walks
-   * in, and only the scripted demo payments move. Every other customer already in the bank holds exactly where they are, so a paused
-   * bank never leaks a background transaction while it plays one demo.
+   * Moves the bank forward by one beat.
+   * - `solo: true` is a demo beat (a demo always plays on a paused bank): the bank's clock stays where it is, nobody walks in, nobody
+   *   tires or gives up, and only the scripted demo payments move. Every other customer already in the bank holds exactly where they
+   *   are, so a paused bank never leaks a background transaction (or its time) while it plays one demo.
+   * - `admit: false` lets the time pass with nobody walking in (a sandbox copy of today played alone up to a scenario's hour).
    */
-  step(options: { admit?: boolean } = {}): void {
+  step(options: { admit?: boolean; solo?: boolean } = {}): void {
     if (this.dayOver) return;
-    const solo = options.admit === false;
+    const solo = options.solo === true;
     this.soloBeat = solo;
     const phase = phaseAt(this.minute);
     const bm = beatMinutesAt(this.minute);
-    const start = this.minute;
+    // A demo's desks still take their time (a review, a phone code), but on the demo's own clock, which runs on from the bank's
+    // (soloClock): the bank's clock, its postings' stamps and every other customer stay where they are.
+    if (!solo) this.soloClock = 0;
+    const start = this.minute + this.soloClock;
 
     this.tick++;
     this.beatMoves = [];
@@ -410,13 +416,9 @@ export class BankSimulation {
 
     if (this.chaosConfig.fatigueSpike && !solo) this.spikeFatigue();
     // In working hours the day's customers come; while the branch is shut only the round-the-clock channels do (card terminals and online checkouts, transfers, the ATM).
-    const arriving = phase === 'WORKING' ? [...(this.traffic.beats[workingBeatIndex(start)] ?? []), ...this.chaosArrivals(start)] : this.traffic.offHours.filter((c) => c.minute >= start && c.minute < start + bm);
-    if (options.admit === false) this.heldBack.push(...arriving);
-    else if (phase === 'WORKING' || arriving.length > 0) {
-      // Customers held back during a solo run walk in now, as if they had just arrived.
-      const late = this.heldBack.splice(0).map((c) => ({ ...c, minute: start }));
-      for (const customer of [...late, ...arriving]) this.admit(customer);
-    }
+    // A solo beat takes no time, so this beat's customers are still to come: they walk in on the next beat the bank really plays.
+    const arriving = solo || options.admit === false ? [] : phase === 'WORKING' ? [...(this.traffic.beats[workingBeatIndex(start)] ?? []), ...this.chaosArrivals(start)] : this.traffic.offHours.filter((c) => c.minute >= start && c.minute < start + bm);
+    for (const customer of arriving) this.admit(customer);
     this.releasePhones(start, bm);
     // The night cycle is not a demo payment: it waits for the bank to play.
     if (phase === 'EOD' && !this.nightStarted && !solo) this.startNight(start);
@@ -426,7 +428,12 @@ export class BankSimulation {
     // Nobody gives up and leaves while the bank is paused for a solo demo: their wait does not count.
     if ((phase === 'WORKING' || phase === 'AFTER_HOURS') && !solo) this.expireWaiting(start + bm);
     this.soloBeat = false;
-    this.endBeat(phase, bm);
+    // A solo beat takes none of the bank's time: nobody tires or rests, and the clock does not move.
+    this.endBeat(phase, solo ? 0 : bm);
+    if (solo) {
+      this.soloClock += bm;
+      return;
+    }
 
     this.minute += bm;
     if (this.minute >= DAY_END) this.closeDay();
@@ -488,7 +495,6 @@ export class BankSimulation {
     if (!this.dayOver) this.runToEndOfDay();
     this.day++;
     this.scripted.clear();
-    this.heldBack = [];
     // The night team first: whoever worked last night keeps some of their tiredness, whoever had the night off comes back rested.
     const worked = new Map<string, number>();
     for (const id of NIGHT_STATIONS) for (const w of this.stations[id].workers) if (!w.temp) worked.set(w.seed.id, w.fatigue);
@@ -838,6 +844,8 @@ export class BankSimulation {
 
   /** Applies the faults that stop a payment at the door. */
   private chaosFault(p: Packet, st: StationState): boolean {
+    // A demo's own payment is deterministic: no outage, HSM failure or 504 / RC 68 timeout ever lands on it.
+    if (this.scripted.has(p.id)) return false;
     const c = this.chaosConfig;
     const decline = (reason: 'PROCESS_ERROR' | 'TIMEOUT', counter: keyof ChaosStats, message: string, key: string, tag: ChaosTag): true => {
       (this.chaosStats[counter] as number)++;

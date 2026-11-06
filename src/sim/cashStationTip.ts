@@ -1,5 +1,7 @@
 import { citAccount, type CitAccountId, type CitSnapshot } from './citEngine';
 import { bayVehicle } from './citRoute';
+import { GL_CODE, naturalBalance, type GlAccount, type RetailLedger } from './staffRoleplay';
+import type { StationId } from './topology';
 
 /**
  * The cash metrics of the two cash stations that are not counters, the Main Cash Vault and the CIT Loading Bay. They fill the lower half
@@ -38,3 +40,17 @@ export function cashStationTip(id: CashStationId, cit: CitSnapshot): CashStation
   return { id, icon: '🚚', status: `bayState_${state}`, run: run ? { id: run.order.id, seal: run.order.sealId } : null, balances };
 }
 
+
+/**
+ * The core-ledger lines a desk's card lists under its metrics. The AML desk and the nightly reconciliation desk both answer for
+ * TK 2930 Frozen assets: AML freezes into it and the FIU's directive drains it; reconciliation reports what is still held there.
+ */
+export const DESK_ACCOUNTS: Readonly<Partial<Record<StationId, readonly GlAccount[]>>> = {
+  AML_DESK: ['FROZEN_ASSETS'],
+  RECON: ['FROZEN_ASSETS'],
+};
+
+/** A desk's live balances from the core ledger, statement-natural (a credit balance on 2930 reads positive); empty for other desks. */
+export function deskBalances(id: StationId, ledger: Pick<RetailLedger, 'balances'>): ReadonlyArray<{ account: GlAccount; code: string; cents: number }> {
+  return (DESK_ACCOUNTS[id] ?? []).map((account) => ({ account, code: GL_CODE[account], cents: naturalBalance(account, ledger.balances[account]) }));
+}

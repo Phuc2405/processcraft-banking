@@ -4,7 +4,7 @@ import { useNodeCopy } from './useNodeCopy';
 import { tr } from '../../i18n/locale';
 import { useDeskVisited } from '../../store/deskVisitStore';
 import { DeskCrowd2D } from './DeskCrowd2D';
-import { isolateMoves, useDemoLocked } from './DemoSession';
+import { isolateMoves, offRouteOpacity, useDeskView, useStageIsolated } from './DemoSession';
 import { DeskVisitors2D } from './DeskVisitors2D';
 import { t } from '../../i18n/t';
 import { localizeScenarioText } from '../../sim/scenarios';
@@ -33,6 +33,8 @@ import { useDockInset, ZOOM_TOOLBAR_GUTTER } from './ViewportControls';
 import { PathTraveller } from '../canvas/edges/PathTraveller';
 import { WorkstationGraphic } from '../canvas/nodes/WorkstationGraphic';
 import { BANK_WIRES, CARD, connectedWires, DEPT_BOX, gatewayCarries, GATEWAY_SPOKES, GATEWAYS, pathOfWire, PLACE_BOX, STAGE, TIP_SIDE, type Gateway, type TipSide } from '../../engine/plan/layout';
+import { wireTone, type WireTone } from '../../engine/plan/wireLanes';
+import { hopTiming } from '../../engine/plan/layout3d';
 import { SpotlightOverlay, SpotlightToken } from './Spotlight';
 import { StageScaleContext, useStageScale } from './stage';
 import { lookOfKind, RUN_STATUS, STATUS_DOT_CLASS, STATUS_TEXT_CLASS, statusLabel, MachineFace, WorkerFace } from './ui';
@@ -129,7 +131,9 @@ function DepartmentFrame({ id, focus, flow, terms }: { id: DepartmentId; focus: 
   const box = DEPT_BOX[id];
   const selected = useBankStore((s) => s.selection.kind === 'department' && s.selection.id === id);
   const select = useBankStore((s) => s.select);
-  const waiting = useBankStore((s) => dept.stations.reduce((n, st) => n + s.view.stations[st].queueLength, 0));
+  // Only the running demo's case counts while one runs (DemoSession.deskView).
+  const desks = useDeskView();
+  const waiting = dept.stations.reduce((n, st) => n + desks.stations[st].queueLength, 0);
   const night = useBankStore((s) => s.view.phase === 'EOD');
 
   const glowing = id === 'EOD' && night && !focus;
@@ -534,19 +538,17 @@ function useWireHeat(moves: readonly Move[], tick: number): Record<string, numbe
   return heat;
 }
 
-function wireStyle(to: string, from: string): { base: string; glow: string; dash?: string } {
-  if (to === 'OUT_DECLINED') return { base: '#7f1d1d', glow: '#fb7185', dash: '5 4' };
-  if (from === 'OUT_APPROVED' || from.startsWith('EOD_') || from === 'RECON' || from === 'SUSPENSE' || to === 'OUT_SETTLED') return { base: '#78350f', glow: '#fbbf24' };
-  if (to === 'CUSTOMER_OTP' || from === 'CUSTOMER_OTP') return { base: '#4c1d95', glow: '#a78bfa', dash: '3 3' };
-  if (from === 'COLLATERAL_VAULT' || from === 'MAIN_CASH_VAULT') return { base: '#155e75', glow: '#22d3ee', dash: '7 3' };
-  return { base: '#334155', glow: '#38bdf8' };
-}
-
-const GATEWAY_STYLE: Record<Gateway['kind'], { base: string; glow: string; dash?: string }> = {
-  reject: { base: '#7f1d1d', glow: '#fb7185', dash: '5 4' },
-  approve: { base: '#334155', glow: '#38bdf8' },
+/** Each stroke tone's colours (engine/plan/wireLanes.ts decides the tone, and keeps different tones off each other's lanes). */
+const TONE_STYLE: Record<WireTone, { base: string; glow: string; dash?: string }> = {
+  decline: { base: '#7f1d1d', glow: '#fb7185', dash: '5 4' },
   night: { base: '#78350f', glow: '#fbbf24' },
+  otp: { base: '#4c1d95', glow: '#a78bfa', dash: '3 3' },
+  vault: { base: '#155e75', glow: '#22d3ee', dash: '7 3' },
+  route: { base: '#334155', glow: '#38bdf8' },
+  cash: { base: '#a16207', glow: '#facc15', dash: '6 4' },
 };
+const wireStyle = (to: string, from: string) => TONE_STYLE[wireTone(to, from)];
+const GATEWAY_STYLE: Record<Gateway['kind'], { base: string; glow: string; dash?: string }> = { reject: TONE_STYLE.decline, approve: TONE_STYLE.route, night: TONE_STYLE.night };
 
 /** A collector gateway: the trunk it sends on to its place, and the XOR diamond the feeders end at. */
 function GatewayMark({ g, opacity, glow, active, accent, ridden }: { g: Gateway; opacity: number; glow: number; active: boolean; accent: string | null; ridden: boolean }) {
@@ -577,7 +579,7 @@ function GatewayMark({ g, opacity, glow, active, accent, ridden }: { g: Gateway;
   );
 }
 
-function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; tick: number; focus: Focus | null; flow: FlowFocus | null; active: PlaceId | null }) {
+function Wires({ moves, tick, focus, flow, active, isolated = false }: { moves: readonly Move[]; tick: number; focus: Focus | null; flow: FlowFocus | null; active: PlaceId | null; isolated?: boolean }) {
   const heat = useWireHeat(moves, tick);
   // While the learner's payment runs in a guided flow, only its own path is lit (not the whole flow): the wires it has crossed glow, the one it is crossing runs.
   const live = useLivePath();
@@ -606,10 +608,12 @@ function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; t
         const ridden = focus?.trail.has(w.id) ?? false;
         const on = linked?.has(w.id) ?? false;
         const shown = inScope && inFlow && (!linked || on);
+        // On a demo's stage a wire off its route is not drawn at all (DemoSession.offRouteOpacity): only the active path shows.
+        if (!shown && isolated) return null;
         // A gateway's wire draws only its feeder: the gateway draws the trunk once for all of them.
         const d = w.drawPath;
         return (
-          <g key={w.id} data-wire={w.id} data-lit={focus ? inScope : flow ? inFlow : linked ? on : undefined} data-ridden={ridden || undefined} opacity={shown ? 1 : 0.15} style={focus && !inScope ? { filter: 'blur(1px)' } : flow && !inFlow ? { filter: 'grayscale(1)' } : undefined}>
+          <g key={w.id} data-wire={w.id} data-lit={focus ? inScope : flow ? inFlow : linked ? on : undefined} data-ridden={ridden || undefined} opacity={shown ? 1 : offRouteOpacity(isolated)} style={focus && !inScope ? { filter: 'blur(1px)' } : flow && !inFlow ? { filter: 'grayscale(1)' } : undefined}>
             <path d={w.strokePath ?? d} fill="none" stroke={on ? st.glow : focus && inScope ? `${focus.accent}66` : flow && inFlow ? `${flow.accent}88` : st.base} strokeWidth={on ? 2.6 : 2} {...(st.dash ? { strokeDasharray: st.dash } : {})} {...(w.gateway ? {} : { markerEnd: `url(#bk-arrow-${st.base.slice(1)})` })} />
             {h > 0.05 && <path d={d} fill="none" stroke={st.glow} strokeWidth={2 + Math.min(h, 6) * 0.3} strokeLinecap="round" opacity={Math.min(0.55, 0.1 + h * 0.07)} style={{ transition: 'opacity 400ms' }} />}
             {path && inFlow && flow && (
@@ -637,7 +641,9 @@ function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; t
         const on = linked ? members.some((id) => linked.has(id)) : false;
         const glow = focus ? 0 : Math.max(0, ...members.map((id) => heat[id] ?? 0));
         const ridden = focus ? members.some((id) => focus.trail.has(id)) : false;
-        return <GatewayMark key={g.id} g={g} opacity={inScope && inFlow && (!linked || on) ? 1 : 0.15} glow={glow} active={on} accent={focus && inScope ? focus.accent : flow && inFlow ? flow.accent : null} ridden={ridden} />;
+        const shown = inScope && inFlow && (!linked || on);
+        if (!shown && isolated) return null;
+        return <GatewayMark key={g.id} g={g} opacity={shown ? 1 : offRouteOpacity(isolated)} glow={glow} active={on} accent={focus && inScope ? focus.accent : flow && inFlow ? flow.accent : null} ridden={ridden} />;
       })}
       {BANK_WIRES.filter((w) => w.label && w.showLabel).map((w) => {
         const label = t(w.label as string);
@@ -645,10 +651,12 @@ function Wires({ moves, tick, focus, flow, active }: { moves: readonly Move[]; t
         // A decline's condition shows only while its line or desk is pointed at, or a tour or guided flow traces it.
         const traced = (focus?.scope.wires.has(w.id) ?? false) || (flow?.scope.wires.has(w.id) ?? false);
         if (w.revealOnly && !lit && !traced) return null;
+        const labelShown = (!focus || focus.scope.wires.has(w.id)) && (!flow || (isolated ? inPath(w.id) : flow.scope.wires.has(w.id))) && (!linked || lit);
+        if (!labelShown && isolated) return null;
         const anchor = w.labelAnchor ?? w.labelAt;
         const leader = Math.hypot(anchor[0] - w.labelAt[0], anchor[1] - w.labelAt[1]) > 14 ? ([anchor[0] - w.labelAt[0], anchor[1] - w.labelAt[1]] as const) : null;
         return (
-          <g key={`label-${w.id}`} transform={`translate(${w.labelAt[0]} ${w.labelAt[1]})`} opacity={(!focus || focus.scope.wires.has(w.id)) && (!flow || flow.scope.wires.has(w.id)) && (!linked || lit) ? 1 : 0.15} data-label-lit={lit || undefined}>
+          <g key={`label-${w.id}`} transform={`translate(${w.labelAt[0]} ${w.labelAt[1]})`} opacity={labelShown ? 1 : offRouteOpacity(isolated)} data-label-lit={lit || undefined}>
             {/* A callout for a hop too short to hold its words: a dotted leader back to the wire, ending in a dot on it. */}
             {leader && (
               <>
@@ -690,7 +698,7 @@ const LABELLED_TOKENS = 6;
 function Travellers({ moves, tick, phase, speedIndex, live, className = '' }: { moves: readonly Move[]; tick: number; phase: Phase; speedIndex: number; live: boolean; className?: string }) {
   const beat = beatMs(phase, SPEEDS[speedIndex]?.factor ?? 1);
   // The same hop as the 3D office (hopTiming): slow enough to follow a payment from desk to desk.
-  const hop = Math.round(Math.max(320, Math.min(1100, beat * 0.5)));
+  const hop = hopTiming(0, beat).durationMs;
   return (
     <div className={`pointer-events-none absolute inset-0 z-10 ${className}`} aria-hidden="true">
       {moves.map((m, i) => {
@@ -698,7 +706,7 @@ function Travellers({ moves, tick, phase, speedIndex, live, className = '' }: { 
         if (!path) return null;
         // The first few payments of a beat say what they are for. More would only hide the wires, and a hop that is over in a blink cannot be read.
         const label = i < LABELLED_TOKENS && hop >= 400 ? localizeScenarioText(m.scenario) : '';
-        return <PathTraveller key={`${tick}-${m.key}`} path={path} look={lookOfKind(m.kind, m.cardType)} delayMs={Math.round(m.at * beat * 0.55)} durationMs={hop} paused={!live} {...(label ? { label } : {})} />;
+        return <PathTraveller key={`${tick}-${m.key}`} path={path} look={lookOfKind(m.kind, m.cardType)} delayMs={hopTiming(m.at, beat).delayMs} durationMs={hop} paused={!live} {...(label ? { label } : {})} />;
       })}
     </div>
   );
@@ -759,7 +767,9 @@ function BankMapView() {
   const academyAt = useBankStore(academyFocusOf);
   // The learner's own payment goes first, so it is always one of the tokens that wear a badge.
   // A running demo shows its own case alone: no other flow's packets, and no queues at the counters (DemoSession.isolateMoves).
-  const isolated = useDemoLocked();
+  const isolated = useStageIsolated();
+  // The desks' cards, lines and heat show only the demo's case while one runs.
+  const desks = useDeskView();
   const moves = useMemo(() => {
     const own = isolateMoves(view.moves, isolated, presetId);
     return presetId ? [...own].sort((a, b) => Number(b.packetId === presetId) - Number(a.packetId === presetId)) : own;
@@ -803,14 +813,14 @@ function BankMapView() {
             {DEPARTMENT_IDS.map((id) => (
               <DepartmentFrame key={id} id={id} focus={focus} flow={flow} terms={terms} />
             ))}
-            <Wires moves={view.moves} tick={view.tick} focus={focus} flow={flow} active={panning ? null : (hovered ?? selectedStation)} />
+            <Wires moves={view.moves} tick={view.tick} focus={focus} flow={flow} active={panning ? null : (hovered ?? selectedStation)} isolated={isolated} />
             {!focus && <Travellers moves={litMoves} tick={view.tick} phase={view.phase} speedIndex={speedIndex} live={live} />}
-            {!focus && dimMoves.length > 0 && <Travellers moves={dimMoves} tick={view.tick} phase={view.phase} speedIndex={speedIndex} live={live} className="opacity-15 grayscale" />}
+            {!focus && !isolated && dimMoves.length > 0 && <Travellers moves={dimMoves} tick={view.tick} phase={view.phase} speedIndex={speedIndex} live={live} className="opacity-15 grayscale" />}
             {STATION_LIST.map((def) => (
               def.id === 'STP_ENGINE' ? (
-                <StpNodeCard key={def.id} sv={view.stations.STP_ENGINE} selected={selectedStation === def.id} focus={focus} flow={flow} flowHere={flowHereAt === def.id || academyAt === def.id} terms={terms} tick={view.tick} />
+                <StpNodeCard key={def.id} sv={desks.stations.STP_ENGINE} selected={selectedStation === def.id} focus={focus} flow={flow} flowHere={flowHereAt === def.id || academyAt === def.id} terms={terms} tick={view.tick} />
               ) : (
-                <StationCard key={def.id} id={def.id} sv={view.stations[def.id]} phase={view.phase} tick={view.tick} selected={selectedStation === def.id} accent={DEPARTMENTS[def.department].accent} focus={focus} flow={flow} flowHere={flowHereAt === def.id || academyAt === def.id} terms={terms} />
+                <StationCard key={def.id} id={def.id} sv={desks.stations[def.id]} phase={view.phase} tick={view.tick} selected={selectedStation === def.id} accent={DEPARTMENTS[def.department].accent} focus={focus} flow={flow} flowHere={flowHereAt === def.id || academyAt === def.id} terms={terms} />
               )
             ))}
             {EXTERNALS.map((id) => (

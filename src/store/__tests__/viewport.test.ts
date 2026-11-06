@@ -99,7 +99,7 @@ describe('preset actions from the store', () => {
     expect(store.getState().playing).toBe(true);
   });
 
-  it('Pause and Play end a solo run', () => {
+  it('Pause (Cancel demo) ends a solo run; Play, Step and the toggle never resume the clock under one', () => {
     const store = make();
     store.getState().skipTo(WORK_START + 15);
     store.getState().runPreset('pos-20');
@@ -107,7 +107,9 @@ describe('preset actions from the store', () => {
     expect(store.getState()).toMatchObject({ playing: false, solo: false });
     store.getState().runPreset('pos-500');
     store.getState().play();
-    expect(store.getState()).toMatchObject({ playing: true, solo: false });
+    store.getState().toggle();
+    store.getState().step();
+    expect(store.getState()).toMatchObject({ playing: true, solo: true });
   });
 
   it('forgets the payment when the day is replayed', () => {

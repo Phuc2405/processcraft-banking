@@ -1,7 +1,8 @@
 /**
- * Regression suite: ONE hover card per place, map-wide, in every flow (01-09) and in 2D and 3D. While a flow is lit, a place that plays a
- * step in it opens a single card whose top is the step context (📌 sub-process, 👉 step) over a divider, and whose bottom is the place's
- * metrics; with no flow, the same single card without the banner. No second card, no native title popup, anywhere.
+ * Regression suite: ONE hover card per place, map-wide, in every flow (01-09) and in 2D and 3D. While a flow is lit (no demo running), a
+ * place that plays a step in it opens a single card whose top is its role (📌 task, 💡 run a scenario) over a divider, and whose bottom is
+ * the place's metrics; with no flow, the same single card without the banner. No second card, no native title popup, anywhere. The
+ * numbered scenario steps of a running demo are covered by dynamicScenarioSteps.test.ts.
  */
 
 import { createElement } from 'react';
@@ -13,7 +14,7 @@ import { setActiveLocale } from '../../../i18n/localeCore';
 import { bankStore } from '../../../store/bankStore';
 import { useWireHoverStore } from '../../../store/wireHoverStore';
 import { CIT_FLOW, FLOW_IDS, type FlowId } from '../../../types/viewport';
-import { GUIDED_FLOWS, flowPlaces, stepAt } from '../../guidedFlows';
+import { flowPlaces, stepAt } from '../../guidedFlows';
 import { cardKind, cardStep, hoverCardPlace } from '../../hoverCard';
 import { EXTERNAL_IDS, STATION_IDS, type PlaceId } from '../../topology';
 import { src } from './harness';
@@ -65,32 +66,32 @@ describe('one hover card per place on the 2D map, in every flow', () => {
   });
 });
 
-describe('the card merges the step context with the place metrics', () => {
+describe('the card merges the role context with the place metrics', () => {
   for (const flow of FLOW_IDS) {
-    it(`Flow ${String(flow).padStart(2, '0')}: a place in a step shows 📌 and 👉 over a divider, the rest show metrics only`, () => {
+    it(`Flow ${String(flow).padStart(2, '0')}: a place in a step shows its 📌 task over a divider, the rest show metrics only`, () => {
       const { html, cards } = mapCards(flow);
       for (const c of cards) {
         const place = c.place as PlaceId;
         const step = flowPlaces(flow).has(place) ? stepAt(flow, place) : null;
-        expect(c.context, place).toBe(step ? 'step' : 'idle');
+        expect(c.context, place).toBe(step ? 'role' : 'idle');
       }
-      // A step's banner names the flow and the step, divided from the metrics underneath.
-      const lit = cards.filter((c) => c.context === 'step');
+      // A role banner names the place's task, divided from the metrics underneath, with no step number.
+      const lit = cards.filter((c) => c.context === 'role');
       expect(lit.length).toBeGreaterThan(0);
       expect(count(html, /data-card="context"/g)).toBe(lit.length);
       expect(count(html, /data-card="metrics"/g)).toBe(ALL_PLACES.length);
       expect(html).toMatch(/class="[^"]*border-b border-slate-700\/50[^"]*"[^>]*data-card="context"/);
-      expect(html).toContain(`📌 Process: ${GUIDED_FLOWS[flow].code}.`);
-      const first = stepAt(flow, lit[0]!.place as PlaceId)!;
-      expect(html).toContain(`👉 Step ${first.number}/${first.total}:`);
+      expect(html).toContain('📌 Process task:');
+      expect(html).not.toMatch(/Step \d+\/\d+/);
     });
   }
 
-  it('reads 📌 Quy trình and 👉 Bước in Vietnamese', () => {
+  it('reads 📌 Tác vụ quy trình and the 💡 run hint in Vietnamese', () => {
     setActiveLocale('vi');
     const { html } = mapCards(3);
-    expect(html).toContain('📌 Quy trình:');
-    expect(html).toContain('👉 Bước');
+    expect(html).toContain('📌 Tác vụ quy trình:');
+    expect(html).toContain('💡 Ghi chú: Bấm &quot;Thực hiện&quot; kịch bản bên dưới để xem luồng chạy thực tế.');
+    expect(html).not.toMatch(/Bước \d+\/\d+/);
   });
 
   it('puts the cash metrics (TK 1111 / 1112 / 1131) under the step on the vault, and on the CIT bay', () => {
@@ -98,7 +99,7 @@ describe('the card merges the step context with the place metrics', () => {
     for (const place of ['MAIN_CASH_VAULT', 'LOADING_BAY'] as const) {
       const html = renderToStaticMarkup(createElement(StationTooltip, { place }));
       expect(count(html, /role="tooltip"/g)).toBe(1);
-      expect(html).toContain('data-context="step"');
+      expect(html).toContain('data-context="role"');
       expect(html.indexOf('data-card="context"')).toBeLessThan(html.indexOf('data-card="metrics"'));
       expect(html).toContain('data-account="VAULT"');
       expect(html).toContain('data-account="TRANSIT"');

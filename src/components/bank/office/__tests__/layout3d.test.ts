@@ -59,6 +59,7 @@ import {
   FLOOR_SLAB,
   fitZoom,
   hopTiming,
+  HOP_PACE,
   kioskPose,
   laneAt,
   laneLength,
@@ -255,8 +256,8 @@ describe('lanes and packets', () => {
   it('times a hop like the 2D map: a later move in the beat starts later, and a hop is neither a blink nor a crawl', () => {
     const fast = hopTiming(0.5, 150);
     const slow = hopTiming(0.5, 6000);
-    expect(fast.durationMs).toBe(320);
-    expect(slow.durationMs).toBe(1100);
+    expect(fast.durationMs).toBe(HOP_PACE.minMs);
+    expect(slow.durationMs).toBe(HOP_PACE.maxMs);
     expect(hopTiming(0, 1500).delayMs).toBe(0);
     expect(hopTiming(1, 1500).delayMs).toBeGreaterThan(hopTiming(0.5, 1500).delayMs);
   });

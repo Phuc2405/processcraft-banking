@@ -358,9 +358,15 @@ export function laneAt(points: readonly V2[], d: number): { x: number; z: number
   return { x: last[0], z: last[1], heading: 0 };
 }
 
+/**
+ * A packet's hop along a wire, for both maps: it glides for `share` of the beat (never a blink under `minMs`, never a crawl over
+ * `maxMs`) and starts up to `delayShare` into it, so even the last move of a beat lands before the next one (0.4 + 0.6 = 1).
+ */
+export const HOP_PACE = { delayShare: 0.4, share: 0.6, minMs: 600, maxMs: 1800 } as const;
+
 /** When a move starts and how long its hop takes, in milliseconds. The same timing the 2D map gives its travellers. */
 export function hopTiming(at: number, beatMs: number): { delayMs: number; durationMs: number } {
-  return { delayMs: Math.round(at * beatMs * 0.55), durationMs: Math.round(Math.max(320, Math.min(1100, beatMs * 0.5))) };
+  return { delayMs: Math.round(at * beatMs * HOP_PACE.delayShare), durationMs: Math.round(Math.max(HOP_PACE.minMs, Math.min(HOP_PACE.maxMs, beatMs * HOP_PACE.share))) };
 }
 
 // Camera

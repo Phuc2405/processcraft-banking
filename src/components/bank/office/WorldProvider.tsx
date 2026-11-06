@@ -8,6 +8,7 @@ import { bayFlow, citBayRun } from '../../../sim/citEngine';
 import { citNow, citSoloActive } from '../../ops/citActions';
 import type { WorldEngine } from '../../../engine/simulation/WorldEngine';
 import { simulation } from '../useSimulation';
+import { deskView, subscribeDemo } from '../DemoSession';
 import { liveMix, weatherStore } from '../../../engine/world/weather';
 
 /** The 3D office's bridge to its world engine (engine/WorldEngine.ts). */
@@ -34,6 +35,7 @@ function WorldTicker({ world }: { world: WorldEngine }) {
     // A van whose run has gone (a night run dropped at the day's turn, a cancelled demo) drives off alone and never holds the lock.
     const vanRun = world.citVanRun();
     const orphan = vanOrphaned(vanRun, citStore.getState(), s.view.day);
+    const desks = deskView();
     const { mixChanged } = world.tick({
       realDt: dt,
       // A solo demo stops the clock when its one payment is done: the world keeps moving while people are still at a counter,
@@ -42,7 +44,8 @@ function WorldTicker({ world }: { world: WorldEngine }) {
       speed: SPEEDS[s.speedIndex]?.factor ?? 1,
       minute: s.view.minute,
       weather: weatherStore.getState().weather,
-      queueLength: (id) => s.view.stations[id].queueLength,
+      // The lines in 3D hold only the running demo's case while one runs (DemoSession.deskView), as the 2D map's do.
+      queueLength: (id) => desks.stations[id].queueLength,
       citSolo: !s.playing && (orphan || citSoloActive()),
     });
     // The page's copy of the sky's blend (the gradient behind the canvas), a few times a second while it moves.
@@ -61,7 +64,7 @@ export function WorldProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let seen: [unknown, unknown] = [null, null];
     const follow = (): void => {
-      const view = bankStore.getState().view;
+      const view = deskView();
       const manual = citStore.getState().manual;
       world.onBank(view);
       if (seen[0] === view && seen[1] === manual) return;
@@ -70,9 +73,10 @@ export function WorldProvider({ children }: { children: ReactNode }) {
       world.onCitBay(run?.order.id ?? null, run ? bayFlow(run.order) : 'IN');
     };
     follow();
-    const stops = [bankStore.subscribe(follow), citStore.subscribe(follow)];
+    // The bank, the CIT runs and the demo session: a demo starting or ending changes what the desks show.
+    const stop = subscribeDemo(follow);
     return () => {
-      stops.forEach((stop) => stop());
+      stop();
       citStore.setState({ van: false });
       world.dispose();
     };

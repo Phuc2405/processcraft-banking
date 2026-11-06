@@ -2,9 +2,10 @@ import { memo, useState } from 'react';
 import { CIT_BAY, PLACE_BOX } from '../../engine/plan/layout';
 import { actorStatus } from '../../sim/actorStatus';
 import { crewOf, vaultPulseAt, type CrewPoint } from '../../sim/citCrew';
-import { citBayRun, citDemoBusy, CIT_STRATEGIES, type CitAccountId, type CitSnapshot } from '../../sim/citEngine';
+import { citBayRun, citDemoBusy, CIT_STRATEGIES, type CitAccountId, type CitDemo, type CitSnapshot } from '../../sim/citEngine';
 import { formatMoney } from '../../sim/kpis';
-import { activeFlowOf, beatLive, useBankStore } from '../../store/bankStore';
+import { activeFlowOf, beatLive, citChildOf, useBankStore } from '../../store/bankStore';
+import { citChildStops } from '../../sim/citRoute';
 import { CIT_FLOW } from '../../types/viewport';
 import { useMessages } from '../../utils/i18nHelper';
 import { citMessages } from '../ops/cit.messages';
@@ -40,10 +41,13 @@ export const CitBay2D = memo(function CitBay2D() {
   // A paused bank still plays the learner's own van (a pause-isolated demo): the bay animates, nothing else does.
   const solo = useBankStore((s) => !s.playing) && citDemoBusy(cit) !== null;
   const live = useBankStore(beatLive) || solo;
-  // Highlighted only while Flow 09 (cash in transit) is the lit flow; quiet under every other flow.
-  const lit = useBankStore((s) => activeFlowOf(s) === CIT_FLOW);
+  // Highlighted only while Flow 09 (cash in transit) is the lit flow and its picked child sends a van (the till rebalance never does).
+  const lit = useBankStore((s) => activeFlowOf(s) === CIT_FLOW && bayLit(citChildOf(s)));
   return <CitBayView cit={cit} live={live} lit={lit} onOpen={() => select({ kind: 'bay' })} />;
 });
+
+/** Whether the bay is on a CIT child's route: every van run, never the till rebalance (walked vault ↔ till). Flow 09 as a whole: yes. */
+export const bayLit = (child: CitDemo | null): boolean => !child || citChildStops(child).includes('BAY');
 
 /** A crew member on the 2D walk: the same figure and badge as a customer at a counter (DeskVisitors2D, ActorStatusBadge). */
 function CrewFigure2D({ role, flow, p }: { role: 'custodian' | 'guard'; flow: 'IN' | 'OUT'; p: CrewPoint }) {
@@ -72,7 +76,8 @@ function CrewFigure2D({ role, flow, p }: { role: 'custodian' | 'guard'; flow: 'I
 export function CitBayView({ cit, live, lit = false, onOpen }: { cit: CitSnapshot; live: boolean; lit?: boolean; onOpen: () => void }) {
   const m = useMessages(citMessages);
   const run = cit.active?.run ?? null;
-  const moving = run && run.status !== 'SETTLED' ? run : null;
+  // Only a van run is the bay's business: a till run walked across the floor leaves the bay idle ("No van at the bay").
+  const moving = run && run.status !== 'SETTLED' && CIT_STRATEGIES[run.order.scenario].van ? run : null;
   const route = moving ? CIT_STRATEGIES[moving.order.scenario].route(moving.order.direction) : null;
   const other = route ? (route.from === 'VAULT' ? route.to : route.from) : null;
   const atBay = citBayRun(cit) !== null;

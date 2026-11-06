@@ -1,16 +1,18 @@
-import type { CSSProperties } from 'react';
+import { useMemo, type CSSProperties } from 'react';
 import { routingRules } from '../../engine/plan/routingRules';
 import { feedText } from '../../i18n/feedVi';
 import { useLocale } from '../../i18n/locale';
 import { t } from '../../i18n/t';
-import { cashStationTip, type CashStationId, type CashStationTipModel } from '../../sim/cashStationTip';
+import { cashStationTip, deskBalances, type CashStationId, type CashStationTipModel } from '../../sim/cashStationTip';
 import type { CitAccountId } from '../../sim/citEngine';
 import { DESK_HEAT, deskHeat } from '../../sim/deskHeat';
-import { GUIDED_FLOWS, stepStatus, stepStatusLabel, stepText, type StepStatus } from '../../sim/guidedFlows';
-import { cardKind, cardStep, type CardPlace } from '../../sim/hoverCard';
+import { GUIDED_FLOWS, stepAction, stepStatusLabel, stepText, type StepStatus } from '../../sim/guidedFlows';
+import { cardContext, cardKind, type CardContext, type CardPlace, type DemoPath } from '../../sim/hoverCard';
 import { formatMoney } from '../../sim/kpis';
 import type { ExternalId, StationId } from '../../sim/topology';
-import { activeFlowOf, activeScopeOf, bankStore, dataDepthOf, useBankStore } from '../../store/bankStore';
+import { activeFlowOf, activeScopeOf, dataDepthOf, useBankStore } from '../../store/bankStore';
+import { useDemoSession } from '../../store/demoSessionStore';
+import { useHopPlayer } from '../../store/hopPlayerStore';
 import type { FlowId } from '../../types/viewport';
 import { useMessages } from '../../utils/i18nHelper';
 import { citMessages } from '../ops/cit.messages';
@@ -24,13 +26,14 @@ import { useTerms } from './useTerms';
 
 /**
  * THE hover card, for every place on both maps (sim/hoverCard.ts): the 2D cards wrap it in their CSS hover tip, the 3D office in its one
- * Html overlay (office/StationTooltip3D). One card per place under the pointer, never two: while a flow is lit and the place plays a step in
- * it, a context banner (📌 the sub-process, 👉 the step) sits on top of a divider; under it, always, the place's own metrics.
+ * Html overlay (office/StationTooltip3D). One card per place under the pointer, never two: a context banner (sim/hoverCard.cardContext:
+ * the place's role with no demo running, its step on the running scenario's own route) sits on top of a divider; under it, always,
+ * the place's own metrics.
  */
 export function StationTooltip({ place, className = '', style }: { place: CardPlace; className?: string; style?: CSSProperties }) {
   const flow = useBankStore(activeFlowOf);
-  const inScope = useBankStore((s) => place === 'LOADING_BAY' || (activeScopeOf(s)?.places.has(place) ?? false));
-  const ctx = cardStep(flow, place, inScope);
+  const inScope = useBankStore((s) => place !== 'LOADING_BAY' && (activeScopeOf(s)?.places.has(place) ?? false));
+  const ctx = cardContext(flow, place, inScope, useDemoPath());
   const kind = cardKind(place);
   return (
     <span
@@ -40,9 +43,9 @@ export function StationTooltip({ place, className = '', style }: { place: CardPl
       data-testid="station-card"
       data-place={place}
       data-kind={kind}
-      data-context={ctx ? 'step' : 'idle'}
+      data-context={ctx ? (ctx.mode === 'scenario' ? 'step' : 'role') : 'idle'}
     >
-      {flow && ctx && <StepBanner flow={flow} index={ctx.index} number={ctx.number} total={ctx.total} />}
+      {flow && ctx && (ctx.mode === 'scenario' ? <ScenarioBanner flow={flow} ctx={ctx} /> : <RoleBanner flow={flow} ctx={ctx} />)}
       {kind === 'cash' ? <CashMetrics id={place as CashStationId} /> : kind === 'desk' ? <DeskMetrics id={place as StationId} /> : <ExternalMetrics id={place as ExternalId} />}
     </span>
   );
@@ -54,31 +57,50 @@ const BADGE: Record<StepStatus, string> = {
   completed: 'bg-emerald-400/15 text-emerald-200 ring-emerald-400/50',
 };
 
-/** The top of the card while a flow is lit: the sub-process the menu names, and this place's step in it (and whether the learner's payment has passed it). */
-function StepBanner({ flow, index, number, total }: { flow: FlowId; index: number; number: number; total: number }) {
+/** The scenario demo on show (its name and the route the hop player walks), or null while no demo runs. */
+function useDemoPath(): DemoPath | null {
+  const run = useDemoSession((s) => s.active);
+  const stops = useHopPlayer((s) => s.session?.stops ?? null);
+  const index = useHopPlayer((s) => s.play?.index ?? 0);
+  const locale = useLocale();
+  return useMemo(() => (run && stops ? { name: run.name?.() ?? '', stops, index } : null), [run, stops, index, locale]);
+}
+
+/** With a sub-process lit and no demo: this place's task in it, numberless, and a nudge to run a scenario for the real sequence. */
+function RoleBanner({ flow, ctx }: { flow: FlowId; ctx: Extract<CardContext, { mode: 'role' }> }) {
+  const m = useMessages(stationTooltipMessages);
+  return (
+    <span className="mb-1.5 block border-b border-slate-700/50 pb-1.5" data-card="context" data-mode="role">
+      <span className="block text-[11px] font-bold leading-snug" style={{ color: GUIDED_FLOWS[flow].accent }} data-tip="task">
+        {m('task')}: {stepAction(flow, ctx.step)}
+      </span>
+      <span className="mt-0.5 block text-[10.5px] leading-snug text-slate-400" data-tip="run-hint">
+        {m('runHint')}
+      </span>
+    </span>
+  );
+}
+
+/** While a scenario demo runs and this place is on its route: the sub-process, and this place's step counted on that scenario alone. */
+function ScenarioBanner({ flow, ctx }: { flow: FlowId; ctx: Extract<CardContext, { mode: 'scenario' }> }) {
   const m = useMessages(stationTooltipMessages);
   const locale = useLocale();
   const subProcess = useBankStore((s) => s.subProcess);
   const depth = useBankStore(dataDepthOf);
-  // Only the parts of the trace this banner shows, so it redraws when the payment moves, not on every beat.
-  const at = useBankStore((s) => (s.presetTrace ? `${s.presetTrace.id}:${s.presetTrace.at}:${s.presetTrace.done}` : ''));
-  const status = stepStatus(flow, index, at ? bankStore.getState().presetTrace : null);
-  const step = GUIDED_FLOWS[flow].steps[index]!;
+  const title = subProcessTitle({ flow, subProcess }, locale);
   return (
-    <span className="mb-1.5 block border-b border-slate-700/50 pb-1.5" data-card="context" data-step={number} data-status={status}>
+    <span className="mb-1.5 block border-b border-slate-700/50 pb-1.5" data-card="context" data-mode="scenario" data-step={ctx.number} data-status={ctx.status}>
       <span className="flex items-start justify-between gap-2">
         <span className="text-[11px] font-bold leading-snug" style={{ color: GUIDED_FLOWS[flow].accent }} data-tip="process">
-          {m('process')}: {subProcessTitle({ flow, subProcess }, locale)}
+          {m('process')}: {title}
         </span>
-        <span className={`shrink-0 rounded-full px-1.5 py-px text-[10px] font-semibold ring-1 ${BADGE[status]}`} data-testid="station-card-status">
-          {stepStatusLabel(status)}
+        <span className={`shrink-0 rounded-full px-1.5 py-px text-[10px] font-semibold ring-1 ${BADGE[ctx.status]}`} data-testid="station-card-status">
+          {stepStatusLabel(ctx.status)}
         </span>
       </span>
       <span className="mt-0.5 block text-[11.5px] leading-snug text-slate-100" data-tip="step">
-        <span className="font-semibold tabular-nums">
-          {m('step')} {number}/{total}:
-        </span>{' '}
-        {stepText(flow, step).summary[depth]}
+        <span className="font-semibold tabular-nums">{m('scenarioStep', { name: ctx.name || title, n: ctx.number, total: ctx.total })}</span>
+        {ctx.step && <> {stepText(flow, ctx.step).summary[depth]}</>}
       </span>
     </span>
   );
@@ -131,7 +153,30 @@ function DeskMetrics({ id }: { id: StationId }) {
       </span>
       {heat && <span className="mt-0.5 block text-[10.5px] leading-snug text-amber-200">{wm(`heat_${heat}`, { warn: DESK_HEAT.warnAt, crit: DESK_HEAT.critAbove })}</span>}
       {alert && <span className="mt-0.5 block text-[10.5px] leading-snug text-rose-200">⚠ {feedText(alert.text)}</span>}
+      <DeskBalances id={id} />
     </span>
+  );
+}
+
+/** The core-ledger lines a desk answers for (TK 2930 on the AML and reconciliation desks), live; nothing on other desks. */
+function DeskBalances({ id }: { id: StationId }) {
+  const m = useMessages(stationTooltipMessages);
+  const balances = deskBalances(id, useBankStore((s) => s.retailLedger));
+  if (!balances.length) return null;
+  return (
+    <>
+      <span className="mt-1.5 block text-[9.5px] font-semibold uppercase tracking-wide text-slate-500">{m('ledger')}</span>
+      <span className="block space-y-px" data-tip="balances">
+        {balances.map((b) => (
+          <span key={b.account} className="flex justify-between gap-2 font-mono text-[11px] tabular-nums" data-account={b.account}>
+            <span className="text-slate-400">
+              TK {b.code} {m(`gl_${b.account}` as 'gl_FROZEN_ASSETS')}
+            </span>
+            <span className="font-bold text-amber-200">{formatMoney(b.cents)}</span>
+          </span>
+        ))}
+      </span>
+    </>
   );
 }
 
