@@ -512,8 +512,6 @@ export const OPS_ACTIONS: readonly OpsActionDef[] = [
   },
 ];
 
-export const opsActionsFor = (sub: OpsSubProcessId): OpsActionDef[] => OPS_ACTIONS.filter((a) => a.sub === sub);
-export const opsSubProcessesIn = (flow: FlowId): (typeof OPS_SUBPROCESSES)[number][] => OPS_SUBPROCESSES.filter((s) => s.flow === flow);
 export const opsFlowOf = (a: OpsActionDef): FlowId => opsSubProcess(a.sub).flow;
 
 export const opsActionById = (id: OpsActionId): OpsActionDef => OPS_ACTIONS.find((a) => a.id === id)!;
@@ -670,178 +668,181 @@ function tillDeposit(book: OpsBook, def: OpsActionDef, at: string, cents: number
   };
 }
 
+/** What a posting strategy is handed: the book, the action (its id and definition), the time, and the scripted customer's balance. */
+interface OpsContext {
+  readonly book: OpsBook;
+  readonly def: OpsActionDef;
+  readonly id: OpsActionId;
+  readonly at: string;
+  readonly available: number;
+}
+
+/** How one action decides and posts (Strategy): pure, from the context to the new book and the result card. */
+export type OpsPostingStrategy = (ctx: OpsContext) => { book: OpsBook; outcome: OpsOutcome };
+
+/**
+ * One posting strategy per demo action. The table is keyed by every OpsActionId, so a new action does not compile until it has its
+ * strategy here; runOpsAction and the desks that call it never change.
+ */
+export const OPS_POSTING_STRATEGIES: Readonly<Record<OpsActionId, OpsPostingStrategy>> = {
+  'bill-electric-85': ({ book, def, at }) => plainPayment(book, def, at, 8_500, 'INTERBANK', L('Bill paid: the customer is debited and the money goes to the biller’s bank.', 'Đã thanh toán hóa đơn: khách bị ghi nợ và tiền chuyển sang ngân hàng của nhà cung cấp.')),
+  'wallet-cashin-100': ({ book, def, at }) => plainPayment(book, def, at, 10_000, 'WALLET_SETTLEMENT', L('Wallet topped up: the bank now owes the wallet provider $100 until settlement.', 'Đã nạp ví: ngân hàng phải trả đơn vị ví $100 đến khi quyết toán.')),
+  'atm-withdraw-100': ({ book, id, at, available }) => {
+    const cash = 10_000;
+    if (book.balances.CASH_ATM < cash) return blocked(id, book, L('The cassette cannot cover $100: run the CIT refill. An ATM never pays out part of a withdrawal.', 'Hộp tiền không đủ $100: hãy tiếp quỹ CIT. ATM không bao giờ chi một phần số tiền rút.'), '91');
+    const total = cash + OPS_LIMITS.atmFeeCents + OPS_LIMITS.napasFeeCents;
+    const posted = post(book, id, at, [dr('CASA', total), cr('CASH_ATM', cash), cr('FEE_INCOME', OPS_LIMITS.atmFeeCents), cr('NAPAS_FEE', OPS_LIMITS.napasFeeCents)]);
+    return { book: posted.book, outcome: { action: id, status: 'APPROVED', rc: '00', message: L('Cash paid: the bank keeps $1.10 and owes the domestic switch (NAPAS) $0.55 until tonight’s settlement.', 'Đã chi tiền: ngân hàng giữ $1.10 và phải trả NAPAS $0.55 đến khi quyết toán đêm nay.'), journal: posted.journal, customer: { before: available, after: available - total } } };
+  },
+  'atm-jam-200': ({ book, id, at, available }) => {
+    const jam = 20_000;
+    const posted = post(book, id, at, [dr('CASA', jam), cr('ATM_SUSPENSE', jam)]);
+    const ticket: ReconTicket = { id: `RECON-${posted.journal.id.slice(4)}`, amountCents: jam, openedAt: at, status: 'OPEN' };
+    return { book: { ...posted.book, tickets: [ticket, ...posted.book.tickets] }, outcome: { action: id, status: 'HELD', message: L('Dispenser fault: $200 is parked in TK 2930 and an EOD reconciliation ticket is open.', 'Lỗi nhả tiền: $200 được treo ở TK 2930 và đã mở phiếu đối soát cuối ngày.'), journal: posted.journal, customer: { before: available, after: available - jam } } };
+  },
+  'cassette-low': ({ book, id }) => ({ book: { ...book, cassetteDrill: true }, outcome: { action: id, status: 'ALERT', message: L('Sensor drill: the cassette reports under 15%, and the ATM shows a warning until the CIT refill. No money moved.', 'Diễn tập cảm biến: hộp tiền báo dưới 15%, ATM hiển thị cảnh báo đến khi tiếp quỹ CIT. Tiền không dịch chuyển.'), journal: null } }),
+  'cassette-refill': ({ book, id, at }) => {
+    const refill = refillCassette(book, at);
+    return {
+      book: refill.book,
+      outcome: {
+        action: id,
+        status: 'APPROVED',
+        rc: '00',
+        message: refill.journal
+          ? L('CIT refill done: the cassettes are back to capacity from the vault, and the low-cash alert has cleared.', 'Đã tiếp quỹ CIT: hộp tiền được nạp đầy lại từ kho quỹ, và cảnh báo sắp hết tiền đã được gỡ.')
+          : L('The cassettes are already full: nothing to move, and no alert is open.', 'Hộp tiền đã đầy: không cần chuyển tiền, và không có cảnh báo nào.'),
+        journal: refill.journal,
+      },
+    };
+  },
+  'teller-deposit-5000': ({ book, def, at }) => tillDeposit(book, def, at, 500_000, L('Cash counted and credited to the customer.', 'Đã đếm tiền và ghi có cho khách.')),
+  'teller-exceed-limit': ({ book, def, at }) => tillDeposit(book, def, at, Math.max(1, OPS_LIMITS.tillLimitCents - book.balances.CASH_TILL + 250_000), L('Cash counted and credited to the customer.', 'Đã đếm tiền và ghi có cho khách.')),
+  'fee-annual-45': ({ book, id, at, available }) => {
+    const fee = 4_500;
+    const covered = Math.min(available, fee);
+    const shortfall = fee - covered;
+    const lines = [...(covered > 0 ? [dr('CASA', covered)] : []), ...(shortfall > 0 ? [dr('OVERDRAFT', shortfall)] : []), cr('FEE_INCOME', fee)];
+    const posted = post(book, id, at, lines);
+    return { book: posted.book, outcome: { action: id, status: 'APPROVED', message: L('Fee posted: the balance covered $20, and the other $25 became an overdraft, so the statement shows -$25.', 'Đã ghi nhận phí: số dư trả được $20, $25 còn lại thành thấu chi nên sao kê hiển thị -$25.'), journal: posted.journal, customer: { before: available, after: available - fee } } };
+  },
+  'fee-card-10': ({ book, def, at }) => plainPayment(book, def, at, 1_000, 'FEE_INCOME', L('Fee posted to card fee income.', 'Đã ghi nhận phí vào thu phí thẻ.')),
+  'autopay-loan-250': ({ book, def, at }) => plainPayment(book, def, at, 25_000, 'LOAN', L('Instalment collected under the customer’s mandate: the loan principal falls.', 'Đã thu kỳ trả góp theo ủy quyền của khách: nợ gốc giảm.')),
+  'autopay-nsf-250': ({ book, id, at, available }) => {
+    const fee = OPS_LIMITS.nsfFeeCents;
+    const posted = post(book, id, at, [dr('CASA', fee), cr('NSF_INCOME', fee)]);
+    return { book: posted.book, outcome: { action: id, status: 'DECLINED', rc: '51', message: L('Insufficient funds: the $250 instalment stays unpaid, starts to age, and the $15 NSF fee is charged.', 'Không đủ số dư: kỳ trả góp $250 chưa thu được, bắt đầu quá hạn, và thu phí NSF $15.'), journal: posted.journal, customer: { before: available, after: available - fee } } };
+  },
+  'bnpl-approve-400': ({ book, id, at, available }) => {
+    const dti = assessDti(300_000, 60_000, 10_000);
+    const posted = post(book, id, at, [dr('CASA', 10_000), dr('LOAN', 30_000), cr('INTERBANK', 40_000)]);
+    return { book: posted.book, outcome: { action: id, status: 'APPROVED', rc: '00', message: L('Approved: the shop is paid $400 now, the customer pays $100 today, and the bank is owed the other $300.', 'Đã duyệt: cửa hàng nhận $400 ngay, khách trả $100 hôm nay, ngân hàng được nợ $300 còn lại.'), journal: posted.journal, customer: { before: available, after: available - 10_000 }, facts: [L(`DTI ${dti.dtiPct}%: $700 of monthly debt on $3,000 of income.`, `DTI ${dti.dtiPct}%: $700 nợ mỗi tháng trên $3,000 thu nhập.`), L(`Credit score ${creditScore(720, 0, dti.dtiPct)}, no late payments.`, `Điểm tín dụng ${creditScore(720, 0, dti.dtiPct)}, không có trễ hạn.`)] } };
+  },
+  'bnpl-decline-dti': ({ book, id }) => {
+    const dti = assessDti(200_000, 72_000, 24_000);
+    return { book, outcome: { action: id, status: 'DECLINED', rc: '05', message: L(`Refused: debt service would be over the ${DTI_LIMIT_PCT}% limit, so no credit is extended and nothing posts.`, `Từ chối: nghĩa vụ trả nợ vượt ngưỡng ${DTI_LIMIT_PCT}%, nên không cấp tín dụng và không ghi nhận gì.`), journal: null, facts: [L(`DTI ${dti.dtiPct}%: $960 of monthly debt on $2,000 of income.`, `DTI ${dti.dtiPct}%: $960 nợ mỗi tháng trên $2,000 thu nhập.`), L(`Credit score falls to ${creditScore(640, 0, dti.dtiPct)}.`, `Điểm tín dụng giảm còn ${creditScore(640, 0, dti.dtiPct)}.`)] } };
+  },
+  'card-late-fee': ({ book, id, at }) => {
+    const posted = post(book, id, at, [dr('OVERDRAFT', 4_200), cr('NSF_INCOME', 2_500), cr('INTEREST_INCOME', 1_700)]);
+    return { book: posted.book, outcome: { action: id, status: 'APPROVED', message: L('The missed payment adds a $25 late fee and $17 of overdue interest to what the cardholder owes.', 'Kỳ trả trễ cộng thêm $25 phí phạt và $17 lãi quá hạn vào khoản chủ thẻ phải trả.'), journal: posted.journal } };
+  },
+  'waterfall-120': ({ book, def, at }) => repayDebt(book, def, at, 12_000),
+  'waterfall-50': ({ book, def, at }) => repayDebt(book, def, at, 5_000),
+  'risk-migrate-95dpd': ({ book, id, at }) => {
+    const group = debtGroup(95);
+    const provision = specificProvision(100_000, 0, group);
+    const posted = post(book, id, at, [dr('PROVISION_EXPENSE', provision), cr('ALLOWANCE', provision)]);
+    return { book: posted.book, outcome: { action: id, status: 'ALERT', message: L(`At 95 days past due the loan moves from group 1 to non-performing group ${group}, and ${PROVISION_PCT[group]}% is provided.`, `Quá hạn 95 ngày, khoản vay chuyển từ nhóm 1 sang nợ xấu nhóm ${group}, trích lập ${PROVISION_PCT[group]}%.`), journal: posted.journal, facts: [L(`Credit score falls from 720 to ${creditScore(720, 95, 30)}.`, `Điểm tín dụng giảm từ 720 xuống ${creditScore(720, 95, 30)}.`), L('Any other loans of this customer follow it to the same group.', 'Các khoản vay khác của khách này cũng chuyển theo cùng nhóm.')] } };
+  },
+  'td-break-10k': ({ book, id, at }) => {
+    const principal = 1_000_000;
+    const c = closeTermDepositEarly(principal, 6, 180);
+    const posted = post(book, id, at, [dr('TERM_DEPOSIT', principal), dr('ACCRUED_INTEREST', c.accruedCents), cr('CASA', principal + c.paidCents), cr('INTEREST_EXPENSE', c.forfeitedCents)]);
+    return { book: posted.book, outcome: { action: id, status: 'APPROVED', rc: '00', message: L(`Closed early: the customer gets the $10,000 and interest at the ${DEMAND_RATE_PCT}% demand rate.`, `Tất toán sớm: khách nhận $10,000 và lãi theo mức không kỳ hạn ${DEMAND_RATE_PCT}%.`), journal: posted.journal, facts: [L(`Accrued at 6% for 180 days: ${money(c.accruedCents)}. Paid at ${DEMAND_RATE_PCT}%: ${money(c.paidCents)}.`, `Đã dự chi ở mức 6% trong 180 ngày: ${money(c.accruedCents)}. Trả ở mức ${DEMAND_RATE_PCT}%: ${money(c.paidCents)}.`), L(`The early withdrawal penalty is the ${money(c.forfeitedCents)} of interest given up.`, `Phạt rút trước hạn là ${money(c.forfeitedCents)} tiền lãi bị mất.`)] } };
+  },
+  'collateral-lock': ({ book, id, at }) => {
+    if (book.collateralLockedCents > 0) return blocked(id, book, L('This collateral is already locked: liquidate it first.', 'TSĐB này đã bị phong tỏa: hãy xử lý trước.'));
+    const posted = post(book, id, at, [dr('TERM_DEPOSIT', COLLATERAL_CENTS), cr('TD_PLEDGED', COLLATERAL_CENTS)]);
+    return { book: { ...posted.book, collateralLockedCents: COLLATERAL_CENTS }, outcome: { action: id, status: 'HELD', message: L('The overdraft has defaulted, so $5,000 of pledged savings is frozen. It stays the customer’s money until it is liquidated.', 'Thấu chi đã vỡ nợ nên $5,000 tiền gửi cầm cố bị phong tỏa. Tiền vẫn là của khách đến khi được xử lý.'), journal: posted.journal } };
+  },
+  'collateral-release': ({ book, id, at }) => {
+    // A pledge frozen on default is lifted once the debt is cured; with none frozen, the demo shows the whole life of a performing
+    // loan's pledge: taken at drawdown, released on the final repayment.
+    const locked = book.collateralLockedCents;
+    const lines = locked > 0 ? [dr('TD_PLEDGED', locked), cr('TERM_DEPOSIT', locked)] : [dr('TERM_DEPOSIT', COLLATERAL_CENTS), cr('TD_PLEDGED', COLLATERAL_CENTS), dr('TD_PLEDGED', COLLATERAL_CENTS), cr('TERM_DEPOSIT', COLLATERAL_CENTS)];
+    const posted = post(book, id, at, lines);
+    return {
+      book: { ...posted.book, collateralLockedCents: 0 },
+      outcome: {
+        action: id,
+        status: 'APPROVED',
+        rc: '00',
+        message: L('The loan is repaid in full, so the $5,000 pledge is released: the savings book is back in the customer’s free use.', 'Khoản vay đã trả hết nên $5,000 TSĐB được giải chấp: sổ tiết kiệm trở lại quyền sử dụng tự do của khách.'),
+        journal: posted.journal,
+      },
+    };
+  },
+  'collateral-liquidate': ({ book, id, at }) => {
+    if (book.collateralLockedCents <= 0) return blocked(id, book, L('Nothing is locked yet: lock the collateral first.', 'Chưa có gì bị phong tỏa: hãy phong tỏa TSĐB trước.'));
+    const w = allocateWaterfall(book.collateralLockedCents, DEFAULTED_DEBT);
+    const release = Math.min(specificProvision(DEFAULTED_DEBT.principalCents, 0, 3), Math.max(0, opsNatural('ALLOWANCE', book.balances.ALLOWANCE) * -1));
+    const posted = post(book, id, at, [dr('TD_PLEDGED', book.collateralLockedCents), ...waterfallCredits(w), ...(w.surplus > 0 ? [cr('CASA', w.surplus)] : []), ...(release > 0 ? [dr('ALLOWANCE', release), cr('PROVISION_EXPENSE', release)] : [])]);
+    return { book: { ...posted.book, collateralLockedCents: 0 }, outcome: { action: id, status: 'APPROVED', rc: '00', message: L('The collateral clears the bad debt in waterfall order, and what is left goes back to the customer.', 'TSĐB tất toán nợ xấu theo thứ tự cấn trừ, phần dư trả lại khách.'), journal: posted.journal, facts: [L(`Penalty ${money(w.toPenalty)}, interest ${money(w.toInterest)}, principal ${money(w.toPrincipal)}, returned ${money(w.surplus)}.`, `Phạt ${money(w.toPenalty)}, lãi ${money(w.toInterest)}, gốc ${money(w.toPrincipal)}, trả lại ${money(w.surplus)}.`), ...(release > 0 ? [L(`The ${money(release)} provision is released back to profit.`, `Hoàn nhập dự phòng ${money(release)} vào lợi nhuận.`)] : [])] } };
+  },
+  'bill-nsf-51': ({ book, id, at, available }) => {
+    const fee = OPS_LIMITS.nsfFeeCents;
+    const posted = post(book, id, at, [dr('CASA', fee), cr('NSF_INCOME', fee)]);
+    return { book: posted.book, outcome: { action: id, status: 'DECLINED', rc: '51', message: L('Insufficient funds: the $85 bill is returned unpaid to the biller, and the $15 NSF fee is charged.', 'Không đủ số dư: hóa đơn $85 bị trả lại cho nhà cung cấp, và thu phí NSF $15.'), journal: posted.journal, customer: { before: available, after: available - fee }, facts: [L('The biller is told the payment failed and will retry or suspend the service.', 'Nhà cung cấp được báo thanh toán thất bại và sẽ thu lại hoặc tạm ngừng dịch vụ.')] } };
+  },
+  'bill-timeout-68': ({ book, id, available }) => ({ book, outcome: { action: id, status: 'DECLINED', rc: '68', message: L('No answer from the biller in time (RC 68): the hold is reversed automatically, nothing posts, and the customer may pay again.', 'Nhà cung cấp không phản hồi kịp (RC 68): khoản tạm giữ được tự động đảo, không ghi nhận gì, và khách có thể thanh toán lại.'), journal: null, customer: { before: available, after: available }, facts: [L('An unanswered request is never booked: the bank checks the status before anyone retries, so the bill is never paid twice.', 'Yêu cầu không có phản hồi thì không hạch toán: ngân hàng tra soát trạng thái trước khi thử lại, nên hóa đơn không bao giờ bị trả hai lần.')] } }),
+  'fee-collect-fail': ({ book, id, available }) => ({ book, outcome: { action: id, status: 'DECLINED', rc: '51', message: L('The fee cannot be collected: no balance and no overdraft line. It is tracked off the books and retried, and the card renewal waits.', 'Không thu được phí: không có số dư và không có hạn mức thấu chi. Phí được theo dõi ngoại bảng để thu lại, và việc gia hạn thẻ bị treo.'), journal: null, customer: { before: available, after: available }, facts: [L('A debit card may not be pushed below zero for a fee without an overdraft agreement.', 'Không được trừ phí làm thẻ ghi nợ âm tiền nếu không có thỏa thuận thấu chi.')] } }),
+  'fee-annual-waived': ({ book, id, available }) => ({ book, outcome: { action: id, status: 'APPROVED', rc: '00', message: L('Fee waived for the premium spending tier: no fee is charged, so nothing posts to fee income and the balance is untouched.', 'Miễn phí cho hạng chi tiêu cao: không thu phí, nên không ghi nhận thu phí và số dư giữ nguyên.'), journal: null, customer: { before: available, after: available }, facts: [L('A waived fee was never earned: booking it as income and writing it off would overstate both revenue and expenses.', 'Phí được miễn chưa từng phát sinh thu nhập: ghi thu rồi xóa sẽ thổi phồng cả doanh thu lẫn chi phí.')] } }),
+  'wallet-name-mismatch': ({ book, id, available }) => ({ book, outcome: { action: id, status: 'DECLINED', rc: '57', message: L('Refused: the wallet holder and the account holder are different people, and a wallet may only be funded from its holder’s own account.', 'Từ chối: chủ ví và chủ tài khoản là hai người khác nhau, mà ví chỉ được nạp từ tài khoản chính chủ.'), journal: null, customer: { before: available, after: available } } }),
+  'bnpl-decline-cic': ({ book, id }) => {
+    const dti = assessDti(300_000, 60_000, 10_000);
+    return { book, outcome: { action: id, status: 'DECLINED', rc: '05', message: L('Refused: the credit bureau (CIC) shows a non-performing loan elsewhere, so no new credit is extended whatever the DTI.', 'Từ chối: CIC cho thấy khách đang có nợ xấu ở nơi khác, nên không cấp tín dụng mới dù DTI đạt.'), journal: null, facts: [L(`DTI ${dti.dtiPct}%, under the ${DTI_LIMIT_PCT}% limit.`, `DTI ${dti.dtiPct}%, dưới ngưỡng ${DTI_LIMIT_PCT}%.`), L(`Credit score ${creditScore(720, 120, dti.dtiPct)} with a group 3 loan on the bureau report.`, `Điểm tín dụng ${creditScore(720, 120, dti.dtiPct)} với khoản vay nhóm 3 trên báo cáo CIC.`)] } };
+  },
+  'waterfall-nsf': ({ book, id, at, available }) => {
+    const penalty = DEMO_DEBT.penaltyCents;
+    const posted = post(book, id, at, [dr('OVERDRAFT', penalty), cr('NSF_INCOME', penalty)]);
+    return { book: posted.book, outcome: { action: id, status: 'DECLINED', rc: '51', message: L('Nothing collected on the due date: the instalment turns overdue and a $25 late penalty is added to the debt.', 'Không thu được gì vào ngày đến hạn: kỳ trả nợ chuyển quá hạn và cộng thêm phạt trễ hạn $25 vào khoản nợ.'), journal: posted.journal, customer: { before: available, after: available }, facts: [L('From 10 days past due the loan moves to group 2 (special mention); from 91 days it is non-performing.', 'Quá hạn từ 10 ngày khoản vay chuyển nhóm 2 (cần chú ý); từ 91 ngày trở thành nợ xấu.')] } };
+  },
+  'risk-migrate-group5': ({ book, id, at }) => {
+    const group = debtGroup(400);
+    const provision = specificProvision(100_000, 0, group);
+    const posted = post(book, id, at, [dr('PROVISION_EXPENSE', provision), cr('ALLOWANCE', provision)]);
+    return { book: posted.book, outcome: { action: id, status: 'ALERT', message: L(`At 400 days past due the loan is group ${group} (loss), and ${PROVISION_PCT[group]}% is provided.`, `Quá hạn 400 ngày, khoản vay vào nhóm ${group} (có khả năng mất vốn), trích lập ${PROVISION_PCT[group]}%.`), journal: posted.journal, facts: [L('A fully provided loan may later be written off against the allowance, but the bank keeps chasing the debt off the books.', 'Khoản vay đã trích lập đủ có thể được xử lý bằng dự phòng, nhưng ngân hàng vẫn tiếp tục theo dõi thu hồi ngoại bảng.')] } };
+  },
+  'risk-cure': ({ book, id, at }) => {
+    const provision = specificProvision(100_000, 0, 3);
+    const posted = post(book, id, at, [dr('ALLOWANCE', provision), cr('PROVISION_EXPENSE', provision)]);
+    return { book: posted.book, outcome: { action: id, status: 'APPROVED', rc: '00', message: L('Every overdue amount is repaid: the loan goes back to group 1 and its specific provision is released to profit.', 'Toàn bộ nợ quá hạn đã được trả: khoản vay quay về nhóm 1 và dự phòng cụ thể được hoàn nhập vào lợi nhuận.'), journal: posted.journal, facts: [L(`${money(provision)} released (the 20% held for group 3).`, `Hoàn nhập ${money(provision)} (mức 20% đã trích cho nhóm 3).`)] } };
+  },
+  'teller-counterfeit': ({ book, id }) => {
+    if (book.vaultPrompt) return blocked(id, book, COUNTER_LOCKED);
+    return { book, outcome: { action: id, status: 'DECLINED', message: L('Two suspect notes: the serials are recorded, the notes are held for the counterfeit report, and nothing is credited.', 'Hai tờ nghi giả: ghi lại số sê-ri, tạm giữ để lập biên bản tiền giả, và không ghi có cho khách.'), journal: null, facts: [L('Suspect notes are never handed back: they go to the central bank for assessment.', 'Tiền nghi giả không được trả lại khách: chuyển cho Ngân hàng Nhà nước giám định.')] } };
+  },
+  'td-mature-close': ({ book, id, at }) => {
+    const principal = 1_000_000;
+    const c = closeTermDepositEarly(principal, 6, 180);
+    const posted = post(book, id, at, [dr('TERM_DEPOSIT', principal), dr('ACCRUED_INTEREST', c.accruedCents), cr('CASA', principal + c.accruedCents)]);
+    return { book: posted.book, outcome: { action: id, status: 'APPROVED', rc: '00', message: L('Closed at maturity: the customer gets the $10,000 and all the interest accrued at 6%.', 'Tất toán đúng hạn: khách nhận $10,000 và toàn bộ lãi đã dự chi ở mức 6%.'), journal: posted.journal, facts: [L(`Accrued interest paid in full: ${money(c.accruedCents)}. No penalty.`, `Trả đủ lãi đã dự chi: ${money(c.accruedCents)}. Không bị phạt.`)] } };
+  },
+  'td-break-pledged': ({ book, id }) => ({ book, outcome: { action: id, status: 'DECLINED', rc: '62', message: L('Refused: the savings book is pledged for a loan, so it cannot be closed until the loan is repaid or the lien is released.', 'Từ chối: sổ tiết kiệm đang cầm cố cho khoản vay, nên không thể tất toán đến khi trả hết nợ hoặc giải chấp.'), journal: null } }),
+  'td-break-id-mismatch': ({ book, id }) => ({ book, outcome: { action: id, status: 'DECLINED', message: L('Refused: the ID and signature do not match the depositor on file, so nothing is paid out.', 'Từ chối: giấy tờ tùy thân và chữ ký không khớp với người gửi trong hồ sơ, nên không chi trả.'), journal: null, facts: [L('Only the depositor, or someone holding a notarised power of attorney, may close a savings book.', 'Chỉ chủ sổ, hoặc người được ủy quyền có công chứng, mới được tất toán sổ tiết kiệm.')] } }),
+  'collateral-shortfall': ({ book, id, at }) => {
+    const pledged = 300_000;
+    const w = allocateWaterfall(pledged, DEFAULTED_DEBT);
+    const posted = post(book, id, at, [dr('TERM_DEPOSIT', pledged), ...waterfallCredits(w)]);
+    const left = w.remaining.penaltyCents + w.remaining.interestCents + w.remaining.principalCents;
+    return { book: posted.book, outcome: { action: id, status: 'ALERT', message: L(`The collateral is not enough: ${money(pledged)} is applied in waterfall order, and ${money(left)} of the debt is still unrecovered.`, `TSĐB không đủ: ${money(pledged)} được cấn trừ theo thứ tự, còn ${money(left)} nợ chưa thu hồi được.`), journal: posted.journal, facts: [L(`Penalty ${money(w.toPenalty)}, interest ${money(w.toInterest)}, principal ${money(w.toPrincipal)}.`, `Phạt ${money(w.toPenalty)}, lãi ${money(w.toInterest)}, gốc ${money(w.toPrincipal)}.`), L('The shortfall stays a bad debt, covered by the provision already made.', 'Phần thiếu hụt vẫn là nợ xấu, được bù đắp bằng dự phòng đã trích.')] } };
+  },
+};
+
 /** Runs one demo action on the book: the decision, the journal and what the desk does next. Pure. */
 export function runOpsAction(book: OpsBook, id: OpsActionId, at: string): { book: OpsBook; outcome: OpsOutcome } {
   const def = opsActionById(id);
-  const available = def.customerCents ?? 0;
-  switch (id) {
-    case 'bill-electric-85':
-      return plainPayment(book, def, at, 8_500, 'INTERBANK', L('Bill paid: the customer is debited and the money goes to the biller’s bank.', 'Đã thanh toán hóa đơn: khách bị ghi nợ và tiền chuyển sang ngân hàng của nhà cung cấp.'));
-    case 'wallet-cashin-100':
-      return plainPayment(book, def, at, 10_000, 'WALLET_SETTLEMENT', L('Wallet topped up: the bank now owes the wallet provider $100 until settlement.', 'Đã nạp ví: ngân hàng phải trả đơn vị ví $100 đến khi quyết toán.'));
-    case 'atm-withdraw-100': {
-      const cash = 10_000;
-      if (book.balances.CASH_ATM < cash) return blocked(id, book, L('The cassette cannot cover $100: run the CIT refill. An ATM never pays out part of a withdrawal.', 'Hộp tiền không đủ $100: hãy tiếp quỹ CIT. ATM không bao giờ chi một phần số tiền rút.'), '91');
-      const total = cash + OPS_LIMITS.atmFeeCents + OPS_LIMITS.napasFeeCents;
-      const posted = post(book, id, at, [dr('CASA', total), cr('CASH_ATM', cash), cr('FEE_INCOME', OPS_LIMITS.atmFeeCents), cr('NAPAS_FEE', OPS_LIMITS.napasFeeCents)]);
-      return { book: posted.book, outcome: { action: id, status: 'APPROVED', rc: '00', message: L('Cash paid: the bank keeps $1.10 and owes the domestic switch (NAPAS) $0.55 until tonight’s settlement.', 'Đã chi tiền: ngân hàng giữ $1.10 và phải trả NAPAS $0.55 đến khi quyết toán đêm nay.'), journal: posted.journal, customer: { before: available, after: available - total } } };
-    }
-    case 'atm-jam-200': {
-      const jam = 20_000;
-      const posted = post(book, id, at, [dr('CASA', jam), cr('ATM_SUSPENSE', jam)]);
-      const ticket: ReconTicket = { id: `RECON-${posted.journal.id.slice(4)}`, amountCents: jam, openedAt: at, status: 'OPEN' };
-      return { book: { ...posted.book, tickets: [ticket, ...posted.book.tickets] }, outcome: { action: id, status: 'HELD', message: L('Dispenser fault: $200 is parked in TK 2930 and an EOD reconciliation ticket is open.', 'Lỗi nhả tiền: $200 được treo ở TK 2930 và đã mở phiếu đối soát cuối ngày.'), journal: posted.journal, customer: { before: available, after: available - jam } } };
-    }
-    case 'cassette-low':
-      return { book: { ...book, cassetteDrill: true }, outcome: { action: id, status: 'ALERT', message: L('Sensor drill: the cassette reports under 15%, and the ATM shows a warning until the CIT refill. No money moved.', 'Diễn tập cảm biến: hộp tiền báo dưới 15%, ATM hiển thị cảnh báo đến khi tiếp quỹ CIT. Tiền không dịch chuyển.'), journal: null } };
-    case 'cassette-refill': {
-      const refill = refillCassette(book, at);
-      return {
-        book: refill.book,
-        outcome: {
-          action: id,
-          status: 'APPROVED',
-          rc: '00',
-          message: refill.journal
-            ? L('CIT refill done: the cassettes are back to capacity from the vault, and the low-cash alert has cleared.', 'Đã tiếp quỹ CIT: hộp tiền được nạp đầy lại từ kho quỹ, và cảnh báo sắp hết tiền đã được gỡ.')
-            : L('The cassettes are already full: nothing to move, and no alert is open.', 'Hộp tiền đã đầy: không cần chuyển tiền, và không có cảnh báo nào.'),
-          journal: refill.journal,
-        },
-      };
-    }
-    case 'teller-deposit-5000':
-      return tillDeposit(book, def, at, 500_000, L('Cash counted and credited to the customer.', 'Đã đếm tiền và ghi có cho khách.'));
-    case 'teller-exceed-limit':
-      return tillDeposit(book, def, at, Math.max(1, OPS_LIMITS.tillLimitCents - book.balances.CASH_TILL + 250_000), L('Cash counted and credited to the customer.', 'Đã đếm tiền và ghi có cho khách.'));
-    case 'fee-annual-45': {
-      const fee = 4_500;
-      const covered = Math.min(available, fee);
-      const shortfall = fee - covered;
-      const lines = [...(covered > 0 ? [dr('CASA', covered)] : []), ...(shortfall > 0 ? [dr('OVERDRAFT', shortfall)] : []), cr('FEE_INCOME', fee)];
-      const posted = post(book, id, at, lines);
-      return { book: posted.book, outcome: { action: id, status: 'APPROVED', message: L('Fee posted: the balance covered $20, and the other $25 became an overdraft, so the statement shows -$25.', 'Đã ghi nhận phí: số dư trả được $20, $25 còn lại thành thấu chi nên sao kê hiển thị -$25.'), journal: posted.journal, customer: { before: available, after: available - fee } } };
-    }
-    case 'fee-card-10':
-      return plainPayment(book, def, at, 1_000, 'FEE_INCOME', L('Fee posted to card fee income.', 'Đã ghi nhận phí vào thu phí thẻ.'));
-    case 'autopay-loan-250':
-      return plainPayment(book, def, at, 25_000, 'LOAN', L('Instalment collected under the customer’s mandate: the loan principal falls.', 'Đã thu kỳ trả góp theo ủy quyền của khách: nợ gốc giảm.'));
-    case 'autopay-nsf-250': {
-      const fee = OPS_LIMITS.nsfFeeCents;
-      const posted = post(book, id, at, [dr('CASA', fee), cr('NSF_INCOME', fee)]);
-      return { book: posted.book, outcome: { action: id, status: 'DECLINED', rc: '51', message: L('Insufficient funds: the $250 instalment stays unpaid, starts to age, and the $15 NSF fee is charged.', 'Không đủ số dư: kỳ trả góp $250 chưa thu được, bắt đầu quá hạn, và thu phí NSF $15.'), journal: posted.journal, customer: { before: available, after: available - fee } } };
-    }
-    case 'bnpl-approve-400': {
-      const dti = assessDti(300_000, 60_000, 10_000);
-      const posted = post(book, id, at, [dr('CASA', 10_000), dr('LOAN', 30_000), cr('INTERBANK', 40_000)]);
-      return { book: posted.book, outcome: { action: id, status: 'APPROVED', rc: '00', message: L('Approved: the shop is paid $400 now, the customer pays $100 today, and the bank is owed the other $300.', 'Đã duyệt: cửa hàng nhận $400 ngay, khách trả $100 hôm nay, ngân hàng được nợ $300 còn lại.'), journal: posted.journal, customer: { before: available, after: available - 10_000 }, facts: [L(`DTI ${dti.dtiPct}%: $700 of monthly debt on $3,000 of income.`, `DTI ${dti.dtiPct}%: $700 nợ mỗi tháng trên $3,000 thu nhập.`), L(`Credit score ${creditScore(720, 0, dti.dtiPct)}, no late payments.`, `Điểm tín dụng ${creditScore(720, 0, dti.dtiPct)}, không có trễ hạn.`)] } };
-    }
-    case 'bnpl-decline-dti': {
-      const dti = assessDti(200_000, 72_000, 24_000);
-      return { book, outcome: { action: id, status: 'DECLINED', rc: '05', message: L(`Refused: debt service would be over the ${DTI_LIMIT_PCT}% limit, so no credit is extended and nothing posts.`, `Từ chối: nghĩa vụ trả nợ vượt ngưỡng ${DTI_LIMIT_PCT}%, nên không cấp tín dụng và không ghi nhận gì.`), journal: null, facts: [L(`DTI ${dti.dtiPct}%: $960 of monthly debt on $2,000 of income.`, `DTI ${dti.dtiPct}%: $960 nợ mỗi tháng trên $2,000 thu nhập.`), L(`Credit score falls to ${creditScore(640, 0, dti.dtiPct)}.`, `Điểm tín dụng giảm còn ${creditScore(640, 0, dti.dtiPct)}.`)] } };
-    }
-    case 'card-late-fee': {
-      const posted = post(book, id, at, [dr('OVERDRAFT', 4_200), cr('NSF_INCOME', 2_500), cr('INTEREST_INCOME', 1_700)]);
-      return { book: posted.book, outcome: { action: id, status: 'APPROVED', message: L('The missed payment adds a $25 late fee and $17 of overdue interest to what the cardholder owes.', 'Kỳ trả trễ cộng thêm $25 phí phạt và $17 lãi quá hạn vào khoản chủ thẻ phải trả.'), journal: posted.journal } };
-    }
-    case 'waterfall-120':
-      return repayDebt(book, def, at, 12_000);
-    case 'waterfall-50':
-      return repayDebt(book, def, at, 5_000);
-    case 'risk-migrate-95dpd': {
-      const group = debtGroup(95);
-      const provision = specificProvision(100_000, 0, group);
-      const posted = post(book, id, at, [dr('PROVISION_EXPENSE', provision), cr('ALLOWANCE', provision)]);
-      return { book: posted.book, outcome: { action: id, status: 'ALERT', message: L(`At 95 days past due the loan moves from group 1 to non-performing group ${group}, and ${PROVISION_PCT[group]}% is provided.`, `Quá hạn 95 ngày, khoản vay chuyển từ nhóm 1 sang nợ xấu nhóm ${group}, trích lập ${PROVISION_PCT[group]}%.`), journal: posted.journal, facts: [L(`Credit score falls from 720 to ${creditScore(720, 95, 30)}.`, `Điểm tín dụng giảm từ 720 xuống ${creditScore(720, 95, 30)}.`), L('Any other loans of this customer follow it to the same group.', 'Các khoản vay khác của khách này cũng chuyển theo cùng nhóm.')] } };
-    }
-    case 'td-break-10k': {
-      const principal = 1_000_000;
-      const c = closeTermDepositEarly(principal, 6, 180);
-      const posted = post(book, id, at, [dr('TERM_DEPOSIT', principal), dr('ACCRUED_INTEREST', c.accruedCents), cr('CASA', principal + c.paidCents), cr('INTEREST_EXPENSE', c.forfeitedCents)]);
-      return { book: posted.book, outcome: { action: id, status: 'APPROVED', rc: '00', message: L(`Closed early: the customer gets the $10,000 and interest at the ${DEMAND_RATE_PCT}% demand rate.`, `Tất toán sớm: khách nhận $10,000 và lãi theo mức không kỳ hạn ${DEMAND_RATE_PCT}%.`), journal: posted.journal, facts: [L(`Accrued at 6% for 180 days: ${money(c.accruedCents)}. Paid at ${DEMAND_RATE_PCT}%: ${money(c.paidCents)}.`, `Đã dự chi ở mức 6% trong 180 ngày: ${money(c.accruedCents)}. Trả ở mức ${DEMAND_RATE_PCT}%: ${money(c.paidCents)}.`), L(`The early withdrawal penalty is the ${money(c.forfeitedCents)} of interest given up.`, `Phạt rút trước hạn là ${money(c.forfeitedCents)} tiền lãi bị mất.`)] } };
-    }
-    case 'collateral-lock': {
-      if (book.collateralLockedCents > 0) return blocked(id, book, L('This collateral is already locked: liquidate it first.', 'TSĐB này đã bị phong tỏa: hãy xử lý trước.'));
-      const posted = post(book, id, at, [dr('TERM_DEPOSIT', COLLATERAL_CENTS), cr('TD_PLEDGED', COLLATERAL_CENTS)]);
-      return { book: { ...posted.book, collateralLockedCents: COLLATERAL_CENTS }, outcome: { action: id, status: 'HELD', message: L('The overdraft has defaulted, so $5,000 of pledged savings is frozen. It stays the customer’s money until it is liquidated.', 'Thấu chi đã vỡ nợ nên $5,000 tiền gửi cầm cố bị phong tỏa. Tiền vẫn là của khách đến khi được xử lý.'), journal: posted.journal } };
-    }
-    case 'collateral-release': {
-      // A pledge frozen on default is lifted once the debt is cured; with none frozen, the demo shows the whole life of a performing
-      // loan's pledge: taken at drawdown, released on the final repayment.
-      const locked = book.collateralLockedCents;
-      const lines = locked > 0 ? [dr('TD_PLEDGED', locked), cr('TERM_DEPOSIT', locked)] : [dr('TERM_DEPOSIT', COLLATERAL_CENTS), cr('TD_PLEDGED', COLLATERAL_CENTS), dr('TD_PLEDGED', COLLATERAL_CENTS), cr('TERM_DEPOSIT', COLLATERAL_CENTS)];
-      const posted = post(book, id, at, lines);
-      return {
-        book: { ...posted.book, collateralLockedCents: 0 },
-        outcome: {
-          action: id,
-          status: 'APPROVED',
-          rc: '00',
-          message: L('The loan is repaid in full, so the $5,000 pledge is released: the savings book is back in the customer’s free use.', 'Khoản vay đã trả hết nên $5,000 TSĐB được giải chấp: sổ tiết kiệm trở lại quyền sử dụng tự do của khách.'),
-          journal: posted.journal,
-        },
-      };
-    }
-    case 'collateral-liquidate': {
-      if (book.collateralLockedCents <= 0) return blocked(id, book, L('Nothing is locked yet: lock the collateral first.', 'Chưa có gì bị phong tỏa: hãy phong tỏa TSĐB trước.'));
-      const w = allocateWaterfall(book.collateralLockedCents, DEFAULTED_DEBT);
-      const release = Math.min(specificProvision(DEFAULTED_DEBT.principalCents, 0, 3), Math.max(0, opsNatural('ALLOWANCE', book.balances.ALLOWANCE) * -1));
-      const posted = post(book, id, at, [dr('TD_PLEDGED', book.collateralLockedCents), ...waterfallCredits(w), ...(w.surplus > 0 ? [cr('CASA', w.surplus)] : []), ...(release > 0 ? [dr('ALLOWANCE', release), cr('PROVISION_EXPENSE', release)] : [])]);
-      return { book: { ...posted.book, collateralLockedCents: 0 }, outcome: { action: id, status: 'APPROVED', rc: '00', message: L('The collateral clears the bad debt in waterfall order, and what is left goes back to the customer.', 'TSĐB tất toán nợ xấu theo thứ tự cấn trừ, phần dư trả lại khách.'), journal: posted.journal, facts: [L(`Penalty ${money(w.toPenalty)}, interest ${money(w.toInterest)}, principal ${money(w.toPrincipal)}, returned ${money(w.surplus)}.`, `Phạt ${money(w.toPenalty)}, lãi ${money(w.toInterest)}, gốc ${money(w.toPrincipal)}, trả lại ${money(w.surplus)}.`), ...(release > 0 ? [L(`The ${money(release)} provision is released back to profit.`, `Hoàn nhập dự phòng ${money(release)} vào lợi nhuận.`)] : [])] } };
-    }
-    case 'bill-nsf-51': {
-      const fee = OPS_LIMITS.nsfFeeCents;
-      const posted = post(book, id, at, [dr('CASA', fee), cr('NSF_INCOME', fee)]);
-      return { book: posted.book, outcome: { action: id, status: 'DECLINED', rc: '51', message: L('Insufficient funds: the $85 bill is returned unpaid to the biller, and the $15 NSF fee is charged.', 'Không đủ số dư: hóa đơn $85 bị trả lại cho nhà cung cấp, và thu phí NSF $15.'), journal: posted.journal, customer: { before: available, after: available - fee }, facts: [L('The biller is told the payment failed and will retry or suspend the service.', 'Nhà cung cấp được báo thanh toán thất bại và sẽ thu lại hoặc tạm ngừng dịch vụ.')] } };
-    }
-    case 'bill-timeout-68':
-      return { book, outcome: { action: id, status: 'DECLINED', rc: '68', message: L('No answer from the biller in time (RC 68): the hold is reversed automatically, nothing posts, and the customer may pay again.', 'Nhà cung cấp không phản hồi kịp (RC 68): khoản tạm giữ được tự động đảo, không ghi nhận gì, và khách có thể thanh toán lại.'), journal: null, customer: { before: available, after: available }, facts: [L('An unanswered request is never booked: the bank checks the status before anyone retries, so the bill is never paid twice.', 'Yêu cầu không có phản hồi thì không hạch toán: ngân hàng tra soát trạng thái trước khi thử lại, nên hóa đơn không bao giờ bị trả hai lần.')] } };
-    case 'fee-collect-fail':
-      return { book, outcome: { action: id, status: 'DECLINED', rc: '51', message: L('The fee cannot be collected: no balance and no overdraft line. It is tracked off the books and retried, and the card renewal waits.', 'Không thu được phí: không có số dư và không có hạn mức thấu chi. Phí được theo dõi ngoại bảng để thu lại, và việc gia hạn thẻ bị treo.'), journal: null, customer: { before: available, after: available }, facts: [L('A debit card may not be pushed below zero for a fee without an overdraft agreement.', 'Không được trừ phí làm thẻ ghi nợ âm tiền nếu không có thỏa thuận thấu chi.')] } };
-    case 'fee-annual-waived':
-      return { book, outcome: { action: id, status: 'APPROVED', rc: '00', message: L('Fee waived for the premium spending tier: no fee is charged, so nothing posts to fee income and the balance is untouched.', 'Miễn phí cho hạng chi tiêu cao: không thu phí, nên không ghi nhận thu phí và số dư giữ nguyên.'), journal: null, customer: { before: available, after: available }, facts: [L('A waived fee was never earned: booking it as income and writing it off would overstate both revenue and expenses.', 'Phí được miễn chưa từng phát sinh thu nhập: ghi thu rồi xóa sẽ thổi phồng cả doanh thu lẫn chi phí.')] } };
-    case 'wallet-name-mismatch':
-      return { book, outcome: { action: id, status: 'DECLINED', rc: '57', message: L('Refused: the wallet holder and the account holder are different people, and a wallet may only be funded from its holder’s own account.', 'Từ chối: chủ ví và chủ tài khoản là hai người khác nhau, mà ví chỉ được nạp từ tài khoản chính chủ.'), journal: null, customer: { before: available, after: available } } };
-    case 'bnpl-decline-cic': {
-      const dti = assessDti(300_000, 60_000, 10_000);
-      return { book, outcome: { action: id, status: 'DECLINED', rc: '05', message: L('Refused: the credit bureau (CIC) shows a non-performing loan elsewhere, so no new credit is extended whatever the DTI.', 'Từ chối: CIC cho thấy khách đang có nợ xấu ở nơi khác, nên không cấp tín dụng mới dù DTI đạt.'), journal: null, facts: [L(`DTI ${dti.dtiPct}%, under the ${DTI_LIMIT_PCT}% limit.`, `DTI ${dti.dtiPct}%, dưới ngưỡng ${DTI_LIMIT_PCT}%.`), L(`Credit score ${creditScore(720, 120, dti.dtiPct)} with a group 3 loan on the bureau report.`, `Điểm tín dụng ${creditScore(720, 120, dti.dtiPct)} với khoản vay nhóm 3 trên báo cáo CIC.`)] } };
-    }
-    case 'waterfall-nsf': {
-      const penalty = DEMO_DEBT.penaltyCents;
-      const posted = post(book, id, at, [dr('OVERDRAFT', penalty), cr('NSF_INCOME', penalty)]);
-      return { book: posted.book, outcome: { action: id, status: 'DECLINED', rc: '51', message: L('Nothing collected on the due date: the instalment turns overdue and a $25 late penalty is added to the debt.', 'Không thu được gì vào ngày đến hạn: kỳ trả nợ chuyển quá hạn và cộng thêm phạt trễ hạn $25 vào khoản nợ.'), journal: posted.journal, customer: { before: available, after: available }, facts: [L('From 10 days past due the loan moves to group 2 (special mention); from 91 days it is non-performing.', 'Quá hạn từ 10 ngày khoản vay chuyển nhóm 2 (cần chú ý); từ 91 ngày trở thành nợ xấu.')] } };
-    }
-    case 'risk-migrate-group5': {
-      const group = debtGroup(400);
-      const provision = specificProvision(100_000, 0, group);
-      const posted = post(book, id, at, [dr('PROVISION_EXPENSE', provision), cr('ALLOWANCE', provision)]);
-      return { book: posted.book, outcome: { action: id, status: 'ALERT', message: L(`At 400 days past due the loan is group ${group} (loss), and ${PROVISION_PCT[group]}% is provided.`, `Quá hạn 400 ngày, khoản vay vào nhóm ${group} (có khả năng mất vốn), trích lập ${PROVISION_PCT[group]}%.`), journal: posted.journal, facts: [L('A fully provided loan may later be written off against the allowance, but the bank keeps chasing the debt off the books.', 'Khoản vay đã trích lập đủ có thể được xử lý bằng dự phòng, nhưng ngân hàng vẫn tiếp tục theo dõi thu hồi ngoại bảng.')] } };
-    }
-    case 'risk-cure': {
-      const provision = specificProvision(100_000, 0, 3);
-      const posted = post(book, id, at, [dr('ALLOWANCE', provision), cr('PROVISION_EXPENSE', provision)]);
-      return { book: posted.book, outcome: { action: id, status: 'APPROVED', rc: '00', message: L('Every overdue amount is repaid: the loan goes back to group 1 and its specific provision is released to profit.', 'Toàn bộ nợ quá hạn đã được trả: khoản vay quay về nhóm 1 và dự phòng cụ thể được hoàn nhập vào lợi nhuận.'), journal: posted.journal, facts: [L(`${money(provision)} released (the 20% held for group 3).`, `Hoàn nhập ${money(provision)} (mức 20% đã trích cho nhóm 3).`)] } };
-    }
-    case 'teller-counterfeit':
-      if (book.vaultPrompt) return blocked(id, book, COUNTER_LOCKED);
-      return { book, outcome: { action: id, status: 'DECLINED', message: L('Two suspect notes: the serials are recorded, the notes are held for the counterfeit report, and nothing is credited.', 'Hai tờ nghi giả: ghi lại số sê-ri, tạm giữ để lập biên bản tiền giả, và không ghi có cho khách.'), journal: null, facts: [L('Suspect notes are never handed back: they go to the central bank for assessment.', 'Tiền nghi giả không được trả lại khách: chuyển cho Ngân hàng Nhà nước giám định.')] } };
-    case 'td-mature-close': {
-      const principal = 1_000_000;
-      const c = closeTermDepositEarly(principal, 6, 180);
-      const posted = post(book, id, at, [dr('TERM_DEPOSIT', principal), dr('ACCRUED_INTEREST', c.accruedCents), cr('CASA', principal + c.accruedCents)]);
-      return { book: posted.book, outcome: { action: id, status: 'APPROVED', rc: '00', message: L('Closed at maturity: the customer gets the $10,000 and all the interest accrued at 6%.', 'Tất toán đúng hạn: khách nhận $10,000 và toàn bộ lãi đã dự chi ở mức 6%.'), journal: posted.journal, facts: [L(`Accrued interest paid in full: ${money(c.accruedCents)}. No penalty.`, `Trả đủ lãi đã dự chi: ${money(c.accruedCents)}. Không bị phạt.`)] } };
-    }
-    case 'td-break-pledged':
-      return { book, outcome: { action: id, status: 'DECLINED', rc: '62', message: L('Refused: the savings book is pledged for a loan, so it cannot be closed until the loan is repaid or the lien is released.', 'Từ chối: sổ tiết kiệm đang cầm cố cho khoản vay, nên không thể tất toán đến khi trả hết nợ hoặc giải chấp.'), journal: null } };
-    case 'td-break-id-mismatch':
-      return { book, outcome: { action: id, status: 'DECLINED', message: L('Refused: the ID and signature do not match the depositor on file, so nothing is paid out.', 'Từ chối: giấy tờ tùy thân và chữ ký không khớp với người gửi trong hồ sơ, nên không chi trả.'), journal: null, facts: [L('Only the depositor, or someone holding a notarised power of attorney, may close a savings book.', 'Chỉ chủ sổ, hoặc người được ủy quyền có công chứng, mới được tất toán sổ tiết kiệm.')] } };
-    case 'collateral-shortfall': {
-      const pledged = 300_000;
-      const w = allocateWaterfall(pledged, DEFAULTED_DEBT);
-      const posted = post(book, id, at, [dr('TERM_DEPOSIT', pledged), ...waterfallCredits(w)]);
-      const left = w.remaining.penaltyCents + w.remaining.interestCents + w.remaining.principalCents;
-      return { book: posted.book, outcome: { action: id, status: 'ALERT', message: L(`The collateral is not enough: ${money(pledged)} is applied in waterfall order, and ${money(left)} of the debt is still unrecovered.`, `TSĐB không đủ: ${money(pledged)} được cấn trừ theo thứ tự, còn ${money(left)} nợ chưa thu hồi được.`), journal: posted.journal, facts: [L(`Penalty ${money(w.toPenalty)}, interest ${money(w.toInterest)}, principal ${money(w.toPrincipal)}.`, `Phạt ${money(w.toPenalty)}, lãi ${money(w.toInterest)}, gốc ${money(w.toPrincipal)}.`), L('The shortfall stays a bad debt, covered by the provision already made.', 'Phần thiếu hụt vẫn là nợ xấu, được bù đắp bằng dự phòng đã trích.')] } };
-    }
-  }
+  return OPS_POSTING_STRATEGIES[id]({ book, def, id, at, available: def.customerCents ?? 0 });
 }
 
 /** The mandatory till-to-vault transfer: everything above the float goes to the vault, and the counter unlocks. */

@@ -1,6 +1,5 @@
-import { useMemo } from 'react';
 import { CHART_OF_ACCOUNTS, ACCOUNT_IDS } from '../engine/ledger';
-import { activeLocale, useLocale, type Locale } from '../i18n/locale';
+import { activeLocale, type Locale } from '../i18n/locale';
 import { ACADEMY_LEVELS, localLevel, type LevelId } from '../sim/academyCatalog';
 import { extrasFor } from '../sim/lessonExtras';
 import { accountName } from '../sim/plainLanguage';
@@ -8,7 +7,6 @@ import { termsFor } from '../components/bank/useTerms';
 import { DEPARTMENTS, EXTERNAL_IDS, STATIONS, STATION_IDS, type PlaceId } from '../sim/topology';
 import type { TermMode } from '../sim/terms';
 import type { AccountId } from '../types/processLearning';
-import { useBankStore } from '../store/bankStore';
 import { ACRONYM_DETAILS } from '../data/acronyms';
 import { RETAIL_FLASHCARDS } from '../data/retailFlashcards';
 import { REG_DOCUMENTS } from '../data/regulatoryRegistry';
@@ -371,15 +369,4 @@ export function searchIndex(index: readonly SearchEntry[], query: string, limit:
   }
   const order = SEARCH_CATEGORIES.filter((c) => groups[c].length > 0).sort((a, b) => best[b] - best[a]);
   return { groups, order };
-}
-
-/** Categorised live results for `query`, rebuilt when the language or vocabulary changes. */
-export function useSearchIndex(query: string): SearchResult & { flat: SearchEntry[] } {
-  const locale = useLocale();
-  const mode = useBankStore((s) => s.termMode);
-  const index = useMemo(() => buildSearchIndex(mode, locale), [mode, locale]);
-  return useMemo(() => {
-    const r = searchIndex(index, query);
-    return { ...r, flat: r.order.flatMap((c) => r.groups[c]) };
-  }, [index, query]);
 }

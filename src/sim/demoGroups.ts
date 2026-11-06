@@ -74,8 +74,6 @@ export const DEMO_GROUPS: readonly DemoGroup[] = ORDER.map((id): DemoGroup => {
 }).sort((a, b) => a.flow - b.flow);
 
 export const demoGroup = (id: DemoGroupId): DemoGroup => DEMO_GROUPS.find((g) => g.id === id)!;
-/** A retail sub-process, with its own lesson and journals in the Knowledge Base. */
-export const isOpsGroup = (id: DemoGroupId): id is OpsSubProcessId => !isCore(id);
 export const isDemoGroupId = (id: string): id is DemoGroupId => DEMO_GROUPS.some((g) => g.id === id);
 export const demoGroupsIn = (flow: FlowId): DemoGroup[] => DEMO_GROUPS.filter((g) => g.flow === flow);
 /** Whether the menu lists a flow's groups at all: a flow with one group is that group, so a nested row would only repeat it. */

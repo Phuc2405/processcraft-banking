@@ -129,5 +129,3 @@ export const ACRONYM_DETAILS: Readonly<Record<string, AcronymDetail>> = {
 
 /** The acronyms that must always have a definition card, a hover card and a flashcard, as named by the audit brief. */
 export const AUDITED_ACRONYMS = ['TSDB', 'NSF', 'DTI', 'BNPL', '3DS', 'SWIFT', 'POS', 'ATM', 'CIT', 'AML', 'KYC', 'EKYC', 'OTP', 'GL', 'SOP', 'ACH'] as const;
-
-export const acronymDetail = (key: string): AcronymDetail | undefined => ACRONYM_DETAILS[key];
