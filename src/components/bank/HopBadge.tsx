@@ -85,13 +85,13 @@ export const hopTone = (session: HopSession | null, accent: string | undefined):
 
 /** The moving icon between two stops on the 2D map, read from the player every tick (only this small node redraws). */
 function HopIcon2D({ from, to, icon, tone }: { from: HopStop; to: HopStop; icon: string; tone: string }) {
-  const path = useMemo(() => hopPath2D(from, to), [from, to]);
+  const { points: path, wired } = useMemo(() => hopPath2D(from, to), [from, to]);
   const len = useMemo(() => pathLength(path), [path]);
   const u = useHopPlayer((s) => (s.play ? travelU(s.play) : 1));
   const [x, y] = pointAlongPath(path, u * len);
   return (
     <svg className="pointer-events-none absolute left-0 top-0 z-[31] overflow-visible" width="1" height="1" aria-hidden="true">
-      <polyline points={path.map((p) => p.join(',')).join(' ')} fill="none" stroke={tone} strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round" className="bk-tour-path bk-flow" style={{ filter: `drop-shadow(0 0 5px ${tone})` }} data-testid="flow-hop-wire-2d" />
+      {wired && <polyline points={path.map((p) => p.join(',')).join(' ')} fill="none" stroke={tone} strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round" className="bk-tour-path bk-flow" style={{ filter: `drop-shadow(0 0 5px ${tone})` }} data-testid="flow-hop-wire-2d" />}
       <g transform={`translate(${x} ${y})`} data-testid="flow-icon-2d">
         <circle r={12} fill="#0f172a" stroke={tone} strokeWidth={1.6} style={{ filter: `drop-shadow(0 0 5px ${tone})` }} />
         <text y={4.5} textAnchor="middle" fontSize={13}>

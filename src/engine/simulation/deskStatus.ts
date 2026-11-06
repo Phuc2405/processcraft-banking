@@ -39,6 +39,34 @@ export function deskStatusOf(sv: StationView, people?: DeskPeople): DeskStatus {
   return { waiting, working, status, showStatus: statusAfterWorking(status, working) };
 }
 
+/**
+ * The bank's view as the desks show it while a demo runs: only the demo's own case (`own`, its payment id; null for a CIT run or a
+ * replay, which the hop player draws) is at the desks. Everyone else in a line, and any work that is not the demo's, leaves the
+ * counts, the lines and the heat, so "X waiting · Y working" counts exactly the demo's customers. Pure.
+ */
+export function isolateView(view: BankView, own: string | null): BankView {
+  const stations = { ...view.stations };
+  for (const id of Object.keys(stations) as StationId[]) {
+    const sv = stations[id];
+    const queue = own === null ? [] : sv.queue.filter((q) => q.id === own);
+    // The desk worked the demo's case this beat if its payment left the desk.
+    const busy = own !== null && view.moves.some((m) => m.packetId === own && m.from === id);
+    const active = queue.length > 0 || busy;
+    stations[id] = {
+      ...sv,
+      queue,
+      queueLength: queue.length,
+      working: busy ? sv.working : null,
+      served: busy ? sv.served : 0,
+      arrivals: 0,
+      workers: busy ? sv.workers : sv.workers.map((w) => (w.working ? { ...w, working: false } : w)),
+      status: active ? (sv.status === 'IDLE' ? 'BUSY' : sv.status) : 'IDLE',
+      history: [],
+    };
+  }
+  return { ...view, stations };
+}
+
 /** The words a status line is written in (the views pass them in their language). */
 export interface DeskStatusWords {
   waiting: string;

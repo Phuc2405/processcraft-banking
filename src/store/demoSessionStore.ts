@@ -13,23 +13,40 @@ import { createStore } from 'zustand/vanilla';
  */
 export type DemoRun = ({ kind: 'payment'; id: string } | { kind: 'cit'; runId: string } | { kind: 'sandbox'; id: string }) & { name?: () => string };
 
+/** The bank's clock when a demo ended: its clean stage is held until the clock moves again. */
+export interface StageHold {
+  day: number;
+  minute: number;
+}
+
 interface DemoSessionState {
   active: DemoRun | null;
+  /** A demo just ended (done or cancelled): the stage stays clean (no one else's customers) until the bank plays on. */
+  held: StageHold | null;
   /** The "cancel this demo?" dialog is open. */
   confirming: boolean;
   start(run: DemoRun): void;
-  /** The run is over (or was cancelled): navigation unlocks. */
-  finish(): void;
+  /** The run is over (or was cancelled): navigation unlocks, and its clean stage is held at `at` (the bank's clock) if given. */
+  finish(at?: StageHold): void;
+  /** A demo is about to start: its stage is clean from now (before its session opens), held at `at`. */
+  hold(at: StageHold): void;
+  /** The bank plays on: the held stage gives way to the live bank. */
+  release(): void;
   askCancel(): void;
   dismissCancel(): void;
 }
 
 export const demoSessionStore = createStore<DemoSessionState>((set, get) => ({
   active: null,
+  held: null,
   confirming: false,
-  start: (run) => set({ active: run, confirming: false }),
-  finish: () => {
-    if (get().active || get().confirming) set({ active: null, confirming: false });
+  start: (run) => set({ active: run, confirming: false, held: null }),
+  finish: (at) => {
+    if (get().active || get().confirming) set({ active: null, confirming: false, held: get().active && at ? at : get().held });
+  },
+  hold: (at) => set({ held: at }),
+  release: () => {
+    if (get().held) set({ held: null });
   },
   askCancel: () => {
     if (get().active) set({ confirming: true });

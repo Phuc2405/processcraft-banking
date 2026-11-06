@@ -54,11 +54,13 @@ export const DEMO_ICON: Readonly<Record<CitDemo, string>> = { ATM: '🏧', DOORS
 export type CitLockStage = NonNullable<CitSnapshot['lock']>['stage'] | 'LEAVING';
 
 /** The one dispatch lock as every CIT control reads it (Observer of the bank, CIT and 3D-van stores). */
-export function useCitLock(): { block: CitDemoBlock; stage: CitLockStage | null } {
+export function useCitLock(): { block: CitDemoBlock; stage: CitLockStage | null; van: boolean } {
   const cit = useCit();
-  const van = useCitStore((s) => s.van);
-  const block = citDemoBlock(cit, van);
-  return { block, stage: block === 'busy' ? (cit.lock?.stage ?? 'LEAVING') : null };
+  const leaving = useCitStore((s) => s.van);
+  const block = citDemoBlock(cit, leaving);
+  // A till rebalance is walked across the floor: no van is ever in transit for it.
+  const van = cit.lock ? CIT_STRATEGIES[cit.lock.run.order.scenario].van : true;
+  return { block, stage: block === 'busy' ? (cit.lock?.stage ?? 'LEAVING') : null, van };
 }
 
 /** 🟢 Nộp tiền về NHNN or 🔴 Rút tiền từ NHNN, and why: on an SBV run's card, its sheet and its dock button. */
@@ -118,9 +120,15 @@ export function SbvCaseToggle() {
   );
 }
 
-/** "🚚 CIT van in transit… · <where it is>": shown wherever a CIT dispatch is locked. */
-export function CitBusyBadge({ stage, paused = false }: { stage: CitLockStage | null; paused?: boolean }) {
+/** "🚚 CIT van in transit… · <where it is>": shown wherever a CIT dispatch is locked; a till rebalance (no van) reads "🗄️ Till rebalance in progress…" alone. */
+export function CitBusyBadge({ stage, paused = false, van = true }: { stage: CitLockStage | null; paused?: boolean; van?: boolean }) {
   const m = useMessages(citMessages);
+  if (!van)
+    return (
+      <span role="status" title={m('tillBusy')} data-testid="cit-demo-busy" data-van="false" className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-cyan-400/15 px-2 py-0.5 text-[11px] font-bold text-cyan-100 ring-1 ring-cyan-300/50 backdrop-blur-sm">
+        🗄️ {m('tillBusy')}
+      </span>
+    );
   return (
     <span role="status" title={paused ? m('demoSolo') : m('demoBlock_busy')} data-testid="cit-demo-busy" data-stage={stage ?? undefined} className="inline-flex animate-pulse items-center gap-1 whitespace-nowrap rounded-full bg-amber-400/20 px-2 py-0.5 text-[11px] font-bold text-amber-200 ring-1 ring-amber-300/50 backdrop-blur-sm">
       🚚 {m('demoBusy')}
@@ -135,7 +143,7 @@ export function CitBusyBadge({ stage, paused = false }: { stage: CitLockStage | 
  */
 export function CitRunButton({ kind }: { kind: CitDemo }) {
   const m = useMessages(citMessages);
-  const { block, stage } = useCitLock();
+  const { block, stage, van } = useCitLock();
   const paused = useBankStore((s) => !s.playing);
   return (
     <div className="space-y-2 rounded-xl border border-cyan-300/30 bg-cyan-400/[0.07] p-2.5 backdrop-blur-sm" data-testid="cit-run-scenario" data-kind={kind} data-block={block ?? 'none'}>
@@ -159,7 +167,7 @@ export function CitRunButton({ kind }: { kind: CitDemo }) {
       </div>
       {block === 'busy' && (
         <div className="flex justify-center">
-          <CitBusyBadge stage={stage} paused={paused} />
+          <CitBusyBadge stage={stage} paused={paused} van={van} />
         </div>
       )}
       {kind === 'SBV' && <SbvNextBadge />}
@@ -181,7 +189,7 @@ function SbvNextBadge() {
 /** The bottom dock's button while a CIT child sheet is picked: that child's own run, under the one dispatch lock. */
 export function CitDockButton({ kind }: { kind: CitDemo }) {
   const m = useMessages(citMessages);
-  const { block, stage } = useCitLock();
+  const { block, stage, van } = useCitLock();
   const sbv = useSbvNext();
   const hint = kind === 'SBV' ? `${m(`demoHint_${kind}`)} · ${m(`sbv_${sbv.mode}`)} (${m(`sbvWhy_${sbv.reason}`)})` : m(`demoHint_${kind}`);
   return (
@@ -191,7 +199,7 @@ export function CitDockButton({ kind }: { kind: CitDemo }) {
           <span aria-hidden="true">{DEMO_ICON[kind]}</span> {m(`dock_${kind}`)}
         </button>
       </RunOrCancel>
-      {block === 'busy' && <CitBusyBadge stage={stage} />}
+      {block === 'busy' && <CitBusyBadge stage={stage} van={van} />}
     </>
   );
 }
@@ -202,7 +210,7 @@ export function CitDockButton({ kind }: { kind: CitDemo }) {
  */
 export function CitDemoPicker({ direction = 'up' }: { direction?: 'up' | 'down' }) {
   const m = useMessages(citMessages);
-  const { block, stage } = useCitLock();
+  const { block, stage, van } = useCitLock();
   const [picked, setPicked] = useState<CitDemo>('ATM');
   const items = CIT_DEMOS.map((kind) => ({ id: kind, icon: DEMO_ICON[kind], label: m(`demoOption_${kind}`), hint: m(`demoHint_${kind}`), dot: 'bg-cyan-400' }));
   return (
@@ -214,7 +222,7 @@ export function CitDemoPicker({ direction = 'up' }: { direction?: 'up' | 'down' 
           </button>
         </RunOrCancel>
       </ScenarioPicker>
-      {block === 'busy' && <CitBusyBadge stage={stage} />}
+      {block === 'busy' && <CitBusyBadge stage={stage} van={van} />}
     </div>
   );
 }

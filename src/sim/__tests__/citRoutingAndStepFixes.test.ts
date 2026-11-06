@@ -259,8 +259,8 @@ describe('the hop player', () => {
     const bay = { place: null, cit: 'BAY' as const };
     expect(stopBox2D(vault).at).toEqual([PLACE_BOX.MAIN_CASH_VAULT.cx, PLACE_BOX.MAIN_CASH_VAULT.cy]);
     expect(stopBox2D(bay).top).toBe(CIT_BAY.y);
-    expect(hopPath2D(vault, bay)).toEqual(CASH_LINES.BAY);
-    expect(hopPath2D(bay, vault)).toEqual([...CASH_LINES.BAY].reverse());
+    expect(hopPath2D(vault, bay).points).toEqual(CASH_LINES.BAY);
+    expect(hopPath2D(bay, vault).points).toEqual([...CASH_LINES.BAY].reverse());
     const sbv = stopBox2D({ place: null, cit: 'SBV' }).at;
     expect(sbv[1]).toBeGreaterThan(CIT_BAY.y);
     expect(src('components/bank/office/TransactionFlow3D.tsx')).toContain('hopPlayerStore.getState().play');

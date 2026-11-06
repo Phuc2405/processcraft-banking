@@ -8,7 +8,7 @@ import { citStore } from '../../store/citStore';
 import { notificationStore } from '../../store/notificationStore';
 import { retailOpsStore } from '../../store/retailOpsStore';
 import { opsStamp } from '../bank/retailOpsActions';
-import { demoLocked } from '../bank/DemoSession';
+import { demoLocked, preScenarioReset } from '../bank/DemoSession';
 import { demoSessionStore } from '../../store/demoSessionStore';
 
 /** The CIT demo dispatch: the one pipeline behind the dock's CIT menu, the inspector's buttons, and the retail ATM refill. */
@@ -51,7 +51,7 @@ export function dispatchCitDemo(kind: CitDemo, focus = true): boolean {
   const { day, minute } = bank.view;
   if (citDemoBlock(citNow()) || demoLocked()) return false;
   // Every demo pauses the bank first: the run plays on its own, and the clock stays paused after it until the learner presses Play.
-  if (bank.playing) bank.pause();
+  preScenarioReset();
   // A CIT demo lights its own route (Flow 09, this child) in the guided scope; the retail cassette's refill keeps its flow.
   if (focus && bank.scope === 'beginner' && !bank.spotlight) bank.selectSubProcess(kind, CIT_FLOW);
   const refill = kind === 'ATM' ? retailShortfall() : 0;

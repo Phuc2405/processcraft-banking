@@ -67,7 +67,7 @@ import { TourStage, useTourCamera } from './TourStage';
 import { useWorld, WorldProvider } from './WorldProvider';
 
 import { CustomerFigure } from './Avatars';
-import { useDemoLocked } from '../DemoSession';
+import { useStageIsolated } from '../DemoSession';
 
 // Camera
 
@@ -855,7 +855,7 @@ const TrafficRenderer = memo(function TrafficRenderer() {
 /** The people outside the desks' lines: the park, the passers-by, the guard at the main entrance, customers walking in and (at closing time) walking out. */
 const CrowdRenderer = memo(function CrowdRenderer() {
   // A running demo shows its own case alone: no passers-by, park life or customers walking in (DemoSession.isolateMoves).
-  const isolated = useDemoLocked();
+  const isolated = useStageIsolated();
   return (
     <group name="crowd-renderer" userData={{ isolated }}>
       {!isolated && <Evacuation />}
@@ -870,7 +870,7 @@ const CrowdRenderer = memo(function CrowdRenderer() {
 
 /** The desks and the machines, with their staff, lines and badges; the queue ropes; and the payments and signals flowing between them. */
 const DeskRenderer = memo(function DeskRenderer() {
-  const isolated = useDemoLocked();
+  const isolated = useStageIsolated();
   return (
     <group name="desk-renderer">
       <GateStanchions />

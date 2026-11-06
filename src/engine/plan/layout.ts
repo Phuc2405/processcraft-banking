@@ -2,8 +2,12 @@
 
 import { VI_DICTIONARY } from '../../i18n/viDictionary';
 import { edgeId, WIRES, type CashEndpoint, type DepartmentId, type PlaceId } from '../../sim/topology';
-import type { CashWire } from '../../sim/cashWires';
+import { CASH_WIRES, type CashWire } from '../../sim/cashWires';
 import type { BoxSide, Pt } from '../../types/geometry';
+import { GATEWAY_TONE, separateLanes, wireTone, type Box, type Stroke } from './wireLanes';
+import { flowScope } from '../../sim/guidedFlows';
+import { DEMO_GROUPS, groupScope } from '../../sim/demoGroups';
+import { FLOW_IDS } from '../../types/viewport';
 
 /** The branch itself is the BUILDING (the old stage). */
 export const BUILDING = { width: 1080, height: 1180 } as const;
@@ -413,19 +417,20 @@ const ROUTES: Record<string, RouteSpec> = {
   'SEC_DCVV>LEDGER_CREDIT': R(['r', 10], ['l', -32], { bendX: 628 }),
   'SEC_DCVV>OUT_DECLINED': R(['t', 60], ['t', 15], { via: [[560, 30], [1015, 30]], labelAt: [650, 30] }),
   // Card present
-  'GATE_POS>LEDGER_DEBIT': R(['r'], ['l', 6], { labelAt: [250, 242] }),
-  'GATE_POS>LEDGER_CREDIT': R(['r', 8], ['l', -12], { bendX: 640 }),
+  // The ledger's left-edge ports sit 10px or more apart (wireLanes.LANE_GAP): POS 250, 3DS 260, Pay-in-4 272, so a lit route never lies on its neighbour.
+  'GATE_POS>LEDGER_DEBIT': R(['r'], ['l', 10], { labelAt: [250, 242] }),
+  'GATE_POS>LEDGER_CREDIT': R(['r', 12], ['l', -12], { bendX: 640 }),
   // Instant account-to-account transfers: out of the A2A gate, up the channel between the columns, along the open corridor above the card-present wire, and straight into the top of the debit CASA ledger.
   'GATE_A2A>LEDGER_DEBIT': R(['r', -10], ['t', -8], { via: [[196, 372], [196, 190], [772, 190]], labelAt: [470, 190] }),
   // Its label sits under the vault cards, clear of the Balance & credit frame's title.
-  'GATE_A2A>OUT_DECLINED': R(['r', 10], ['l', 22], { via: [[204, 392], [204, 172]], labelAt: [330, 172] }),
+  'GATE_A2A>OUT_DECLINED': R(['r', 10], ['l', 25], { via: [[204, 392], [204, 175]], labelAt: [330, 175] }),
   // Online
   'GATE_ECOM>SEC_3DS': R(['r', -14], ['l'], { bendX: 200 }),
   'GATE_ECOM>BNPL': R(['r', 14], ['l'], { bendX: 204 }),
   // The code goes out on the upper channel and comes back on the lower one; the return bends nearer the phone, so the two run side by side and never cross.
   'SEC_3DS>CUSTOMER_OTP': R(['r', -30], ['l', -22], { bendX: 396, quiet: true }),
   'CUSTOMER_OTP>SEC_3DS': R(['l', 18], ['r', -14], { bendX: 410, quiet: true }),
-  'SEC_3DS>LEDGER_DEBIT': R(['r', 4], ['l', 14], { bendX: 652 }),
+  'SEC_3DS>LEDGER_DEBIT': R(['r', 4], ['l', 20], { bendX: 652 }),
   'SEC_3DS>LEDGER_CREDIT': R(['r', 20], ['l', 8], { bendX: 664 }),
   // The online decline climbs the gutter just left of the band's trunk, into the reject gateway's left edge.
   'SEC_3DS>OUT_DECLINED': R(['b', 50], ['t', DECLINE_LANES.entryX(-1) - PLACE_BOX_DECLINED_CX], {
@@ -433,7 +438,7 @@ const ROUTES: Record<string, RouteSpec> = {
     labelAt: [460, 446],
   }),
   // Pay-in-4
-  'BNPL>LEDGER_DEBIT': R(['r', 14], ['l', 28], { bendX: 676, labelAt: [520, 556] }),
+  'BNPL>LEDGER_DEBIT': R(['r', 14], ['l', 32], { bendX: 676, labelAt: [520, 556] }),
   'BNPL>LEDGER_CREDIT': R(['r', 30], ['l', 28], { bendX: 684 }),
   // STP: the fast lane runs just under the 3DS decline lane; approvals climb to Approved, fast-fails take the top corridor to Declined.
   'GATE_ECOM>STP_ENGINE': R(['t', 40], ['l', -24], { via: [[140, 452], [450, 452], [450, 476]], quiet: true }),
@@ -585,13 +590,6 @@ export function buildWires(boxes: Record<PlaceId, PlaceBox>, routes: Record<stri
 
 // Every wire's label, placed on its own run (2D map)
 
-interface Box {
-  x0: number;
-  y0: number;
-  x1: number;
-  y1: number;
-}
-
 /** The label pill BankMap draws for `chars` characters at `at`: 5.4 px a character plus padding, 14 px tall. */
 export const labelPill = (chars: number, [x, y]: Pt): Box => ({ x0: x - chars * 2.7 - 4, x1: x + chars * 2.7 + 4, y0: y - 7, y1: y + 7 });
 
@@ -678,7 +676,41 @@ function placeLabels(wires: Wire[], routes: Record<string, RouteSpec>): Wire[] {
   });
 }
 
-export const BANK_WIRES: Wire[] = placeLabels(withGateways(buildWires(PLACE_BOX, ROUTES), GATEWAYS), ROUTES);
+/** Every card on the 2D map: a run slid onto its own lane must not cross one. */
+const CARD_BOXES: readonly Box[] = Object.values(PLACE_BOX).map((b) => ({ x0: b.cx - b.w / 2, y0: b.cy - b.h / 2, x1: b.cx + b.w / 2, y1: b.cy + b.h / 2 }));
+/** The gateway bus a gateway (or a wire it collects) runs on: the last collector of its cascade. */
+const busOf = (g: Gateway): string => (g.into ? busOf(GATEWAY_BY_ID.get(g.into)!) : g.id);
+const WIRE_BUS = new Map(GATEWAYS.flatMap((g) => g.wires.map((id) => [id, busOf(g)] as const)));
+/** The gateways' trunks: drawn once, never moved; the wires make room for them. */
+const TRUNK_STROKES: readonly Stroke[] = GATEWAYS.map((g) => ({ id: g.id, tone: GATEWAY_TONE[g.kind], points: g.trunk, fixed: true, bus: busOf(g) }));
+
+/** Every scenario that lights a route on the map: the nine flows and each of their sub-processes. */
+const SCENARIO_SCOPES = [...FLOW_IDS.map(flowScope), ...DEMO_GROUPS.map((g) => groupScope(g.id))];
+/** Which scenarios light wire `id`: two wires with different signatures are drawn in different colours in some scenario. */
+const litKey = (id: string): string => SCENARIO_SCOPES.map((s) => (s.wires.has(id) ? '1' : '0')).join('');
+
+/** A routed wire as a stroke: its tone, its scenario signature and its gateway bus. */
+const wireStroke = (w: Wire, points: readonly Pt[], fixed = false): Stroke => ({ id: w.id, tone: wireTone(w.to, w.from), points, key: litKey(w.id), bus: WIRE_BUS.get(w.id), fixed });
+
+/** The routed wires, each run off any parallel run it can differ from in colour (wireLanes.ts), before the gateways split off their feeders. */
+function onOwnLanes(wires: Wire[]): Wire[] {
+  const moved = separateLanes([...TRUNK_STROKES, ...wires.map((w) => wireStroke(w, w.points))], CARD_BOXES);
+  return wires.map((w) => {
+    const points = moved.get(w.id)!;
+    if (points.every((p, i) => p[0] === w.points[i]![0] && p[1] === w.points[i]![1])) return w;
+    const path = roundedPath(points);
+    return { ...w, points, path, drawPath: path, drawPoints: points };
+  });
+}
+
+export const BANK_WIRES: Wire[] = placeLabels(withGateways(onOwnLanes(buildWires(PLACE_BOX, ROUTES)), GATEWAYS), ROUTES);
+
+/** Every stroke the 2D map draws, in its colour: the routed wires (as drawn, feeders up to their gateway), the trunks, then the gold cash lines. */
+export const mapStrokes = (): Stroke[] => [
+  ...BANK_WIRES.map((w) => wireStroke(w, w.drawPoints)),
+  ...TRUNK_STROKES,
+  ...CASH_WIRES.map((c) => ({ id: `cash:${c}`, tone: 'cash' as const, points: cashWirePoints(c) })),
+];
 
 /** What a junction dot draws in place of its diamond: a straight spoke from each line that arrives (its feeders' tips and the trunks cascading into it) to its centre, and on to where its own trunk leaves, so the bus reads as one unbroken line. */
 export const GATEWAY_SPOKES: Readonly<Partial<Record<GatewayId, string>>> = Object.fromEntries(
@@ -769,31 +801,41 @@ export const BAY_ENDPOINTS = ['ATM', 'HQ', 'SBV', 'CORP'] as const;
 export const bayEndpointAt = (i: number): Pt => [CIT_BAY.x + 18 + (i * (CIT_BAY.w - 36)) / (BAY_ENDPOINTS.length - 1), CIT_BAY.y + CIT_BAY.h - 14];
 
 export const CASH_CORRIDOR = { x: 1306, y: 944 } as const;
-export const CASH_LINES: Readonly<Record<CashEndpoint, readonly Pt[]>> = (() => {
+/** The gold lines as designed, before they make room for the routed wires. */
+const CASH_DESIGN: Readonly<Record<CashWire, readonly Pt[]>> = (() => {
   const v = PLACE_BOX.MAIN_CASH_VAULT;
   const teller = PLACE_BOX.TELLER_CASH;
   const atm = PLACE_BOX.ATM_CASH;
   const left = v.cx - v.w / 2;
   const right = v.cx + v.w / 2;
+  // The CIT hall's handover to the till: out of the bay's left side, along its own lane under the decline floor bus (y 960), and up
+  // into the teller card beside the vault's teller line (so the two never share a stroke).
+  const handover = 1010;
   return {
     TELLER: [[left, v.cy + 26], [CASH_CORRIDOR.x, v.cy + 26], [CASH_CORRIDOR.x, CASH_CORRIDOR.y], [teller.cx, CASH_CORRIDOR.y], [teller.cx, teller.cy + teller.h / 2]],
     ATM: [[right, v.cy - 20], [1550, v.cy - 20], [1550, atm.cy + 20], [atm.cx + atm.w / 2, atm.cy + 20]],
     BAY: [[v.cx + 40, v.cy + v.h / 2], [v.cx + 40, CIT_BAY.y + 2]],
+    BAY_TELLER: [[CIT_BAY.x, handover], [teller.cx + 16, handover], [teller.cx + 16, teller.cy + teller.h / 2]],
   };
 })();
 
 /**
- * The CIT hall's handover to the till: out of the bay's left side, along its own lane under the decline floor bus (y 960), and up
- * into the teller card beside the vault's teller line (so the two never share a stroke).
+ * The gold lines on their own lanes: a run that would lie on a routed wire (the teller line's corridor runs between the teller's
+ * ledger, AML and dispute wires) slides to the nearest clear lane, LANE_GAP or more off every other colour.
  */
-export const BAY_TELLER_LINE: readonly Pt[] = (() => {
-  const teller = PLACE_BOX.TELLER_CASH;
-  const lane = 1010;
-  return [[CIT_BAY.x, lane], [teller.cx + 16, lane], [teller.cx + 16, teller.cy + teller.h / 2]];
+const CASH_PLACED: Readonly<Record<CashWire, readonly Pt[]>> = (() => {
+  const fixed: Stroke[] = [...BANK_WIRES.map((w) => wireStroke(w, w.drawPoints, true)), ...TRUNK_STROKES];
+  const moved = separateLanes([...fixed, ...CASH_WIRES.map((c) => ({ id: c, tone: 'cash' as const, points: CASH_DESIGN[c] }))], CARD_BOXES);
+  return Object.fromEntries(CASH_WIRES.map((c) => [c, moved.get(c)!])) as Record<CashWire, Pt[]>;
 })();
 
+export const CASH_LINES: Readonly<Record<CashEndpoint, readonly Pt[]>> = { TELLER: CASH_PLACED.TELLER, ATM: CASH_PLACED.ATM, BAY: CASH_PLACED.BAY };
+
+/** The CIT hall's handover to the till (CASH_DESIGN), on its own lane. */
+export const BAY_TELLER_LINE: readonly Pt[] = CASH_PLACED.BAY_TELLER;
+
 /** Every gold wire's corners (cashWires.ts names them): the three vault lines, then the bay ↔ teller handover. */
-export const cashWirePoints = (w: CashWire): readonly Pt[] => (w === 'BAY_TELLER' ? BAY_TELLER_LINE : CASH_LINES[w]);
+export const cashWirePoints = (w: CashWire): readonly Pt[] => CASH_PLACED[w];
 
 /** A wire label badge's height, and the clear run it wants either side of its words. */
 export const WIRE_BADGE = { h: 15, margin: 12, edge: 24 } as const;

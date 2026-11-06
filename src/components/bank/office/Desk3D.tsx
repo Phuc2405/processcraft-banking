@@ -26,7 +26,7 @@ import { motion } from '../../../engine/simulation/motion';
 import { DeskLine, StaffWalks, type Served, type StaffWalk } from '../../../engine/simulation/people';
 import { usePeopleVersion, useWorld } from './WorldProvider';
 import { ACCUMULATING, badgeMode, badgePills, lodShows, useLabelLod, type LabelLod } from './labelLod';
-import { useDemoLocked } from '../DemoSession';
+import { useDeskViewOf, useStageIsolated } from '../DemoSession';
 
 
 /** A glowing outline on the floor around a selected desk: four thin bars. */
@@ -77,8 +77,9 @@ function Lamp({ status }: { status: keyof typeof STATUS_HEX }) {
 /** The furniture of a desk: the counter or podium, monitors, props. Rebuilt only when the staff change. */
 function DeskBody({ id, accent }: { id: StationId; accent: string }) {
   const staff = useBankStore((s) => s.view.stations[id].workers.length);
-  const workingKey = useBankStore((s) => s.view.stations[id].workers.map((w) => (w.working ? '1' : '0')).join(''));
-  const status = useBankStore((s) => s.view.stations[id].status);
+  // While a demo runs only its case is worked at the desks (DemoSession.deskView).
+  const workingKey = useDeskViewOf((v) => v.stations[id].workers.map((w) => (w.working ? '1' : '0')).join(''));
+  const status = useDeskViewOf((v) => v.stations[id].status);
   const selected = useBankStore((s) => s.selection.kind === 'station' && s.selection.id === id);
   const setHoverPlace = useBankStore((s) => s.setHoverPlace);
   const [hover, setHover] = useState(false);
@@ -193,8 +194,8 @@ function DeskStaff({ id, accent }: { id: StationId; accent: string }) {
 }
 
 function DeskSeats({ id, accent, absent, early }: { id: StationId; accent: string; absent: ReadonlySet<string>; early: ReadonlySet<string> }) {
-  const workers = useBankStore((s) => s.view.stations[id].workers);
-  const surge = useBankStore((s) => surgeLevel(s.view.stations[id].queueLength, s.view.stations[id].status));
+  const workers = useDeskViewOf((v) => v.stations[id].workers);
+  const surge = useDeskViewOf((v) => surgeLevel(v.stations[id].queueLength, v.stations[id].status));
   const selectedWorker = useBankStore((s) => (s.selection.kind === 'worker' && s.selection.station === id ? s.selection.workerId : null));
   const select = useBankStore((s) => s.select);
   const seats = useMemo(() => seatOffsets(workers.length), [workers.length]);
@@ -351,7 +352,7 @@ function FileToken({ phase, tab }: { phase: number; tab: string }) {
 /** What waits at the front of a desk, drawn from the world engine's line (WorldEngine.line). */
 export function DeskQueue({ id }: { id: StationId }) {
   // A running demo shows its own case alone: the desks' lines of other customers are hidden (the demo's visitor is DeskVisitors3D).
-  const isolated = useDemoLocked();
+  const isolated = useStageIsolated();
   const line = useWorld().line(id);
   usePeopleVersion((w) => w.line(id).version);
   const style = queueStyle(id);

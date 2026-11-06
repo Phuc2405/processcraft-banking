@@ -4,6 +4,7 @@ import type { Group, Mesh, MeshBasicMaterial } from 'three';
 import { useFocusFade } from './useFocusFade';
 import type { StationId } from '../../../sim/topology';
 import { useBankStore } from '../../../store/bankStore';
+import { useDeskViewOf } from '../DemoSession';
 import { pickPlace } from './tourHooks';
 import { Sign } from './Dressing';
 import { DeskPin, DeskQueue, SelectionFrame } from './Desk3D';
@@ -71,7 +72,7 @@ const FLASH = { jam: '#ef4444', locked: '#f59e0b', off: '#1e3a8a' } as const;
 /** One kiosk of the sidewalk ATM. */
 export const AtmKiosk = memo(function AtmKiosk({ id }: { id: StationId }) {
   const pose = useMemo(() => deskPose(id), [id]);
-  const status = useBankStore((s) => s.view.stations[id].status);
+  const status = useDeskViewOf((v) => v.stations[id].status);
   const selected = useBankStore((s) => s.selection.kind === 'station' && s.selection.id === id);
   const jams = useBankStore((s) => s.view.kpis.atm.jams);
   const locked = useBankStore((s) => s.view.kpis.atm.pinLocked);

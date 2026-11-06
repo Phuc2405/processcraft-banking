@@ -14,7 +14,9 @@ import { createStore } from 'zustand/vanilla';
 import { formatAud } from '../engine/money';
 import type { JournalEntry } from '../sim/staffRoleplay';
 import { CASH_ICON_SECONDS, retailCashFlow, type VaultCashFlow } from '../sim/vaultFlows';
-import { bankStore } from './bankStore';
+import { activeFlowOf, bankStore, citChildOf, demoGroupOf } from './bankStore';
+import { demoSessionStore } from './demoSessionStore';
+import { litWires } from '../sim/cashWires';
 import { notificationStore } from './notificationStore';
 import { retailOpsStore } from './retailOpsStore';
 
@@ -85,12 +87,26 @@ export const vaultFlowStore = createStore<VaultFlowState>((set, get) => {
 
 export const useVaultFlowStore = <T,>(select: (s: VaultFlowState) => T): T => useStore(vaultFlowStore, select);
 
+/**
+ * Whether a crossing may light now: always on the live bank; on a demo's stage (running, about to start, or just ended) only on the
+ * demo's own cash route, so an automatic till top-up never lights behind, say, a savings closure.
+ */
+export function onStage(flow: VaultCashFlow): boolean {
+  const { active, held } = demoSessionStore.getState();
+  if (!active && !held) return true;
+  const s = bankStore.getState();
+  return litWires(activeFlowOf(s), citChildOf(s), null, demoGroupOf(s))?.has(flow.endpoint) ?? false;
+}
+
+const light = (flow: VaultCashFlow | null): void => {
+  if (flow && onStage(flow)) vaultFlowStore.getState().push(flow);
+};
+
 /** Every new retail-ops journal that touches the vault lights its crossing. */
 retailOpsStore.subscribe((s, prev) => {
   const j = s.last?.journal;
   if (!j || s.last === prev.last) return;
-  const flow = retailCashFlow(j);
-  if (flow) vaultFlowStore.getState().push(flow);
+  light(retailCashFlow(j));
 });
 
 /** The bank's own till rebalancing (staffRoleplay.vaultReplenishment) as a crossing of the teller wire, or null. */
@@ -105,6 +121,5 @@ bankStore.subscribe((s, prev) => {
   if (s.retailLedger === prev.retailLedger) return;
   const j = s.retailLedger.journal[0];
   if (j === prev.retailLedger.journal[0]) return;
-  const flow = tillRebalanceFlow(j);
-  if (flow) vaultFlowStore.getState().push(flow);
+  light(tillRebalanceFlow(j));
 });

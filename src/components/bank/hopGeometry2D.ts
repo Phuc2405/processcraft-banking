@@ -1,4 +1,5 @@
-import { BAY_ENDPOINTS, bayEndpointAt, CASH_LINES, CIT_BAY, PLACE_BOX, pointsOfWire } from '../../engine/plan/layout';
+import { BAY_ENDPOINTS, bayEndpointAt, cashWirePoints, CIT_BAY, PLACE_BOX, pointsOfWire } from '../../engine/plan/layout';
+import { CASH_WIRES, WIRE_ENDS, type WireNode } from '../../sim/cashWires';
 import type { CitStopId } from '../../sim/citRoute';
 import type { HopStop } from '../../sim/hopPlayer';
 import { edgeId } from '../../sim/topology';
@@ -22,20 +23,32 @@ export function stopBox2D(stop: HopStop): { at: Pt; top: number } {
 
 const reversed = (pts: readonly Pt[]): Pt[] => [...pts].reverse();
 
+const CASH_NODES: readonly WireNode[] = ['VAULT', 'TELLER', 'ATM', 'BAY'];
+const cashNode = (s: HopStop): WireNode | null => (s.cit && (CASH_NODES as readonly string[]).includes(s.cit) ? (s.cit as WireNode) : null);
+
+/** A hop's line, and whether it runs on a drawn wire (only then is it stroked: an off-wire hop never draws a stray line). */
+export interface HopPath {
+  points: Pt[];
+  wired: boolean;
+}
+
 /**
- * The line a hop's icon glides along: the payment wire between two desks (either way round), the vault's gold cash line to the bay
- * or the till, else straight from one stop to the next.
+ * The line a hop's icon glides along: the payment wire between two desks (either way round), or the gold cash line between two
+ * stations of the cash network (vault ↔ bay, till, ATM; bay ↔ till). Any other hop (the van from the bay to an off-site end or the
+ * ATM) has no wire: the icon glides straight and nothing is stroked.
  */
-export function hopPath2D(a: HopStop, b: HopStop): Pt[] {
+export function hopPath2D(a: HopStop, b: HopStop): HopPath {
   if (a.place && b.place) {
     const fwd = pointsOfWire(edgeId(a.place, b.place));
-    if (fwd) return [...fwd];
+    if (fwd) return { points: [...fwd], wired: true };
     const back = pointsOfWire(edgeId(b.place, a.place));
-    if (back) return reversed(back);
+    if (back) return { points: reversed(back), wired: true };
   }
-  for (const end of ['BAY', 'TELLER'] as const) {
-    if (a.cit === 'VAULT' && b.cit === end) return [...CASH_LINES[end]];
-    if (b.cit === 'VAULT' && a.cit === end) return reversed(CASH_LINES[end]);
+  const [na, nb] = [cashNode(a), cashNode(b)];
+  for (const w of CASH_WIRES) {
+    const [from, to] = WIRE_ENDS[w];
+    if (na === from && nb === to) return { points: [...cashWirePoints(w)], wired: true };
+    if (na === to && nb === from) return { points: reversed(cashWirePoints(w)), wired: true };
   }
-  return [stopBox2D(a).at, stopBox2D(b).at];
+  return { points: [stopBox2D(a).at, stopBox2D(b).at], wired: false };
 }

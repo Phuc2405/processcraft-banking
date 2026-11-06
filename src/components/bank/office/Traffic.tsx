@@ -14,7 +14,7 @@ import { PACKET_HEX } from './palette';
 import { motion, motionNow } from '../../../engine/simulation/motion';
 import { MAX_WALKERS } from '../../../engine/simulation/people';
 import { usePeopleVersion, useWorld } from './WorldProvider';
-import { demoLocked, isolateMoves } from '../DemoSession';
+import { isolateMoves, stageIsolated } from '../DemoSession';
 
 const HEIGHT = 0.62;
 const KINDS = Object.keys(PACKET_HEX) as PacketKind[];
@@ -105,7 +105,7 @@ export const Packets = memo(function Packets() {
   useEffect(() => {
     const state = bankStore.getState();
     // A running demo flies its own payment alone (DemoSession.isolateMoves).
-    const moves: readonly Move[] = isolateMoves(state.view.moves, demoLocked(), state.presetTxId);
+    const moves: readonly Move[] = isolateMoves(state.view.moves, stageIsolated(), state.presetTxId);
     // A paused bank sends nothing: the office drawn again (from 2D, or for another flow) or a clock moved while paused never
     // queues the last beat's hops to replay on the next Play. Only a beat played live (or stepped to by hand) flies.
     if (moves.length === 0 || !beatLive(state)) return;

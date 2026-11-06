@@ -16,8 +16,10 @@ export class SimulationEngine {
     readonly bank: BankClockSource,
     private readonly factory: EntityFactory = new EntityFactory(),
     people?: DeskOverlay,
+    /** What the desks' badges read, when not the bank's own view (the app's: only the running demo's case, DemoSession.deskView). */
+    deskSource: BankSource = bank,
   ) {
-    this.desks = new DeskStatusFeed(bank, people);
+    this.desks = new DeskStatusFeed(deskSource, people);
   }
 
   /** How long the beat now showing stays on screen before the next is due, in real milliseconds (null while paused). */

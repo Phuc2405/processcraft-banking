@@ -113,7 +113,7 @@ describe('4. the station-hover wire highlight', () => {
   it('does the same in 3D: the desks through hoverPlace, the bay through the wire-hover store', () => {
     const v = src('components/bank/office/VaultCash3D.tsx');
     expect(v).toContain('useWireHover()');
-    expect(v).toContain('litWires(flow, child, hover)');
+    expect(v).toContain('litWires(flow, child, hover, group)');
     expect(v).toMatch(/STILL_LINE\[w\]\[route\?\.has\(w\) \? 'lit' : 'idle'\]/);
     expect(src('components/bank/office/LoadingBay3D.tsx')).toContain("useWireHoverStore.getState().set(on ? 'BAY' : null)");
   });
@@ -142,10 +142,10 @@ describe('5. the CIT hall wires and the flow 03 / 06 cash links', () => {
     for (let u = 0; u <= 1; u += 0.05) expect(wirePoint('BAY_TELLER', u)[1]).toBeLessThanOrEqual(ARC_PEAK + 1e-9);
   });
 
-  it('links the cash machine to the vault under Flow 03, the teller till under Flow 06, and the till run uses the hall handover', () => {
+  it('links the cash machine to the vault under Flow 03, the teller till under Flow 06, and the till run stays vault ↔ till (no hall handover)', () => {
     expect(litWires(3, null, null)).toEqual(new Set(['ATM']));
     expect(litWires(6, null, null)).toEqual(new Set(['TELLER']));
-    expect(litWires(CIT_FLOW, 'TELLER', null)).toEqual(new Set(['TELLER', 'BAY_TELLER']));
+    expect(litWires(CIT_FLOW, 'TELLER', null)).toEqual(new Set(['TELLER']));
     expect(litWires(CIT_FLOW, 'ATM', null)).toEqual(new Set(['BAY', 'ATM']));
   });
 
