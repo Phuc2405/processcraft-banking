@@ -216,7 +216,7 @@ export const Parking3D = memo(function Parking3D() {
       <mesh geometry={ground} material={solid} receiveShadow />
       <mesh geometry={glass} material={pane} />
       <mesh geometry={lit} material={glow} />
-      <Sign text="P  CARS · MOTORBIKES" fg="#ffffff" bg="#1d4ed8" position={[s * (LOT.x0 + 4.4), 1.45, LOT.z1 - 0.3]} width={2.6} />
+      <Sign sign="parking" fg="#ffffff" bg="#1d4ed8" position={[s * (LOT.x0 + 4.4), 1.45, LOT.z1 - 0.3]} width={2.6} />
       <Barrier lot={lot} />
       {/* The guard's cabin by the gate, and the guard: a raised hand to a driver only while a vehicle is at the gate (and the guard is standing at the post, not walking or sheltering in the cabin). */}
       {/* The cash van's run in through the gate to its loading bay against the left wall: it shares the drive, so the lot steps it. */}

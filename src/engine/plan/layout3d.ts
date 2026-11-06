@@ -88,7 +88,7 @@ export interface Pose {
 /** The counter of a desk: the footprint (not the card on the 2D map, which also holds the name and the queue number). */
 export const COUNTER = { w: 3.3, d: 0.95, h: 0.86 } as const;
 
-/** Stations that are a door in a wall, not a counter on the floor: the Central Cash Vault's round steel door. No desk, no staff walk in 3D. */
+/** Stations that are a door in a wall, not a counter on the floor: the Main Cash Vault's round steel door. No desk, no staff walk in 3D. */
 export const WALL_STATIONS: readonly StationId[] = ['MAIN_CASH_VAULT'];
 export const isWallStation = (id: StationId): boolean => WALL_STATIONS.includes(id);
 /** The round vault door's footprint: as wide as its steel plate, a hand's depth off the wall. */

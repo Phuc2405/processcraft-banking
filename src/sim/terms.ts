@@ -136,7 +136,7 @@ const EN: TermBook = {
     TELLER_CASH: {
       plain: 'Cash Teller Desk',
       short: 'Cash Teller Desk',
-      tip: 'A teller counts cash in and out by hand, checks for fake notes, reports any cash over $10,000, and tops the till up from (or hands its surplus back to) the Central Cash Vault.',
+      tip: 'A teller counts cash in and out by hand, checks for fake notes, reports any cash over $10,000, and tops the till up from (or hands its surplus back to) the Main Cash Vault.',
     },
     SEC_FACEPAY: {
       plain: 'Face Check for Big Transfers',
@@ -169,8 +169,8 @@ const EN: TermBook = {
       tip: 'Collateral paperwork only, with no cash kept here: the savings pledged against a loan are frozen here when it goes bad and used to pay it off.',
     },
     MAIN_CASH_VAULT: {
-      plain: 'Central Cash Vault',
-      short: 'Central Cash Vault',
+      plain: 'Main Cash Vault',
+      short: 'Main Cash Vault',
       tip: 'The bank’s one strong room behind the round steel door, holding all its notes (TK 1111 fit, 1112 unfit, 1131 in transit), where teller tills, ATMs and CIT vans take cash or bring it back.',
     },
     DISPUTE_DESK: {
@@ -194,7 +194,7 @@ const EN: TermBook = {
     ENTRANCE: { plain: 'Front Door & Identity Checks', short: 'Front Door & Identity', tip: 'Where new customers are identified, QR payments arrive, cash is handled at the counter, and big transfers need a face scan.' },
     COMPLIANCE: { plain: 'Fraud & Money Laundering Watch', short: 'Fraud & Laundering Watch', tip: 'Where risky devices are stopped and suspicious money is reviewed and reported.' },
     SAVINGS: { plain: 'Savings & Collateral', short: 'Savings & Collateral', tip: 'Where term deposits are closed, and where pledged savings are frozen and used to clear bad debt.' },
-    CASH: { plain: 'Central Cash Vault', short: 'Central Cash Vault', tip: 'The one place the branch keeps physical cash: the tellers, ATMs and CIT vans all draw from it and pay back into it.' },
+    CASH: { plain: 'Main Cash Vault', short: 'Main Cash Vault', tip: 'The one place the branch keeps physical cash: the tellers, ATMs and CIT vans all draw from it and pay back into it.' },
     BACKOFFICE: { plain: 'Claims & Overseas Transfers', short: 'Claims & Overseas', tip: 'Where customer refund claims are decided and money is sent abroad.' },
   },
   externals: {
@@ -290,7 +290,7 @@ const EN: TermBook = {
 const VI: TermBook = {
   modeLabel: { expert: 'Chuyên gia Fintech', beginner: 'Khám phá khái niệm' },
   modeHint: {
-    expert: 'Dùng thuật ngữ của đội ngũ thanh toán: Token Vault, dCVV, 3DS, đối soát EOD.',
+    expert: 'Dùng thuật ngữ của đội ngũ thanh toán: Kho Mã hóa Thẻ (Token Vault), dCVV, 3DS, đối soát EOD.',
     beginner: 'Khám phá khái niệm: tên dễ hiểu cho mọi quầy, kèm một câu giải thích khi bạn rê chuột.',
   },
   stations: {
@@ -365,7 +365,7 @@ const VI: TermBook = {
       tip: 'Đây là nơi chuyển khoản tức thì giữa các ngân hàng, như chia hóa đơn qua QR hay trả tiền nhà, đi vào và được kiểm tra trước khi tiền dịch chuyển.',
     },
     GATE_ATM: {
-      plain: 'Khe thẻ & bàn phím PIN của máy ATM',
+      plain: 'Thẻ & PIN máy ATM',
       short: 'Thẻ & PIN máy ATM',
       tip: 'Khe thẻ và bàn phím của máy ATM ngoài vỉa hè, nơi nhập sai PIN ba lần liên tiếp thì máy sẽ nuốt thẻ.',
     },
@@ -410,8 +410,8 @@ const VI: TermBook = {
       tip: 'Máy tính tự duyệt các hồ sơ đơn giản, rủi ro thấp chỉ trong tích tắc, nên không ai phải xếp hàng chờ quầy.',
     },
     SAVINGS_DESK: {
-      plain: 'Quầy tiết kiệm',
-      short: 'Quầy tiết kiệm',
+      plain: 'Quầy Tiết kiệm',
+      short: 'Quầy Tiết kiệm',
       tip: 'Tất toán tiền gửi có kỳ hạn, tính lại tiền lãi ở mức thấp hơn nhiều nếu tất toán sớm.',
     },
     COLLATERAL_VAULT: {
@@ -444,7 +444,7 @@ const VI: TermBook = {
     ATM: { plain: 'Máy ATM vỉa hè', short: 'Máy ATM vỉa hè', tip: 'Hai máy ATM màu xanh trên vỉa hè trước chi nhánh.' },
     ENTRANCE: { plain: 'Cửa vào & kiểm tra danh tính', short: 'Cửa vào & danh tính', tip: 'Nơi khách mới được định danh, giao dịch QR đi vào, tiền mặt được xử lý tại quầy và giao dịch lớn cần quét khuôn mặt.' },
     COMPLIANCE: { plain: 'Giám sát gian lận & rửa tiền', short: 'Giám sát gian lận & rửa tiền', tip: 'Nơi thiết bị rủi ro bị chặn và tiền đáng ngờ được rà soát, báo cáo.' },
-    SAVINGS: { plain: 'Tiết kiệm & Tài sản bảo đảm', short: 'Tiết kiệm & TSĐB', tip: 'Nơi tất toán tiền gửi có kỳ hạn, phong tỏa tiền gửi cầm cố và dùng để xử lý nợ xấu.' },
+    SAVINGS: { plain: 'Tiết kiệm & Tài sản bảo đảm', short: 'Tiết kiệm & Tài sản bảo đảm', tip: 'Nơi tất toán tiền gửi có kỳ hạn, phong tỏa tiền gửi cầm cố và dùng để xử lý nợ xấu.' },
     CASH: { plain: 'Kho Quỹ Trung Tâm', short: 'Kho Quỹ Trung Tâm', tip: 'Nơi duy nhất chi nhánh giữ tiền mặt: quầy GDV, ATM và xe CIT đều nhận tiền từ kho và nộp tiền về kho.' },
     BACKOFFICE: { plain: 'Khiếu nại & chuyển tiền quốc tế', short: 'Khiếu nại & quốc tế', tip: 'Nơi giải quyết khiếu nại đòi tiền của khách và gửi tiền ra nước ngoài.' },
   },
@@ -548,7 +548,7 @@ const EXPERT_STATION_VI: Readonly<Record<StationId, { name: string; blurb: strin
   GATE_VIRTUAL: { name: 'Cổng thẻ ảo', blurb: 'Nhận các giao dịch thanh toán bằng số thẻ ảo kèm CVV động.' },
   GATE_POS: { name: 'Cổng POS', blurb: 'Nhận giao dịch chip-và-PIN và chạm thẻ từ máy POS tại cửa hàng.' },
   GATE_ECOM: { name: 'Cổng thương mại điện tử', blurb: 'Nhận giao dịch thẻ trực tuyến và hồ sơ trả góp 4 kỳ từ website cửa hàng.' },
-  SEC_VAULT: { name: 'Token Vault', blurb: 'Chuyển số thẻ ảo (DPAN) về thẻ thật và tài khoản cấp vốn cho nó.' },
+  SEC_VAULT: { name: 'Kho Mã hóa Thẻ (Token Vault)', blurb: 'Chuyển số thẻ ảo (DPAN) về thẻ thật và tài khoản cấp vốn cho nó.' },
   SEC_DCVV: { name: 'Xác minh dCVV', blurb: 'Kiểm tra mã bảo mật luân phiên khớp và còn trong cửa sổ hiệu lực.' },
   SEC_3DS: { name: 'Bàn rủi ro 3DS', blurb: 'Chấm điểm mỗi giao dịch trực tuyến và chọn xác thực liền mạch, thử thách (OTP) hay từ chối.' },
   LEDGER_DEBIT: { name: 'Ghi nợ CASA', blurb: 'Kiểm tra số dư khả dụng trên tài khoản thanh toán, tiết kiệm và ví trả trước, rồi khoanh giữ.' },
@@ -559,7 +559,7 @@ const EXPERT_STATION_VI: Readonly<Record<StationId, { name: string; blurb: strin
   RECON: { name: 'Đối soát 3 bên', blurb: 'Khớp bút toán sổ cái, tệp bù trừ của tổ chức thẻ và báo cáo của ngân hàng thanh toán, từng bản ghi một.' },
   SUSPENSE: { name: 'Tài khoản treo', blurb: 'Giữ mọi bản ghi không khớp cho tới khi nhân viên vận hành tìm ra nguyên nhân và xử lý.' },
   GATE_A2A: { name: 'Cổng chuyển tiền nhanh (A2A)', blurb: 'Nhận chuyển khoản tức thì (chia hóa đơn QR, tiền thuê, liên ngân hàng) dạng thông điệp pacs.008 và kiểm tra định dạng trước khi động tới tiền.' },
-  GATE_ATM: { name: 'Thẻ & PIN ATM', blurb: 'Đầu đọc thẻ và bàn phím PIN của ATM vỉa hè. Khách có ba lần thử; sai lần thứ ba máy khóa phiên và giữ thẻ.' },
+  GATE_ATM: { name: 'Thẻ & PIN máy ATM', blurb: 'Đầu đọc thẻ và bàn phím PIN của ATM vỉa hè. Khách có ba lần thử; sai lần thứ ba máy khóa phiên và giữ thẻ.' },
   ATM_CASH: { name: 'Bộ nhả tiền ATM', blurb: 'Kiểm tra số dư, đếm tiền ra và trừ tài khoản. Nếu kẹt tiền khi khách đã bị trừ, khoản tiền được treo cho tới khi kiểm quỹ chứng minh điều gì đã xảy ra.' },
   GATE_EKYC: { name: 'Cổng eKYC & Mở tài khoản', blurb: 'Mở tài khoản từ xa: OCR đọc CCCD, kiểm tra người thật (liveness) và đối chiếu ảnh selfie với Cơ sở dữ liệu quốc gia về dân cư trước khi tài khoản được tạo.' },
   GATE_QR: { name: 'Cổng Thanh toán QR Code Napas247', blurb: 'Đọc chuỗi VietQR (thẻ EMVCo TLV, tĩnh hoặc động), kiểm tra CRC và ánh xạ giao dịch sang thông điệp chuyển mạch Napas247 trước khi sàng lọc.' },
@@ -581,7 +581,7 @@ const EXPERT_DEPARTMENT_VI: Readonly<Record<DepartmentId, { name: string; blurb:
   LEDGER: { name: 'Sổ cái ngân hàng lõi', blurb: 'Kiểm tra tiền có đủ và khoanh giữ: tài khoản ghi nợ và hạn mức tín dụng tuần hoàn.' },
   BNPL: { name: 'Bàn trả góp 4 kỳ BNPL', blurb: 'Thẩm định hồ sơ Mua trước Trả sau và đặt khoản trả trước.' },
   EOD: { name: 'Bàn đối soát cuối ngày & tài khoản treo', blurb: 'Chu kỳ đêm: bù trừ theo lô, quyết toán Visa, đối soát 3 bên, và tài khoản treo cho những gì không khớp.' },
-  ATM: { name: 'ATM vỉa hè', blurb: 'Hai buồng ATM màu xanh trên vỉa hè trước chi nhánh: buồng thẻ và PIN, rồi buồng tiền mặt. Nếu kẹt tiền sau khi khách bị trừ, khoản tiền vào thẳng tài khoản treo.' },
+  ATM: { name: 'Máy ATM vỉa hè', blurb: 'Hai buồng ATM màu xanh trên vỉa hè trước chi nhánh: buồng thẻ và PIN, rồi buồng tiền mặt. Nếu kẹt tiền sau khi khách bị trừ, khoản tiền vào thẳng tài khoản treo.' },
   ENTRANCE: { name: 'Cổng vào & Xác thực', blurb: 'Nơi khách hàng mới và tiền mặt gặp ngân hàng: mở tài khoản eKYC, cổng VietQR, quầy giao dịch viên và xác thực sinh trắc học FacePay cho giao dịch giá trị cao.' },
   COMPLIANCE: { name: 'Phát hiện Gian lận & Tuân thủ AML', blurb: 'FDS chấm điểm mọi thiết bị và hành vi; chuyên viên AML rà soát hoạt động đáng ngờ và xác nhận các trường hợp trùng cấm vận.' },
   CASH: { name: 'Kho Quỹ Trung Tâm', blurb: 'Nơi giữ toàn bộ tiền mặt của chi nhánh: tiền đủ tiêu chuẩn (TK 1111), không đủ tiêu chuẩn (TK 1112) và đang chuyển (TK 1131). Mọi lần tiếp quỹ quầy GDV, ATM / CDM và mọi chuyến xe CIT đều bắt đầu hoặc kết thúc tại đây.' },

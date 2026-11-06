@@ -7,11 +7,10 @@ import { academyFocusOf, activeFlowOf, activeScopeOf, useBankStore } from '../..
 import { cassetteStatus } from '../../../sim/retailOps';
 import { useRetailOpsStore } from '../../../store/retailOpsStore';
 import type { FlowId } from '../../../types/viewport';
-import { StepPreviewBody } from '../StepPreview';
 import { GroundMark, type Role } from './TourStage';
 import { frameFocus, placeXZ, type CamFocus } from './tour3d';
 
-/** The 3D half of a guided flow (Beginner scope): a ring of the flow's colour round each of its desks while the daylight is turned down (see Lights in OfficeScene), the desk the learner's payment is at pulsing, and a step preview card floating over the lit desk under the pointer. */
+/** The 3D half of a guided flow (Beginner scope): a ring of the flow's colour round each of its desks while the daylight is turned down (see Lights in OfficeScene), and the desk the learner's payment is at pulsing. The step context of a lit desk under the pointer is the top of its one hover card (StationTooltip3D). */
 
 /** The ring colour of a node the Academy teaches when no guided flow is lit. */
 const ACADEMY_ACCENT = '#38bdf8';
@@ -47,19 +46,6 @@ function Rings({ flow, academy }: { flow: FlowId; academy: PlaceId | null }) {
   );
 }
 
-function HoverPreview({ flow }: { flow: FlowId }) {
-  const hover = useBankStore((s) => s.hoverPlace);
-  if (!hover || !flowPlaces(flow).has(hover)) return null;
-  const [x, z] = placeXZ(hover);
-  return (
-    <Html position={[x, 3.4, z]} center zIndexRange={[30, 0]} style={{ pointerEvents: 'none' }}>
-      <div className="w-[248px] rounded-lg border bg-slate-900/95 px-2.5 py-2 shadow-[0_10px_30px_rgba(0,0,0,0.45)]" style={{ borderColor: `${GUIDED_FLOWS[flow].accent}aa` }} data-testid="step-preview-3d">
-        <StepPreviewBody flow={flow} place={hover} />
-      </div>
-    </Html>
-  );
-}
-
 /** The warning over the ATM while its cassette is under 15%. */
 function CassetteBadge3D() {
   const pct = useRetailOpsStore((s) => cassetteStatus(s.book).pct);
@@ -83,7 +69,6 @@ export function FlowStage3D() {
     <group name="flow-stage">
       <CassetteBadge3D />
       {flow ? <Rings flow={flow} academy={academy} /> : academy && <GroundMark place={academy} role="here" accent={ACADEMY_ACCENT} />}
-      {flow && <HoverPreview flow={flow} />}
     </group>
   );
 }

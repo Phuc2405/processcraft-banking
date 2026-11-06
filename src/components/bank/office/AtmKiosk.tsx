@@ -1,4 +1,3 @@
-import { tr } from '../../../i18n/locale';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { Group, Mesh, MeshBasicMaterial } from 'three';
@@ -130,13 +129,13 @@ export const AtmKiosk = memo(function AtmKiosk({ id }: { id: StationId }) {
     cursor(false);
   };
 
-  const sign = id === 'ATM_CASH' ? tr({ en: 'ATM · CASH', vi: 'ATM · TIỀN MẶT' }) : 'ATM · PIN';
+  const sign = id === 'ATM_CASH' ? 'atmCash' : 'atmPin';
   return (
     <group ref={root} position={[pose.x, 0, pose.z]} name={`atm-${id}`}>
       <group position={[-0.5, 0, 0]}>
         <mesh geometry={body} material={solid} castShadow receiveShadow />
         <mesh geometry={lit} material={glow} />
-        <Sign text={sign} fg="#ffffff" bg="#1d4ed8" position={[0, 1.72, 0.232]} width={0.78} />
+        <Sign sign={sign} fg="#ffffff" bg="#1d4ed8" position={[0, 1.72, 0.232]} width={0.78} />
         {/* the lamp on top, and the state strip across the foot */}
         <mesh ref={lamp} position={[0.36, 1.96, 0.1]}>
           <sphereGeometry args={[0.07, 12, 8]} />
@@ -160,7 +159,7 @@ export const AtmKiosk = memo(function AtmKiosk({ id }: { id: StationId }) {
           <boxGeometry args={[ATM_KIOSK.w + 0.3, 2.1, ATM_KIOSK.d + 0.3]} />
         </mesh>
         {selected && <SelectionFrame w={ATM_KIOSK.w + 0.7} d={ATM_KIOSK.d + 0.7} />}
-        <DeskPin id={id} height={2.55} />
+        <DeskPin id={id} />
       </group>
       <mesh geometry={marks} material={solid} receiveShadow name={`atm-queue-line-${id}`} />
       <DeskQueue id={id} />

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { CLEAR, WEATHER_MIX } from '../../../../engine/world/atmosphere';
 import { HOUSES, INDOORS, indoors } from '../Environment3D';
@@ -525,10 +527,10 @@ describe('a desk’s description keeps clear of its own badges', () => {
   });
 
   it('places the 3D description from that choice, above the canvas', () => {
-    const desk = src['../Desk3D.tsx']!;
-    expect(desk).toContain('const { side, at } = useTipPlacement(id, top);');
-    expect(desk).toContain('zIndexRange={[60, 50]}');
-    expect(desk).toContain('data-side={side}');
+    const host = readFileSync(join(__dirname, '../StationTooltip3D.tsx'), 'utf8');
+    expect(host).toContain('const { side, at } = useTipPlacement(place);');
+    expect(host).toContain('zIndexRange={[60, 50]}');
+    expect(host).toContain('data-side={side}');
   });
 });
 

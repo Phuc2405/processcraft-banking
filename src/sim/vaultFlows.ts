@@ -1,5 +1,5 @@
 /**
- * Physical cash crossing the Central Cash Vault's door (MAIN_CASH_VAULT), for both maps. The rule is one sentence: whoever needs
+ * Physical cash crossing the Main Cash Vault's door (MAIN_CASH_VAULT), for both maps. The rule is one sentence: whoever needs
  * cash takes it OUT of the vault (Cr 1111), whoever has surplus cash brings it IN (Dr 1111). The three endpoints are the teller
  * tills, the ATM / CDM and the CIT loading bay (topology.CASH_ENDPOINTS).
  *

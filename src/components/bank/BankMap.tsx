@@ -1,14 +1,12 @@
 import { isAutomatedNode } from '../../sim/nodeKind';
 import { ServerRackGraphic } from './ServerRack';
 import { useNodeCopy } from './useNodeCopy';
-import { tr, useLocale } from '../../i18n/locale';
+import { tr } from '../../i18n/locale';
 import { useDeskVisited } from '../../store/deskVisitStore';
-import { acronymHint } from './codeGlossary';
 import { DeskCrowd2D } from './DeskCrowd2D';
 import { isolateMoves, useDemoLocked } from './DemoSession';
 import { DeskVisitors2D } from './DeskVisitors2D';
 import { t } from '../../i18n/t';
-import { feedText } from '../../i18n/feedVi';
 import { localizeScenarioText } from '../../sim/scenarios';
 import { memo, useEffect, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { beatMs, SPEEDS, type Phase } from '../../sim/clock';
@@ -29,7 +27,8 @@ import { hopStopOf, useHopPlayer } from '../../store/hopPlayerStore';
 import { CashLines2D } from './CashLines2D';
 import { GUIDED_FLOWS, type FlowScope } from '../../sim/guidedFlows';
 import type { FlowId } from '../../types/viewport';
-import { StepPreviewBody } from './StepPreview';
+import { StationTooltip } from './StationTooltip';
+import type { CardPlace } from '../../sim/hoverCard';
 import { useDockInset, ZOOM_TOOLBAR_GUTTER } from './ViewportControls';
 import { PathTraveller } from '../canvas/edges/PathTraveller';
 import { WorkstationGraphic } from '../canvas/nodes/WorkstationGraphic';
@@ -70,7 +69,6 @@ function ProcessChip({ process, accent }: { process: ProcessId; accent: string }
     <button
       type="button"
       onClick={() => startSpotlight(process)}
-      title={tr({ en: `Chapter ${LESSONS[process].chapter}: ${processShort(process)}`, vi: `Chương ${LESSONS[process].chapter}: ${processShort(process)}` })}
       aria-label={tr({ en: `Start Chapter ${LESSONS[process].chapter}: ${processShort(process)}`, vi: `Bắt đầu Chương ${LESSONS[process].chapter}: ${processShort(process)}` })}
       data-testid={`chip-process-${process}`}
       className="pointer-events-auto grid h-[17px] w-[17px] place-items-center rounded-[5px] text-[10px] font-black leading-none text-slate-950 transition hover:scale-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
@@ -99,23 +97,6 @@ const flowVar = (flow: FlowFocus | null): CSSProperties | undefined => (flow ? (
 
 const TIP_ORIGIN: Record<TipSide, string> = { below: 'top center', above: 'bottom center', right: 'center left', left: 'center right' };
 
-/** The step preview of a lit desk in a guided flow: step number, name, status and what happens there. */
-function StepPreviewTip({ flow, place, side }: { flow: FlowId; place: PlaceId; side: TipSide }) {
-  const stage = useStageScale();
-  const grow = Math.min(1.35, Math.max(1, 1 / stage));
-  return (
-    <span
-      role="tooltip"
-      className={`bk-steptip pointer-events-none absolute z-50 w-[248px] rounded-lg border bg-[#0b1120] px-2.5 py-2 shadow-[0_10px_30px_rgba(0,0,0,0.6)] ${TIP_POSITION[side]}`}
-      style={{ borderColor: `${GUIDED_FLOWS[flow].accent}aa`, scale: String(grow), transformOrigin: TIP_ORIGIN[side] }}
-      data-testid="step-preview-tip"
-      data-side={side}
-    >
-      <StepPreviewBody flow={flow} place={place} />
-    </span>
-  );
-}
-
 /** A custom property the stylesheet reads for the neon colour of the tour. */
 const neon = (focus: Focus | null): CSSProperties | undefined => (focus ? ({ ['--tour' as string]: focus.accent } as CSSProperties) : undefined);
 
@@ -127,29 +108,15 @@ const TIP_POSITION: Record<TipSide, string> = {
   left: 'right-full top-1/2 mr-1.5 -translate-y-1/2',
 };
 
-/** Opens on the side of the desk where it covers no other card (see tipSideFor), and the desk under the pointer is lifted above its neighbours while it shows, so no other card can paint over it. */
-function HoverTip({ name, tip, side, caption, status }: { name: string; tip: string; side: TipSide; caption?: string | null; status?: { text: string; className: string } }) {
-  return (
-    <span
-      role="tooltip"
-      className={`bk-hovertip pointer-events-none absolute z-50 w-[236px] rounded-lg border border-slate-500 bg-slate-900 px-2.5 py-1.5 text-left opacity-100 shadow-[0_10px_30px_rgba(0,0,0,0.75)] ${TIP_POSITION[side]}`}
-      data-testid="hover-tip"
-      data-side={side}
-    >
-      <span className="block text-[11.5px] font-semibold leading-snug text-slate-50" data-tip="title">
-        {name}
-      </span>
-      {caption && <span className="block text-[10px] leading-snug text-sky-300/90" data-testid="hover-tip-caption">{caption}</span>}
-      <span className="mt-0.5 block text-[11.5px] leading-snug text-slate-300" data-tip="definition">
-        {tip}
-      </span>
-      {status && (
-        <span className={`mt-1 inline-block rounded bg-slate-800 px-1.5 py-px text-[10.5px] font-semibold ${status.className}`} data-tip="status">
-          {status.text}
-        </span>
-      )}
-    </span>
-  );
+/**
+ * The one hover card of a place on the 2D map (StationTooltip: the step context while a flow is lit, then the place's metrics). It opens on
+ * the side where it covers no other card (see tipSideFor), grows back to a readable size on a shrunken stage, and the card under the
+ * pointer is lifted above its neighbours while it shows. Every 2D place renders this and only this: no second card, no native title.
+ */
+function MapCard({ place, side }: { place: CardPlace; side: TipSide }) {
+  const stage = useStageScale();
+  const grow = Math.min(1.35, Math.max(1, 1 / stage));
+  return <StationTooltip place={place} className={`bk-hovertip pointer-events-none absolute z-50 ${TIP_POSITION[side]}`} style={{ scale: String(grow), transformOrigin: TIP_ORIGIN[side] }} />;
 }
 
 /** The desk icon (staff workstation or server rack): one compact size in every vocabulary, so a mode switch never resizes it. */
@@ -231,7 +198,6 @@ const StpNodeCard = memo(function StpNodeCard({ sv, selected, focus, flow, flowH
         onClick={() => (focus ? spotlightFocus('STP_ENGINE') : select({ kind: 'station', id: 'STP_ENGINE' }))}
         aria-pressed={selected}
         aria-label={label}
-        title={label}
         data-testid="station-STP_ENGINE"
         data-stp-on={on}
         className={`absolute inset-0 rounded-xl border border-dashed bg-gradient-to-br from-violet-950/80 to-[#0b1120] transition hover:border-violet-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${lit && focus ? 'bk-spot-lit' : flowLit ? 'bk-flow-lit' : on ? 'border-violet-400/70' : 'border-slate-600'} ${flowHere ? 'bk-flow-here' : ''} ${selected ? 'ring-2 ring-sky-400' : ''}`}
@@ -247,7 +213,7 @@ const StpNodeCard = memo(function StpNodeCard({ sv, selected, focus, flow, flowH
           </span>
         </div>
         <div className="flex items-end justify-between gap-1">
-          <span className="rounded-full bg-violet-500/25 px-1.5 py-px text-[10px] font-bold tabular-nums text-violet-100" data-testid="stp-badge" title={m('nodeBadgeHint')}>
+          <span className="rounded-full bg-violet-500/25 px-1.5 py-px text-[10px] font-bold tabular-nums text-violet-100" data-testid="stp-badge">
             STP {tally.straight}
           </span>
           <span className="text-[10px] font-semibold tabular-nums text-lime-300" data-testid="stp-str">
@@ -255,7 +221,7 @@ const StpNodeCard = memo(function StpNodeCard({ sv, selected, focus, flow, flowH
           </span>
         </div>
       </div>
-      {!focus && <HoverTip name={title} tip={terms.tip('STP_ENGINE')} caption={terms.caption('STP_ENGINE')} side={TIP_SIDE.STP_ENGINE} />}
+      {!focus && <MapCard place="STP_ENGINE" side={TIP_SIDE.STP_ENGINE} />}
     </div>
   );
 });
@@ -292,7 +258,6 @@ const StationCard = memo(function StationCard({
   const wm = useMessages(analystWorkspaceMessages);
   const bm = useMessages(deskBadgeMessages);
   const spotlightFocus = useBankStore((s) => s.spotlightFocus);
-  const locale = useLocale();
   // People are at this desk for a savings or collateral demo: it shows as busy for as long as they are.
   const visited = useDeskVisited(id);
   const def = STATIONS[id];
@@ -343,12 +308,12 @@ const StationCard = memo(function StationCard({
       <div className="pointer-events-none absolute inset-0 flex flex-col p-1.5">
         {/* Fixed rows: a two-line title box, the art and the count, and the staff row pinned to the bottom. */}
         <div className="flex h-[24px] shrink-0 items-start gap-1.5" data-testid={`station-title-${id}`}>
-          <span className={`mt-[3px] h-1.5 w-1.5 shrink-0 rounded-full ${passed && focus ? 'bg-[var(--tour)]' : heat ? HEAT_DOT[heat] : STATUS_DOT_CLASS[sv.status]}`} title={heatText ?? undefined} data-testid={heat ? `heat-dot-${id}` : undefined} />
-          <span className="line-clamp-2 text-[10.5px] font-semibold leading-[1.12] text-slate-100" data-testid={`station-name-${id}`} title={acronymHint(name, locale)}>
+          <span className={`mt-[3px] h-1.5 w-1.5 shrink-0 rounded-full ${passed && focus ? 'bg-[var(--tour)]' : heat ? HEAT_DOT[heat] : STATUS_DOT_CLASS[sv.status]}`} data-testid={heat ? `heat-dot-${id}` : undefined} />
+          <span className="line-clamp-2 text-[10.5px] font-semibold leading-[1.12] text-slate-100" data-testid={`station-name-${id}`}>
             {name}
           </span>
           {worst && !focus && (
-            <span className={`ml-auto grid h-[13px] w-[13px] shrink-0 place-items-center rounded-full text-[9px] font-black text-slate-950 ${worst === 'crit' ? 'animate-pulse bg-rose-400' : 'bg-amber-300'}`} title={sv.alerts[0] ? feedText(sv.alerts[0].text) : undefined} data-testid={`alert-badge-${id}`}>
+            <span className={`ml-auto grid h-[13px] w-[13px] shrink-0 place-items-center rounded-full text-[9px] font-black text-slate-950 ${worst === 'crit' ? 'animate-pulse bg-rose-400' : 'bg-amber-300'}`} data-testid={`alert-badge-${id}`}>
               !
             </span>
           )}
@@ -371,7 +336,7 @@ const StationCard = memo(function StationCard({
               {working > 0 && (
                 <>
                   <span className="text-slate-600"> · </span>
-                  <span className="rounded-full bg-emerald-500/20 px-1 py-px font-semibold text-emerald-300" title={bm('workingHint')} data-testid={`working-${id}`}>
+                  <span className="rounded-full bg-emerald-500/20 px-1 py-px font-semibold text-emerald-300" data-testid={`working-${id}`}>
                     <span className="mr-0.5 inline-block h-1 w-1 animate-pulse rounded-full bg-emerald-300 align-middle" />
                     {bm('working', { n: working })}
                   </span>
@@ -404,7 +369,7 @@ const StationCard = memo(function StationCard({
           +{sv.arrivals}
         </span>
       )}
-      {!focus && (flow && flowLit ? <StepPreviewTip flow={flow.flow} place={id} side={TIP_SIDE[id]} /> : <HoverTip name={title} tip={terms.tip(id)} caption={terms.caption(id)} side={TIP_SIDE[id]} status={{ text: line, className: STATUS_TEXT_CLASS[desk.status] }} />)}
+      {!focus && <MapCard place={id} side={TIP_SIDE[id]} />}
     </div>
   );
 });
@@ -446,7 +411,6 @@ function WorkerButton({
         onClick={() => (touring ? spotlightFocus(station) : select({ kind: 'worker', station, workerId: id }))}
         aria-pressed={selected}
         aria-label={label}
-        title={label}
         data-testid={`worker-${id}`}
         data-machine=""
         className={`pointer-events-auto rounded-full transition hover:scale-125 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${touring && lit ? 'bk-worker-glow' : ''} ${selected ? 'ring-2 ring-sky-400' : ''}`}
@@ -461,7 +425,6 @@ function WorkerButton({
       onClick={() => (touring ? spotlightFocus(station) : select({ kind: 'worker', station, workerId: id }))}
       aria-pressed={selected}
       aria-label={`${t(name)}, ${t(role)}`}
-      title={tr({ en: `${name} · ${role} · fatigue ${Math.round(fatigue)}`, vi: `${t(name)} · ${t(role)} · mệt mỏi ${Math.round(fatigue)}` })}
       data-testid={`worker-${id}`}
       className={`pointer-events-auto rounded-full transition hover:scale-125 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${touring && lit ? 'bk-worker-glow' : ''}`}
     >
@@ -535,21 +498,20 @@ function ExternalNode({ id, focus, flow, flowHere, terms }: { id: ExternalId; fo
         onClick={() => (focus ? spotlightFocus(id) : startSpotlight('B'))}
         className={`${klass} transition hover:border-violet-300`}
         style={style}
-        title={focus || (flow && flowLit) ? undefined : t('Chapter 2: the 3DS challenge sends the customer here')}
         data-testid="external-CUSTOMER_OTP-box"
         data-place={id}
         data-here={here || undefined}
         data-lit={flow ? flowLit : undefined}
       >
         {body}
-        {!focus && flow && flowLit && <StepPreviewTip flow={flow.flow} place={id} side={TIP_SIDE[id]} />}
+        {!focus && <MapCard place={id} side={TIP_SIDE[id]} />}
       </button>
     );
   }
   return (
     <div className={klass} style={style} data-big={big} data-here={here || undefined} data-lit={flow ? flowLit : undefined} data-testid={`place-${id}`} data-place={id}>
       {body}
-      {!focus && (flow && flowLit ? <StepPreviewTip flow={flow.flow} place={id} side={TIP_SIDE[id]} /> : <HoverTip name={terms.place(id)} tip={terms.externalTip(id)} side={TIP_SIDE[id]} />)}
+      {!focus && <MapCard place={id} side={TIP_SIDE[id]} />}
     </div>
   );
 }

@@ -36,6 +36,8 @@ import {
 import { blobMaterial, glow, pane, satin, solid } from './materials';
 import { KIOSK_HEX, SET } from './palette';
 import { lodShows, useLabelLod } from './labelLod';
+import { useMessages } from '../../../utils/i18nHelper';
+import { signMessages, type SignKey } from './signs.messages';
 
 const HX = FLOOR_SLAB.w / 2;
 const HZ = FLOOR_SLAB.d / 2;
@@ -63,7 +65,8 @@ function useSign(text: string, fg: string, bg: string): CanvasTexture {
       g.font = '800 58px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
       g.textAlign = 'center';
       g.textBaseline = 'middle';
-      g.fillText(text, 256, 52);
+      // A longer translation squeezes to fit the plate instead of running off its edges.
+      g.fillText(text, 256, 52, 480);
     }
     const t = new CanvasTexture(c);
     t.colorSpace = SRGBColorSpace;
@@ -74,7 +77,9 @@ function useSign(text: string, fg: string, bg: string): CanvasTexture {
   return tex;
 }
 
-export function Sign({ text, fg, bg, position, rotationY = 0, width = 1.8 }: { text: string; fg: string; bg: string; position: V3; rotationY?: number; width?: number }) {
+/** A sign by its message key, so its words follow the active language. */
+export function Sign({ sign, fg, bg, position, rotationY = 0, width = 1.8 }: { sign: SignKey; fg: string; bg: string; position: V3; rotationY?: number; width?: number }) {
+  const text = useMessages(signMessages)(sign);
   const map = useSign(text, fg, bg);
   return (
     <mesh position={position} rotation={[0, rotationY, 0]}>
@@ -202,7 +207,7 @@ export const Walls = memo(function Walls() {
     <group name="office-walls">
       <mesh geometry={body} material={solid} castShadow receiveShadow />
       <mesh geometry={lights} material={glow} />
-      <Sign text="MAIN ENTRANCE" fg="#ffffff" bg="#1e3a8a" position={[MAIN_GATE.x, 2.9, HZ - WALL_T / 2 + 0.27]} width={2.4} />
+      <Sign sign="mainEntrance" fg="#ffffff" bg="#1e3a8a" position={[MAIN_GATE.x, 2.9, HZ - WALL_T / 2 + 0.27]} width={2.4} />
     </group>
   );
 });
@@ -254,7 +259,7 @@ const VAULT_SIDES: readonly WallSide[] = ['front', 'left', 'right'];
 const SERVER_SIDES: readonly WallSide[] = ['left', 'front', 'back'];
 
 /**
- * The Security & 3DS Risk Vault, in glass, with the Central Cash Vault's great round door (VAULT_DOOR) on the wall behind the vault
+ * The Security & 3DS Risk Vault, in glass, with the Main Cash Vault's great round door (VAULT_DOOR) on the wall behind the vault
  * desk: the door is the MAIN_CASH_VAULT station itself (VaultDoorStation takes the click, the halo and the cash glow).
  */
 export const VaultRoom = memo(function VaultRoom() {
@@ -293,8 +298,8 @@ export const VaultRoom = memo(function VaultRoom() {
         </group>
       </group>
       <VaultDoorStation />
-      <Sign text="RISK VAULT" fg="#ffffff" bg="#7c3aed" position={[rect.x1 - 1.7, GLASS_H + 0.42, rect.z1 + 0.05]} width={1.9} />
-      <Sign text="KHO QUỸ TRUNG TÂM · 1111" fg="#111827" bg="#facc15" position={[VAULT_DOOR.x, VAULT_DOOR.y + 1.4, VAULT_DOOR.z + 0.05]} width={1.9} />
+      <Sign sign="riskVault" fg="#ffffff" bg="#7c3aed" position={[rect.x1 - 1.7, GLASS_H + 0.42, rect.z1 + 0.05]} width={1.9} />
+      <Sign sign="mainVault" fg="#111827" bg="#facc15" position={[VAULT_DOOR.x, VAULT_DOOR.y + 1.4, VAULT_DOOR.z + 0.05]} width={1.9} />
     </group>
   );
 });
@@ -349,7 +354,7 @@ export const ServerRoom = memo(function ServerRoom() {
         </group>
       ))}
       <GlassRoom rect={rectOnly} sides={SERVER_SIDES} accent="#34d399" />
-      <Sign text="CORE SERVERS" fg="#ffffff" bg="#059669" position={[rect.x0 - 0.06, GLASS_H + 0.42, (rect.z0 + rect.z1) / 2]} rotationY={-Math.PI / 2} width={2.1} />
+      <Sign sign="coreServers" fg="#ffffff" bg="#059669" position={[rect.x0 - 0.06, GLASS_H + 0.42, (rect.z0 + rect.z1) / 2]} rotationY={-Math.PI / 2} width={2.1} />
     </group>
   );
 });

@@ -3,7 +3,7 @@ import { citCashFlows, mergeFlows, type VaultCashFlow } from '../../sim/vaultFlo
 import { useVaultFlowStore } from '../../store/vaultFlowStore';
 import { useCit } from '../ops/CitPanel';
 
-/** The cash crossing the Central Cash Vault's door right now (CIT runs and the retail book's echoes), for both maps and the inspector. */
+/** The cash crossing the Main Cash Vault's door right now (CIT runs and the retail book's echoes), for both maps and the inspector. */
 export function useVaultFlows(): VaultCashFlow[] {
   const cit = useCit();
   const retail = useVaultFlowStore((s) => s.retail);

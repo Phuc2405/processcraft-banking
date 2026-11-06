@@ -153,12 +153,12 @@ describe('one desk-status stream for both views (Observer)', () => {
     const read = (rel: string): string => readFileSync(join(__dirname, rel), 'utf8');
     const map = read('../../BankMap.tsx');
     const desk = read('../Desk3D.tsx');
-    // Every figure on the 2D card, its tooltip and its label; and the 3D badge and tooltip.
+    const card = read('../../StationTooltip.tsx');
+    // Every figure on the 2D card and its label; the 3D badge; and the one hover card both views show.
     expect(map).toContain('const { status: desk, line } = useDeskStatusLine(id);');
-    expect(map).toContain('status={{ text: line, className: STATUS_TEXT_CLASS[desk.status] }}');
     expect(map).toContain('{waiting}');
     expect(desk).toContain('useDeskStatus(id)');
-    expect(desk).toContain('const { line } = useDeskStatusLine(id);');
+    expect(card).toContain('const { status, line } = useDeskStatusLine(id);');
     // Never the old inverted "Working · 0 waiting".
     expect(map).not.toContain('`${statusLabel(sv.status)} · ${sv.queueLength} ${unit}`');
   });

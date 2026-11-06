@@ -547,8 +547,11 @@ describe('a calmer map for a first-time learner', () => {
     const src = (import.meta.glob('../BankMap.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)['../BankMap.tsx']!;
     expect(src).not.toMatch(/long \? 'h-\[\d+px\] w-\[\d+px\]'/);
     expect(src.match(/className=\{DESK_ICON\}/g)).toHaveLength(2);
-    for (const part of ['title', 'definition', 'status']) expect(src).toContain(`data-tip="${part}"`);
-    expect(src).toMatch(/bk-hovertip [^`]*bg-slate-900[^`]*opacity-100/);
+    // The one hover card (StationTooltip) is opaque, with its title, definition and status; the map wraps it in its CSS hover tip.
+    const card = (import.meta.glob('../StationTooltip.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)['../StationTooltip.tsx']!;
+    for (const part of ['title', 'definition', 'status']) expect(card).toContain(`data-tip="${part}"`);
+    expect(card).toMatch(/rounded-lg border bg-slate-900/);
+    expect(src).toMatch(/<StationTooltip place=\{place\} className=\{`bk-hovertip /);
     expect(src).toContain("'opacity-50 hover:opacity-100 has-[:focus-visible]:opacity-100'");
   });
 });

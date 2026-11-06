@@ -122,7 +122,7 @@ export const DEPARTMENTS: Record<DepartmentId, DepartmentDef> = {
   },
   CASH: {
     id: 'CASH',
-    name: 'Central Cash Vault',
+    name: 'Main Cash Vault',
     blurb: 'The branch’s one physical cash holding: fit notes (TK 1111), unfit notes awaiting the SBV (TK 1112) and cash in transit (TK 1131). Every teller top-up, ATM / CDM run and CIT van starts or ends here.',
     accent: '#facc15',
     stations: ['MAIN_CASH_VAULT'],
@@ -434,7 +434,7 @@ export const STATIONS: Record<StationId, StationDef> = {
     id: 'COLLATERAL_VAULT',
     department: 'SAVINGS',
     name: 'Savings & Collateral Desk',
-    blurb: 'Collateral paperwork only: the lien on pledged savings and loan collateral, frozen on default, then liquidated in waterfall order to clear the bad debt. It holds no physical cash (that is the Central Cash Vault).',
+    blurb: 'Collateral paperwork only: the lien on pledged savings and loan collateral, frozen on default, then liquidated in waterfall order to clear the bad debt. It holds no physical cash (that is the Main Cash Vault).',
     kind: 'DESK',
     capability: 'CORE_LEDGER_CHECK',
     minutesPerItem: 10,
@@ -457,7 +457,7 @@ export const STATIONS: Record<StationId, StationDef> = {
   MAIN_CASH_VAULT: {
     id: 'MAIN_CASH_VAULT',
     department: 'CASH',
-    name: 'Central Cash Vault',
+    name: 'Main Cash Vault',
     blurb: 'The bank’s sole physical cash holding behind the round steel door: fit cash (TK 1111), unfit cash (TK 1112) and cash in transit (TK 1131). Cash goes out to the teller tills, the ATMs and the CIT vans, and comes back in from them, always under dual control.',
     kind: 'DESK',
     capability: 'CORE_LEDGER_CHECK',

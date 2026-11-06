@@ -16,6 +16,7 @@ import { useTerms } from '../useTerms';
 import { Desk3D } from './Desk3D';
 import { VAULT_STATION, VaultCashStreams3D } from './VaultCash3D';
 import { AtmKiosk } from './AtmKiosk';
+import { StationTooltip3D } from './StationTooltip3D';
 import { GateStanchions, Kiosks, Plants, ServerRoom, VaultRoom, Walls } from './Dressing';
 import { Street } from './Street';
 import { atmosphereAt, CLEAR, sameMix } from '../../../engine/world/atmosphere';
@@ -873,9 +874,11 @@ const DeskRenderer = memo(function DeskRenderer() {
   return (
     <group name="desk-renderer">
       <GateStanchions />
-      {/* The Central Cash Vault has no desk: the round steel door is the station (Dressing.VaultRoom), clickable on its own. */}
+      {/* The Main Cash Vault has no desk: the round steel door is the station (Dressing.VaultRoom), clickable on its own. */}
       {DESK_IDS.map((id) => (isMachine(id) ? <AtmKiosk key={id} id={id} /> : <Desk3D key={id} id={id} />))}
       <VaultCashStreams3D />
+      {/* The one hover card of the whole office: whatever is under the pointer, never two at once. */}
+      <StationTooltip3D />
       <Kiosks />
       <Packets />
       {!isolated && <SignalPulses />}

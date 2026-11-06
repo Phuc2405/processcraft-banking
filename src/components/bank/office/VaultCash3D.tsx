@@ -1,7 +1,7 @@
 import { Html } from '@react-three/drei';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { BufferGeometry, CatmullRomCurve3, CircleGeometry, Float32BufferAttribute, Line, LineBasicMaterial, Mesh, MeshBasicMaterial, RingGeometry, SphereGeometry, TubeGeometry, Vector3, type Group } from 'three';
+import { BufferGeometry, CatmullRomCurve3, CircleGeometry, Float32BufferAttribute, Line, LineDashedMaterial, Mesh, MeshBasicMaterial, RingGeometry, SphereGeometry, TubeGeometry, Vector3, type Group } from 'three';
 import { deskPose } from '../../../engine/plan/layout3d';
 import { LOADING_DOOR, VAULT_DOOR } from '../../../engine/world/citRun';
 import type { CashEndpoint } from '../../../sim/topology';
@@ -20,7 +20,7 @@ import { budgeted, GLOW } from './focus3d';
 import { ObjectPool } from './webglSafety';
 
 /**
- * The Central Cash Vault in 3D (MAIN_CASH_VAULT): the round steel door is the station. It takes the pointer (raycast hit disc), lights
+ * The Main Cash Vault in 3D (MAIN_CASH_VAULT): the round steel door is the station. It takes the pointer (raycast hit disc), lights
  * when hovered or selected, glows gold while cash comes in (Dr 1111) and orange while it goes out (Cr 1111), and streams cash
  * particles and a moving 💵 icon along an arc between the door and the endpoint that needs or returns the cash (vaultFlows.ts).
  */
@@ -150,20 +150,35 @@ export function wirePoint(w: CashWire, u: number): [number, number, number] {
 /** The arc from the vault door to an endpoint, `u` = 0 at the door. */
 export const arcPoint = (e: CashEndpoint, u: number): [number, number, number] => wirePoint(e, u);
 
-/** Flyweight: one arc line per wire, made once for the app's life (the endpoints never move). */
+/**
+ * The 2D map's cash dash (CashLines2D: strokeDasharray "6 4") in metres: a 0.3 m dash and a 0.2 m gap, the same 3 : 2 rhythm, so the
+ * yellow dashed line of the Map Legend reads the same in the 3D office.
+ */
+export const CASH_DASH_3D = { dash: 0.3, gap: 0.2 } as const;
+
+/** Each point's distance along a polyline from its start: what a dashed WebGL line counts its dashes by (Line.computeLineDistances). */
+export function lineDistances(pts: readonly number[]): number[] {
+  const out = [0];
+  for (let i = 3; i < pts.length; i += 3) out.push(out[out.length - 1]! + Math.hypot(pts[i]! - pts[i - 3]!, pts[i + 1]! - pts[i - 2]!, pts[i + 2]! - pts[i - 1]!));
+  return out;
+}
+
+/** Flyweight: one dashed arc line per wire, made once for the app's life (the endpoints never move). */
 const ARC_LINE: Readonly<Record<CashWire, BufferGeometry>> = Object.fromEntries(
   CASH_WIRES.map((w) => {
     const pts: number[] = [];
     for (let i = 0; i <= ARC_STEPS; i++) pts.push(...wirePoint(w, i / ARC_STEPS));
-    return [w, new BufferGeometry().setAttribute('position', new Float32BufferAttribute(pts, 3))];
+    const g = new BufferGeometry().setAttribute('position', new Float32BufferAttribute(pts, 3));
+    return [w, g.setAttribute('lineDistance', new Float32BufferAttribute(lineDistances(pts), 1))];
   }),
 ) as Record<CashWire, BufferGeometry>;
-/** The idle line is faint; a lit one (its flow active, or a station it touches hovered) soft gold; the live one glows just enough ("vừa đủ"), never a neon. */
-const LINE_MAT: Readonly<Record<CashDir | 'idle' | 'lit', LineBasicMaterial>> = {
-  idle: new LineBasicMaterial({ color: '#a16207', transparent: true, opacity: GLOW.idle, toneMapped: false }),
-  lit: new LineBasicMaterial({ color: '#facc15', transparent: true, opacity: GLOW.lit, toneMapped: false }),
-  IN: new LineBasicMaterial({ color: TONE.IN, transparent: true, opacity: GLOW.live, toneMapped: false }),
-  OUT: new LineBasicMaterial({ color: TONE.OUT, transparent: true, opacity: GLOW.live, toneMapped: false }),
+const dashed = (color: string, opacity: number): LineDashedMaterial => new LineDashedMaterial({ color, transparent: true, opacity, toneMapped: false, dashSize: CASH_DASH_3D.dash, gapSize: CASH_DASH_3D.gap });
+/** Yellow dashed, as on the 2D map: the idle line is faint; a lit one (its flow active, or a station it touches hovered) soft gold; the live one glows just enough ("vừa đủ"), never a neon. */
+const LINE_MAT: Readonly<Record<CashDir | 'idle' | 'lit', LineDashedMaterial>> = {
+  idle: dashed('#a16207', GLOW.idle),
+  lit: dashed('#facc15', GLOW.lit),
+  IN: dashed(TONE.IN, GLOW.live),
+  OUT: dashed(TONE.OUT, GLOW.live),
 };
 const SPARK = new SphereGeometry(0.11, 10, 8);
 const SPARK_MAT: Readonly<Record<CashDir, MeshBasicMaterial>> = { IN: new MeshBasicMaterial({ color: TONE.IN, toneMapped: false }), OUT: new MeshBasicMaterial({ color: TONE.OUT, toneMapped: false }) };
@@ -221,16 +236,44 @@ function Stream({ flow, pool }: { flow: VaultCashFlow; pool: ObjectPool<Mesh> })
 }
 
 /** Flyweight: the two Line objects (idle, lit) of each wire, shared by every mount; a still wire swaps between them, never allocating. */
-type StillLines = Readonly<Record<'idle' | 'lit', Line<BufferGeometry, LineBasicMaterial>>>;
+type StillLines = Readonly<Record<'idle' | 'lit', Line<BufferGeometry, LineDashedMaterial>>>;
 const STILL_LINE = Object.fromEntries(CASH_WIRES.map((w): [CashWire, StillLines] => [w, { idle: new Line(ARC_LINE[w], LINE_MAT.idle), lit: new Line(ARC_LINE[w], LINE_MAT.lit) }])) as Readonly<Record<CashWire, StillLines>>;
-/** A WebGL line is one pixel wide whatever its width, so a lit wire also wears a soft gold tube (one flyweight geometry per wire) that reads at any zoom. */
+/**
+ * The tube's tubular segments that are dash, not gap, for a tube of `length` metres cut into `segments` equal runs (TubeGeometry walks
+ * its curve by arc length): a segment is drawn when its middle falls in a dash of the dash / gap rhythm.
+ */
+export function dashSegments(length: number, segments: number, dash: number = CASH_DASH_3D.dash, gap: number = CASH_DASH_3D.gap): boolean[] {
+  const step = length / segments;
+  return Array.from({ length: segments }, (_, j) => ((j + 0.5) * step) % (dash + gap) < dash);
+}
+
+/** Tube segments per metre: fine enough for a 0.2 m gap to show as a gap. */
+const TUBE_SEGMENTS_PER_M = 25;
+
+/** A tube with its gaps cut out: the same vertices, only the dash segments' triangles kept in the index (no extra geometry). */
+function dashedTube(curve: CatmullRomCurve3, radius: number): TubeGeometry {
+  const segments = Math.max(ARC_STEPS, Math.ceil(curve.getLength() * TUBE_SEGMENTS_PER_M));
+  const radial = 6;
+  const g = new TubeGeometry(curve, segments, radius, radial, false);
+  const keep = dashSegments(curve.getLength(), segments);
+  const index = g.getIndex()!.array;
+  // TubeGeometry indexes segment by segment, 6 indices per radial step: segment j owns [j * radial * 6, (j + 1) * radial * 6).
+  const per = radial * 6;
+  const out: number[] = [];
+  keep.forEach((on, j) => {
+    if (on) for (let k = j * per; k < (j + 1) * per; k++) out.push(index[k]!);
+  });
+  return g.setIndex(out);
+}
+
+/** A WebGL line is one pixel wide whatever its width, so a lit wire also wears a soft gold dashed tube (one flyweight geometry per wire) that reads at any zoom. */
 export const LIT_TUBE_RADIUS = 0.045;
 const LIT_TUBE_MAT = new MeshBasicMaterial({ color: '#facc15', transparent: true, opacity: GLOW.live, depthWrite: false, toneMapped: false });
 const LIT_TUBE = Object.fromEntries(
   CASH_WIRES.map((w): [CashWire, Mesh] => {
     const pts: Vector3[] = [];
     for (let i = 0; i <= ARC_STEPS; i++) pts.push(new Vector3(...wirePoint(w, i / ARC_STEPS)));
-    return [w, new Mesh(new TubeGeometry(new CatmullRomCurve3(pts), ARC_STEPS, LIT_TUBE_RADIUS, 6, false), LIT_TUBE_MAT)];
+    return [w, new Mesh(dashedTube(new CatmullRomCurve3(pts), LIT_TUBE_RADIUS), LIT_TUBE_MAT)];
   }),
 ) as Readonly<Record<CashWire, Mesh>>;
 

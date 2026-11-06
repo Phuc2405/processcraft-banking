@@ -16,7 +16,7 @@ const L = (en: string, vi: string): Localized<string> => ({ en, vi });
 
 /** Each stop's name and icon, and the desk on the map it is (the bay and the off-site ends have none). */
 export const CIT_STOPS: Readonly<Record<CitStopId, { name: Localized<string>; icon: string; place: PlaceId | null }>> = {
-  VAULT: { name: L('Central Cash Vault', 'Kho Quỹ Trung Tâm'), icon: '💰', place: 'MAIN_CASH_VAULT' },
+  VAULT: { name: L('Main Cash Vault', 'Kho Quỹ Trung Tâm'), icon: '💰', place: 'MAIN_CASH_VAULT' },
   BAY: { name: L('CIT Loading Bay', 'Sảnh Giao Nhận CIT'), icon: '🚚', place: null },
   TELLER: { name: L('Teller Cash Counter', 'Quầy Giao dịch viên Tiền mặt'), icon: '🧑‍💼', place: 'TELLER_CASH' },
   ATM: { name: L('ATM / CDM', 'Máy ATM/CDM'), icon: '🏧', place: 'ATM_CASH' },
