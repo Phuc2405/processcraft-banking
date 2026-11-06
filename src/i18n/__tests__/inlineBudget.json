@@ -16,7 +16,6 @@
   "bank/ProcessDiagram.tsx": 2,
   "bank/StepPreview.tsx": 1,
   "bank/TransactionPanel.tsx": 4,
-  "bank/office/AtmKiosk.tsx": 1,
   "canvas/RunControls.tsx": 5,
   "canvas/nodes/GatewayNode.tsx": 1,
   "canvas/nodes/NodeReactions.tsx": 5,

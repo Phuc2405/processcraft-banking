@@ -12,6 +12,7 @@ const LEGEND_LINES: ReadonlyArray<{ key: MapLegendKey; stroke: string; dash?: st
   { key: 'lineNight', stroke: '#fbbf24' },
   { key: 'lineOtp', stroke: '#a78bfa', dash: '3 3' },
   { key: 'lineLock', stroke: '#22d3ee', dash: '7 3' },
+  { key: 'lineCash', stroke: '#facc15', dash: '6 4' },
 ];
 const LEGEND_DESKS: ReadonlyArray<{ key: MapLegendKey; icon: string }> = [
   { key: 'deskSavings', icon: '💰' },

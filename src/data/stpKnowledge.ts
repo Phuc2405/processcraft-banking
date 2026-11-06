@@ -27,7 +27,7 @@ const RULES: KbTable = {
   columns: [L('Product', 'Sản phẩm'), L('Straight through when', 'Đi thẳng khi'), L('Otherwise', 'Ngược lại')],
   rows: [
     [L('BNPL / retail credit', 'BNPL / tín dụng bán lẻ'), L(`Amount ≤ ${formatMoney(DEFAULT_STP.bnplMaxCents)}, DTI ≤ ${DEFAULT_STP.maxDtiPct}%, eKYC PASS, CIC group 1`, `Số tiền ≤ ${formatMoney(DEFAULT_STP.bnplMaxCents)}, DTI ≤ ${DEFAULT_STP.maxDtiPct}%, eKYC ĐẠT, CIC nhóm 1`), L('Pay-in-4 appraisal desk', 'Quầy thẩm định BNPL')],
-    [L('Term deposit at maturity', 'Tiết kiệm đến hạn'), L(`Not pledged and under ${formatMoney(STP_LIMITS.termDepositMaxCents)}: auto-renew or pay out`, `Không cầm cố và dưới ${formatMoney(STP_LIMITS.termDepositMaxCents)}: tự tái tục hoặc tất toán`), L('Savings desk', 'Quầy tiết kiệm')],
+    [L('Term deposit at maturity', 'Tiết kiệm đến hạn'), L(`Not pledged and under ${formatMoney(STP_LIMITS.termDepositMaxCents)}: auto-renew or pay out`, `Không cầm cố và dưới ${formatMoney(STP_LIMITS.termDepositMaxCents)}: tự tái tục hoặc tất toán`), L('Savings Desk', 'Quầy Tiết kiệm')],
     [L('Card annual fee', 'Phí thường niên thẻ'), L(`Spend ≥ ${formatMoney(STP_LIMITS.premiumSpendCents)} a year: auto-waive; else CASA covers it: auto-debit`, `Chi tiêu ≥ ${formatMoney(STP_LIMITS.premiumSpendCents)}/năm: tự miễn; ngược lại CASA đủ: tự trích nợ`), L('Fee tracked off-book and retried', 'Theo dõi ngoại bảng và thu lại')],
     [L('Cash at the Smart Kiosk', 'Tiền mặt tại Smart Kiosk'), L(`Under ${formatMoney(STP_LIMITS.kioskMaxCents)} (the CTR line) and no AML hit`, `Dưới ${formatMoney(STP_LIMITS.kioskMaxCents)} (ngưỡng CTR) và không trùng AML`), L('Teller counter, CTR filed', 'Quầy giao dịch viên, lập CTR')],
   ],

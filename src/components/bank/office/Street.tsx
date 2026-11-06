@@ -182,7 +182,7 @@ const Alcove = memo(function Alcove() {
     <group name="atm-alcove">
       <mesh geometry={body} material={solid} castShadow receiveShadow />
       <mesh geometry={lit} material={glow} />
-      <Sign text="ATM  ·  24 HOURS" fg="#ffffff" bg="#1d4ed8" position={[mid, h + 0.42, z + 0.11]} width={2.1} />
+      <Sign sign="atm24" fg="#ffffff" bg="#1d4ed8" position={[mid, h + 0.42, z + 0.11]} width={2.1} />
     </group>
   );
 });

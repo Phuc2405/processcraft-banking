@@ -434,7 +434,7 @@ export const Park3D = memo(function Park3D() {
         <coneGeometry args={[1.25, 0.45, 8, 1, true]} />
         <meshStandardMaterial color="#f97316" roughness={0.6} side={2} />
       </mesh>
-      <Sign text="CITY PARK" fg="#ffffff" bg="#15803d" position={[GATE_X, 1.35, PARK.z1 - 0.3]} width={1.5} />
+      <Sign sign="cityPark" fg="#ffffff" bg="#15803d" position={[GATE_X, 1.35, PARK.z1 - 0.3]} width={1.5} />
       {crowd.people.map((_, i) => (
         <ParkPerson key={crowd.people[i]!.m.id} crowd={crowd} i={i} outfit={outfit} />
       ))}

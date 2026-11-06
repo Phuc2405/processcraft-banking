@@ -319,7 +319,7 @@ export function LoadingBay3D({ run }: { run: CitRun }) {
     <group name="cit-loading-bay">
       <mesh geometry={bay} material={solid} receiveShadow name="cit-bay" />
       <BayStation />
-      <Sign text="CASH LOADING · CIT ONLY" fg="#111827" bg="#facc15" position={[-HX - 0.1, DOOR.h + 0.42, LOADING_DOOR[1]]} rotationY={-Math.PI / 2} width={1.8} />
+      <Sign sign="citBay" fg="#111827" bg="#facc15" position={[-HX - 0.1, DOOR.h + 0.42, LOADING_DOOR[1]]} rotationY={-Math.PI / 2} width={1.8} />
       {/* The roller shutter: grey slats, rolled up while the cash goes in. */}
       <group position={[-HX - 0.06, 0, LOADING_DOOR[1]]}>
         <group ref={shutter} position={[0, DOOR.h / 2, 0]}>

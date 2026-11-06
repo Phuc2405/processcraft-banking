@@ -110,7 +110,7 @@ export const GuardCabin3D = memo(function GuardCabin3D({ plan = FRONT_PLAN, name
         <boxGeometry args={[w - 0.12, 0.7, d - 0.12]} />
         <meshBasicMaterial ref={light} color="#ffe8a3" transparent opacity={0.4} depthWrite={false} toneMapped={false} />
       </mesh>
-      <Sign text="SECURITY" fg="#ffffff" bg="#1e3a8a" position={[x, h + 0.3, z + d / 2 + 0.24]} width={1.1} />
+      <Sign sign="security" fg="#ffffff" bg="#1e3a8a" position={[x, h + 0.3, z + d / 2 + 0.24]} width={1.1} />
       <Guards guard={guard} looks={looks} name={guardName} raiseFor={raiseFor} />
     </group>
   );
