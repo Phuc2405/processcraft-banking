@@ -1,0 +1,2 @@
+# Vitest file snapshots are compared byte for byte: keep them LF on every checkout.
+**/__snapshots__/** text eol=lf
