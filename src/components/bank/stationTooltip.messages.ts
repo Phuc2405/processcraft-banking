@@ -9,4 +9,6 @@ export const stationTooltipMessages = defineMessages('stationTooltip', {
   passes: { en: 'Passes when', vi: 'Đi tiếp khi' },
   declines: { en: 'Declines when', vi: 'Từ chối khi' },
   total: { en: 'Total so far', vi: 'Tổng đến lúc này' },
+  ledger: { en: 'Core ledger', vi: 'Sổ cái lõi' },
+  gl_FROZEN_ASSETS: { en: 'Frozen assets', vi: 'Tài sản phong tỏa' },
 });

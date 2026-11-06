@@ -3,10 +3,10 @@ import { routingRules } from '../../engine/plan/routingRules';
 import { feedText } from '../../i18n/feedVi';
 import { useLocale } from '../../i18n/locale';
 import { t } from '../../i18n/t';
-import { cashStationTip, type CashStationId, type CashStationTipModel } from '../../sim/cashStationTip';
+import { cashStationTip, deskBalances, type CashStationId, type CashStationTipModel } from '../../sim/cashStationTip';
 import type { CitAccountId } from '../../sim/citEngine';
 import { DESK_HEAT, deskHeat } from '../../sim/deskHeat';
-import { GUIDED_FLOWS, stepStatusLabel, stepText, type StepStatus } from '../../sim/guidedFlows';
+import { GUIDED_FLOWS, stepAction, stepStatusLabel, stepText, type StepStatus } from '../../sim/guidedFlows';
 import { cardContext, cardKind, type CardContext, type CardPlace, type DemoPath } from '../../sim/hoverCard';
 import { formatMoney } from '../../sim/kpis';
 import type { ExternalId, StationId } from '../../sim/topology';
@@ -72,7 +72,7 @@ function RoleBanner({ flow, ctx }: { flow: FlowId; ctx: Extract<CardContext, { m
   return (
     <span className="mb-1.5 block border-b border-slate-700/50 pb-1.5" data-card="context" data-mode="role">
       <span className="block text-[11px] font-bold leading-snug" style={{ color: GUIDED_FLOWS[flow].accent }} data-tip="task">
-        {m('task')}: {stepText(flow, ctx.step).name}
+        {m('task')}: {stepAction(flow, ctx.step)}
       </span>
       <span className="mt-0.5 block text-[10.5px] leading-snug text-slate-400" data-tip="run-hint">
         {m('runHint')}
@@ -153,7 +153,30 @@ function DeskMetrics({ id }: { id: StationId }) {
       </span>
       {heat && <span className="mt-0.5 block text-[10.5px] leading-snug text-amber-200">{wm(`heat_${heat}`, { warn: DESK_HEAT.warnAt, crit: DESK_HEAT.critAbove })}</span>}
       {alert && <span className="mt-0.5 block text-[10.5px] leading-snug text-rose-200">⚠ {feedText(alert.text)}</span>}
+      <DeskBalances id={id} />
     </span>
+  );
+}
+
+/** The core-ledger lines a desk answers for (TK 2930 on the AML and reconciliation desks), live; nothing on other desks. */
+function DeskBalances({ id }: { id: StationId }) {
+  const m = useMessages(stationTooltipMessages);
+  const balances = deskBalances(id, useBankStore((s) => s.retailLedger));
+  if (!balances.length) return null;
+  return (
+    <>
+      <span className="mt-1.5 block text-[9.5px] font-semibold uppercase tracking-wide text-slate-500">{m('ledger')}</span>
+      <span className="block space-y-px" data-tip="balances">
+        {balances.map((b) => (
+          <span key={b.account} className="flex justify-between gap-2 font-mono text-[11px] tabular-nums" data-account={b.account}>
+            <span className="text-slate-400">
+              TK {b.code} {m(`gl_${b.account}` as 'gl_FROZEN_ASSETS')}
+            </span>
+            <span className="font-bold text-amber-200">{formatMoney(b.cents)}</span>
+          </span>
+        ))}
+      </span>
+    </>
   );
 }
 
