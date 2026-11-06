@@ -328,10 +328,10 @@ describe('8. the single-case EoD', () => {
 });
 
 describe('9. pacing, freeze and lighter graphics', () => {
-  it('plays a six-stop payment in about 8–10 s', () => {
+  it('plays a six-stop payment in about 12–15 s (a relaxed, traceable pace)', () => {
     const hop = HOP_TIMING.show + HOP_TIMING.travel;
-    expect(hop).toBeGreaterThanOrEqual(1.2);
-    expect(hop).toBeLessThanOrEqual(1.5);
+    expect(hop).toBeGreaterThanOrEqual(2);
+    expect(hop).toBeLessThanOrEqual(2.5);
     let p = startPlay();
     let t = 0;
     for (; t < 30; t += 0.04) {
@@ -339,8 +339,8 @@ describe('9. pacing, freeze and lighter graphics', () => {
       if (!next) break;
       p = next;
     }
-    expect(t).toBeGreaterThanOrEqual(8);
-    expect(t).toBeLessThanOrEqual(10);
+    expect(t).toBeGreaterThanOrEqual(12);
+    expect(t).toBeLessThanOrEqual(15);
   });
 
   it('freezes the hop mid-motion while the learner has paused the payment, and lets a finished one play out', () => {

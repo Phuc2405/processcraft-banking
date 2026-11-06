@@ -33,6 +33,7 @@ import { useDockInset, ZOOM_TOOLBAR_GUTTER } from './ViewportControls';
 import { PathTraveller } from '../canvas/edges/PathTraveller';
 import { WorkstationGraphic } from '../canvas/nodes/WorkstationGraphic';
 import { BANK_WIRES, CARD, connectedWires, DEPT_BOX, gatewayCarries, GATEWAY_SPOKES, GATEWAYS, pathOfWire, PLACE_BOX, STAGE, TIP_SIDE, type Gateway, type TipSide } from '../../engine/plan/layout';
+import { hopTiming } from '../../engine/plan/layout3d';
 import { SpotlightOverlay, SpotlightToken } from './Spotlight';
 import { StageScaleContext, useStageScale } from './stage';
 import { lookOfKind, RUN_STATUS, STATUS_DOT_CLASS, STATUS_TEXT_CLASS, statusLabel, MachineFace, WorkerFace } from './ui';
@@ -690,7 +691,7 @@ const LABELLED_TOKENS = 6;
 function Travellers({ moves, tick, phase, speedIndex, live, className = '' }: { moves: readonly Move[]; tick: number; phase: Phase; speedIndex: number; live: boolean; className?: string }) {
   const beat = beatMs(phase, SPEEDS[speedIndex]?.factor ?? 1);
   // The same hop as the 3D office (hopTiming): slow enough to follow a payment from desk to desk.
-  const hop = Math.round(Math.max(320, Math.min(1100, beat * 0.5)));
+  const hop = hopTiming(0, beat).durationMs;
   return (
     <div className={`pointer-events-none absolute inset-0 z-10 ${className}`} aria-hidden="true">
       {moves.map((m, i) => {
@@ -698,7 +699,7 @@ function Travellers({ moves, tick, phase, speedIndex, live, className = '' }: { 
         if (!path) return null;
         // The first few payments of a beat say what they are for. More would only hide the wires, and a hop that is over in a blink cannot be read.
         const label = i < LABELLED_TOKENS && hop >= 400 ? localizeScenarioText(m.scenario) : '';
-        return <PathTraveller key={`${tick}-${m.key}`} path={path} look={lookOfKind(m.kind, m.cardType)} delayMs={Math.round(m.at * beat * 0.55)} durationMs={hop} paused={!live} {...(label ? { label } : {})} />;
+        return <PathTraveller key={`${tick}-${m.key}`} path={path} look={lookOfKind(m.kind, m.cardType)} delayMs={hopTiming(m.at, beat).delayMs} durationMs={hop} paused={!live} {...(label ? { label } : {})} />;
       })}
     </div>
   );

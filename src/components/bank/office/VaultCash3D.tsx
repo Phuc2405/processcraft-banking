@@ -5,7 +5,7 @@ import { BufferGeometry, CatmullRomCurve3, CircleGeometry, Float32BufferAttribut
 import { deskPose } from '../../../engine/plan/layout3d';
 import { LOADING_DOOR, VAULT_DOOR } from '../../../engine/world/citRun';
 import type { CashEndpoint } from '../../../sim/topology';
-import { vaultPost, type CashDir, type VaultCashFlow } from '../../../sim/vaultFlows';
+import { CASH_ICON_SECONDS, vaultPost, type CashDir, type VaultCashFlow } from '../../../sim/vaultFlows';
 import { activeFlowOf, citChildOf, useBankStore } from '../../../store/bankStore';
 import { CASH_WIRES, litWires, routeDirs, WIRE_ENDS, type CashWire, type WireNode } from '../../../sim/cashWires';
 import { useCitStore } from '../../../store/citStore';
@@ -189,7 +189,7 @@ const ICON: Readonly<Record<CashEndpoint, string>> = { TELLER: '🧑‍💼', AT
 
 /** Where spark `i` of `n` is along a stream at time `t`, 0 at the door: OUT runs door → endpoint, IN endpoint → door. */
 export const sparkU = (dir: CashDir, i: number, n: number, t: number): number => {
-  const u = (((t * 0.35 + i / n) % 1) + 1) % 1;
+  const u = (((t / CASH_ICON_SECONDS + i / n) % 1) + 1) % 1;
   return dir === 'OUT' ? u : 1 - u;
 };
 

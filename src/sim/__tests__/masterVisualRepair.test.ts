@@ -185,25 +185,17 @@ describe('the active step and the moving icon', () => {
   });
 });
 
-describe('retail echoes keep sim time', () => {
+describe('retail echoes are single-shot', () => {
   afterEach(() => {
     vaultFlowStore.getState().clear();
-    vaultFlowStore.getState().setPaused(false);
     vi.useRealTimers();
   });
 
-  it('freezes while the bank is paused and resumes where it stopped', () => {
+  it('plays once on wall time and clears itself, even while the bank is paused', () => {
     vi.useFakeTimers();
-    const s = vaultFlowStore.getState();
-    s.setPaused(false);
     const flow: VaultCashFlow = { endpoint: 'ATM', dir: 'OUT', source: 'retail', id: 'e' };
-    s.push(flow, 4_500);
-    vi.advanceTimersByTime(2_000);
-    vaultFlowStore.getState().setPaused(true);
-    vi.advanceTimersByTime(60_000);
-    expect(vaultFlowStore.getState().retail).toContain(flow);
-    vaultFlowStore.getState().setPaused(false);
-    vi.advanceTimersByTime(2_400);
+    expect(vaultFlowStore.getState().push(flow, 4_500)).toBe(true);
+    vi.advanceTimersByTime(4_400);
     expect(vaultFlowStore.getState().retail).toContain(flow);
     vi.advanceTimersByTime(200);
     expect(vaultFlowStore.getState().retail).not.toContain(flow);

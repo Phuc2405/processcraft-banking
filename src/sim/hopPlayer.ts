@@ -26,8 +26,11 @@ export interface HopPlay {
   t: number;
 }
 
-/** Seconds per phase: 1.35 s a hop (show + travel), so a six-stop payment plays in about 8–9 s with its final hold. */
-export const HOP_TIMING = { show: 0.7, travel: 0.65, final: 1.5 } as const;
+/**
+ * Seconds per phase: 2.2 s a hop (show + travel), so a six-stop payment plays in about 13 s with its final hold. The glide takes
+ * longer than the stop: a learner traces the icon along each wire, at a relaxed pace, rather than seeing it jump desk to desk.
+ */
+export const HOP_TIMING = { show: 0.9, travel: 1.3, final: 1.5 } as const;
 
 export const startPlay = (): HopPlay => ({ index: 0, phase: 'show', t: 0 });
 

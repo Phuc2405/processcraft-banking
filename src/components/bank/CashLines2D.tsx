@@ -9,13 +9,8 @@ import { citMessages, wireLabelKey } from '../ops/cit.messages';
 import { message, useMessages } from '../../utils/i18nHelper';
 import { useCitStore } from '../../store/citStore';
 import type { CashEndpoint } from '../../sim/topology';
-import { vaultPost, type CashDir, type VaultCashFlow } from '../../sim/vaultFlows';
+import { CASH_ICON_SECONDS, CUSTODIAN_WALK_SECONDS, vaultPost, type CashDir, type VaultCashFlow } from '../../sim/vaultFlows';
 import { useVaultFlows } from './useVaultFlows';
-
-/** One cash run along a line: how long the 💵 takes from end to end, in seconds. */
-export const CASH_ICON_SECONDS = 2.4;
-/** A till run has no van: the custodian walks the teller line, at a walking pace (slower than the 💵). */
-export const CUSTODIAN_WALK_SECONDS = 6;
 
 /** Whether a flow is walked on foot by the vault custodian (a CIT till run), so the 2D line shows them walking it. */
 export const walkedOnFoot = (f: VaultCashFlow): boolean => f.endpoint === 'TELLER' && f.source === 'cit';
@@ -57,7 +52,7 @@ export function CashLinesView({ flows, route = null, dirs = {}, hovered = false,
             {f && !(hopIcon && f.source === 'cit') && (
               <g key={f.id} data-testid={`cash-icon-${e}`} data-dir={f.dir}>
                 {/* OUT runs vault → endpoint (the path's own way), IN the other way round. */}
-                <animateMotion dur={`${CASH_ICON_SECONDS}s`} repeatCount="indefinite" path={d} keyPoints={f.dir === 'OUT' ? '0;1' : '1;0'} keyTimes="0;1" calcMode="linear" />
+                <animateMotion dur={`${CASH_ICON_SECONDS}s`} repeatCount={f.source === 'retail' ? '1' : 'indefinite'} fill="freeze" path={d} keyPoints={f.dir === 'OUT' ? '0;1' : '1;0'} keyTimes="0;1" calcMode="linear" />
                 <rect x={-30} y={-9} width={60} height={18} rx={9} fill="#0f172a" stroke={TONE[f.dir]} strokeWidth={1.2} />
                 <text x={0} y={4} textAnchor="middle" fontSize={10} fontWeight={700} fill={TONE[f.dir]}>
                   💵 {f.dir === 'OUT' ? '→' : '←'} {ICON[f.endpoint]}

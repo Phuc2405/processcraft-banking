@@ -20,7 +20,16 @@ export interface VaultCashFlow {
   source: 'cit' | 'retail';
   /** The run or journal it belongs to (a React key, and what a test follows). */
   id: string;
+  /** The cash that crosses (a retail echo knows it from its journal), for the auto top-up's log line. */
+  cents?: number;
 }
+
+/**
+ * The cash wires' pace, one source for both maps (seconds): one 💵 run from end to end, and the vault custodian's walk along the
+ * teller line. Relaxed on purpose, so a learner can follow the cash from the vault to the desk with the eye.
+ */
+export const CASH_ICON_SECONDS = 4.8;
+export const CUSTODIAN_WALK_SECONDS = 9;
 
 /** The vault's own GL line for a movement. */
 export const vaultPost = (dir: CashDir): 'Dr 1111' | 'Cr 1111' => (dir === 'IN' ? 'Dr 1111' : 'Cr 1111');
@@ -71,7 +80,7 @@ export function retailCashFlow(j: OpsJournal): VaultCashFlow | null {
   const vault = j.lines.find((l) => l.account === 'CASH_VAULT');
   if (!vault || vault.dr === vault.cr) return null;
   const endpoint: CashEndpoint = j.lines.some((l) => l.account === 'CASH_ATM') ? 'ATM' : 'TELLER';
-  return { endpoint, dir: vault.dr > vault.cr ? 'IN' : 'OUT', source: 'retail', id: `${j.id}:${endpoint}` };
+  return { endpoint, dir: vault.dr > vault.cr ? 'IN' : 'OUT', source: 'retail', id: `${j.id}:${endpoint}`, cents: Math.abs(vault.dr - vault.cr) };
 }
 
 /** One flow per endpoint (the CIT run wins over a retail echo of the same move), in a stable order. */

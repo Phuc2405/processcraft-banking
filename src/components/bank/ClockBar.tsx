@@ -6,6 +6,7 @@ import { eventText } from '../../sim/traffic';
 import { SKIP_TARGETS, useBankStore } from '../../store/bankStore';
 import { ledgerUi } from '../../data/ledgerCopy';
 import { fractionToMinute, keyStep, minuteToFraction, SEGMENT_WIDTH } from './timeline';
+import { guarded, useDemoLocked } from './DemoSession';
 
 const PHASE_STYLE: Record<Phase, { chip: string; bar: string; label: string }> = {
   PRE_OPEN: { chip: 'bg-sky-400/10 text-sky-200 ring-sky-400/30', bar: 'bg-sky-500/40', label: 'Pre-open · systems check' },
@@ -197,6 +198,8 @@ export function ClockBar() {
   const skipTo = useBankStore((s) => s.skipTo);
   const jumpToEod = useBankStore((s) => s.jumpToEod);
   const touring = useBankStore((s) => s.spotlight !== null);
+  // A running demo plays at the speed it started with: the speed buttons are read-only until it finishes or is cancelled.
+  const demoRun = useDemoLocked();
   const skipToEndOfDay = useBankStore((s) => s.skipToEndOfDay);
   const startNextDay = useBankStore((s) => s.startNextDay);
   const reopenReport = useBankStore((s) => s.reopenReport);
@@ -262,19 +265,21 @@ export function ClockBar() {
         </IconButton>
         <div className="relative ml-1 flex flex-col items-center">
         <div
-            className={`ml-1 flex rounded-lg bg-slate-800 p-0.5 ${touring ? 'ring-1 ring-sky-400/40' : ''}`}
+            className={`ml-1 flex rounded-lg bg-slate-800 p-0.5 ${touring ? 'ring-1 ring-sky-400/40' : demoRun ? 'ring-1 ring-rose-400/40' : ''}`}
             role="group"
             aria-label={t('Speed')}
-            title={touring ? t('The speed is locked to 0.25× while a guided tour runs, so nothing moves ahead of the explanation.') : t('How fast the bank day plays. 1× Relaxed is one tick every 1.5 seconds.')}
+            title={touring ? t('The speed is locked to 0.25× while a guided tour runs, so nothing moves ahead of the explanation.') : demoRun ? t('The speed is read-only while a demo runs: it plays at the speed it started with. It unlocks when the demo finishes or is cancelled.') : t('How fast the bank day plays. 1× Relaxed is one tick every 1.5 seconds.')}
             data-testid="bank-speeds"
-            data-locked={touring}
+            data-locked={touring || demoRun}
+            data-demo-lock={demoRun || undefined}
           >
             {SPEEDS.map((sp, i) => (
               <button
                 key={sp.label}
                 type="button"
-                onClick={() => setSpeed(i)}
-                disabled={touring}
+                onClick={guarded(() => setSpeed(i))}
+                disabled={touring || demoRun}
+                aria-disabled={touring || demoRun}
                 aria-pressed={i === speedIndex}
                 aria-label={sp.name ? `${sp.label} ${speedNameText(sp.name)}` : sp.label}
                 title={sp.name ? `${sp.label} ${speedNameText(sp.name)}` : undefined}
