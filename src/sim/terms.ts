@@ -136,7 +136,7 @@ const EN: TermBook = {
     TELLER_CASH: {
       plain: 'Cash Teller Desk',
       short: 'Cash Teller Desk',
-      tip: 'A teller counts cash in and out by hand, checks for fake notes, reports any cash over $10,000, and tops the till up from (or hands its surplus back to) the Central Cash Vault.',
+      tip: 'A teller counts cash in and out by hand, checks for fake notes, reports any cash over $10,000, and tops the till up from (or hands its surplus back to) the Main Cash Vault.',
     },
     SEC_FACEPAY: {
       plain: 'Face Check for Big Transfers',
@@ -169,8 +169,8 @@ const EN: TermBook = {
       tip: 'Collateral paperwork only, with no cash kept here: the savings pledged against a loan are frozen here when it goes bad and used to pay it off.',
     },
     MAIN_CASH_VAULT: {
-      plain: 'Central Cash Vault',
-      short: 'Central Cash Vault',
+      plain: 'Main Cash Vault',
+      short: 'Main Cash Vault',
       tip: 'The bank’s one strong room behind the round steel door, holding all its notes (TK 1111 fit, 1112 unfit, 1131 in transit), where teller tills, ATMs and CIT vans take cash or bring it back.',
     },
     DISPUTE_DESK: {
@@ -194,7 +194,7 @@ const EN: TermBook = {
     ENTRANCE: { plain: 'Front Door & Identity Checks', short: 'Front Door & Identity', tip: 'Where new customers are identified, QR payments arrive, cash is handled at the counter, and big transfers need a face scan.' },
     COMPLIANCE: { plain: 'Fraud & Money Laundering Watch', short: 'Fraud & Laundering Watch', tip: 'Where risky devices are stopped and suspicious money is reviewed and reported.' },
     SAVINGS: { plain: 'Savings & Collateral', short: 'Savings & Collateral', tip: 'Where term deposits are closed, and where pledged savings are frozen and used to clear bad debt.' },
-    CASH: { plain: 'Central Cash Vault', short: 'Central Cash Vault', tip: 'The one place the branch keeps physical cash: the tellers, ATMs and CIT vans all draw from it and pay back into it.' },
+    CASH: { plain: 'Main Cash Vault', short: 'Main Cash Vault', tip: 'The one place the branch keeps physical cash: the tellers, ATMs and CIT vans all draw from it and pay back into it.' },
     BACKOFFICE: { plain: 'Claims & Overseas Transfers', short: 'Claims & Overseas', tip: 'Where customer refund claims are decided and money is sent abroad.' },
   },
   externals: {

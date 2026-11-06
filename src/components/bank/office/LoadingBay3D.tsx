@@ -270,7 +270,7 @@ function BayStation() {
           onClick={() => bankStore.getState().select({ kind: 'bay' })}
           onPointerEnter={() => point(true)}
           onPointerLeave={() => point(false)}
-          title={m('bayOpen')}
+          aria-label={m('bayOpen')}
           data-testid="cit-bay-label-3d"
           data-lit={lit}
           style={{ ...TAG_STYLE, cursor: 'pointer', color: selected || hover || lit ? '#fde68a' : '#64748b', opacity: lit || selected || hover ? 1 : 0.4, filter: lit || selected || hover ? undefined : 'grayscale(1)', outline: selected || lit ? '1px solid #facc15' : undefined }}

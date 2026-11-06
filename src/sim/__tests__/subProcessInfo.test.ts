@@ -74,7 +74,7 @@ describe('the sub-process registry', () => {
     expect(infoKeyForChoice(2, 'bnpl-credit')).toBe('bnpl-credit');
     expect(infoKeyForChoice(6, 'teller-vault')).toBe('teller-vault');
     expect(infoKeyForChoice(4, 'eod-batch')).toBe('flow-4');
-    // The cash sheet belongs to the Central Cash Vault; the collateral desk reads the collateral sheet.
+    // The cash sheet belongs to the Main Cash Vault; the collateral desk reads the collateral sheet.
     expect(infoKeyForPlace('MAIN_CASH_VAULT')).toBe('flow-9');
     expect(infoKeyForPlace('COLLATERAL_VAULT')).toBe('collateral');
     expect(infoKeyForPlace('AML_DESK')).toBe('aml-sanctions');

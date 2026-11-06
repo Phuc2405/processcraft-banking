@@ -13,6 +13,7 @@ import { AdaptivePopover, listboxKey } from '../shell/AdaptivePopover';
 import { retailOpsMessages } from './retailOps.messages';
 import { selectSubProcess } from './retailOpsActions';
 import { LessonLink } from '../ops/LessonLink';
+import { subProcessTitle } from './subProcessTitle';
 import { demoLocked, useDemoLocked } from './DemoSession';
 
 /**
@@ -44,7 +45,8 @@ export function SubProcessMenu() {
   const spi = useMessages(subProcessInfoMessages);
   const locale = useLocale();
   const flow = useBankStore((s) => s.flow);
-  const sub = useBankStore((s) => groupOf(s.subProcess));
+  const subProcess = useBankStore((s) => s.subProcess);
+  const sub = groupOf(subProcess);
   const setFlow = useBankStore((s) => s.setActiveFlow);
   const [open, setOpen] = useState(false);
   // While a demo runs the menu is locked: no flow switch mid-run (cancel the demo, or let it finish).
@@ -65,7 +67,7 @@ export function SubProcessMenu() {
   const group = sub && showsGroupsOf(flow) ? sub : null;
   // A CIT child picked from the menu names the menu (and owns the map's highlight and the dock) until another choice is made.
   const cit = citChild ? CIT_SHEET_OF.get(CIT_INFO_KEYS[citChild])! : null;
-  const title = cit ? `${cit.icon} ${pick(cit.title, locale)}` : group ? pick(demoGroup(group).title, locale) : `${GUIDED_FLOWS[flow].code}. ${flowText(flow).title}`;
+  const title = subProcessTitle({ flow, subProcess }, locale);
   // The lesson of what the menu names: the CIT child, the sub-group (or the single group of its flow), else the flow.
   const lessonKey = cit ? cit.key as CitInfoKey : (sub && demoGroup(sub).flow === flow ? sub : `flow-${flow}` as const);
 

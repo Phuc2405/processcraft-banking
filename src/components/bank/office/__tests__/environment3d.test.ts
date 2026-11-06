@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { VI_DICTIONARY } from '../../../../i18n/viDictionary';
 import { STATION_IDS, WIRES } from '../../../../sim/topology';
@@ -429,11 +431,13 @@ describe('the 3D view shares the 2D map’s overlays', () => {
   });
 
   it('opens an opaque description beside a pointed-at desk (above unless that hides its badges), with its rules and its status', () => {
-    const desk = src['../Desk3D.tsx']!;
-    expect(desk).toContain("above: 'translate(-50%, calc(-100% - 10px))'");
-    expect(desk).toMatch(/className="w-\[260px\] rounded-lg border border-slate-500 bg-slate-900/);
-    expect(desk).toContain('zIndexRange={[60, 50]}');
-    for (const key of ["t('Passes when')", "t('Declines when')", "t('waiting')"]) expect(desk).toContain(key);
+    // One host for the whole office (StationTooltip3D) shows the one card both maps share (StationTooltip).
+    const host = readFileSync(join(__dirname, '../StationTooltip3D.tsx'), 'utf8');
+    const card = readFileSync(join(__dirname, '../../StationTooltip.tsx'), 'utf8');
+    expect(host).toContain("above: 'translate(-50%, calc(-100% - 10px))'");
+    expect(card).toMatch(/w-\[264px\] rounded-lg border bg-slate-900/);
+    expect(host).toContain('zIndexRange={[60, 50]}');
+    for (const key of ["m('passes')", "m('declines')", 'useDeskStatusLine(id)']) expect(card).toContain(key);
   });
 
   it('picks the weather from a dropdown, random by default, with every choice in both languages', () => {

@@ -159,7 +159,7 @@ export const AtmKiosk = memo(function AtmKiosk({ id }: { id: StationId }) {
           <boxGeometry args={[ATM_KIOSK.w + 0.3, 2.1, ATM_KIOSK.d + 0.3]} />
         </mesh>
         {selected && <SelectionFrame w={ATM_KIOSK.w + 0.7} d={ATM_KIOSK.d + 0.7} />}
-        <DeskPin id={id} height={2.55} />
+        <DeskPin id={id} />
       </group>
       <mesh geometry={marks} material={solid} receiveShadow name={`atm-queue-line-${id}`} />
       <DeskQueue id={id} />

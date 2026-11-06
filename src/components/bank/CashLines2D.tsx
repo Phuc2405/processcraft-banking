@@ -39,7 +39,7 @@ export const CashLines2D = memo(function CashLines2D() {
 });
 
 /**
- * The gold cash wires: the Central Cash Vault to the teller, the ATM and the CIT bay, and the bay's handover to the teller. Faint
+ * The gold cash wires: the Main Cash Vault to the teller, the ATM and the CIT bay, and the bay's handover to the teller. Faint
  * while idle; while cash moves, the line glows (just enough) in its direction's colour and a 💵 glides along it, OUT from the vault
  * (Cr 1111) or IN to it (Dr 1111). A lit wire (its flow is active, or a station it touches is hovered) glows softly; the rest dim.
  */

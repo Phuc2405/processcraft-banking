@@ -8,7 +8,7 @@ import type { BoxSide, Pt } from '../../types/geometry';
 /** The branch itself is the BUILDING (the old stage). */
 export const BUILDING = { width: 1080, height: 1180 } as const;
 // 2D stage (Phase 1A compact grid: EOD moved under the outcome column.
-// 1080 high (was 1000) so the Central Cash Vault and its CIT bay have a column of their own under Savings & Collateral.
+// 1080 high (was 1000) so the Main Cash Vault and its CIT bay have a column of their own under Savings & Collateral.
 export const STAGE = { width: 1560, height: 1080 } as const;
 
 // Right-side clusters (Flows 3 and 4): `right` px of extra free space so the zoom toolbar never covers them and the camera never parks against the edge.
@@ -94,7 +94,7 @@ export const PLACE_BOX: Record<PlaceId, PlaceBox> = {
   // Phase 2/4: a column of its own right of the night cycle: the vault feeds the savings desk, which posts straight to the ledger.
   SAVINGS_DESK: card(1440, 548),
   COLLATERAL_VAULT: card(1440, 688),
-  // The Central Cash Vault: under the savings column, with the CIT loading bay right below it (CitBay2D), and gold cash lines to the teller and the ATM (CashLines2D).
+  // The Main Cash Vault: under the savings column, with the CIT loading bay right below it (CitBay2D), and gold cash lines to the teller and the ATM (CashLines2D).
   MAIN_CASH_VAULT: card(1440, 844),
   // The virtual STP node: a slim card in the corridor between the risk desk and Pay-in-4, so the fast lane skips both.
   STP_ENGINE: { cx: 540, cy: 500, w: 150, h: 64 },
@@ -754,14 +754,14 @@ export function tipSideFor(place: PlaceId): TipSide {
 
 export const TIP_SIDE: Readonly<Record<PlaceId, TipSide>> = Object.fromEntries((Object.keys(PLACE_BOX) as PlaceId[]).map((p) => [p, tipSideFor(p)])) as Record<PlaceId, TipSide>;
 
-// Cash lines: the Central Cash Vault to the teller, the ATM and the CIT bay (not payment wires: cash, drawn in gold by CashLines2D)
+// Cash lines: the Main Cash Vault to the teller, the ATM and the CIT bay (not payment wires: cash, drawn in gold by CashLines2D)
 
 /**
  * Each cash line as corners from the vault (first point) to its endpoint (last point): to the teller straight along the clear
  * corridor between the band's departments (y 928) and the decline floor bus (y 960), to the ATM up the map's right-hand margin,
  * and straight down into the CIT loading bay under the vault.
  */
-/** The CIT loading bay card on the map's bottom-right edge, right under the Central Cash Vault. */
+/** The CIT loading bay card on the map's bottom-right edge, right under the Main Cash Vault. */
 /** 20 px under the vault (y 890), so the vault ↔ bay wire's label badge fits in the gap clear of both cards' text. */
 export const CIT_BAY = { x: 1350, y: 910, w: 180, h: 160 } as const;
 /** The bay card's off-site ends along its bottom row, left to right (CitBay2D draws them; the hop player parks its badge on them). */

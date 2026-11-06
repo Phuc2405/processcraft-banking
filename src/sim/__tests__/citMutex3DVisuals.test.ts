@@ -144,7 +144,7 @@ describe('stations renamed: the collateral desk and the central cash vault are t
     const NAMES = {
       TELLER_CASH: ['Quầy Giao dịch viên Tiền mặt', 'Cash Teller Desk'],
       COLLATERAL_VAULT: ['Quầy Tiết kiệm & Tài sản Bảo đảm', 'Savings & Collateral Desk'],
-      MAIN_CASH_VAULT: ['Kho Quỹ Trung Tâm', 'Central Cash Vault'],
+      MAIN_CASH_VAULT: ['Kho Quỹ Trung Tâm', 'Main Cash Vault'],
     } as const;
     for (const [id, [vi, en]] of Object.entries(NAMES) as [keyof typeof NAMES, readonly [string, string]][]) {
       expect(STATIONS[id].name).toBe(en);

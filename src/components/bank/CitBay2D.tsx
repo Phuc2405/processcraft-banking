@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { CIT_BAY, PLACE_BOX } from '../../engine/plan/layout';
 import { actorStatus } from '../../sim/actorStatus';
 import { crewOf, vaultPulseAt, type CrewPoint } from '../../sim/citCrew';
@@ -10,13 +10,16 @@ import { useMessages } from '../../utils/i18nHelper';
 import { citMessages } from '../ops/cit.messages';
 import { useCit } from '../ops/CitPanel';
 import { ActorStatusBadge } from './ActorStatusBadge';
+import { StationTooltip } from './StationTooltip';
 import { H, Person, W } from './DeskVisitors2D';
 
-/** The loading bay on the map's bottom-right edge, right under the Central Cash Vault: the van, and its crew walking between the van and the vault. */
+/** The loading bay on the map's bottom-right edge, right under the Main Cash Vault: the van, and its crew walking between the van and the vault. */
 export { CIT_BAY };
 
 /** The bay card's text rows, px from its top: the header, then the live vault balance on its own line (14 px apart: no overlap). */
 export const BAY_ROWS = { header: 7, balance: 24 } as const;
+/** The gap between the bay and its hover card, px. */
+const BAY_TIP_GAP = 8;
 
 const VAULT = PLACE_BOX.MAIN_CASH_VAULT;
 const VAULT_BOTTOM = VAULT.cy + VAULT.h / 2;
@@ -76,6 +79,8 @@ export function CitBayView({ cit, live, lit = false, onOpen }: { cit: CitSnapsho
   const flow = cit.vaultFlow;
   const crew = cit.bay ? crewOf(cit.bay.flow, cit.bay.u) : null;
   const post = cit.bay ? vaultPulseAt(cit.bay.flow, cit.bay.u) : null;
+  // The pointer on the bay opens the same one card as the 3D bay (StationTooltip), to the bay's left: the bay sits on the map's right edge.
+  const [hover, setHover] = useState(false);
   return (
     <div data-frozen={!live} data-testid="cit-bay-layer" className="contents">
       {flow && <div aria-hidden="true" className={`pointer-events-none absolute z-[21] rounded-xl ${flow === 'OUT' ? 'bk-vault-out' : 'bk-vault-in'}`} style={{ left: VAULT.cx - VAULT.w / 2 - 4, top: VAULT.cy - VAULT.h / 2 - 4, width: VAULT.w + 8, height: VAULT.h + 8 }} data-testid="cit-vault-pulse" data-flow={flow} />}
@@ -88,7 +93,10 @@ export function CitBayView({ cit, live, lit = false, onOpen }: { cit: CitSnapsho
       <button
         type="button"
         onClick={onOpen}
-        title={m('bayHint')}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        onFocus={() => setHover(true)}
+        onBlur={() => setHover(false)}
         aria-label={`${m('bay')}: ${m('bayOpen')}`}
         data-testid="cit-bay"
         data-status={moving?.status ?? 'IDLE'}
@@ -120,6 +128,7 @@ export function CitBayView({ cit, live, lit = false, onOpen }: { cit: CitSnapsho
           ))}
         </span>
       </button>
+      {hover && <StationTooltip place="LOADING_BAY" className="pointer-events-none absolute z-50" style={{ left: CIT_BAY.x - BAY_TIP_GAP, top: CIT_BAY.y, transform: 'translateX(-100%)' }} />}
       {cit.bay && crew?.custodian && <CrewFigure2D role="custodian" flow={cit.bay.flow} p={crew.custodian} />}
       {cit.bay && crew?.guard && <CrewFigure2D role="guard" flow={cit.bay.flow} p={crew.guard} />}
     </div>

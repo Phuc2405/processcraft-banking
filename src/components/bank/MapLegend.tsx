@@ -18,6 +18,11 @@ const LEGEND_DESKS: ReadonlyArray<{ key: MapLegendKey; icon: string }> = [
   { key: 'deskSavings', icon: '💰' },
   { key: 'deskCollateral', icon: '🔒' },
 ];
+/** The two cash words on the gold wires (cit.messages wire_*_OUT / wire_*_IN): Xuất quỹ ➔ for cash leaving the vault, Nhập quỹ ⬅ for cash coming back. */
+export const LEGEND_CASH_TERMS: ReadonlyArray<{ id: 'cashOut' | 'cashIn'; label: MapLegendKey; text: MapLegendKey }> = [
+  { id: 'cashOut', label: 'cashOutLabel', text: 'term_cashOut' },
+  { id: 'cashIn', label: 'cashInLabel', text: 'term_cashIn' },
+];
 const LEGEND_TERMS = ['CTR', 'STR', 'clean', 'released', 'refund', 'matched', 'break', 'lien'] as const;
 /** The wire label each legend term stands for, where the two differ. */
 const LEGEND_LABEL: Partial<Record<(typeof LEGEND_TERMS)[number], string>> = { matched: 'matched overnight' };
@@ -75,6 +80,12 @@ export function MapLegend({ top = 12, right = 12, initiallyOpen = false }: { top
           </ul>
           <div className="mt-2.5 text-[10.5px] font-semibold uppercase tracking-wider text-slate-500">{m('termsTitle')}</div>
           <dl className="mt-1 space-y-1">
+            {LEGEND_CASH_TERMS.map((c) => (
+              <div key={c.id} className="leading-snug" data-legend-term={c.id}>
+                <dt className="inline rounded bg-yellow-400/15 px-1.5 font-mono text-[11px] font-bold text-yellow-200 ring-1 ring-yellow-400/40">{m(c.label)}</dt>
+                <dd className="inline text-slate-300"> {m(c.text)}</dd>
+              </div>
+            ))}
             {LEGEND_TERMS.map((term) => (
               <div key={term} className="leading-snug" data-legend-term={term}>
                 <dt className="inline rounded bg-slate-800 px-1.5 font-mono text-[11px] font-bold text-sky-200">{t(LEGEND_LABEL[term] ?? term)}</dt>

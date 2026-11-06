@@ -259,7 +259,7 @@ const VAULT_SIDES: readonly WallSide[] = ['front', 'left', 'right'];
 const SERVER_SIDES: readonly WallSide[] = ['left', 'front', 'back'];
 
 /**
- * The Security & 3DS Risk Vault, in glass, with the Central Cash Vault's great round door (VAULT_DOOR) on the wall behind the vault
+ * The Security & 3DS Risk Vault, in glass, with the Main Cash Vault's great round door (VAULT_DOOR) on the wall behind the vault
  * desk: the door is the MAIN_CASH_VAULT station itself (VaultDoorStation takes the click, the halo and the cash glow).
  */
 export const VaultRoom = memo(function VaultRoom() {

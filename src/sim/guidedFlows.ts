@@ -182,9 +182,9 @@ export const GUIDED_FLOWS: Readonly<Record<FlowId, FlowDef>> = {
     code: '09',
     title: 'Cash in Transit & Vault (CIT)',
     accent: '#facc15',
-    blurb: 'Physical cash, not payments: the Central Cash Vault feeds the teller tills and the ATM / CDM, and the armoured van carries cash between the CIT loading bay, corporate clients and the State Bank (SBV).',
+    blurb: 'Physical cash, not payments: the Main Cash Vault feeds the teller tills and the ATM / CDM, and the armoured van carries cash between the CIT loading bay, corporate clients and the State Bank (SBV).',
     steps: [
-      step('cash_vault', ['MAIN_CASH_VAULT'], 'Central Cash Vault', 'Cash leaves or comes back to the vault under two custodians.', 'Cr 1111 on a dispatch, Dr 1111 (fit) / Dr 1112 (unfit) on a receipt; TK 1131 holds it on the road.'),
+      step('cash_vault', ['MAIN_CASH_VAULT'], 'Main Cash Vault', 'Cash leaves or comes back to the vault under two custodians.', 'Cr 1111 on a dispatch, Dr 1111 (fit) / Dr 1112 (unfit) on a receipt; TK 1131 holds it on the road.'),
       step('cit_bay', [], 'CIT Loading Bay', 'The sealed bags are checked and loaded into, or unloaded from, the armoured van.', '4-eye seal check at ARRIVED; a mismatch is minuted and the bag recounted under dual control.'),
       step('cash_endpoint', ['TELLER_CASH', 'ATM_CASH'], 'Till, ATM / CDM, Client or SBV', 'The cash reaches the teller till, the ATM cassette, the corporate client or the State Bank.', 'Dr 1113 ATM, Dr 1111 till, Dr 1121 SBV, or Dr 1111 / Cr 4211 for a corporate pickup; SETTLED once 1131 nets to zero.'),
     ],
@@ -223,7 +223,7 @@ export interface FlowScope {
 }
 
 const SCOPE_CACHE = new Map<FlowId, FlowScope>();
-/** A scope that touches a cash endpoint (the teller's till or the ATM's cassette) also lights the Central Cash Vault that feeds it. */
+/** A scope that touches a cash endpoint (the teller's till or the ATM's cassette) also lights the Main Cash Vault that feeds it. */
 export function withCashVault(places: Set<PlaceId>): Set<PlaceId> {
   if (places.has('TELLER_CASH') || places.has('ATM_CASH')) places.add('MAIN_CASH_VAULT');
   return places;

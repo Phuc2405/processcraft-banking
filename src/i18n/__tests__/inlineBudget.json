@@ -14,7 +14,6 @@
   "bank/LedgerDrawer.tsx": 6,
   "bank/PresetDock.tsx": 4,
   "bank/ProcessDiagram.tsx": 2,
-  "bank/StepPreview.tsx": 1,
   "bank/TransactionPanel.tsx": 4,
   "canvas/RunControls.tsx": 5,
   "canvas/nodes/GatewayNode.tsx": 1,

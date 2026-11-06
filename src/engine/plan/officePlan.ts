@@ -37,7 +37,7 @@ export const OFFICE_PLACE_BOX: Record<PlaceId, PlaceBox> = {
   // Phase 2/4: the free right-hand side of the wing; nothing else on the frozen plan moves.
   SAVINGS_DESK: card(980, BAND_ROW_3D),
   COLLATERAL_VAULT: card(980, BAND_ROW_3D + 140),
-  // The Central Cash Vault is the round steel door in the back wall of the glass vault room (citRun.VAULT_DOOR): the plan point
+  // The Main Cash Vault is the round steel door in the back wall of the glass vault room (citRun.VAULT_DOOR): the plan point
   // behind SEC_VAULT whose world z is the door's (toWorld: z = (cy - 590) / 40 ≈ -15.85). It has no desk: Dressing draws the door.
   MAIN_CASH_VAULT: { cx: 300, cy: -44, w: CARD.w, h: CARD.h },
   // The STP engine's server cabinet, under the credit line in an extended core-ledger room.
