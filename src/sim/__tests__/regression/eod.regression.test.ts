@@ -40,7 +40,7 @@ describe('§6.1 single-stream EoD at 23:00', () => {
     expect(s.solo).toBe(false);
     expect(s.presetTxId).toBeNull();
     expect(s.sandboxTrace?.route).toEqual([...EOD_CASE_ROUTE]);
-    expect(demoSessionStore.getState().active).toEqual({ kind: 'sandbox', id: s.sandboxTrace!.id });
+    expect(demoSessionStore.getState().active).toMatchObject({ kind: 'sandbox', id: s.sandboxTrace!.id });
     expect(demoLocked()).toBe(true);
   });
 

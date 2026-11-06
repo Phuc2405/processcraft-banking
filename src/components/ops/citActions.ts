@@ -1,3 +1,4 @@
+import { activeLocale, pick } from '../../i18n/localeCore';
 import { formatMoney } from '../../sim/kpis';
 import { citAccount, citAt, citDemoBusy, dueAtmRefills, type CitDemo, type CitSnapshot } from '../../sim/citEngine';
 import { OPS_LIMITS } from '../../sim/retailOps';
@@ -56,7 +57,7 @@ export function dispatchCitDemo(kind: CitDemo, focus = true): boolean {
   const refill = kind === 'ATM' ? retailShortfall() : 0;
   if (!citStore.getState().dispatch(kind, day, minute, refill)) return false;
   const id = `CIT-${day}-M${citStore.getState().manual.length}`;
-  demoSessionStore.getState().start({ kind: 'cit', runId: id });
+  demoSessionStore.getState().start({ kind: 'cit', runId: id, name: () => pick(dispatchTitle(kind), activeLocale()) });
   const run = citNow().runs.find((r) => r.planned.order.id === id)?.run;
   const lines = run?.entries[0]?.lines ?? [];
   const text = (dr: string, cr: string) => lines.map((l) => `${l.dr ? dr : cr} ${citAccount(l.account).code} ${formatMoney(l.dr || l.cr)}`).join(' · ');

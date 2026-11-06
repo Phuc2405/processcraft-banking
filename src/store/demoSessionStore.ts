@@ -7,8 +7,11 @@
 import { useStore } from 'zustand';
 import { createStore } from 'zustand/vanilla';
 
-/** A payment, a CIT run, or a replay the hop player shows alone (a closed-day sandbox payment, the EoD demo's one batch case). */
-export type DemoRun = { kind: 'payment'; id: string } | { kind: 'cit'; runId: string } | { kind: 'sandbox'; id: string };
+/**
+ * A payment, a CIT run, or a replay the hop player shows alone (a closed-day sandbox payment, the EoD demo's one batch case). `name`
+ * is the scenario's own name in the learner's language, read when drawn, for the hover card's "👉 [Scenario: …] - Step X/Y" banner.
+ */
+export type DemoRun = ({ kind: 'payment'; id: string } | { kind: 'cit'; runId: string } | { kind: 'sandbox'; id: string }) & { name?: () => string };
 
 interface DemoSessionState {
   active: DemoRun | null;

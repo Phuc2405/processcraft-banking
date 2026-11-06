@@ -4,7 +4,8 @@ import { demoMinute, inWindow, modeOf, shiftOf, shiftSnap, slotLabel } from '../
 import { shiftQueueStore } from '../../store/shiftQueueStore';
 import { DESK_VISITS } from '../../sim/deskVisit';
 import { simStamp } from '../../sim/ledgerStreams';
-import { opsCustomer, presetById, presetCustomer, type PresetId } from '../../sim/presets';
+import { flowText } from '../../sim/guidedFlows';
+import { opsCustomer, presetById, presetCustomer, PRIMARY_PRESET, type PresetId } from '../../sim/presets';
 import { formatAud } from '../../engine/money';
 import { opsAccount, type OpsActionId } from '../../sim/retailOps';
 import { opsStpVerdict } from '../../sim/stpEngine';
@@ -52,20 +53,20 @@ function runPresetDemo(id: PresetId): void {
     retail.setLastTx(null);
     announce();
     const replay = bankStore.getState().sandboxTrace;
-    if (replay) demoSessionStore.getState().start({ kind: 'sandbox', id: replay.id });
+    if (replay) demoSessionStore.getState().start({ kind: 'sandbox', id: replay.id, name: demoActionById(id).label });
     return;
   }
   const trace = bankStore.getState().presetTrace;
   if (!trace) return;
   retail.applyPreset(id, trace.plan.outcome, opsStamp());
   retail.setLastTx(trace.id);
-  startPaymentSession();
+  startPaymentSession(demoActionById(id).label);
 }
 
-/** The learner's payment is now the running demo: the navigation locks until it (and its hop replay) is over. */
-function startPaymentSession(): void {
+/** The learner's payment is now the running demo, named `name`: the navigation locks until it (and its hop replay) is over. */
+function startPaymentSession(name: () => string): void {
   const id = bankStore.getState().presetTxId;
-  if (id) demoSessionStore.getState().start({ kind: 'payment', id });
+  if (id) demoSessionStore.getState().start({ kind: 'payment', id, name });
 }
 
 /**
@@ -75,7 +76,8 @@ function startPaymentSession(): void {
 export function simulateGuidedFlow(flow: FlowId): void {
   if (demoLocked()) return;
   simulateFlow(academyStore, bankStore, flow);
-  startPaymentSession();
+  const preset = (PRIMARY_PRESET as Partial<Record<FlowId, PresetId>>)[flow];
+  startPaymentSession(preset ? demoActionById(preset).label : () => flowText(flow).title);
 }
 
 /**
@@ -104,7 +106,7 @@ function runOpsDemo(id: OpsActionId): void {
   }
   bank.runDemoCustomer(customer);
   retail.setLastTx(bankStore.getState().presetTxId);
-  startPaymentSession();
+  startPaymentSession(demoActionById(id).label);
   // A savings or collateral case brings people to those desks, on both maps. A system flow never does, nor a case the STP engine takes.
   const route = opsStpVerdict(id, bank.stp)?.route;
   const straight = route === 'STP' || route === 'REJECT';
@@ -177,7 +179,7 @@ function runSandboxDemo(id: DemoActionId): void {
   const def = demoActionById(id);
   if (bank.scope !== 'beginner' || bank.flow !== def.flow) bank.setActiveFlow(def.flow);
   const trace = customer ? bankStore.getState().runSandbox(customer, demoMinute(id, bank.view.minute)) : null;
-  if (trace) demoSessionStore.getState().start({ kind: 'sandbox', id: trace.id });
+  if (trace) demoSessionStore.getState().start({ kind: 'sandbox', id: trace.id, name: def.label });
   notificationStore.getState().push({
     tone: 'info',
     icon: '🧪',

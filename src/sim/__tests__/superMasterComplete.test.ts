@@ -287,7 +287,7 @@ describe('7. the closed-day sandbox and the night van', () => {
     expect(s.view.dayOver).toBe(true);
     expect(s.sandboxTrace?.route.length).toBeGreaterThan(1);
     expect(sandboxSource(s.sandboxTrace)).toMatchObject({ kind: 'payment', over: false });
-    expect(demoSessionStore.getState().active).toEqual({ kind: 'sandbox', id: s.sandboxTrace!.id });
+    expect(demoSessionStore.getState().active).toMatchObject({ kind: 'sandbox', id: s.sandboxTrace!.id });
     expect(src('components/bank/retailOpsActions.ts')).not.toMatch(/runDemoAnytime[\s\S]{0,400}startNextDay/);
   });
 
@@ -323,7 +323,7 @@ describe('8. the single-case EoD', () => {
     expect(s.solo).toBe(false);
     expect(s.presetTxId).toBeNull();
     expect(s.sandboxTrace?.route).toEqual(['OUT_APPROVED', 'EOD_BATCH', 'EOD_VISA', 'RECON', 'OUT_SETTLED']);
-    expect(demoSessionStore.getState().active).toEqual({ kind: 'sandbox', id: s.sandboxTrace!.id });
+    expect(demoSessionStore.getState().active).toMatchObject({ kind: 'sandbox', id: s.sandboxTrace!.id });
   });
 });
 
