@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { t } from '../../i18n/t';
 import { useMessages } from '../../utils/i18nHelper';
 import { mapLegendMessages, type MapLegendKey } from './mapLegend.messages';
@@ -27,6 +27,23 @@ const LEGEND_TERMS = ['CTR', 'STR', 'clean', 'released', 'refund', 'matched', 'b
 /** The wire label each legend term stands for, where the two differ. */
 const LEGEND_LABEL: Partial<Record<(typeof LEGEND_TERMS)[number], string>> = { matched: 'matched overnight' };
 
+/**
+ * Lets the mouse wheel scroll a panel that floats over a map: the 2D map zooms on a native, non-passive wheel listener that calls
+ * preventDefault (useZoomPan), and the 3D office's controls listen on its wrapper, so a wheel over the panel would zoom the map instead
+ * of scrolling the panel. A native listener on the panel (it fires first, being deeper) keeps the event to the panel. React's
+ * onWheel cannot do it: it is delegated at the root, after the map's own listener has run.
+ */
+export function useOwnWheel(ref: RefObject<HTMLElement | null>, on: boolean): void {
+  useEffect(() => (on && ref.current ? ownWheel(ref.current) : undefined), [ref, on]);
+}
+
+/** Keeps the wheel over `el` to `el` (passive, so its native scroll is never blocked); returns the way to stop. */
+export function ownWheel(el: Pick<EventTarget, 'addEventListener' | 'removeEventListener'>): () => void {
+  const keep = (e: Event): void => e.stopPropagation();
+  el.addEventListener('wheel', keep, { passive: true });
+  return () => el.removeEventListener('wheel', keep);
+}
+
 /** The map's legend: a button in the top-right corner that opens what each line, diamond, frame and wire word means. */
 export function MapLegend({ top = 12, right = 12, initiallyOpen = false }: { top?: number; right?: number; initiallyOpen?: boolean }) {
   // On a short or narrow map the button shrinks to its icon, but the legend is always one click away.
@@ -34,14 +51,16 @@ export function MapLegend({ top = 12, right = 12, initiallyOpen = false }: { top
   const narrow = useTopBand((x) => x.mapW > 0 && x.mapW < 640);
   const m = useMessages(mapLegendMessages);
   const [open, setOpen] = useState(initiallyOpen);
+  const panel = useRef<HTMLDivElement>(null);
   const covered = useInspectorCovers();
+  useOwnWheel(panel, open && !covered);
   if (covered) return null;
   const compact = short || narrow;
   return (
     <div className="absolute z-40 flex max-w-[min(340px,calc(100vw-2rem))] flex-col items-end text-[12px]" style={{ top, right }} data-testid="map-legend" data-open={open || undefined}>
       {open ? (
         // Adaptive height: a long legend scrolls inside its panel (by wheel or, being focusable, by keyboard) instead of running off a short map.
-        <div role="region" tabIndex={0} aria-label={m('title')} className={`bk-scroll ${compact ? 'max-h-[min(50vh,320px)]' : 'max-h-[min(60vh,400px)]'} overflow-y-auto overscroll-contain rounded-xl border border-slate-700 bg-[#0b1120]/95 p-3 shadow-2xl backdrop-blur focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400`} data-testid="map-legend-panel">
+        <div ref={panel} role="region" tabIndex={0} aria-label={m('title')} className={`bk-scroll ${compact ? 'max-h-[min(50vh,320px)]' : 'max-h-[min(60vh,400px)]'} overflow-y-auto overscroll-contain rounded-xl border border-slate-700 bg-[#0b1120]/95 p-3 shadow-2xl backdrop-blur focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400`} data-testid="map-legend-panel">
           <div className="sticky -top-3 z-10 -mx-3 -mt-3 flex items-center justify-between gap-2 rounded-t-xl bg-[#0b1120] px-3 pb-1 pt-3">
             <h3 className="text-[13px] font-bold text-slate-100">{m('title')}</h3>
             <button type="button" onClick={() => setOpen(false)} className="rounded-md px-1.5 text-[12px] text-slate-400 hover:bg-slate-800 hover:text-white" data-testid="map-legend-close">

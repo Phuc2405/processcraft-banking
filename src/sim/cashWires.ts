@@ -50,6 +50,14 @@ export const FLOW_WIRES: Readonly<Partial<Record<FlowId, readonly CashWire[]>>> 
 export const GROUP_WIRES: Readonly<Partial<Record<DemoGroupId, readonly CashWire[]>>> = { 'atm-napas': ['ATM'], 'cassette-jam': ['ATM'], 'teller-vault': ['TELLER'], 'cash-ctr': ['TELLER'] };
 
 /**
+ * The demo children (dock buttons, by id) whose own cash crosses the vault door: a cassette refill loads the ATM from the vault, a
+ * till over its limit sends its surplus back, a $12,000 CTR payout is drawn from the vault. Every other child moves no vault cash,
+ * so neither its gold line nor the Main Cash Vault lights behind it (demoGroups.childPlaces reads the same table).
+ */
+const CHILD_WIRES: Readonly<Record<string, readonly CashWire[]>> = { 'cassette-refill': ['ATM'], 'teller-exceed-limit': ['TELLER'], 'teller-12k': ['TELLER'] };
+export const childCashWires = (id: string): readonly CashWire[] => CHILD_WIRES[id] ?? [];
+
+/**
  * The direction each vault wire of a picked CIT child carries its cash, so the label reads that movement ("Xuất quỹ ➔ Hộc ATM" for an
  * ATM top-up) before and while it runs. The SBV child follows the sheet's case toggle (`sbv`: a deposit leaves the vault, a
  * withdrawal comes in). The bay ↔ teller handover has no vault side: it keeps its two-way label.
@@ -64,9 +72,10 @@ export function routeDirs(child: CitDemo | null, sbv: CitDirection = 'OUT'): Rea
  * The lit wires: the active flow's (or its picked sub-process's, or the picked CIT child's), plus every wire of the hovered station. Null when nothing narrows the
  * view (no cash flow lit, nothing hovered): every wire then shows at its idle weight.
  */
-export function litWires(flow: FlowId | null, child: CitDemo | null, hover: WireNode | null, group: DemoGroupId | null = null): ReadonlySet<CashWire> | null {
+export function litWires(flow: FlowId | null, child: CitDemo | null, hover: WireNode | null, group: DemoGroupId | null = null, demo: string | null = null): ReadonlySet<CashWire> | null {
   // A child lights only the lines its cash crosses: the till rebalance is vault ↔ till alone (no van: never the bay or its handover).
-  const route = child ? citChildLines(child) : group ? (GROUP_WIRES[group] ?? []) : flow ? (FLOW_WIRES[flow] ?? []) : [];
+  // A picked demo child of a cash flow lights a line only when its own cash crosses the vault door (an ATM withdrawal never does).
+  const route = child ? citChildLines(child) : demo ? childCashWires(demo) : group ? (GROUP_WIRES[group] ?? []) : flow ? (FLOW_WIRES[flow] ?? []) : [];
   const hovered = hover ? wiresAt(hover) : [];
   return route.length || hovered.length ? new Set([...route, ...hovered]) : null;
 }

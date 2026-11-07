@@ -59,9 +59,14 @@ export function deskFocus(place: PlaceId, hover: PlaceId | null, flow: FlowId | 
  * The lanes lit now and how much the others fade: the pointed-at desk's own; else, while the learner's payment runs, only the wires
  * it has crossed and is crossing (its orb is then the one moving light, so `pulses` is off); else the guided scenario's.
  */
-export function litLanes(hover: PlaceId | null, flow: FlowId | null, sub: FocusSub | null = null, path: LivePath | null = null): { lanes: ReadonlySet<string>; dim: number; pulses: boolean } {
+export function litLanes(hover: PlaceId | null, flow: FlowId | null, sub: FocusSub | null = null, path: LivePath | null = null, child: ReadonlySet<PlaceId> | null = null): { lanes: ReadonlySet<string>; dim: number; pulses: boolean } {
   if (hover) return { lanes: new Set(LANES.filter((l) => l.from === hover || l.to === hover).map((l) => l.id)), dim: LANE_DIM, pulses: true };
   if (path) return { lanes: new Set(LANES.filter((l) => path.all.has(l.id)).map((l) => l.id)), dim: DIM.flow, pulses: false };
+  if (flow && child) {
+    // A picked child glows only the lanes it rides: the rest of its sub-process keeps its plain tape, unlit.
+    const scope = focusScope(flow, sub).wires;
+    return { lanes: new Set(LANES.filter((l) => scope.has(l.id) && child.has(l.from) && child.has(l.to)).map((l) => l.id)), dim: DIM.flow, pulses: true };
+  }
   if (flow) return { lanes: focusScope(flow, sub).wires, dim: DIM.flow, pulses: true };
   return { lanes: new Set(), dim: 1, pulses: true };
 }

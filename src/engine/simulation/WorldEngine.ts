@@ -1,5 +1,6 @@
 import { rainOf, sameMix, stepMix, WEATHER_MIX, type Weather } from '../world/atmosphere';
-import type { CrewFlow } from '../../sim/citCrew';
+import type { CrewFlow, VanStage } from '../../sim/citCrew';
+import { loadS } from '../world/citRun';
 import { isClosed } from '../world/evacuation';
 import type { FrontGuard, GuardPostPlan } from '../world/guardCabin';
 import { advanceMotion, motion, substeps } from './motion';
@@ -90,6 +91,8 @@ export class WorldEngine {
   private citSeen: string | null = null;
   /** The CIT run the van's current trip is for. */
   private vanRun: string | null = null;
+  /** The van's finished-run count when it was called for vanRun: one more means that run is over. */
+  private vanRunsAt = 0;
   /** The van's stop a paused bank is playing on its own: kept until the van is away again, so a stop is never left half walked. */
   private citSolo = false;
   private peopleVersion = 0;
@@ -253,6 +256,7 @@ export class WorldEngine {
     this.lot.cit.follow();
     if (runId !== null && runId !== this.citSeen && this.lot.cit.phase === 'away') {
       this.vanRun = runId;
+      this.vanRunsAt = this.lot.cit.runs;
       this.lot.cit.call(flow);
     }
     this.citSeen = runId;
@@ -262,6 +266,14 @@ export class WorldEngine {
   citVanRun(): string | null {
     // The demo lock follows the van alone: it releases the frame the van despawns, even while the vault staffer walks back in.
     return this.lot.cit.vanOut() ? this.vanRun : null;
+  }
+
+  /** Where the van stands on run `runId` (citCrew.VanStage): pending until it is called and drives in, null once it is done with it. */
+  citVanStage(runId: string): VanStage | null {
+    const van = this.lot.cit;
+    if (this.vanRun !== runId) return { phase: 'pending' };
+    if (van.phase === 'away') return van.runs > this.vanRunsAt ? null : { phase: 'pending' };
+    return { phase: van.phase, u: van.phase === 'load' ? Math.min(1, van.t / loadS(van.flow)) : 1 };
   }
 
   /** Hears whenever the people of the desks change (Observer); returns the way to stop. */

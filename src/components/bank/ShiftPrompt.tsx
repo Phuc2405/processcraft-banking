@@ -10,6 +10,12 @@ import { Modal } from '../shell/Modal';
 import { retailOpsMessages } from './retailOps.messages';
 import { confirmShiftSnap, releaseDueDemos, stayForShift } from './retailOpsActions';
 
+/**
+ * The two answers share the footer's row and grow to fill it; on a narrow dialog each takes its own full row. A long label
+ * ("Giữ 23:06 và chờ đến ca") wraps inside its button, centred, and never clips or bends the button's shape.
+ */
+const BTN = 'inline-flex min-h-9 min-w-0 max-w-full flex-[1_1_12rem] items-center justify-center rounded-lg px-3 py-1.5 text-center text-[13px] leading-snug [overflow-wrap:anywhere]';
+
 /** The out-of-hours question: move the clock to the scenario's slot the same day, or stay and let it wait for its shift. */
 export function ShiftPrompt() {
   const m = useMessages(retailOpsMessages);
@@ -35,10 +41,10 @@ export function ShiftPrompt() {
       testId="shift-prompt"
       footer={
         <>
-          <button type="button" onClick={stayForShift} data-testid="shift-prompt-stay" className="rounded-lg border border-slate-600 px-3 py-1.5 text-[13px] font-semibold text-slate-200 hover:bg-slate-800">
+          <button type="button" onClick={stayForShift} data-testid="shift-prompt-stay" className={`${BTN} border border-slate-600 px-3 py-1.5 text-[13px] font-semibold text-slate-200 hover:bg-slate-800`}>
             {m('shiftStay', { now })}
           </button>
-          <button type="button" onClick={confirmShiftSnap} data-testid="shift-prompt-confirm" data-target={prompt.snap.target} className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[13px] font-bold text-emerald-950 hover:bg-emerald-400">
+          <button type="button" onClick={confirmShiftSnap} data-testid="shift-prompt-confirm" data-target={prompt.snap.target} className={`${BTN} bg-emerald-500 font-bold text-emerald-950 hover:bg-emerald-400`}>
             {m('shiftConfirm', { slot })}
           </button>
         </>

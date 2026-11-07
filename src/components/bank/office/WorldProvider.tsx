@@ -1,3 +1,4 @@
+import { setCitVanStage } from '../hopDriver';
 import { useFrame } from '@react-three/fiber';
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { SPEEDS } from '../../../sim/clock';
@@ -73,10 +74,12 @@ export function WorldProvider({ children }: { children: ReactNode }) {
       world.onCitBay(run?.order.id ?? null, run ? bayFlow(run.order) : 'IN');
     };
     follow();
+    setCitVanStage((id) => world.citVanStage(id));
     // The bank, the CIT runs and the demo session: a demo starting or ending changes what the desks show.
     const stop = subscribeDemo(follow);
     return () => {
       stop();
+      setCitVanStage(null);
       citStore.setState({ van: false });
       world.dispose();
     };

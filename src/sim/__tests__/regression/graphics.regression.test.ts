@@ -82,7 +82,7 @@ describe('§8.1 station hover lights its wires and dims the rest', () => {
     expect(src('components/bank/BankMap.tsx')).toContain("setWireHover((target.closest?.('[data-wire-node]')?.getAttribute('data-wire-node') as WireNode | null) ?? wireNodeOf(id))");
     expect(src('components/bank/office/LoadingBay3D.tsx')).toContain("useWireHoverStore.getState().set(on ? 'BAY' : null)");
     expect(src('components/bank/office/VaultCash3D.tsx')).toContain('useWireHover()');
-    expect(src('components/bank/CashLines2D.tsx')).toContain('litWires(flow, child, hover, group)');
+    expect(src('components/bank/CashLines2D.tsx')).toContain('litWires(flow, child, hover, group, demo)');
   });
 
   it('lights only the cash flows’ wires: 03 the ATM line, 06 the teller line, 09 the whole network', () => {

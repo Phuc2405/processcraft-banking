@@ -35,7 +35,19 @@ export const ACTORS = {
 } as const;
 export type ActorId = keyof typeof ACTORS;
 
-export type GlRef = { book: 'core'; account: AccountId; side: 'dr' | 'cr' } | { book: 'ops'; account: OpsAccountId; side: 'dr' | 'cr' } | { book: 'cit'; account: CitAccountId; side: 'dr' | 'cr' };
+/**
+ * The night reconciliation's suspense book (Flow 04's suspense close): the two suspense accounts a break is parked in, and the
+ * accounts they are cleared against. Codes as the reconciliation desk posts them (staffRoleplay GL_ACCOUNTS).
+ */
+export const RECON_ACCOUNTS = {
+  RECON_SUSPENSE: { code: '1910', name: L('Reconciliation suspense (EOD breaks)', 'Treo đối soát (chênh lệch cuối ngày)') },
+  CLEARING_SUSPENSE: { code: '2912', name: L('Clearing suspense (interbank)', 'Treo bù trừ (liên ngân hàng)') },
+  INTERBANK_SETTLEMENT: { code: '1510', name: L('Interbank settlement', 'Thanh toán liên ngân hàng') },
+  CASA: { code: '2011', name: L('Customer CASA', 'Tiền gửi thanh toán (CASA)') },
+} as const;
+export type ReconAccountId = keyof typeof RECON_ACCOUNTS;
+
+export type GlRef = { book: 'core'; account: AccountId; side: 'dr' | 'cr' } | { book: 'ops'; account: OpsAccountId; side: 'dr' | 'cr' } | { book: 'cit'; account: CitAccountId; side: 'dr' | 'cr' } | { book: 'recon'; account: ReconAccountId; side: 'dr' | 'cr' };
 
 export interface SubProcessInfo {
   key: InfoKey;
@@ -70,6 +82,10 @@ export function glLine(ref: GlRef, locale: Locale): { code: string; name: string
   }
   if (ref.book === 'cit') {
     const a = citAccount(ref.account);
+    return { code: a.code, name: a.name[locale], book: ref.book };
+  }
+  if (ref.book === 'recon') {
+    const a = RECON_ACCOUNTS[ref.account];
     return { code: a.code, name: a.name[locale], book: ref.book };
   }
   return { code: CHART_OF_ACCOUNTS[ref.account].code, name: accountName(ref.account, locale), book: ref.book };

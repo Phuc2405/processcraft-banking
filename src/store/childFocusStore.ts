@@ -4,6 +4,7 @@ import { demoActionById, type DemoActionId } from '../sim/demoActions';
 import { childPlaces, groupOf } from '../sim/demoGroups';
 import type { PlaceId } from '../sim/topology';
 import { activeFlowOf, bankStore, useBankStore, type BankState } from './bankStore';
+import { eodCaseStore, useEodCase } from './eodCaseStore';
 
 /**
  * The child scenario the learner picked in the demo bar (a run, or a pick in its dropdown). Inside the lit sub-process, the desks
@@ -28,31 +29,38 @@ export const childFocusStore = createStore<ChildFocusState>((set, get) => ({
   },
 }));
 
-type FocusView = Pick<BankState, 'scope' | 'flow' | 'spotlight' | 'subProcess'>;
+type FocusView = Pick<BankState, 'scope' | 'flow' | 'spotlight' | 'subProcess'> & Partial<Pick<BankState, 'stp'>>;
 
 /**
  * The desks the picked child crosses, or null when nothing is soft-dimmed: no pick, no lit flow (Advanced scope, a tour), or a pick
  * that belongs to another flow or sub-process than the one lit now.
  */
-export function activeChildPlaces(s: FocusView, id: DemoActionId | null): ReadonlySet<PlaceId> | null {
+export function activeChildPlaces(s: FocusView, id: DemoActionId | null, eodSuspense = false): ReadonlySet<PlaceId> | null {
   const flow = activeFlowOf(s);
   if (!id || flow === null) return null;
   const def = demoActionById(id);
   const sub = groupOf(s.subProcess);
   if (def.flow !== flow || (sub !== null && def.group !== sub)) return null;
-  return childPlaces(id);
+  return childPlaces(id, s.stp ?? null, eodSuspense);
 }
 
 /** The opacity a place in the lit scope is drawn at: CHILD_DIM off the picked child's route, else full. */
 export const childOpacity = (place: PlaceId, child: ReadonlySet<PlaceId> | null): number => (child && !child.has(place) ? CHILD_DIM : 1);
 
 /** Now, for a per-frame reader (the 3D fade). */
-export const childPlacesNow = (): ReadonlySet<PlaceId> | null => activeChildPlaces(bankStore.getState(), childFocusStore.getState().id);
+export const childPlacesNow = (): ReadonlySet<PlaceId> | null => activeChildPlaces(bankStore.getState(), childFocusStore.getState().id, eodCaseStore.getState().suspense);
 
 export const useChildFocusId = (): DemoActionId | null => useStore(childFocusStore, (s) => s.id);
+
+/** The picked child while it soft-dims the map (its flow and sub-process are the lit ones), else null. */
+export function useActiveChildId(): DemoActionId | null {
+  const id = useChildFocusId();
+  return useBankStore((s) => (activeChildPlaces(s, id) ? id : null));
+}
 
 /** The picked child's desks while it soft-dims the map, or null (a cached set, so the selector stays stable). */
 export function useChildPlaces(): ReadonlySet<PlaceId> | null {
   const id = useChildFocusId();
-  return useBankStore((s) => activeChildPlaces(s, id));
+  const suspense = useEodCase((s) => s.suspense);
+  return useBankStore((s) => activeChildPlaces(s, id, suspense));
 }

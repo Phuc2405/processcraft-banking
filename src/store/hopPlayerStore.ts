@@ -22,9 +22,11 @@ export interface HopSource {
   reached: number;
   /** The run was already over when first seen (a reload, a finished payment): it is not replayed. */
   over: boolean;
+  /** Keep the last stop on show (a CIT van still driving off): its countdown waits until this clears. */
+  hold?: boolean;
 }
 
-export type HopSession = Omit<HopSource, 'reached' | 'over'>;
+export type HopSession = Omit<HopSource, 'reached' | 'over' | 'hold'>;
 
 interface HopPlayerState {
   session: HopSession | null;
@@ -53,7 +55,7 @@ export const hopPlayerStore = createStore<HopPlayerState>((set, get) => ({
     if (fresh) {
       if (session) markSeen(session.id);
       markSeen(fresh.id);
-      const { reached: _r, over: _o, ...next } = fresh;
+      const { reached: _r, over: _o, hold: _h, ...next } = fresh;
       set({ session: next, play: startPlay() });
       return;
     }
@@ -61,6 +63,7 @@ export const hopPlayerStore = createStore<HopPlayerState>((set, get) => ({
     // A run that has gone (settled, replaced, a new day) counts as arrived: the play finishes its last stops on its own.
     const live = sources.find((s) => s?.id === session.id);
     const reached = live ? live.reached : session.stops.length - 1;
+    if (live?.hold && play.phase === 'final') return;
     const next = stepPlay(play, dt, session.stops.length, reached);
     if (!next) set({ session: null, play: null });
     else if (next.index !== play.index || next.phase !== play.phase || next.t !== play.t) set({ play: next });

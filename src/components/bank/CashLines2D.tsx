@@ -1,3 +1,4 @@
+import { useActiveChildId } from '../../store/childFocusStore';
 import { memo, useMemo } from 'react';
 import { CASH_WIRES, litWires, routeDirs, type CashWire } from '../../sim/cashWires';
 import { useWireHover } from '../../store/wireHoverStore';
@@ -28,7 +29,8 @@ export const CashLines2D = memo(function CashLines2D() {
   const pointer = useWireHover();
   const hover = isolated ? null : pointer;
   const group = useBankStore(demoGroupOf);
-  const route = useMemo(() => litWires(flow, child, hover, group), [flow, child, hover, group]);
+  const demo = useActiveChildId();
+  const route = useMemo(() => litWires(flow, child, hover, group, demo), [flow, child, hover, group, demo]);
   // A picked CIT child's wires read its movement ("Xuất quỹ ➔ Hộc ATM"); the SBV child follows the sheet's case toggle.
   const sbv = useCitStore((s) => (s.sbvCase === 'DEPOSIT' ? 'OUT' : 'IN'));
   const dirs = useMemo(() => routeDirs(child, sbv), [child, sbv]);

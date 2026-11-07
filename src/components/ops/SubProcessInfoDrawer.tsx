@@ -4,16 +4,21 @@ import { ACTORS, glLine, subProcessInfo, type ActorId, type InfoKey, type SubPro
 import { demoActionById } from '../../sim/demoActions';
 import { childSheetsOf, sheetDemo } from '../../sim/sheetDemo';
 import { ScenarioPicker } from '../bank/ScenarioPicker';
-import type { FlowId } from '../../types/viewport';
-import { runDemoAnytime } from '../bank/retailOpsActions';
+import { CIT_FLOW, type FlowId } from '../../types/viewport';
+import { runDemoAnytime, selectSubProcess } from '../bank/retailOpsActions';
+import { isDemoGroupId } from '../../sim/demoGroups';
+import { citDemoOfKey } from '../../data/subProcessKeys';
+import { useChildFocusId } from '../../store/childFocusStore';
 import { GUIDED_FLOWS } from '../../sim/guidedFlows';
 import { isStation } from '../../sim/topology';
 import { bankStore, useBankStore } from '../../store/bankStore';
 import { uiStore } from '../../store/uiStore';
 import { pick, useLocale, useMessages } from '../../utils/i18nHelper';
 import { CitRunButton, SbvCaseToggle, useCit } from './CitPanel';
-import { RunOrCancel, useDemoLocked } from '../bank/DemoSession';
+import { demoLocked, RunOrCancel, useDemoLocked } from '../bank/DemoSession';
 import { SBV_CASE_SHEETS } from '../../data/subProcessCitSheets';
+import { eodSheet } from '../../data/subProcessEodSheets';
+import { eodCaseStore, useEodCase } from '../../store/eodCaseStore';
 import { useCitStore } from '../../store/citStore';
 import { citMessages } from './cit.messages';
 import { slaTelemetry, type SlaTelemetry } from '../../sim/sheetTelemetry';
@@ -51,8 +56,11 @@ const Bullets = ({ items, tone }: { items: readonly string[]; tone: string }) =>
  */
 function RunScenario({ infoKey }: { infoKey: InfoKey }) {
   const m = useMessages(subProcessInfoMessages);
-  const demo = sheetDemo(infoKey);
+  const sheet = sheetDemo(infoKey);
   const dayOver = useBankStore((s) => s.view.dayOver);
+  // The scenario picked in the dock (or on a run) when it belongs to this sheet's group, so the sheet runs what the dock names.
+  const focused = useChildFocusId();
+  const demo = sheet?.kind === 'action' && focused && isDemoGroupId(infoKey) && demoActionById(focused).group === infoKey ? { kind: 'action' as const, id: focused } : sheet;
   if (!demo) return null;
   if (demo.kind === 'cit') return <CitRunButton kind={demo.demo} />;
   const action = demoActionById(demo.id);
@@ -98,7 +106,47 @@ function ChildSheetPicker({ flow }: { flow: FlowId }) {
   });
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5" data-testid="spi-child-picker" data-flow={flow}>
-      <ScenarioPicker items={items} picked="" onPick={(k) => bankStore.getState().select({ kind: 'subprocess', key: k as InfoKey })} label={m('pickChild')} testId="spi-child" direction="down" placeholder />
+      <ScenarioPicker items={items} picked="" onPick={(k) => openChildSheet(k as InfoKey)} label={m('pickChild')} testId="spi-child" direction="down" placeholder />
+    </div>
+  );
+}
+
+/** A child sheet picked in the drawer: the map and the dock follow it (unless a demo runs), so all three name the same sub-process. */
+function openChildSheet(key: InfoKey): void {
+  const cit = citDemoOfKey(key);
+  if (!demoLocked()) {
+    if (cit) bankStore.getState().selectSubProcess(cit, CIT_FLOW);
+    else if (isDemoGroupId(key)) selectSubProcess(key);
+  }
+  bankStore.getState().select({ kind: 'subprocess', key });
+}
+
+/**
+ * Flow 04's "Balance & clear the suspense accounts (TK 1910 / 2912)" switch: on, the night demo routes its case through the Suspense
+ * Account and the sheet teaches that close; off, the standard close. Read-only while a demo runs (the running case keeps its route).
+ */
+export function EodSuspenseToggle() {
+  const m = useMessages(subProcessInfoMessages);
+  const on = useEodCase((s) => s.suspense);
+  const locked = useDemoLocked();
+  return (
+    <div className="space-y-1.5 rounded-xl border border-amber-300/30 bg-amber-400/[0.06] p-2.5" data-testid="eod-suspense" data-on={on || undefined}>
+      <label className="flex cursor-pointer items-center justify-between gap-3">
+        <span className="min-w-0 text-[12px] font-bold leading-snug text-amber-100">{m('eodSuspense')}</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-label={m('eodSuspense')}
+          disabled={locked}
+          onClick={() => eodCaseStore.getState().setSuspense(!on)}
+          data-testid="eod-suspense-switch"
+          className={`relative h-5 w-10 shrink-0 rounded-full ring-1 transition disabled:cursor-not-allowed disabled:opacity-50 ${on ? 'bg-amber-500/70 ring-amber-300/60' : 'bg-slate-600/70 ring-slate-400/50'}`}
+        >
+          <span aria-hidden="true" className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${on ? 'left-[22px]' : 'left-0.5'}`} />
+        </button>
+      </label>
+      <p className="text-[11px] leading-snug text-slate-300">{m(on ? 'eodSuspenseOn' : 'eodSuspenseOff')}</p>
     </div>
   );
 }
@@ -110,7 +158,9 @@ export function SubProcessInfoDrawer({ infoKey }: { infoKey: InfoKey }) {
   const cit = useCit();
   const sbvCase = useCitStore((s) => s.sbvCase);
   // The SBV sheet follows its toggle: all six sections are the picked case's own (deposit or withdrawal).
-  const info = infoKey === '09-cit-sbv' ? SBV_CASE_SHEETS[sbvCase] : subProcessInfo(infoKey);
+  // Flow 04 follows its suspense switch the same way: the five teaching sections are that close's own.
+  const suspense = useEodCase((s) => s.suspense);
+  const info = infoKey === '09-cit-sbv' ? SBV_CASE_SHEETS[sbvCase] : infoKey === 'flow-4' ? eodSheet(suspense) : subProcessInfo(infoKey);
   return <SubProcessInfoView info={info} liveStr={str} liveSla={slaTelemetry(info, { stations }, cit)} />;
 }
 
@@ -176,6 +226,7 @@ export function SubProcessInfoView({ info, liveStr, liveSla = null }: { info: Su
       <div className="bk-scroll min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain p-3" data-testid="inspector-body">
         {parent ? <ChildSheetPicker flow={info.flow} /> : <RunScenario infoKey={info.key} />}
         {info.key === '09-cit-sbv' && <SbvCaseToggle />}
+        {info.key === 'flow-4' && <EodSuspenseToggle />}
         <Section title={m('overview')} testId="overview">
           <p className="text-[12.5px] leading-relaxed text-slate-200">{pick(info.overview, locale)}</p>
           <button type="button" onClick={showOnMap} disabled={locked} title={locked ? m('showOnMapLocked') : undefined} data-testid="spi-show" className="mt-2 rounded-lg bg-white/10 px-2.5 py-1 text-[11.5px] font-semibold text-slate-100 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40">

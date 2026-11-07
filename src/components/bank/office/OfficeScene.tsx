@@ -1,3 +1,4 @@
+import { useChildPlaces } from '../../../store/childFocusStore';
 import { ContactShadows, OrbitControls } from '@react-three/drei';
 import { ZOOM_STEP, zoomStore } from '../../../store/zoomStore';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
@@ -565,7 +566,8 @@ const Lanes = memo(function Lanes() {
   const flow = useBankStore((s) => (s.spotlight ? null : activeFlowOf(s)));
   const sub = useBankStore(focusSubOf);
   const path = useLivePath();
-  const { lanes: lit, dim, pulses } = useMemo(() => litLanes(hover, flow, sub, path), [hover, flow, sub, path]);
+  const child = useChildPlaces();
+  const { lanes: lit, dim, pulses } = useMemo(() => litLanes(hover, flow, sub, path, child), [hover, flow, sub, path, child]);
   const litLanes3d = useMemo(
     () =>
       LANES.filter((l) => lit.has(l.id)).map((l) => {

@@ -15,6 +15,8 @@ export const retailOpsMessages = defineMessages('retailOps', {
   selectScenario: { en: 'Select a demo scenario', vi: 'Kịch bản Demo' },
   runDemo: { en: 'Run Demo', vi: 'Thực hiện' },
   showAllDesks: { en: 'Show all desks of the parent process', vi: 'Hiển thị tất cả quầy quy trình mẹ' },
+  processInfo: { en: 'Process info', vi: 'Thông tin quy trình' },
+  processInfoHint: { en: 'Open the fact sheet of what the map shows now', vi: 'Mở bảng thông tin của quy trình đang hiển thị' },
   showAllDesksShort: { en: 'Reset view', vi: 'Reset góc nhìn' },
   showAllDesksHint: { en: 'The desks this scenario does not cross are dimmed to 35%. Bring every desk of the sub-process back to full view.', vi: 'Các quầy kịch bản này không đi qua đang được làm mờ còn 35%. Đưa mọi quầy của quy trình con về hiển thị đầy đủ.' },
   cancelDemo: { en: 'Cancel demo', vi: 'Hủy demo' },

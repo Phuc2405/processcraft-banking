@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { activeLocale, pick, tr, useLocale } from '../../i18n/locale';
 import { acronymHint } from './codeGlossary';
 import { demoActionById, demoActionsFor, demoBlocked, type DemoAction } from '../../sim/demoActions';
@@ -11,12 +11,12 @@ import { cassetteStatus } from '../../sim/retailOps';
 import { activeFlowOf, citChildOf, useBankStore } from '../../store/bankStore';
 import { formatAud } from '../../engine/money';
 import { retailOpsStore, useRetailOpsStore } from '../../store/retailOpsStore';
-import { childFocusStore, useChildPlaces } from '../../store/childFocusStore';
+import { childFocusStore, useChildFocusId, useChildPlaces } from '../../store/childFocusStore';
 import { useMessages } from '../../utils/i18nHelper';
 import { ScenarioPicker } from './ScenarioPicker';
-import { RunOrCancel } from './DemoSession';
+import { RunOrCancel, useDemoLocked } from './DemoSession';
 import { retailOpsMessages } from './retailOps.messages';
-import { opsStamp, runDemo } from './retailOpsActions';
+import { focusChild, opsStamp, runDemo, showLitInfo } from './retailOpsActions';
 import { topBand, useInspectorCovers, useMeasuredBox, useRightInset, useTopBand } from './ViewportControls';
 import { dockLayout } from './dockOverflow';
 import { refillAtmByCit } from '../ops/citActions';
@@ -70,21 +70,20 @@ function DemoButton({ action }: { action: DemoAction }) {
   );
 }
 
-/** The bar on a narrow or short map: pick a scenario from the shared dropdown (ScenarioPicker), then run it. */
+/**
+ * The bar on a narrow or short map: pick a scenario from the shared dropdown (ScenarioPicker), then run it. The pick is the one
+ * child focus (childFocusStore), so the dropdown, the map and the drawer always name the same scenario; it is read-only while a
+ * demo runs, so the running case can never be switched under it.
+ */
 function DemoSelector({ actions }: { actions: readonly DemoAction[] }) {
   const m = useMessages(retailOpsMessages);
-  const [picked, setPicked] = useState<string>(actions[0]?.id ?? '');
-  const chosen = actions.find((a) => a.id === picked) ?? actions[0];
-  // Picking a scenario already soft-dims the desks it does not cross, before it runs.
-  const pick = (id: string): void => {
-    setPicked(id);
-    const action = actions.find((a) => a.id === id);
-    if (action) childFocusStore.getState().pick(action.id);
-  };
+  const focused = useChildFocusId();
+  const locked = useDemoLocked();
+  const chosen = actions.find((a) => a.id === focused) ?? actions[0];
   const { disabled, title } = useDemoState(chosen);
   const items = actions.map((a) => ({ id: a.id, icon: a.icon, label: a.label(), hint: a.hint(), dot: DOT[a.variant] }));
   return (
-    <ScenarioPicker items={items} picked={chosen?.id ?? ''} onPick={pick} label={m('selectScenario')} testId="demo">
+    <ScenarioPicker items={items} picked={chosen?.id ?? ''} onPick={(id) => focusChild(id as DemoAction['id'])} label={m('selectScenario')} testId="demo" disabled={locked}>
       <RunOrCancel>
         <button type="button" onClick={() => chosen && runDemo(chosen.id)} disabled={disabled} title={title} data-testid="demo-run" className="shrink-0 whitespace-nowrap rounded-lg bg-emerald-500 px-3 py-1.5 text-[12px] font-bold text-emerald-950 shadow transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">
           ▶ {m('runDemo')}
@@ -94,11 +93,26 @@ function DemoSelector({ actions }: { actions: readonly DemoAction[] }) {
   );
 }
 
+/** "ℹ️ Process info": brings the drawer back on the lit sheet once it was closed (it hides while the sheet is open). */
+function InfoButton({ compact }: { compact: boolean }) {
+  const m = useMessages(retailOpsMessages);
+  const open = useBankStore((s) => s.selection.kind === 'subprocess');
+  if (open) return null;
+  return (
+    <button type="button" onClick={showLitInfo} title={m('processInfoHint')} aria-label={m('processInfo')} data-testid="dock-info" className="shrink-0 whitespace-nowrap rounded-lg border border-sky-400/50 bg-sky-500/15 px-2.5 py-1.5 text-[12px] font-semibold text-sky-100 transition hover:bg-sky-500/25">
+      <span aria-hidden="true">ℹ️</span>
+      {compact ? null : <> {m('processInfo')}</>}
+    </button>
+  );
+}
+
 /** "👁️ Show all desks": shown while a picked child soft-dims its sub-process, it brings every desk back to full opacity. */
 function ShowAllDesks({ compact }: { compact: boolean }) {
   const m = useMessages(retailOpsMessages);
   const child = useChildPlaces();
-  if (!child) return null;
+  // Hidden while a demo runs, so the bar stays uncluttered: it is back once the run has finished or been cancelled.
+  const locked = useDemoLocked();
+  if (!child || locked) return null;
   return (
     <button type="button" onClick={() => childFocusStore.getState().reset()} title={m('showAllDesksHint')} data-testid="show-all-desks" className="shrink-0 whitespace-nowrap rounded-lg border border-slate-600 bg-slate-800/80 px-2.5 py-1.5 text-[12px] font-semibold text-slate-100 transition hover:bg-slate-700">
       <span aria-hidden="true">👁️</span> {compact ? m('showAllDesksShort') : m('showAllDesks')}
@@ -112,7 +126,7 @@ function WaitingChips() {
   const waiting = useShiftQueue((s) => s.waiting);
   if (!waiting.length) return null;
   return (
-    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1.5" role="status" data-testid="shift-waiting">
+    <div className="flex w-full min-w-0 flex-wrap items-center gap-1.5" role="status" data-testid="shift-waiting">
       <span className="whitespace-nowrap text-[10.5px] font-bold uppercase tracking-wider text-amber-300">⏳ {m('shiftWaitingTitle')}</span>
       {waiting.map((w) => {
         const label = demoActionById(w.id).label();
@@ -176,7 +190,7 @@ function PresetDockView() {
     <div
       ref={box}
       style={{ left: `calc(50% - ${Math.round(right / 2)}px)`, maxWidth: `calc(100% - ${right + 24}px)`, ...(compact ? { width: `calc(100% - ${right + 24}px)` } : dropdown ? { width: `min(760px, calc(100% - ${right + 24}px))` } : {}) }}
-      className={`absolute bottom-0 z-20 flex ${dropdown ? '' : 'w-max flex-wrap'} -translate-x-1/2 items-center gap-2 rounded-t-2xl transition-[left] duration-200 ease-out border border-b-0 border-slate-800 px-3 py-2 shadow-2xl ${solid ? 'bg-slate-900/95' : 'bg-slate-950/90 backdrop-blur-md'}`}
+      className={`absolute bottom-0 z-20 flex flex-col ${dropdown ? '' : 'w-max'} -translate-x-1/2 gap-1.5 rounded-t-2xl transition-[left] duration-200 ease-out border border-b-0 border-slate-800 px-3 py-2 shadow-2xl ${solid ? 'bg-slate-900/95' : 'bg-slate-950/90 backdrop-blur-md'}`}
       role="toolbar"
       aria-label={tr({ en: `${ft.title} actions`, vi: `Thao tác ${ft.title}` })}
       data-testid="preset-dock"
@@ -186,10 +200,13 @@ function PresetDockView() {
       data-compact={compact}
       data-layout={dropdown ? 'dropdown' : 'inline'}
     >
+      <WaitingChips />
+      {/* One row: the title gives way first (an ellipsis, its full text the tooltip), then the scenario name; the buttons never shrink. */}
+      <div className={`flex min-w-0 items-center gap-2 ${dropdown ? '' : 'flex-wrap'}`} data-testid="preset-dock-row">
       {!compact && (
-        <span className="mr-1 whitespace-nowrap text-[10.5px] font-bold uppercase tracking-wider" style={{ color: f.accent }}>
+        <button type="button" onClick={showLitInfo} title={title} data-testid="preset-dock-title" className={`mr-1 min-w-0 truncate text-left text-[10.5px] font-bold uppercase tracking-wider hover:underline ${dropdown ? 'max-w-[28%] shrink' : 'max-w-[22rem]'}`} style={{ color: f.accent }}>
           {title}
-        </span>
+        </button>
       )}
       <LessonLink lessonKey={cit ? CIT_INFO_KEYS[cit] : lesson} className="text-[13px]" />
       {cit ? (
@@ -214,13 +231,15 @@ function PresetDockView() {
           🚚 {m('citRefill')}
         </button>
       )}
-      {!citFlow && <ShowAllDesks compact={compact} />}
-      <WaitingChips />
-      {running && !compact && (
+      {/* Beside a dropdown the reset takes its short label, so the scenario's own name keeps the room. */}
+      {!citFlow && <ShowAllDesks compact={compact || dropdown} />}
+      <InfoButton compact={compact || dropdown} />
+      {running && !compact && !dropdown && (
         <span className="whitespace-nowrap text-[11px] text-slate-400" role="status" data-testid="preset-running">
           {tr({ en: 'Payment on its way…', vi: 'Giao dịch đang di chuyển…' })}
         </span>
       )}
+      </div>
     </div>
   );
 }

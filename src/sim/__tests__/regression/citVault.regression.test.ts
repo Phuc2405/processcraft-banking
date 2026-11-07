@@ -63,7 +63,7 @@ describe('§2.1 the SBV toggle (09-cit-sbv)', () => {
     const withdraw = sbvSheet();
     // Server rendering reads the stores' initial state, so the switch itself is checked by its wiring; the sections by their text.
     for (const html of [deposit, withdraw]) expect(html).toContain('data-testid="sbv-toggle"');
-    expect(src('components/ops/SubProcessInfoDrawer.tsx')).toContain("infoKey === '09-cit-sbv' ? SBV_CASE_SHEETS[sbvCase] : subProcessInfo(infoKey)");
+    expect(src('components/ops/SubProcessInfoDrawer.tsx')).toContain("infoKey === '09-cit-sbv' ? SBV_CASE_SHEETS[sbvCase] : infoKey === 'flow-4' ? eodSheet(suspense) : subProcessInfo(infoKey)");
     expect(src('components/ops/CitPanel.tsx')).toMatch(/data-testid="sbv-toggle" data-mode=\{mode\}/);
     for (const mode of MODES) {
       const html = mode === 'DEPOSIT' ? deposit : withdraw;

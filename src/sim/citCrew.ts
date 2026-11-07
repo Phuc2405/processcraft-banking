@@ -83,3 +83,29 @@ export const walkShare = (flow: CrewFlow): number => {
 
 /** Whether the vault lights for the cash crossing its door now: gold for a deposit (Dr 1111), orange for a withdrawal (Cr 1111). */
 export const vaultPulseAt = (flow: CrewFlow, u: number): CrewFlow | null => (crewAt(flow, u)?.stage === 'atVault' ? flow : null);
+
+/**
+ * Where the 3D van stands on one CIT run: `pending` (called, not yet in), a CitRun phase while it is out for the run, with `u` the
+ * share of its stop at the bay done (0-1, in `load`).
+ */
+export type VanStage = { phase: 'pending' } | { phase: 'arrive' | 'load' | 'close' | 'depart'; u: number };
+
+/**
+ * The furthest stop the step badge may show while the 3D van plays its run, so the badge never runs ahead of the van: an outbound
+ * run (vault → bay → far end) reaches the bay only once the crew has carried the cassettes to the van (TIMELINE.OUT 'atVan'), and the
+ * far end only once the van pulls away; an inbound run reaches the bay once the crew has stepped out at the van, and the vault once
+ * they have walked the cassettes in. Null where no van plays the run (a till run is walked), so nothing is capped.
+ */
+export function vanStepCap(stops: readonly string[], stage: VanStage | null): number | null {
+  if (!stage || stops.length !== 3 || stops[1] !== 'BAY') return null;
+  if (stage.phase === 'pending' || stage.phase === 'arrive') return 0;
+  const out = stops[0] === 'VAULT';
+  const end = (flow: CrewFlow, stageName: CrewStage): number => TIMELINE[flow].find(([n]) => n === stageName)?.[1] ?? 1;
+  if (out) {
+    if (stage.phase === 'depart') return 2;
+    // The crew reaches the van as 'toVan' ends.
+    return stage.phase === 'close' || stage.u >= end('OUT', 'toVan') ? 1 : 0;
+  }
+  if (stage.phase !== 'load') return 2;
+  return stage.u >= end('IN', 'toVault') ? 2 : stage.u >= end('IN', 'stepOut') ? 1 : 0;
+}

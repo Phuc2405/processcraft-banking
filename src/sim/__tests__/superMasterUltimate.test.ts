@@ -113,7 +113,7 @@ describe('4. the station-hover wire highlight', () => {
   it('does the same in 3D: the desks through hoverPlace, the bay through the wire-hover store', () => {
     const v = src('components/bank/office/VaultCash3D.tsx');
     expect(v).toContain('useWireHover()');
-    expect(v).toContain('litWires(flow, child, hover, group)');
+    expect(v).toContain('litWires(flow, child, hover, group, demo)');
     expect(v).toMatch(/STILL_LINE\[w\]\[route\?\.has\(w\) \? 'lit' : 'idle'\]/);
     expect(src('components/bank/office/LoadingBay3D.tsx')).toContain("useWireHoverStore.getState().set(on ? 'BAY' : null)");
   });

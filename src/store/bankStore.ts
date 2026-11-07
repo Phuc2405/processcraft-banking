@@ -1,5 +1,7 @@
 /** Bank store: the living bank on screen. */
 
+import { eodCaseRoute } from '../sim/eodCase';
+import { eodCaseStore } from './eodCaseStore';
 import { useStore } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 
@@ -83,7 +85,7 @@ export interface LeftTour {
 /** A route the hop player replays on its own (a closed-day sandbox payment, the EoD demo's batch case). */
 export type DemoReplay = Pick<PacketTrace, 'id' | 'route'>;
 /** The EoD demo's one case: a settled payment packed into tonight's batch, cleared with Visa and matched three ways. */
-export const EOD_CASE_ROUTE = ['OUT_APPROVED', 'EOD_BATCH', 'EOD_VISA', 'RECON', 'OUT_SETTLED'] as const satisfies readonly PlaceId[];
+export { EOD_CASE_ROUTE } from '../sim/eodCase';
 
 /** The seed every new bank starts with, so everyone's first week is the same lesson plan. */
 export const DEFAULT_SEED = 2026;
@@ -1087,7 +1089,7 @@ export function createBankStore(options: BankStoreOptions = {}): StoreApi<BankSt
           // batch item through clearing, settlement and reconciliation. The rest of the night batch waits for Play.
           leaveTour();
           if (s.sim.minute < EOD_START) s.sim.stepUntil(EOD_START);
-          refresh({ presetTxId: null, sandboxTrace: { id: `eod${++sandboxRuns}`, route: [...EOD_CASE_ROUTE] }, playing: false, solo: false, selection: { kind: 'none' } });
+          refresh({ presetTxId: null, sandboxTrace: { id: `eod${++sandboxRuns}`, route: [...eodCaseRoute(eodCaseStore.getState().suspense)] }, playing: false, solo: false, selection: { kind: 'none' } });
           return;
         }
         const customer = presetCustomer(id, s.sim.rules);

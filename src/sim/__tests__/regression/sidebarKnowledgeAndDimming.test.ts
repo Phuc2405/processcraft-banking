@@ -47,7 +47,9 @@ function dimmedOnMap(): Set<string> {
   const out = new Set<string>();
   for (const m of html.matchAll(/<[^>]*data-child-dim="true"[^>]*>/g)) {
     const place = /data-place="([A-Z_]+)"/.exec(m[0])?.[1];
-    if (place) out.add(place);
+    // The wires off the child's route carry the same dim as an SVG opacity (masterReactivityAndFlowFixes.test.ts).
+    if (!place) continue;
+    out.add(place);
     expect(m[0]).toContain(`opacity:${CHILD_DIM}`);
   }
   return out;
@@ -105,7 +107,8 @@ describe('child scenario soft-dimming', () => {
   it('every demo run and the dropdown pick set the child; the dock offers the reset', () => {
     expect(src('components/bank/retailOpsActions.ts').match(/childFocusStore\.getState\(\)\.pick\(id\)/g)?.length).toBe(2);
     const dock = src('components/bank/PresetDock.tsx');
-    expect(dock).toContain('childFocusStore.getState().pick(action.id)');
+    // The dropdown's pick goes through the one focus pipeline (retailOpsActions.focusChild), which aims the map and opens the sheet.
+    expect(dock).toContain('focusChild(id as DemoAction');
     expect(dock).toContain('data-testid="show-all-desks"');
     expect(src('components/bank/retailOps.messages.ts')).toContain('Hiển thị tất cả quầy quy trình mẹ');
   });

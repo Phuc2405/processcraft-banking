@@ -53,6 +53,16 @@ const DRIVE_AISLE: readonly V2[] = [
   [LOT_SIDE * AISLE, BACK_LANE.out],
 ];
 
+/**
+ * Where an off-site stop's step badge stands: at the head of the van's drive aisle, inside the car park, where the van turns out
+ * of the bay to leave. The exit itself (OFFSITE) lies on the back lane past the edge of the lot, so a badge drawn there runs off the
+ * office's frame; the moving icon still runs all the way out.
+ */
+export const OFFSITE_BADGE: V2 = DRIVE_AISLE[0]!;
+
+/** Where a stop's badge and ring are drawn: its own spot on the floor, or OFFSITE_BADGE for an off-site end. */
+export const badgeXZ = (stop: HopStop): V2 => (stop.place || stop.cit === 'BAY' ? stopXZ(stop) : OFFSITE_BADGE);
+
 /** A stop on the floor: its desk, the loading bay, or the way off-site past it. */
 export function stopXZ(stop: HopStop): V2 {
   if (stop.place) return placeXZ(stop.place);
@@ -104,7 +114,7 @@ function Orb({ from, to, icon, tone, cash }: { from: HopStop; to: HopStop; icon:
 function StopMarker({ stop, tone, mode, children }: { stop: HopStop; tone: string; mode: NodeMode | null; children: React.ReactNode }) {
   const m = useMessages(stpMessages);
   const ring = useRef<Group>(null);
-  const [x, z] = stopXZ(stop);
+  const [x, z] = badgeXZ(stop);
   useFrame(() => ring.current?.scale.setScalar(1 + 0.12 * Math.sin(motion.t * 5)));
   return (
     <group position={[x, 0.04, z]} name="flow-station-pulse">

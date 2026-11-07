@@ -53,7 +53,7 @@ export function ScenarioPicker({ items, picked, onPick, label, testId, direction
     } else setActive(next);
   };
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-2" data-testid={`${testId}-selector`}>
+    <div className="flex min-w-[8rem] flex-1 items-center gap-2" data-testid={`${testId}-selector`}>
       <button
         ref={trigger}
         type="button"

@@ -587,12 +587,21 @@ function GatewayMark({ g, opacity, glow, active, accent, ridden }: { g: Gateway;
   );
 }
 
+const WIRE_BY_ID = new Map(BANK_WIRES.map((w) => [w.id, w]));
+
 function Wires({ moves, tick, focus, flow, active, isolated = false }: { moves: readonly Move[]; tick: number; focus: Focus | null; flow: FlowFocus | null; active: PlaceId | null; isolated?: boolean }) {
   const heat = useWireHeat(moves, tick);
   // While the learner's payment runs in a guided flow, only its own path is lit (not the whole flow): the wires it has crossed glow, the one it is crossing runs.
   const live = useLivePath();
   const path = flow && !focus ? live : null;
   const inPath = (id: string): boolean => (path ? onPath(path, id) : flow ? flow.scope.wires.has(id) : true);
+  // Inside the lit scope, a wire the picked child does not ride (one end off its route) is soft-dimmed like its desks, never hidden.
+  const child = flow && !focus && !path ? flow.child : null;
+  const offChild = (id: string): boolean => {
+    if (!child) return false;
+    const w = WIRE_BY_ID.get(id);
+    return !!w && !(child.has(w.from) && child.has(w.to));
+  };
   // The wires the token is on right now glow brightest; the ones it has already ridden stay lit.
   const current = new Set(focus && !focus.tour.intro ? wiresOfRoute(focus.current.route) : []);
   // Hovering a line lights that line; hovering or selecting a node lights its own paths.
@@ -618,10 +627,11 @@ function Wires({ moves, tick, focus, flow, active, isolated = false }: { moves: 
         const shown = inScope && inFlow && (!linked || on);
         // On a demo's stage a wire off its route is not drawn at all (DemoSession.offRouteOpacity): only the active path shows.
         if (!shown && isolated) return null;
+        const soft = shown && offChild(w.id);
         // A gateway's wire draws only its feeder: the gateway draws the trunk once for all of them.
         const d = w.drawPath;
         return (
-          <g key={w.id} data-wire={w.id} data-lit={focus ? inScope : flow ? inFlow : linked ? on : undefined} data-ridden={ridden || undefined} opacity={shown ? 1 : offRouteOpacity(isolated)} style={focus && !inScope ? { filter: 'blur(1px)' } : flow && !inFlow ? { filter: 'grayscale(1)' } : undefined}>
+          <g key={w.id} data-wire={w.id} data-lit={focus ? inScope : flow ? inFlow : linked ? on : undefined} data-ridden={ridden || undefined} data-child-dim={soft || undefined} opacity={shown ? (soft ? CHILD_DIM : 1) : offRouteOpacity(isolated)} style={focus && !inScope ? { filter: 'blur(1px)' } : flow && !inFlow ? { filter: 'grayscale(1)' } : undefined}>
             <path d={w.strokePath ?? d} fill="none" stroke={on ? st.glow : focus && inScope ? `${focus.accent}66` : flow && inFlow ? `${flow.accent}88` : st.base} strokeWidth={on ? 2.6 : 2} {...(st.dash ? { strokeDasharray: st.dash } : {})} {...(w.gateway ? {} : { markerEnd: `url(#bk-arrow-${st.base.slice(1)})` })} />
             {h > 0.05 && <path d={d} fill="none" stroke={st.glow} strokeWidth={2 + Math.min(h, 6) * 0.3} strokeLinecap="round" opacity={Math.min(0.55, 0.1 + h * 0.07)} style={{ transition: 'opacity 400ms' }} />}
             {path && inFlow && flow && (
@@ -651,7 +661,8 @@ function Wires({ moves, tick, focus, flow, active, isolated = false }: { moves: 
         const ridden = focus ? members.some((id) => focus.trail.has(id)) : false;
         const shown = inScope && inFlow && (!linked || on);
         if (!shown && isolated) return null;
-        return <GatewayMark key={g.id} g={g} opacity={shown ? 1 : offRouteOpacity(isolated)} glow={glow} active={on} accent={focus && inScope ? focus.accent : flow && inFlow ? flow.accent : null} ridden={ridden} />;
+        const soft = shown && members.every(offChild);
+        return <GatewayMark key={g.id} g={g} opacity={shown ? (soft ? CHILD_DIM : 1) : offRouteOpacity(isolated)} glow={glow} active={on} accent={focus && inScope ? focus.accent : flow && inFlow ? flow.accent : null} ridden={ridden} />;
       })}
       {BANK_WIRES.filter((w) => w.label && w.showLabel).map((w) => {
         const label = t(w.label as string);

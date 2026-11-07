@@ -1,3 +1,4 @@
+import { useActiveChildId } from '../../../store/childFocusStore';
 import { Html } from '@react-three/drei';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
@@ -299,7 +300,8 @@ export const VaultCashStreams3D = memo(function VaultCashStreams3D() {
   const isolated = useStageIsolated();
   const pointer = useWireHover();
   const hover = isolated ? null : pointer;
-  const route = useMemo(() => litWires(flow, child, hover, group), [flow, child, hover, group]);
+  const demo = useActiveChildId();
+  const route = useMemo(() => litWires(flow, child, hover, group, demo), [flow, child, hover, group, demo]);
   const shown = (w: CashWire): boolean => !isolated || (route?.has(w) ?? false);
   const onStage = flows.filter((f) => shown(f.endpoint));
   const live = new Set<CashWire>(onStage.map((f) => f.endpoint));

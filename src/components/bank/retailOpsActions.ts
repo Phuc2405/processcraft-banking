@@ -1,5 +1,6 @@
 import { demoActionById, demoBlocked, type DemoActionId } from '../../sim/demoActions';
-import { demoGroup, type DemoGroupId } from '../../sim/demoGroups';
+import { citDemoOf, demoGroup, groupOf, showsGroupsOf, type DemoGroupId, type FocusSub } from '../../sim/demoGroups';
+import { CIT_INFO_KEYS, infoKeyForChoice, type InfoKey } from '../../data/subProcessKeys';
 import { demoMinute, inWindow, modeOf, shiftOf, shiftSnap, slotLabel } from '../../sim/demoSchedule';
 import { shiftQueueStore } from '../../store/shiftQueueStore';
 import { DESK_VISITS } from '../../sim/deskVisit';
@@ -133,7 +134,6 @@ function runOpsDemo(id: OpsActionId): void {
 
 /** Runs a button now, whatever the clock says: light the flow, send the payment to the inspector, post the retail journal. */
 export function executeDemo(id: DemoActionId): void {
-  const def = demoActionById(id);
   const bank = bankStore.getState();
   if (demoLocked() || demoBlocked(id, { dayOver: bank.view.dayOver, minute: bank.view.minute })) return;
   // Every demo pauses the bank first (its payment plays alone, the clock stays paused after it until Play) and clears the stage:
@@ -142,9 +142,7 @@ export function executeDemo(id: DemoActionId): void {
   if (id === 'eod') purgeForEod();
   // Run once: a copy still waiting for its shift is now done.
   shiftQueueStore.getState().unqueue(id);
-  if (bank.scope !== 'beginner' || bank.flow !== def.flow) bank.setActiveFlow(def.flow);
-  // The map soft-dims the rest of the sub-process round this child's route until "Show all desks".
-  childFocusStore.getState().pick(id);
+  aimAt(id);
   if (presetById(id)) runPresetDemo(id as PresetId);
   else runOpsDemo(id as OpsActionId);
 }
@@ -265,4 +263,40 @@ export function releaseDueDemos(): void {
 export function selectSubProcess(group: DemoGroupId): void {
   if (demoLocked()) return;
   bankStore.getState().selectSubProcess(group, demoGroup(group).flow);
+}
+
+/** The fact sheet of what the map lights: the CIT child's, the sub-group's (in a flow whose menu lists its groups), else the flow's. */
+export function litInfoKey(flow: FlowId, subProcess: FocusSub | null): InfoKey {
+  const cit = citDemoOf(subProcess);
+  if (cit) return CIT_INFO_KEYS[cit];
+  const sub = groupOf(subProcess);
+  return sub && showsGroupsOf(flow) && demoGroup(sub).flow === flow ? infoKeyForChoice(flow, sub) : `flow-${flow}`;
+}
+
+/** Opens the drawer on the lit sheet, replacing whatever it showed (a finished run's "Your payment" result included). */
+export function showLitInfo(): void {
+  const bank = bankStore.getState();
+  bank.select({ kind: 'subprocess', key: litInfoKey(bank.flow, bank.subProcess) });
+}
+
+/**
+ * Puts a child scenario in focus: its flow lit (and its sub-process, unless the whole flow is already lit), and the map soft-dimmed
+ * round its route. The one place every picker (the dock, the drawer, a run) aims the map from, so they can never disagree.
+ */
+function aimAt(id: DemoActionId): void {
+  const def = demoActionById(id);
+  const bank = bankStore.getState();
+  const sub = groupOf(bank.subProcess);
+  if (bank.scope !== 'beginner' || bank.flow !== def.flow || (sub !== null && sub !== def.group)) {
+    if (showsGroupsOf(def.flow)) bank.selectSubProcess(def.group, def.flow);
+    else bank.setActiveFlow(def.flow);
+  }
+  childFocusStore.getState().pick(id);
+}
+
+/** A pick in a scenario selector (not a run): aims the map at it and brings its sheet up in the drawer at once. */
+export function focusChild(id: DemoActionId): void {
+  if (demoLocked()) return;
+  aimAt(id);
+  showLitInfo();
 }

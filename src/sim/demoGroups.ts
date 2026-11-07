@@ -9,13 +9,15 @@
 import type { Localized } from '../i18n/localeCore';
 import { CIT_FLOW, type FlowId } from '../types/viewport';
 import { CIT_DEMOS, type CitDemo } from './citEngine';
+import { childCashWires } from './cashWires';
 import { citScope } from './citRoute';
+import { eodCaseRoute } from './eodCase';
 import { flowScope, withCashVault, type FlowScope } from './guidedFlows';
 import { planCheckout, buildGraphs } from './processes';
 import { PRESETS, presetCustomer, type PresetDef } from './presets';
 import { OPS_ACTIONS, opsSubProcess, type OpsActionDef, type OpsSubProcessId } from './retailOps';
 import { DEFAULT_RULES } from './rules';
-import { stpPlaces } from './stpEngine';
+import { stpPlaces, stpRoute, type StpConfig } from './stpEngine';
 import { edgeId, isStation, STATIONS, WIRES, type DepartmentId, type PlaceId } from './topology';
 
 const L = (en: string, vi: string): Localized<string> => ({ en, vi });
@@ -107,18 +109,26 @@ function presetPlaces(def: PresetDef): readonly PlaceId[] {
 
 const CHILD_PLACES = new Map<string, ReadonlySet<PlaceId>>();
 /**
- * The desks one child scenario (a dock button, by its preset or retail action id) crosses, with the cash vault behind a cash
- * endpoint, or null for an unknown id. The soft-dimming of the map reads this: the rest of its sub-process fades, but stays.
+ * The desks one child scenario (a dock button, by its preset or retail action id) actually crosses, or null for an unknown id. The
+ * soft-dimming of the map reads this: the rest of its sub-process fades, but stays. Only the route it takes counts: under `stp`
+ * the dials' path (stpRoute), not every path it could take, and the Main Cash Vault only when its own cash crosses the vault door
+ * (cashWires.childCashWires), so an ATM withdrawal never lights the vault. `eodSuspense` is Flow 04's suspense switch (eodCase.ts).
  */
-export function childPlaces(id: string): ReadonlySet<PlaceId> | null {
-  const hit = CHILD_PLACES.get(id);
-  if (hit) return hit;
-  const member = DEMO_GROUPS.flatMap((g) => groupMembers(g.id)).find((m) => m.def.id === id);
+export function childPlaces(id: string, stp: StpConfig | null = null, eodSuspense = false): ReadonlySet<PlaceId> | null {
+  const member = memberById(id);
   if (!member) return null;
-  const places = withCashVault(new Set(memberPlaces(member)));
-  CHILD_PLACES.set(id, places);
+  // The night demo plays one batch case: through the Suspense Account only when Flow 04's suspense switch is on.
+  const route = member.source === 'ops' ? (stp ? stpRoute(member.def.id, member.def.route, stp) : member.def.route) : member.def.id === 'eod' ? eodCaseRoute(eodSuspense) : presetPlaces(member.def);
+  const key = `${id}|${route.join()}`;
+  const hit = CHILD_PLACES.get(key);
+  if (hit) return hit;
+  const places = new Set<PlaceId>(route);
+  if (childCashWires(id).length) places.add('MAIN_CASH_VAULT');
+  CHILD_PLACES.set(key, places);
   return places;
 }
+
+const memberById = (id: string): GroupMember | undefined => DEMO_GROUPS.flatMap((g) => groupMembers(g.id)).find((m) => m.def.id === id);
 
 let cachedGraphs: ReturnType<typeof buildGraphs> | null = null;
 const graphs = (): ReturnType<typeof buildGraphs> => (cachedGraphs ??= buildGraphs(DEFAULT_RULES));

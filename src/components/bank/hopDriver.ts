@@ -1,6 +1,7 @@
 import { CATEGORY_ICON, flowIcon } from '../../sim/transactionPath';
 import { citDemoBusy, type CitRun } from '../../sim/citEngine';
 import { CIT_STOPS, citReached, citStops } from '../../sim/citRoute';
+import { vanStepCap, type VanStage } from '../../sim/citCrew';
 import type { PacketTrace } from '../../sim/types';
 import { bankStore, beatLive } from '../../store/bankStore';
 import { citStore } from '../../store/citStore';
@@ -15,11 +16,25 @@ export function paymentSource(t: Pick<PacketTrace, 'id' | 'route' | 'at' | 'done
   return { id: `tx:${t.id}`, kind: 'payment', stops: t.route.map((place) => ({ place, cit: null })), route: t.route, icon: flowIcon(t.route), reached: t.done ? t.route.length - 1 : t.at, over: t.done };
 }
 
-/** The learner's CIT run: the vault, the bay and the far end, as far as its lifecycle has got. */
-export function citSource(run: Pick<CitRun, 'order' | 'status'> | null): HopSource | null {
+/**
+ * Where the 3D van stands on a run, while the 3D office is on screen (its world registers this); null in 2D, whose bay has no van to
+ * wait for. The CIT step badge reads it so it never runs ahead of the van (citCrew.vanStepCap).
+ */
+let vanStageOf: ((runId: string) => VanStage | null) | null = null;
+export function setCitVanStage(read: ((runId: string) => VanStage | null) | null): void {
+  vanStageOf = read;
+}
+
+/** The learner's CIT run: the vault, the bay and the far end, as far as its lifecycle (and, in 3D, its van) has got. */
+export function citSource(run: Pick<CitRun, 'order' | 'status'> | null, vanStage: ((runId: string) => VanStage | null) | null = vanStageOf): HopSource | null {
   if (!run) return null;
-  const stops = citStops(run.order.scenario, run.order.direction).map((cit) => ({ place: CIT_STOPS[cit].place, cit }));
-  return { id: `cit:${run.order.id}`, kind: 'cit', stops, route: [], icon: CATEGORY_ICON.cash, reached: citReached(run), over: run.status === 'SETTLED' };
+  const ids = citStops(run.order.scenario, run.order.direction);
+  const stops = ids.map((cit) => ({ place: CIT_STOPS[cit].place, cit }));
+  const over = run.status === 'SETTLED';
+  const stage = over || !vanStage ? null : vanStage(run.order.id);
+  const cap = vanStepCap(ids, stage);
+  const reached = cap === null ? citReached(run) : Math.min(citReached(run), cap);
+  return { id: `cit:${run.order.id}`, kind: 'cit', stops, route: [], icon: CATEGORY_ICON.cash, reached, over, hold: stage?.phase === 'depart' };
 }
 
 /** A closed day's sandbox replay: the whole route is already known, so the player shows every stop at its own pace. */
@@ -31,7 +46,21 @@ export function sandboxSource(t: Pick<PacketTrace, 'id' | 'route'> | null): HopS
 /** The runs the player may show now: the learner's payment (not during a tour), a sandbox replay and their CIT dispatch. */
 export function hopSources(): (HopSource | null)[] {
   const bank = bankStore.getState();
-  return [bank.spotlight ? null : paymentSource(bank.presetTrace), sandboxSource(bank.sandboxTrace), citSource(citDemoBusy(citNow()))];
+  return [bank.spotlight ? null : paymentSource(bank.presetTrace), sandboxSource(bank.sandboxTrace), citSource(citDemoBusy(citNow())) ?? vanHeldSource()];
+}
+
+/**
+ * The CIT run on show after the CIT book has settled it, while the 3D van is still out for it: the books close the run as the cash is
+ * handed over at the bay, but the van has yet to drive off. The badge keeps to the van (vanStepCap), so the last step shows only once
+ * the van pulls away; once the van is done with the run, it is gone and the play finishes its last stop.
+ */
+function vanHeldSource(): HopSource | null {
+  const session = hopPlayerStore.getState().session;
+  if (!vanStageOf || session?.kind !== 'cit') return null;
+  const stage = vanStageOf(session.id.slice('cit:'.length));
+  // A settled run whose van never came (the office opened mid-run) is not waited for.
+  const cap = stage?.phase === 'pending' ? null : vanStepCap(session.stops.map((s) => s.cit ?? ''), stage);
+  return cap === null ? null : { ...session, reached: cap, over: false, hold: stage?.phase === 'depart' };
 }
 
 /**
@@ -63,6 +92,8 @@ export function installHopPlayer(): () => void {
     const dt = Math.min(0.25, (now - last) / 1000);
     last = now;
     const s = hopPlayerStore.getState();
+    // The 3D van moves every frame, not on a store change: its run's furthest stop is re-read each tick.
+    if (vanStageOf && s.session?.kind === 'cit') sources = hopSources();
     if (s.session || sources.some((x) => x && !x.over)) s.tick(dt, sources, hopFrozen(bankStore.getState(), s.session));
   }, HOP_TICK_MS);
   return () => {

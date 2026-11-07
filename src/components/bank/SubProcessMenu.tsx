@@ -94,8 +94,8 @@ export function SubProcessMenu() {
     else if (c.kind === 'sub') selectSubProcess(c.sub);
     else bankStore.getState().selectSubProcess(citDemoOfKey(c.key)!, CIT_FLOW);
     before.current = null;
-    // A CIT child's sheet is where its scenario runs from, so it always opens.
-    showInfo(c, c.kind === 'cit');
+    // Every pick brings its own sheet up at once, replacing whatever the drawer held (a finished run's result included).
+    showInfo(c, true);
     setOpen(false);
     trigger.current?.focus();
   };
@@ -134,7 +134,11 @@ export function SubProcessMenu() {
         title={locked ? m('demoLocked') : group ? pick(demoGroup(group).title, locale) : flowText(flow).blurb}
         disabled={locked}
         data-locked={locked || undefined}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          // Clicking the title also brings back the sheet it names, if the drawer was closed.
+          if (!open && !infoOpen) showInfo(MENU_CHOICES[selected] ?? { kind: 'flow', flow }, true);
+          setOpen((o) => !o);
+        }}
         onKeyDown={onKeyDown}
         data-testid="flow-menu"
         data-flow={flow}
