@@ -106,12 +106,6 @@ function ViewportControlsView() {
 
 export const ViewportControls = memo(ViewportControlsView);
 
-/** The left edge for a panel centred over the map: the middle of the space the inspector leaves free, so the dock and the preset bar never slide under the drawer when it opens. */
-export function useMapCentre(): string {
-  const shift = useBankStore((s) => (s.selection.kind !== 'none' ? Math.round(s.inspectorWidth / 2) : 0));
-  return shift ? `calc(50% - ${shift}px)` : '50%';
-}
-
 /** The room the zoom toolbar keeps at the map's right edge. */
 export const ZOOM_TOOLBAR_GUTTER = 64;
 

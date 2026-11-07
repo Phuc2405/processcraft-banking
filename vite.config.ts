@@ -7,7 +7,7 @@ export default defineConfig({
   build: {
     // No source maps in production: the browser's DevTools must not be able to rebuild the original TypeScript.
     sourcemap: false,
-    // The app chunk is about 900 KB (300 KB gzipped); the 3D office and the heavy modals are lazy chunks.
+    // The app chunk is about 525 KB (175 KB gzipped); the 3D office, the heavy modals and the header search's index are lazy chunks.
     chunkSizeWarningLimit: 1200,
     rolldownOptions: {
       output: {

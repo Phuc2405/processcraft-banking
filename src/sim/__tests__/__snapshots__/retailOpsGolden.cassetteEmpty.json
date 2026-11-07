@@ -1,0 +1,2620 @@
+{
+ "bill-electric-85": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 29991500,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43091500,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "bill-electric-85",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "CASA",
+       "dr": 8500,
+       "cr": 0
+      },
+      {
+       "account": "INTERBANK",
+       "dr": 0,
+       "cr": 8500
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "bill-electric-85",
+   "status": "APPROVED",
+   "rc": "00",
+   "message": {
+    "en": "Bill paid: the customer is debited and the money goes to the biller’s bank.",
+    "vi": "Đã thanh toán hóa đơn: khách bị ghi nợ và tiền chuyển sang ngân hàng của nhà cung cấp."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "bill-electric-85",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "CASA",
+      "dr": 8500,
+      "cr": 0
+     },
+     {
+      "account": "INTERBANK",
+      "dr": 0,
+      "cr": 8500
+     }
+    ]
+   },
+   "customer": {
+    "before": 90000,
+    "after": 81500
+   }
+  }
+ },
+ "wallet-cashin-100": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": -10000,
+    "CASA": -43090000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "wallet-cashin-100",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "CASA",
+       "dr": 10000,
+       "cr": 0
+      },
+      {
+       "account": "WALLET_SETTLEMENT",
+       "dr": 0,
+       "cr": 10000
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "wallet-cashin-100",
+   "status": "APPROVED",
+   "rc": "00",
+   "message": {
+    "en": "Wallet topped up: the bank now owes the wallet provider $100 until settlement.",
+    "vi": "Đã nạp ví: ngân hàng phải trả đơn vị ví $100 đến khi quyết toán."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "wallet-cashin-100",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "CASA",
+      "dr": 10000,
+      "cr": 0
+     },
+     {
+      "account": "WALLET_SETTLEMENT",
+      "dr": 0,
+      "cr": 10000
+     }
+    ]
+   },
+   "customer": {
+    "before": 60000,
+    "after": 50000
+   }
+  }
+ },
+ "atm-withdraw-100": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [],
+   "posted": 0,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "atm-withdraw-100",
+   "status": "BLOCKED",
+   "message": {
+    "en": "The cassette cannot cover $100: run the CIT refill. An ATM never pays out part of a withdrawal.",
+    "vi": "Hộp tiền không đủ $100: hãy tiếp quỹ CIT. ATM không bao giờ chi một phần số tiền rút."
+   },
+   "journal": null,
+   "rc": "91"
+  }
+ },
+ "atm-jam-200": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43080000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": -20000,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "atm-jam-200",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "CASA",
+       "dr": 20000,
+       "cr": 0
+      },
+      {
+       "account": "ATM_SUSPENSE",
+       "dr": 0,
+       "cr": 20000
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [
+    {
+     "id": "RECON-000001",
+     "amountCents": 20000,
+     "openedAt": "D1 09:00:00",
+     "status": "OPEN"
+    }
+   ],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "atm-jam-200",
+   "status": "HELD",
+   "message": {
+    "en": "Dispenser fault: $200 is parked in TK 2930 and an EOD reconciliation ticket is open.",
+    "vi": "Lỗi nhả tiền: $200 được treo ở TK 2930 và đã mở phiếu đối soát cuối ngày."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "atm-jam-200",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "CASA",
+      "dr": 20000,
+      "cr": 0
+     },
+     {
+      "account": "ATM_SUSPENSE",
+      "dr": 0,
+      "cr": 20000
+     }
+    ]
+   },
+   "customer": {
+    "before": 60000,
+    "after": 40000
+   }
+  }
+ },
+ "cassette-low": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [],
+   "posted": 0,
+   "tickets": [],
+   "cassetteDrill": true,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "cassette-low",
+   "status": "ALERT",
+   "message": {
+    "en": "Sensor drill: the cassette reports under 15%, and the ATM shows a warning until the CIT refill. No money moved.",
+    "vi": "Diễn tập cảm biến: hộp tiền báo dưới 15%, ATM hiển thị cảnh báo đến khi tiếp quỹ CIT. Tiền không dịch chuyển."
+   },
+   "journal": null
+  }
+ },
+ "cassette-refill": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 2000000,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 18000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "cassette-refill",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "CASH_ATM",
+       "dr": 2000000,
+       "cr": 0
+      },
+      {
+       "account": "CASH_VAULT",
+       "dr": 0,
+       "cr": 2000000
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "cassette-refill",
+   "status": "APPROVED",
+   "rc": "00",
+   "message": {
+    "en": "CIT refill done: the cassettes are back to capacity from the vault, and the low-cash alert has cleared.",
+    "vi": "Đã tiếp quỹ CIT: hộp tiền được nạp đầy lại từ kho quỹ, và cảnh báo sắp hết tiền đã được gỡ."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "cassette-refill",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "CASH_ATM",
+      "dr": 2000000,
+      "cr": 0
+     },
+     {
+      "account": "CASH_VAULT",
+      "dr": 0,
+      "cr": 2000000
+     }
+    ]
+   }
+  }
+ },
+ "teller-deposit-5000": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 3000000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43600000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "teller-deposit-5000",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "CASH_TILL",
+       "dr": 500000,
+       "cr": 0
+      },
+      {
+       "account": "CASA",
+       "dr": 0,
+       "cr": 500000
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "teller-deposit-5000",
+   "status": "APPROVED",
+   "rc": "00",
+   "message": {
+    "en": "Cash counted and credited to the customer.",
+    "vi": "Đã đếm tiền và ghi có cho khách."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "teller-deposit-5000",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "CASH_TILL",
+      "dr": 500000,
+      "cr": 0
+     },
+     {
+      "account": "CASA",
+      "dr": 0,
+      "cr": 500000
+     }
+    ]
+   }
+  }
+ },
+ "teller-exceed-limit": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 5250000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -45850000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "teller-exceed-limit",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "CASH_TILL",
+       "dr": 2750000,
+       "cr": 0
+      },
+      {
+       "account": "CASA",
+       "dr": 0,
+       "cr": 2750000
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": {
+    "tillCents": 5250000,
+    "surplusCents": 2750000
+   }
+  },
+  "outcome": {
+   "action": "teller-exceed-limit",
+   "status": "ALERT",
+   "rc": "00",
+   "message": {
+    "en": "The deposit is booked, but the till is over its $50,000 limit: a vault transfer is now mandatory.",
+    "vi": "Khoản nộp đã ghi nhận, nhưng ngăn kéo đã vượt hạn mức $50,000: bắt buộc phải chuyển kho quỹ."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "teller-exceed-limit",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "CASH_TILL",
+      "dr": 2750000,
+      "cr": 0
+     },
+     {
+      "account": "CASA",
+      "dr": 0,
+      "cr": 2750000
+     }
+    ]
+   },
+   "ctrRequired": true
+  }
+ },
+ "fee-annual-45": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 2500,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43098000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": -4500,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "fee-annual-45",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "CASA",
+       "dr": 2000,
+       "cr": 0
+      },
+      {
+       "account": "OVERDRAFT",
+       "dr": 2500,
+       "cr": 0
+      },
+      {
+       "account": "FEE_INCOME",
+       "dr": 0,
+       "cr": 4500
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "fee-annual-45",
+   "status": "APPROVED",
+   "message": {
+    "en": "Fee posted: the balance covered $20, and the other $25 became an overdraft, so the statement shows -$25.",
+    "vi": "Đã ghi nhận phí: số dư trả được $20, $25 còn lại thành thấu chi nên sao kê hiển thị -$25."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "fee-annual-45",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "CASA",
+      "dr": 2000,
+      "cr": 0
+     },
+     {
+      "account": "OVERDRAFT",
+      "dr": 2500,
+      "cr": 0
+     },
+     {
+      "account": "FEE_INCOME",
+      "dr": 0,
+      "cr": 4500
+     }
+    ]
+   },
+   "customer": {
+    "before": 2000,
+    "after": -2500
+   }
+  }
+ },
+ "fee-card-10": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43099000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": -1000,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "fee-card-10",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "CASA",
+       "dr": 1000,
+       "cr": 0
+      },
+      {
+       "account": "FEE_INCOME",
+       "dr": 0,
+       "cr": 1000
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "fee-card-10",
+   "status": "APPROVED",
+   "rc": "00",
+   "message": {
+    "en": "Fee posted to card fee income.",
+    "vi": "Đã ghi nhận phí vào thu phí thẻ."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "fee-card-10",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "CASA",
+      "dr": 1000,
+      "cr": 0
+     },
+     {
+      "account": "FEE_INCOME",
+      "dr": 0,
+      "cr": 1000
+     }
+    ]
+   },
+   "customer": {
+    "before": 60000,
+    "after": 59000
+   }
+  }
+ },
+ "autopay-loan-250": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 19975000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43075000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "autopay-loan-250",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "CASA",
+       "dr": 25000,
+       "cr": 0
+      },
+      {
+       "account": "LOAN",
+       "dr": 0,
+       "cr": 25000
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "autopay-loan-250",
+   "status": "APPROVED",
+   "rc": "00",
+   "message": {
+    "en": "Instalment collected under the customer’s mandate: the loan principal falls.",
+    "vi": "Đã thu kỳ trả góp theo ủy quyền của khách: nợ gốc giảm."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "autopay-loan-250",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "CASA",
+      "dr": 25000,
+      "cr": 0
+     },
+     {
+      "account": "LOAN",
+      "dr": 0,
+      "cr": 25000
+     }
+    ]
+   },
+   "customer": {
+    "before": 90000,
+    "after": 65000
+   }
+  }
+ },
+ "autopay-nsf-250": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43098500,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": -1500,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "autopay-nsf-250",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "CASA",
+       "dr": 1500,
+       "cr": 0
+      },
+      {
+       "account": "NSF_INCOME",
+       "dr": 0,
+       "cr": 1500
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "autopay-nsf-250",
+   "status": "DECLINED",
+   "rc": "51",
+   "message": {
+    "en": "Insufficient funds: the $250 instalment stays unpaid, starts to age, and the $15 NSF fee is charged.",
+    "vi": "Không đủ số dư: kỳ trả góp $250 chưa thu được, bắt đầu quá hạn, và thu phí NSF $15."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "autopay-nsf-250",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "CASA",
+      "dr": 1500,
+      "cr": 0
+     },
+     {
+      "account": "NSF_INCOME",
+      "dr": 0,
+      "cr": 1500
+     }
+    ]
+   },
+   "customer": {
+    "before": 12000,
+    "after": 10500
+   }
+  }
+ },
+ "bnpl-approve-400": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 29960000,
+    "OVERDRAFT": 0,
+    "LOAN": 20030000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43090000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "bnpl-approve-400",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "CASA",
+       "dr": 10000,
+       "cr": 0
+      },
+      {
+       "account": "LOAN",
+       "dr": 30000,
+       "cr": 0
+      },
+      {
+       "account": "INTERBANK",
+       "dr": 0,
+       "cr": 40000
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "bnpl-approve-400",
+   "status": "APPROVED",
+   "rc": "00",
+   "message": {
+    "en": "Approved: the shop is paid $400 now, the customer pays $100 today, and the bank is owed the other $300.",
+    "vi": "Đã duyệt: cửa hàng nhận $400 ngay, khách trả $100 hôm nay, ngân hàng được nợ $300 còn lại."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "bnpl-approve-400",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "CASA",
+      "dr": 10000,
+      "cr": 0
+     },
+     {
+      "account": "LOAN",
+      "dr": 30000,
+      "cr": 0
+     },
+     {
+      "account": "INTERBANK",
+      "dr": 0,
+      "cr": 40000
+     }
+    ]
+   },
+   "customer": {
+    "before": 90000,
+    "after": 80000
+   },
+   "facts": [
+    {
+     "en": "DTI 23.3%: $700 of monthly debt on $3,000 of income.",
+     "vi": "DTI 23.3%: $700 nợ mỗi tháng trên $3,000 thu nhập."
+    },
+    {
+     "en": "Credit score 720, no late payments.",
+     "vi": "Điểm tín dụng 720, không có trễ hạn."
+    }
+   ]
+  }
+ },
+ "bnpl-decline-dti": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [],
+   "posted": 0,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "bnpl-decline-dti",
+   "status": "DECLINED",
+   "rc": "05",
+   "message": {
+    "en": "Refused: debt service would be over the 45% limit, so no credit is extended and nothing posts.",
+    "vi": "Từ chối: nghĩa vụ trả nợ vượt ngưỡng 45%, nên không cấp tín dụng và không ghi nhận gì."
+   },
+   "journal": null,
+   "facts": [
+    {
+     "en": "DTI 48%: $960 of monthly debt on $2,000 of income.",
+     "vi": "DTI 48%: $960 nợ mỗi tháng trên $2,000 thu nhập."
+    },
+    {
+     "en": "Credit score falls to 580.",
+     "vi": "Điểm tín dụng giảm còn 580."
+    }
+   ]
+  }
+ },
+ "card-late-fee": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 4200,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": -2500,
+    "INTEREST_INCOME": -1700,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "card-late-fee",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "OVERDRAFT",
+       "dr": 4200,
+       "cr": 0
+      },
+      {
+       "account": "NSF_INCOME",
+       "dr": 0,
+       "cr": 2500
+      },
+      {
+       "account": "INTEREST_INCOME",
+       "dr": 0,
+       "cr": 1700
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "card-late-fee",
+   "status": "APPROVED",
+   "message": {
+    "en": "The missed payment adds a $25 late fee and $17 of overdue interest to what the cardholder owes.",
+    "vi": "Kỳ trả trễ cộng thêm $25 phí phạt và $17 lãi quá hạn vào khoản chủ thẻ phải trả."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "card-late-fee",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "OVERDRAFT",
+      "dr": 4200,
+      "cr": 0
+     },
+     {
+      "account": "NSF_INCOME",
+      "dr": 0,
+      "cr": 2500
+     },
+     {
+      "account": "INTEREST_INCOME",
+      "dr": 0,
+      "cr": 1700
+     }
+    ]
+   }
+  }
+ },
+ "waterfall-120": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 19994500,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43088000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": -2500,
+    "INTEREST_INCOME": -4000,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "waterfall-120",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "CASA",
+       "dr": 12000,
+       "cr": 0
+      },
+      {
+       "account": "NSF_INCOME",
+       "dr": 0,
+       "cr": 2500
+      },
+      {
+       "account": "INTEREST_INCOME",
+       "dr": 0,
+       "cr": 4000
+      },
+      {
+       "account": "LOAN",
+       "dr": 0,
+       "cr": 5500
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "waterfall-120",
+   "status": "APPROVED",
+   "rc": "00",
+   "message": {
+    "en": "The $120.00 is allocated in the fixed order, and $245.00 is still owed.",
+    "vi": "$120.00 được phân bổ theo thứ tự cố định, còn nợ $245.00."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "waterfall-120",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "CASA",
+      "dr": 12000,
+      "cr": 0
+     },
+     {
+      "account": "NSF_INCOME",
+      "dr": 0,
+      "cr": 2500
+     },
+     {
+      "account": "INTEREST_INCOME",
+      "dr": 0,
+      "cr": 4000
+     },
+     {
+      "account": "LOAN",
+      "dr": 0,
+      "cr": 5500
+     }
+    ]
+   },
+   "customer": {
+    "before": 60000,
+    "after": 48000
+   },
+   "facts": [
+    {
+     "en": "Penalty $25.00, interest $40.00, principal $55.00.",
+     "vi": "Phạt $25.00, lãi $40.00, gốc $55.00."
+    }
+   ]
+  }
+ },
+ "waterfall-50": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43095000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": -2500,
+    "INTEREST_INCOME": -2500,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "waterfall-50",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "CASA",
+       "dr": 5000,
+       "cr": 0
+      },
+      {
+       "account": "NSF_INCOME",
+       "dr": 0,
+       "cr": 2500
+      },
+      {
+       "account": "INTEREST_INCOME",
+       "dr": 0,
+       "cr": 2500
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "waterfall-50",
+   "status": "APPROVED",
+   "rc": "00",
+   "message": {
+    "en": "The $50.00 is allocated in the fixed order, and $315.00 is still owed.",
+    "vi": "$50.00 được phân bổ theo thứ tự cố định, còn nợ $315.00."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "waterfall-50",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "CASA",
+      "dr": 5000,
+      "cr": 0
+     },
+     {
+      "account": "NSF_INCOME",
+      "dr": 0,
+      "cr": 2500
+     },
+     {
+      "account": "INTEREST_INCOME",
+      "dr": 0,
+      "cr": 2500
+     }
+    ]
+   },
+   "customer": {
+    "before": 60000,
+    "after": 55000
+   },
+   "facts": [
+    {
+     "en": "Penalty $25.00, interest $25.00, principal $0.00.",
+     "vi": "Phạt $25.00, lãi $25.00, gốc $0.00."
+    }
+   ]
+  }
+ },
+ "risk-migrate-95dpd": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": -20000,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 20000
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "risk-migrate-95dpd",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "PROVISION_EXPENSE",
+       "dr": 20000,
+       "cr": 0
+      },
+      {
+       "account": "ALLOWANCE",
+       "dr": 0,
+       "cr": 20000
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "risk-migrate-95dpd",
+   "status": "ALERT",
+   "message": {
+    "en": "At 95 days past due the loan moves from group 1 to non-performing group 3, and 20% is provided.",
+    "vi": "Quá hạn 95 ngày, khoản vay chuyển từ nhóm 1 sang nợ xấu nhóm 3, trích lập 20%."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "risk-migrate-95dpd",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "PROVISION_EXPENSE",
+      "dr": 20000,
+      "cr": 0
+     },
+     {
+      "account": "ALLOWANCE",
+      "dr": 0,
+      "cr": 20000
+     }
+    ]
+   },
+   "facts": [
+    {
+     "en": "Credit score falls from 720 to 577.",
+     "vi": "Điểm tín dụng giảm từ 720 xuống 577."
+    },
+    {
+     "en": "Any other loans of this customer follow it to the same group.",
+     "vi": "Các khoản vay khác của khách này cũng chuyển theo cùng nhóm."
+    }
+   ]
+  }
+ },
+ "td-break-10k": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -44100493,
+    "TERM_DEPOSIT": -29000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -970411,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": -29096,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "td-break-10k",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "TERM_DEPOSIT",
+       "dr": 1000000,
+       "cr": 0
+      },
+      {
+       "account": "ACCRUED_INTEREST",
+       "dr": 29589,
+       "cr": 0
+      },
+      {
+       "account": "CASA",
+       "dr": 0,
+       "cr": 1000493
+      },
+      {
+       "account": "INTEREST_EXPENSE",
+       "dr": 0,
+       "cr": 29096
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "td-break-10k",
+   "status": "APPROVED",
+   "rc": "00",
+   "message": {
+    "en": "Closed early: the customer gets the $10,000 and interest at the 0.1% demand rate.",
+    "vi": "Tất toán sớm: khách nhận $10,000 và lãi theo mức không kỳ hạn 0.1%."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "td-break-10k",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "TERM_DEPOSIT",
+      "dr": 1000000,
+      "cr": 0
+     },
+     {
+      "account": "ACCRUED_INTEREST",
+      "dr": 29589,
+      "cr": 0
+     },
+     {
+      "account": "CASA",
+      "dr": 0,
+      "cr": 1000493
+     },
+     {
+      "account": "INTEREST_EXPENSE",
+      "dr": 0,
+      "cr": 29096
+     }
+    ]
+   },
+   "facts": [
+    {
+     "en": "Accrued at 6% for 180 days: $295.89. Paid at 0.1%: $4.93.",
+     "vi": "Đã dự chi ở mức 6% trong 180 ngày: $295.89. Trả ở mức 0.1%: $4.93."
+    },
+    {
+     "en": "The early withdrawal penalty is the $290.96 of interest given up.",
+     "vi": "Phạt rút trước hạn là $290.96 tiền lãi bị mất."
+    }
+   ]
+  }
+ },
+ "collateral-lock": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -29500000,
+    "TD_PLEDGED": -500000,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "collateral-lock",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "TERM_DEPOSIT",
+       "dr": 500000,
+       "cr": 0
+      },
+      {
+       "account": "TD_PLEDGED",
+       "dr": 0,
+       "cr": 500000
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 500000,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "collateral-lock",
+   "status": "HELD",
+   "message": {
+    "en": "The overdraft has defaulted, so $5,000 of pledged savings is frozen. It stays the customer’s money until it is liquidated.",
+    "vi": "Thấu chi đã vỡ nợ nên $5,000 tiền gửi cầm cố bị phong tỏa. Tiền vẫn là của khách đến khi được xử lý."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "collateral-lock",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "TERM_DEPOSIT",
+      "dr": 500000,
+      "cr": 0
+     },
+     {
+      "account": "TD_PLEDGED",
+      "dr": 0,
+      "cr": 500000
+     }
+    ]
+   }
+  }
+ },
+ "collateral-liquidate": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [],
+   "posted": 0,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "collateral-liquidate",
+   "status": "BLOCKED",
+   "message": {
+    "en": "Nothing is locked yet: lock the collateral first.",
+    "vi": "Chưa có gì bị phong tỏa: hãy phong tỏa TSĐB trước."
+   },
+   "journal": null
+  }
+ },
+ "collateral-release": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "collateral-release",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "TERM_DEPOSIT",
+       "dr": 500000,
+       "cr": 0
+      },
+      {
+       "account": "TD_PLEDGED",
+       "dr": 0,
+       "cr": 500000
+      },
+      {
+       "account": "TD_PLEDGED",
+       "dr": 500000,
+       "cr": 0
+      },
+      {
+       "account": "TERM_DEPOSIT",
+       "dr": 0,
+       "cr": 500000
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "collateral-release",
+   "status": "APPROVED",
+   "rc": "00",
+   "message": {
+    "en": "The loan is repaid in full, so the $5,000 pledge is released: the savings book is back in the customer’s free use.",
+    "vi": "Khoản vay đã trả hết nên $5,000 TSĐB được giải chấp: sổ tiết kiệm trở lại quyền sử dụng tự do của khách."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "collateral-release",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "TERM_DEPOSIT",
+      "dr": 500000,
+      "cr": 0
+     },
+     {
+      "account": "TD_PLEDGED",
+      "dr": 0,
+      "cr": 500000
+     },
+     {
+      "account": "TD_PLEDGED",
+      "dr": 500000,
+      "cr": 0
+     },
+     {
+      "account": "TERM_DEPOSIT",
+      "dr": 0,
+      "cr": 500000
+     }
+    ]
+   }
+  }
+ },
+ "bill-nsf-51": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43098500,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": -1500,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "bill-nsf-51",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "CASA",
+       "dr": 1500,
+       "cr": 0
+      },
+      {
+       "account": "NSF_INCOME",
+       "dr": 0,
+       "cr": 1500
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "bill-nsf-51",
+   "status": "DECLINED",
+   "rc": "51",
+   "message": {
+    "en": "Insufficient funds: the $85 bill is returned unpaid to the biller, and the $15 NSF fee is charged.",
+    "vi": "Không đủ số dư: hóa đơn $85 bị trả lại cho nhà cung cấp, và thu phí NSF $15."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "bill-nsf-51",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "CASA",
+      "dr": 1500,
+      "cr": 0
+     },
+     {
+      "account": "NSF_INCOME",
+      "dr": 0,
+      "cr": 1500
+     }
+    ]
+   },
+   "customer": {
+    "before": 4000,
+    "after": 2500
+   },
+   "facts": [
+    {
+     "en": "The biller is told the payment failed and will retry or suspend the service.",
+     "vi": "Nhà cung cấp được báo thanh toán thất bại và sẽ thu lại hoặc tạm ngừng dịch vụ."
+    }
+   ]
+  }
+ },
+ "bill-timeout-68": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [],
+   "posted": 0,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "bill-timeout-68",
+   "status": "DECLINED",
+   "rc": "68",
+   "message": {
+    "en": "No answer from the biller in time (RC 68): the hold is reversed automatically, nothing posts, and the customer may pay again.",
+    "vi": "Nhà cung cấp không phản hồi kịp (RC 68): khoản tạm giữ được tự động đảo, không ghi nhận gì, và khách có thể thanh toán lại."
+   },
+   "journal": null,
+   "customer": {
+    "before": 90000,
+    "after": 90000
+   },
+   "facts": [
+    {
+     "en": "An unanswered request is never booked: the bank checks the status before anyone retries, so the bill is never paid twice.",
+     "vi": "Yêu cầu không có phản hồi thì không hạch toán: ngân hàng tra soát trạng thái trước khi thử lại, nên hóa đơn không bao giờ bị trả hai lần."
+    }
+   ]
+  }
+ },
+ "fee-collect-fail": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [],
+   "posted": 0,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "fee-collect-fail",
+   "status": "DECLINED",
+   "rc": "51",
+   "message": {
+    "en": "The fee cannot be collected: no balance and no overdraft line. It is tracked off the books and retried, and the card renewal waits.",
+    "vi": "Không thu được phí: không có số dư và không có hạn mức thấu chi. Phí được theo dõi ngoại bảng để thu lại, và việc gia hạn thẻ bị treo."
+   },
+   "journal": null,
+   "customer": {
+    "before": 0,
+    "after": 0
+   },
+   "facts": [
+    {
+     "en": "A debit card may not be pushed below zero for a fee without an overdraft agreement.",
+     "vi": "Không được trừ phí làm thẻ ghi nợ âm tiền nếu không có thỏa thuận thấu chi."
+    }
+   ]
+  }
+ },
+ "fee-annual-waived": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [],
+   "posted": 0,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "fee-annual-waived",
+   "status": "APPROVED",
+   "rc": "00",
+   "message": {
+    "en": "Fee waived for the premium spending tier: no fee is charged, so nothing posts to fee income and the balance is untouched.",
+    "vi": "Miễn phí cho hạng chi tiêu cao: không thu phí, nên không ghi nhận thu phí và số dư giữ nguyên."
+   },
+   "journal": null,
+   "customer": {
+    "before": 60000,
+    "after": 60000
+   },
+   "facts": [
+    {
+     "en": "A waived fee was never earned: booking it as income and writing it off would overstate both revenue and expenses.",
+     "vi": "Phí được miễn chưa từng phát sinh thu nhập: ghi thu rồi xóa sẽ thổi phồng cả doanh thu lẫn chi phí."
+    }
+   ]
+  }
+ },
+ "wallet-name-mismatch": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [],
+   "posted": 0,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "wallet-name-mismatch",
+   "status": "DECLINED",
+   "rc": "57",
+   "message": {
+    "en": "Refused: the wallet holder and the account holder are different people, and a wallet may only be funded from its holder’s own account.",
+    "vi": "Từ chối: chủ ví và chủ tài khoản là hai người khác nhau, mà ví chỉ được nạp từ tài khoản chính chủ."
+   },
+   "journal": null,
+   "customer": {
+    "before": 60000,
+    "after": 60000
+   }
+  }
+ },
+ "bnpl-decline-cic": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [],
+   "posted": 0,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "bnpl-decline-cic",
+   "status": "DECLINED",
+   "rc": "05",
+   "message": {
+    "en": "Refused: the credit bureau (CIC) shows a non-performing loan elsewhere, so no new credit is extended whatever the DTI.",
+    "vi": "Từ chối: CIC cho thấy khách đang có nợ xấu ở nơi khác, nên không cấp tín dụng mới dù DTI đạt."
+   },
+   "journal": null,
+   "facts": [
+    {
+     "en": "DTI 23.3%, under the 45% limit.",
+     "vi": "DTI 23.3%, dưới ngưỡng 45%."
+    },
+    {
+     "en": "Credit score 540 with a group 3 loan on the bureau report.",
+     "vi": "Điểm tín dụng 540 với khoản vay nhóm 3 trên báo cáo CIC."
+    }
+   ]
+  }
+ },
+ "waterfall-nsf": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 2500,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": -2500,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "waterfall-nsf",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "OVERDRAFT",
+       "dr": 2500,
+       "cr": 0
+      },
+      {
+       "account": "NSF_INCOME",
+       "dr": 0,
+       "cr": 2500
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "waterfall-nsf",
+   "status": "DECLINED",
+   "rc": "51",
+   "message": {
+    "en": "Nothing collected on the due date: the instalment turns overdue and a $25 late penalty is added to the debt.",
+    "vi": "Không thu được gì vào ngày đến hạn: kỳ trả nợ chuyển quá hạn và cộng thêm phạt trễ hạn $25 vào khoản nợ."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "waterfall-nsf",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "OVERDRAFT",
+      "dr": 2500,
+      "cr": 0
+     },
+     {
+      "account": "NSF_INCOME",
+      "dr": 0,
+      "cr": 2500
+     }
+    ]
+   },
+   "customer": {
+    "before": 3000,
+    "after": 3000
+   },
+   "facts": [
+    {
+     "en": "From 10 days past due the loan moves to group 2 (special mention); from 91 days it is non-performing.",
+     "vi": "Quá hạn từ 10 ngày khoản vay chuyển nhóm 2 (cần chú ý); từ 91 ngày trở thành nợ xấu."
+    }
+   ]
+  }
+ },
+ "risk-migrate-group5": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": -100000,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 100000
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "risk-migrate-group5",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "PROVISION_EXPENSE",
+       "dr": 100000,
+       "cr": 0
+      },
+      {
+       "account": "ALLOWANCE",
+       "dr": 0,
+       "cr": 100000
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "risk-migrate-group5",
+   "status": "ALERT",
+   "message": {
+    "en": "At 400 days past due the loan is group 5 (loss), and 100% is provided.",
+    "vi": "Quá hạn 400 ngày, khoản vay vào nhóm 5 (có khả năng mất vốn), trích lập 100%."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "risk-migrate-group5",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "PROVISION_EXPENSE",
+      "dr": 100000,
+      "cr": 0
+     },
+     {
+      "account": "ALLOWANCE",
+      "dr": 0,
+      "cr": 100000
+     }
+    ]
+   },
+   "facts": [
+    {
+     "en": "A fully provided loan may later be written off against the allowance, but the bank keeps chasing the debt off the books.",
+     "vi": "Khoản vay đã trích lập đủ có thể được xử lý bằng dự phòng, nhưng ngân hàng vẫn tiếp tục theo dõi thu hồi ngoại bảng."
+    }
+   ]
+  }
+ },
+ "risk-cure": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 20000,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": -20000
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "risk-cure",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "ALLOWANCE",
+       "dr": 20000,
+       "cr": 0
+      },
+      {
+       "account": "PROVISION_EXPENSE",
+       "dr": 0,
+       "cr": 20000
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "risk-cure",
+   "status": "APPROVED",
+   "rc": "00",
+   "message": {
+    "en": "Every overdue amount is repaid: the loan goes back to group 1 and its specific provision is released to profit.",
+    "vi": "Toàn bộ nợ quá hạn đã được trả: khoản vay quay về nhóm 1 và dự phòng cụ thể được hoàn nhập vào lợi nhuận."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "risk-cure",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "ALLOWANCE",
+      "dr": 20000,
+      "cr": 0
+     },
+     {
+      "account": "PROVISION_EXPENSE",
+      "dr": 0,
+      "cr": 20000
+     }
+    ]
+   },
+   "facts": [
+    {
+     "en": "$200.00 released (the 20% held for group 3).",
+     "vi": "Hoàn nhập $200.00 (mức 20% đã trích cho nhóm 3)."
+    }
+   ]
+  }
+ },
+ "teller-counterfeit": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [],
+   "posted": 0,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "teller-counterfeit",
+   "status": "DECLINED",
+   "message": {
+    "en": "Two suspect notes: the serials are recorded, the notes are held for the counterfeit report, and nothing is credited.",
+    "vi": "Hai tờ nghi giả: ghi lại số sê-ri, tạm giữ để lập biên bản tiền giả, và không ghi có cho khách."
+   },
+   "journal": null,
+   "facts": [
+    {
+     "en": "Suspect notes are never handed back: they go to the central bank for assessment.",
+     "vi": "Tiền nghi giả không được trả lại khách: chuyển cho Ngân hàng Nhà nước giám định."
+    }
+   ]
+  }
+ },
+ "td-mature-close": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -44129589,
+    "TERM_DEPOSIT": -29000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -970411,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "td-mature-close",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "TERM_DEPOSIT",
+       "dr": 1000000,
+       "cr": 0
+      },
+      {
+       "account": "ACCRUED_INTEREST",
+       "dr": 29589,
+       "cr": 0
+      },
+      {
+       "account": "CASA",
+       "dr": 0,
+       "cr": 1029589
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "td-mature-close",
+   "status": "APPROVED",
+   "rc": "00",
+   "message": {
+    "en": "Closed at maturity: the customer gets the $10,000 and all the interest accrued at 6%.",
+    "vi": "Tất toán đúng hạn: khách nhận $10,000 và toàn bộ lãi đã dự chi ở mức 6%."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "td-mature-close",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "TERM_DEPOSIT",
+      "dr": 1000000,
+      "cr": 0
+     },
+     {
+      "account": "ACCRUED_INTEREST",
+      "dr": 29589,
+      "cr": 0
+     },
+     {
+      "account": "CASA",
+      "dr": 0,
+      "cr": 1029589
+     }
+    ]
+   },
+   "facts": [
+    {
+     "en": "Accrued interest paid in full: $295.89. No penalty.",
+     "vi": "Trả đủ lãi đã dự chi: $295.89. Không bị phạt."
+    }
+   ]
+  }
+ },
+ "td-break-pledged": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [],
+   "posted": 0,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "td-break-pledged",
+   "status": "DECLINED",
+   "rc": "62",
+   "message": {
+    "en": "Refused: the savings book is pledged for a loan, so it cannot be closed until the loan is repaid or the lien is released.",
+    "vi": "Từ chối: sổ tiết kiệm đang cầm cố cho khoản vay, nên không thể tất toán đến khi trả hết nợ hoặc giải chấp."
+   },
+   "journal": null
+  }
+ },
+ "td-break-id-mismatch": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 20000000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -30000000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": 0,
+    "INTEREST_INCOME": 0,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [],
+   "posted": 0,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "td-break-id-mismatch",
+   "status": "DECLINED",
+   "message": {
+    "en": "Refused: the ID and signature do not match the depositor on file, so nothing is paid out.",
+    "vi": "Từ chối: giấy tờ tùy thân và chữ ký không khớp với người gửi trong hồ sơ, nên không chi trả."
+   },
+   "journal": null,
+   "facts": [
+    {
+     "en": "Only the depositor, or someone holding a notarised power of attorney, may close a savings book.",
+     "vi": "Chỉ chủ sổ, hoặc người được ủy quyền có công chứng, mới được tất toán sổ tiết kiệm."
+    }
+   ]
+  }
+ },
+ "collateral-shortfall": {
+  "book": {
+   "balances": {
+    "CASH_ATM": 0,
+    "CASH_TILL": 2500000,
+    "CASH_VAULT": 20000000,
+    "INTERBANK": 30000000,
+    "OVERDRAFT": 0,
+    "LOAN": 19750000,
+    "ALLOWANCE": 0,
+    "WALLET_SETTLEMENT": 0,
+    "CASA": -43100000,
+    "TERM_DEPOSIT": -29700000,
+    "TD_PLEDGED": 0,
+    "ACCRUED_INTEREST": -1000000,
+    "ATM_SUSPENSE": 0,
+    "NAPAS_FEE": 0,
+    "NSF_INCOME": -20000,
+    "INTEREST_INCOME": -30000,
+    "FEE_INCOME": 0,
+    "INTEREST_EXPENSE": 0,
+    "PROVISION_EXPENSE": 0
+   },
+   "journal": [
+    {
+     "id": "OPS-000001",
+     "source": "collateral-shortfall",
+     "at": "D1 09:00:00",
+     "lines": [
+      {
+       "account": "TERM_DEPOSIT",
+       "dr": 300000,
+       "cr": 0
+      },
+      {
+       "account": "NSF_INCOME",
+       "dr": 0,
+       "cr": 20000
+      },
+      {
+       "account": "INTEREST_INCOME",
+       "dr": 0,
+       "cr": 30000
+      },
+      {
+       "account": "LOAN",
+       "dr": 0,
+       "cr": 250000
+      }
+     ]
+    }
+   ],
+   "posted": 1,
+   "tickets": [],
+   "cassetteDrill": false,
+   "collateralLockedCents": 0,
+   "vaultPrompt": null
+  },
+  "outcome": {
+   "action": "collateral-shortfall",
+   "status": "ALERT",
+   "message": {
+    "en": "The collateral is not enough: $3,000.00 is applied in waterfall order, and $1,500.00 of the debt is still unrecovered.",
+    "vi": "TSĐB không đủ: $3,000.00 được cấn trừ theo thứ tự, còn $1,500.00 nợ chưa thu hồi được."
+   },
+   "journal": {
+    "id": "OPS-000001",
+    "source": "collateral-shortfall",
+    "at": "D1 09:00:00",
+    "lines": [
+     {
+      "account": "TERM_DEPOSIT",
+      "dr": 300000,
+      "cr": 0
+     },
+     {
+      "account": "NSF_INCOME",
+      "dr": 0,
+      "cr": 20000
+     },
+     {
+      "account": "INTEREST_INCOME",
+      "dr": 0,
+      "cr": 30000
+     },
+     {
+      "account": "LOAN",
+      "dr": 0,
+      "cr": 250000
+     }
+    ]
+   },
+   "facts": [
+    {
+     "en": "Penalty $200.00, interest $300.00, principal $2,500.00.",
+     "vi": "Phạt $200.00, lãi $300.00, gốc $2,500.00."
+    },
+    {
+     "en": "The shortfall stays a bad debt, covered by the provision already made.",
+     "vi": "Phần thiếu hụt vẫn là nợ xấu, được bù đắp bằng dự phòng đã trích."
+    }
+   ]
+  }
+ }
+}

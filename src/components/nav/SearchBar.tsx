@@ -1,8 +1,9 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
-import { useSearchIndex, type SearchCategory, type SearchEntry } from '../../hooks/useSearchIndex';
+import type { SearchCategory, SearchEntry } from '../../hooks/useSearchIndex';
 import { tr } from '../../i18n/locale';
 import { runSearchAction } from './navigate';
 import { SearchResultTip, SearchResultTitle } from './SearchResultItem';
+import { useLazySearch } from './useLazySearch';
 
 const GROUP: Record<SearchCategory, { icon: string; en: string; vi: string }> = {
   station: { icon: '📍', en: 'Stations & Nodes', vi: 'Trạm & nút' },
@@ -25,7 +26,7 @@ export function SearchBar({ onBeforeGo }: { onBeforeGo?: () => void }) {
   const activeRow = useRef<HTMLDivElement>(null);
   const listId = useId();
   const tipId = useId();
-  const { groups, order, flat } = useSearchIndex(query);
+  const { groups, order, flat, ready } = useLazySearch(query, open);
   const shortcut = isMac() ? '⌘K' : 'Ctrl K';
 
   // Ctrl/⌘+K focuses from anywhere.
@@ -88,7 +89,8 @@ export function SearchBar({ onBeforeGo }: { onBeforeGo?: () => void }) {
     }
   };
 
-  const showList = open && query.trim().length > 0;
+  // Until the index has loaded (moments after the search opens) no list shows, so it never claims "no matches" for want of an index.
+  const showList = open && ready && query.trim().length > 0;
   const optionId = (i: number): string => `${listId}-opt-${i}`;
   let row = -1;
 

@@ -57,4 +57,3 @@ export function demoBlocked(id: DemoActionId, view: { dayOver: boolean; minute: 
   return view.dayOver ? 'dayOver' : null;
 }
 
-export const OPS_ACTION_IDS: readonly OpsActionId[] = ALL_DEMO_ACTIONS.filter((a) => !presetById(a.id)).map((a) => a.id as OpsActionId);
