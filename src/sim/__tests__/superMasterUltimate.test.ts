@@ -236,10 +236,9 @@ describe('8. the Step button while paused', () => {
 });
 
 describe('9. bundle, pooling and the Flow 08 lesson', () => {
-  it('splits the demo pipeline into its own chunk (Rolldown manualChunks groups)', () => {
+  it('splits the vendor libraries into their own chunk (Rolldown codeSplitting groups)', () => {
     const vite = src('../vite.config.ts');
-    expect(vite).toMatch(/name: 'retail-ops', test: \/.*retailOpsActions/);
-    expect(vite).toContain('manualChunks');
+    expect(vite).toMatch(/name: 'vendor', test: \/.*react/);
   });
 
   it('pools objects: the pool never grows past its cap and reuses what is handed back', () => {
