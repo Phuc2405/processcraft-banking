@@ -3,6 +3,7 @@ import { useRef, type RefObject } from 'react';
 import type { Material, Mesh, Object3D } from 'three';
 import type { PlaceId } from '../../../sim/topology';
 import { activeFlowOf, bankStore, focusSubOf } from '../../../store/bankStore';
+import { childPlacesNow } from '../../../store/childFocusStore';
 import { deskFocus } from './focus3d';
 
 /** Fades everything under `root` (the desk, its staff, its queue) to the opacity deskFocus gives `place`, easing there, so a pointed-at desk or a guided scenario stands out against the rest of the office. */
@@ -11,7 +12,7 @@ export function useFocusFade(root: RefObject<Object3D | null>, place: PlaceId): 
   useFrame((_, dt) => {
     const s = bankStore.getState();
     // A tour runs its own lighting, so it leaves the desks alone.
-    const want = s.spotlight ? 1 : deskFocus(place, s.hoverPlace, activeFlowOf(s), focusSubOf(s));
+    const want = s.spotlight ? 1 : deskFocus(place, s.hoverPlace, activeFlowOf(s), focusSubOf(s), childPlacesNow());
     if (now.current === want && want === 1) return;
     now.current += (want - now.current) * Math.min(1, dt * 8);
     if (Math.abs(now.current - want) < 0.01) now.current = want;

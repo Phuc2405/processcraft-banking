@@ -14,6 +14,7 @@ import { bankStore } from '../../store/bankStore';
 import { deskVisitStore } from '../../store/deskVisitStore';
 import { retailOpsStore } from '../../store/retailOpsStore';
 import { demoSessionStore } from '../../store/demoSessionStore';
+import { childFocusStore } from '../../store/childFocusStore';
 import { hopPlayerStore } from '../../store/hopPlayerStore';
 import { demoLocked, destroyAllActiveEntities, preScenarioReset } from './DemoSession';
 import { simulateFlow } from '../../store/academySync';
@@ -142,6 +143,8 @@ export function executeDemo(id: DemoActionId): void {
   // Run once: a copy still waiting for its shift is now done.
   shiftQueueStore.getState().unqueue(id);
   if (bank.scope !== 'beginner' || bank.flow !== def.flow) bank.setActiveFlow(def.flow);
+  // The map soft-dims the rest of the sub-process round this child's route until "Show all desks".
+  childFocusStore.getState().pick(id);
   if (presetById(id)) runPresetDemo(id as PresetId);
   else runOpsDemo(id as OpsActionId);
 }
@@ -192,6 +195,7 @@ function runSandboxDemo(id: DemoActionId): void {
   const def = demoActionById(id);
   preScenarioReset();
   if (bank.scope !== 'beginner' || bank.flow !== def.flow) bank.setActiveFlow(def.flow);
+  childFocusStore.getState().pick(id);
   const trace = customer ? bankStore.getState().runSandbox(customer, demoMinute(id, bank.view.minute)) : null;
   if (trace) demoSessionStore.getState().start({ kind: 'sandbox', id: trace.id, name: def.label });
   notificationStore.getState().push({

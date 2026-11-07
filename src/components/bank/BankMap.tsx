@@ -19,6 +19,7 @@ import { MapLegend } from './MapLegend';
 import type { Move, StationView } from '../../sim/types';
 import { academyFocusOf, activeFlowOf, activeScopeOf, beatLive, useBankStore } from '../../store/bankStore';
 import { useLivePath } from './useLivePath';
+import { CHILD_DIM, childOpacity, useChildPlaces } from '../../store/childFocusStore';
 import { onPath } from '../../sim/transactionPath';
 import { AtmCassetteBadge } from './RetailOpsDock';
 import { CitBay2D } from './CitBay2D';
@@ -91,10 +92,15 @@ interface FlowFocus {
   flow: FlowId;
   accent: string;
   scope: FlowScope;
+  /** The picked child scenario's desks (store/childFocusStore.ts): the rest of the scope is soft-dimmed, never hidden. */
+  child: ReadonlySet<PlaceId> | null;
 }
 
 /** Outside the active flow a part of the map fades to 15% and grey (a tour's own dimming wins while one runs). */
 const flowDim = (flow: FlowFocus | null, lit: boolean): string => (flow && !lit ? 'bk-flow-dim' : '');
+/** A place inside the lit scope that the picked child does not cross: soft-dimmed to CHILD_DIM (35%), still there and clickable. */
+const childDimmed = (flow: FlowFocus | null, place: PlaceId): boolean => !!flow && flow.scope.places.has(place) && childOpacity(place, flow.child) < 1;
+const childStyle = (flow: FlowFocus | null, place: PlaceId): CSSProperties | undefined => (childDimmed(flow, place) ? { opacity: CHILD_DIM } : undefined);
 const flowVar = (flow: FlowFocus | null): CSSProperties | undefined => (flow ? ({ ['--flow' as string]: flow.accent } as CSSProperties) : undefined);
 
 const TIP_ORIGIN: Record<TipSide, string> = { below: 'top center', above: 'bottom center', right: 'center left', left: 'center right' };
@@ -193,7 +199,8 @@ const StpNodeCard = memo(function StpNodeCard({ sv, selected, focus, flow, flowH
   return (
     <div
       className={`group absolute z-20 hover:z-[45] has-[:focus-visible]:z-[45] ${dimClass(focus, lit)} ${flowDim(flow, flowLit)}`}
-      style={{ left: box.cx - box.w / 2, top: box.cy - box.h / 2, width: box.w, height: box.h, ...neon(focus), ...flowVar(flow) }}
+      style={{ left: box.cx - box.w / 2, top: box.cy - box.h / 2, width: box.w, height: box.h, ...neon(focus), ...flowVar(flow), ...childStyle(flow, 'STP_ENGINE') }}
+      data-child-dim={childDimmed(flow, 'STP_ENGINE') || undefined}
       data-place="STP_ENGINE"
       data-lit={focus ? lit : flow ? flowLit : undefined}
     >
@@ -292,7 +299,8 @@ const StationCard = memo(function StationCard({
   return (
     <div
       className={`group absolute z-20 transition-opacity duration-500 hover:z-[45] has-[:focus-visible]:z-[45] ${focus ? '' : dim ? 'opacity-50 hover:opacity-100 has-[:focus-visible]:opacity-100' : 'opacity-100'} ${dimClass(focus, lit)} ${flowDim(flow, flowLit)} ${here ? 'bk-spot-here' : ''}`}
-      style={{ left: box.cx - CARD.w / 2, top: box.cy - CARD.h / 2, width: CARD.w, height: CARD.h, ...neon(focus), ...flowVar(flow) }}
+      style={{ left: box.cx - CARD.w / 2, top: box.cy - CARD.h / 2, width: CARD.w, height: CARD.h, ...neon(focus), ...flowVar(flow), ...childStyle(flow, id) }}
+      data-child-dim={childDimmed(flow, id) || undefined}
       data-lit={focus ? lit : flow ? flowLit : undefined}
       data-flow-here={flowHere || undefined}
       data-here={here || undefined}
@@ -493,7 +501,7 @@ function ExternalNode({ id, focus, flow, flowHere, terms }: { id: ExternalId; fo
     </>
   );
   const flowLit = flow ? flow.scope.places.has(id) : false;
-  const style: CSSProperties = { left: box.cx - box.w / 2, top: box.cy - box.h / 2, width: box.w, height: box.h, ...neon(focus), ...flowVar(flow) };
+  const style: CSSProperties = { left: box.cx - box.w / 2, top: box.cy - box.h / 2, width: box.w, height: box.h, ...neon(focus), ...flowVar(flow), ...childStyle(flow, id) };
   const klass = `group absolute z-20 hover:z-[45] has-[:focus-visible]:z-[45] rounded-xl border bg-gradient-to-b p-2 text-left ${lit && focus ? 'bk-spot-lit' : flowLit ? 'bk-flow-lit' : theme.border} ${theme.bg} ${dimClass(focus, lit)} ${flowDim(flow, flowLit)} ${here ? 'bk-spot-here' : ''} ${flowHere ? 'bk-flow-here' : ''}`;
   if (id === 'CUSTOMER_OTP') {
     return (
@@ -513,7 +521,7 @@ function ExternalNode({ id, focus, flow, flowHere, terms }: { id: ExternalId; fo
     );
   }
   return (
-    <div className={klass} style={style} data-big={big} data-here={here || undefined} data-lit={flow ? flowLit : undefined} data-testid={`place-${id}`} data-place={id}>
+    <div className={klass} style={style} data-big={big} data-here={here || undefined} data-lit={flow ? flowLit : undefined} data-child-dim={childDimmed(flow, id) || undefined} data-testid={`place-${id}`} data-place={id}>
       {body}
       {!focus && <MapCard place={id} side={TIP_SIDE[id]} />}
     </div>
@@ -761,7 +769,8 @@ function BankMapView() {
   // Where the hop player stands: the desk the learner's run is being processed at now (sim/hopPlayer.ts).
   const presetPlace = useHopPlayer((s) => (s.play?.phase === 'travel' ? null : (hopStopOf(s)?.place ?? null)));
   const activeScope = useBankStore(activeScopeOf);
-  const flow = useMemo<FlowFocus | null>(() => (activeFlow && activeScope ? { flow: activeFlow, accent: GUIDED_FLOWS[activeFlow].accent, scope: activeScope } : null), [activeFlow, activeScope]);
+  const child = useChildPlaces();
+  const flow = useMemo<FlowFocus | null>(() => (activeFlow && activeScope ? { flow: activeFlow, accent: GUIDED_FLOWS[activeFlow].accent, scope: activeScope, child } : null), [activeFlow, activeScope, child]);
   const flowHereAt = flow ? presetPlace : null;
   // The node the Academy split view is teaching pulses like the learner's own payment does.
   const academyAt = useBankStore(academyFocusOf);

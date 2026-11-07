@@ -4,6 +4,7 @@ import type { LivePath } from '../../../sim/transactionPath';
 import type { FlowId } from '../../../types/viewport';
 import { LANES, type V2 } from '../../../engine/plan/layout3d';
 import { pathLength, pointAlongPath } from '../../../engine/plan/path';
+import { childOpacity } from '../../../store/childFocusStore';
 
 /** What the 3D office brings forward and what it lets fade, and the staff walking home. */
 
@@ -46,10 +47,11 @@ export function neighbours(place: PlaceId): ReadonlySet<PlaceId> {
   return out;
 }
 
-/** The opacity a desk (or kiosk) is drawn at: full when it is in focus, faded otherwise. A pointed-at desk wins over a scenario. */
-export function deskFocus(place: PlaceId, hover: PlaceId | null, flow: FlowId | null, sub: FocusSub | null = null): number {
+/** The opacity a desk (or kiosk) is drawn at: full when it is in focus, faded otherwise. A pointed-at desk wins over a scenario, which wins over its picked child. */
+export function deskFocus(place: PlaceId, hover: PlaceId | null, flow: FlowId | null, sub: FocusSub | null = null, child: ReadonlySet<PlaceId> | null = null): number {
   if (hover) return neighbours(hover).has(place) ? 1 : DIM.hover;
-  if (flow) return focusScope(flow, sub).places.has(place) ? 1 : DIM.flow;
+  // Inside the sub-process, a desk the picked child scenario does not cross is soft-dimmed (CHILD_DIM), never hidden.
+  if (flow) return focusScope(flow, sub).places.has(place) ? childOpacity(place, child) : DIM.flow;
   return 1;
 }
 

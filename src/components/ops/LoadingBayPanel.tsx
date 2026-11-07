@@ -6,6 +6,8 @@ import { bankStore } from '../../store/bankStore';
 import { useCitStore } from '../../store/citStore';
 import { pick, useLocale, useMessages } from '../../utils/i18nHelper';
 import { SectionTitle } from '../bank/ui';
+import { useTerms } from '../bank/useTerms';
+import { PlaceKnowledge } from '../education/PlaceKnowledge';
 import { citMessages } from './cit.messages';
 import { CitDemoPicker, SbvBadge, useCit } from './CitPanel';
 
@@ -22,6 +24,7 @@ export function LoadingBayView({ cit, van3d }: { cit: CitSnapshot; van3d: boolea
   const shown = run ?? cit.active?.run ?? null;
   const seal = shown ? verifySeal(shown.order) : null;
   const log = bayLog(cit);
+  const expert = !useTerms().beginner;
   return (
     <>
       <header className="shrink-0 border-b border-slate-800 p-3.5" style={{ background: 'linear-gradient(180deg, #facc151f, transparent)' }}>
@@ -71,6 +74,7 @@ export function LoadingBayView({ cit, van3d }: { cit: CitSnapshot; van3d: boolea
           </section>
         )}
         <CitDemoPicker direction="down" />
+        <PlaceKnowledge place="BAY" text={m('bay')} expert={expert} />
         <section>
           <SectionTitle>{m('bayLog')}</SectionTitle>
           {log.length === 0 ? (

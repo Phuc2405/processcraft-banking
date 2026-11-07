@@ -11,6 +11,7 @@ import { cassetteStatus } from '../../sim/retailOps';
 import { activeFlowOf, citChildOf, useBankStore } from '../../store/bankStore';
 import { formatAud } from '../../engine/money';
 import { retailOpsStore, useRetailOpsStore } from '../../store/retailOpsStore';
+import { childFocusStore, useChildPlaces } from '../../store/childFocusStore';
 import { useMessages } from '../../utils/i18nHelper';
 import { ScenarioPicker } from './ScenarioPicker';
 import { RunOrCancel } from './DemoSession';
@@ -74,16 +75,34 @@ function DemoSelector({ actions }: { actions: readonly DemoAction[] }) {
   const m = useMessages(retailOpsMessages);
   const [picked, setPicked] = useState<string>(actions[0]?.id ?? '');
   const chosen = actions.find((a) => a.id === picked) ?? actions[0];
+  // Picking a scenario already soft-dims the desks it does not cross, before it runs.
+  const pick = (id: string): void => {
+    setPicked(id);
+    const action = actions.find((a) => a.id === id);
+    if (action) childFocusStore.getState().pick(action.id);
+  };
   const { disabled, title } = useDemoState(chosen);
   const items = actions.map((a) => ({ id: a.id, icon: a.icon, label: a.label(), hint: a.hint(), dot: DOT[a.variant] }));
   return (
-    <ScenarioPicker items={items} picked={chosen?.id ?? ''} onPick={setPicked} label={m('selectScenario')} testId="demo">
+    <ScenarioPicker items={items} picked={chosen?.id ?? ''} onPick={pick} label={m('selectScenario')} testId="demo">
       <RunOrCancel>
         <button type="button" onClick={() => chosen && runDemo(chosen.id)} disabled={disabled} title={title} data-testid="demo-run" className="shrink-0 whitespace-nowrap rounded-lg bg-emerald-500 px-3 py-1.5 text-[12px] font-bold text-emerald-950 shadow transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">
           ▶ {m('runDemo')}
         </button>
       </RunOrCancel>
     </ScenarioPicker>
+  );
+}
+
+/** "👁️ Show all desks": shown while a picked child soft-dims its sub-process, it brings every desk back to full opacity. */
+function ShowAllDesks({ compact }: { compact: boolean }) {
+  const m = useMessages(retailOpsMessages);
+  const child = useChildPlaces();
+  if (!child) return null;
+  return (
+    <button type="button" onClick={() => childFocusStore.getState().reset()} title={m('showAllDesksHint')} data-testid="show-all-desks" className="shrink-0 whitespace-nowrap rounded-lg border border-slate-600 bg-slate-800/80 px-2.5 py-1.5 text-[12px] font-semibold text-slate-100 transition hover:bg-slate-700">
+      <span aria-hidden="true">👁️</span> {compact ? m('showAllDesksShort') : m('showAllDesks')}
+    </button>
   );
 }
 
@@ -195,6 +214,7 @@ function PresetDockView() {
           🚚 {m('citRefill')}
         </button>
       )}
+      {!citFlow && <ShowAllDesks compact={compact} />}
       <WaitingChips />
       {running && !compact && (
         <span className="whitespace-nowrap text-[11px] text-slate-400" role="status" data-testid="preset-running">

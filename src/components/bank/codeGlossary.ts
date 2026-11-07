@@ -14,7 +14,7 @@ const has = (key: string): key is CodeGlossaryKey => key in MSGS;
 const say = (key: CodeGlossaryKey, locale: Locale, values?: Values): string => message(codeGlossaryMessages, key, values, locale);
 
 /** "pacs.008" → "PACS008", "ISO 20022" → "ISO20022", "eKYC" → "EKYC"; underscores in status codes are kept. */
-const termKey = (code: string): string => code.toUpperCase().replace(/[.\s-]/g, '').replace(/Đ/g, 'D');
+const termKey = (code: string): string => (/^DE\d{1,3}$/.test(code) ? 'DE' : code.toUpperCase().replace(/[.\s-]/g, '').replace(/Đ/g, 'D'));
 
 /** The meaning of one code, or undefined when the glossary does not know it. */
 export function explainCode(code: string, locale: Locale): string | undefined {
@@ -23,7 +23,7 @@ export function explainCode(code: string, locale: Locale): string | undefined {
 }
 
 /** Codes worth explaining inside free text: SCREAMING_SNAKE codes, short acronyms, ISO 20022 message names, and the spellings the plain capitals miss (3DS, dCVV, TSĐB, A2A, MT103). */
-const CODE_IN_TEXT = /\b(?:ISO 20022|pacs\.\d{3}|e?KYC|3DS|dCVV|TSĐB|A2A|MT\d{3}|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+|[A-Z]{2,7})\b/g;
+const CODE_IN_TEXT = /\b(?:ISO 20022|ISO 8583|DE\d{1,3}|pacs\.\d{3}|e?KYC|3DS|dCVV|TSĐB|A2A|MT\d{3}|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+|[A-Z]{2,7})\b/g;
 
 /** Every known code in `text`, once each, with its meaning, in the order they appear. */
 export function codesIn(text: string, locale: Locale): { code: string; meaning: string }[] {
@@ -90,6 +90,7 @@ const TERM_SPELLING: Readonly<Record<string, string>> = {
   PACS008: 'pacs.008',
   PACS004: 'pacs.004',
   ISO20022: 'ISO 20022',
+  ISO8583: 'ISO 8583',
   EKYC: 'eKYC',
   CHARGEBACK: 'Chargeback',
   NOSTRO: 'Nostro',

@@ -1,11 +1,9 @@
 import { tr } from '../../i18n/locale';
 import { LoadingBayPanel } from '../ops/LoadingBayPanel';
-import { AcronymNotes } from './AcronymNotes';
 import { t } from '../../i18n/t';
 import { lazy, memo, Suspense, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { formatClock } from '../../sim/clock';
-import { modelForStation } from '../../data/mentalModels';
 import { COVER_COST_CENTS, formatMoney } from '../../sim/kpis';
 import { LESSONS, type ProcessId } from '../../sim/learning';
 import { MAX_COVER_PER_STATION, mistakeChance, STAMINA_RECOVERY } from '../../sim/roster';
@@ -16,7 +14,8 @@ import { clampInspectorWidth, INSPECTOR_WIDTH } from '../../store/bankPersistenc
 import { processesAt, useBankStore, type Selection } from '../../store/bankStore';
 import { useDeskStatus } from './useSimulation';
 import { WorkstationGraphic } from '../canvas/nodes/WorkstationGraphic';
-import { MentalModelCard } from '../education/MentalModelCard';
+import { PlaceKnowledge } from '../education/PlaceKnowledge';
+import { AcronymNotes } from './AcronymNotes';
 import { useTerms } from './useTerms';
 import { feedText } from '../../i18n/feedVi';
 import { localizeScenarioText } from '../../sim/scenarios';
@@ -405,11 +404,10 @@ function StationPanel({ id }: { id: StationId }) {
 
         {id === 'MAIN_CASH_VAULT' && <CitInspector />}
 
-        {terms.beginner && modelForStation(id) && <MentalModelCard model={modelForStation(id)!} />}
+        {/* Both vocabularies: the everyday picture and the acronyms; the Expert view adds the technical deep-dive. */}
+        <PlaceKnowledge place={id} text={`${terms.stationTitle(id)} ${terms.caption(id) ?? ''} ${terms.tip(id)}`} expert={!terms.beginner} />
 
         <ExploreButtons processes={processesAt(id)} />
-
-        <AcronymNotes text={`${terms.stationTitle(id)} ${terms.caption(id) ?? ''} ${terms.tip(id)}`} />
 
         {sv.alerts.length > 0 && (
           <section data-testid="station-alerts">

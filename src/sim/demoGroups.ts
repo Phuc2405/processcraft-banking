@@ -105,6 +105,21 @@ function presetPlaces(def: PresetDef): readonly PlaceId[] {
   return planCheckout(customer, graphs()).stops.map((s) => s.place);
 }
 
+const CHILD_PLACES = new Map<string, ReadonlySet<PlaceId>>();
+/**
+ * The desks one child scenario (a dock button, by its preset or retail action id) crosses, with the cash vault behind a cash
+ * endpoint, or null for an unknown id. The soft-dimming of the map reads this: the rest of its sub-process fades, but stays.
+ */
+export function childPlaces(id: string): ReadonlySet<PlaceId> | null {
+  const hit = CHILD_PLACES.get(id);
+  if (hit) return hit;
+  const member = DEMO_GROUPS.flatMap((g) => groupMembers(g.id)).find((m) => m.def.id === id);
+  if (!member) return null;
+  const places = withCashVault(new Set(memberPlaces(member)));
+  CHILD_PLACES.set(id, places);
+  return places;
+}
+
 let cachedGraphs: ReturnType<typeof buildGraphs> | null = null;
 const graphs = (): ReturnType<typeof buildGraphs> => (cachedGraphs ??= buildGraphs(DEFAULT_RULES));
 
