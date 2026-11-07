@@ -44,6 +44,15 @@ export const CASH_HOP_PEAK = 1.6;
 /** The step badge's height over a stop, metres: just over a standing person and a desk's screens, comfortably in view. */
 export const BADGE_Y_3D = 2.3;
 /**
+ * How far a CIT step badge stands above its anchor, in screen pixels (so at every zoom): clear of the desk's own badge, the cash van's
+ * "CIT" marker over the bay and the bay's label, so "Bước 1 ➔ Bước 2 ➔ Bước 3" never collides with them.
+ */
+export const CIT_BADGE_LIFT_PX = 56;
+
+/** Whether the run's step badge stands at the loading bay now: the bay's own label then gives way (the badge already names the bay). */
+export const citBadgeAtBay = (s: { session: { kind: string; stops: readonly HopStop[] } | null; play: { index: number; phase: string } | null }): boolean =>
+  s.session?.kind === 'cit' && !!s.play && s.play.phase !== 'travel' && s.session.stops[s.play.index]?.cit === 'BAY';
+/**
  * Where an off-site end (the SBV, a corporate client, HQ) is drawn: on the back lane's exit carriageway, where the van leaves the
  * site (parking.LANE_EXIT). The hop runs there along the van's own drive aisle, so it crosses no parked car, hedge or tree.
  */
@@ -111,7 +120,7 @@ function Orb({ from, to, icon, tone, cash }: { from: HopStop; to: HopStop; icon:
 }
 
 /** The stop the run stands at: a pulsing ring, the step badge and, at a desk, who decides there. */
-function StopMarker({ stop, tone, mode, children }: { stop: HopStop; tone: string; mode: NodeMode | null; children: React.ReactNode }) {
+function StopMarker({ stop, tone, mode, lift, children }: { stop: HopStop; tone: string; mode: NodeMode | null; lift: number; children: React.ReactNode }) {
   const m = useMessages(stpMessages);
   const ring = useRef<Group>(null);
   const [x, z] = badgeXZ(stop);
@@ -122,7 +131,7 @@ function StopMarker({ stop, tone, mode, children }: { stop: HopStop; tone: strin
         <mesh rotation={[-Math.PI / 2, 0, 0]} geometry={RING} material={matsOf(tone).ring} />
       </group>
       <Html position={[0, BADGE_Y_3D, 0]} center zIndexRange={[31, 0]} style={{ pointerEvents: 'none' }}>
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex flex-col items-center gap-1" data-testid="flow-step-stack" data-lift={lift || undefined} style={lift ? { transform: `translateY(-${lift}px)` } : undefined}>
           {children}
           {mode && (
             <div role="status" data-testid="flow-node-badge-3d" data-mode={mode} className="whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-bold shadow-lg backdrop-blur-md" style={{ borderColor: `${MODE_TONE[mode]}aa`, background: 'rgba(15,23,42,0.9)', color: MODE_TONE[mode] }}>
@@ -151,7 +160,7 @@ export function TransactionFlow3D() {
         // Keyed by the hop, so each wire's orb starts from its own beginning.
         <Orb key={`${index}`} from={stop} to={next} icon={session.icon} tone={tone} cash={session.kind === 'cit'} />
       ) : (
-        <StopMarker key={`${index}`} stop={stop} tone={tone} mode={session.kind === 'payment' ? mode : null}>
+        <StopMarker key={`${index}`} stop={stop} tone={tone} mode={session.kind === 'payment' ? mode : null} lift={session.kind === 'cit' ? CIT_BADGE_LIFT_PX : 0}>
           <HopBadge hops={steps} tone={tone} complete={phase === 'final'} />
         </StopMarker>
       )}

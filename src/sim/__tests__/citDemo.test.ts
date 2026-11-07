@@ -200,8 +200,9 @@ describe('no CIT dropdown on the bottom dock: the runs start from their sheets a
   it('gives Flow 09 one CIT scenario dropdown in the dock, and a picked child its own run', () => {
     const dock = readFileSync(join(__dirname, '../../components/bank/PresetDock.tsx'), 'utf8');
     expect(dock).not.toContain('CitDemoButtons');
-    expect(dock).toMatch(/citFlow \? \(\s*<CitDemoPicker \/>/);
-    expect(dock).toContain('<CitDockButton kind={cit} />');
+    // One dropdown bound to the lit CIT child; its Run button is the picked child's own.
+    expect(dock).toMatch(/citFlow \? \(\s*<CitDockPicker \/>/);
+    expect(readFileSync(join(__dirname, '../../components/ops/CitPanel.tsx'), 'utf8')).toContain('<CitDockButton kind={picked} />');
   });
 
   it('shows "Xe CIT đang vận chuyển..." on the run buttons and blocks every option while a van is en route or in count', () => {

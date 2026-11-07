@@ -19,6 +19,8 @@ import { box, type Part } from './kit';
 import { FLOOR_SLAB } from '../../../engine/plan/layout3d';
 import { glow, solid } from './materials';
 import { CitMarker, bodyParts } from './Vehicles3D';
+import { citBadgeAtBay } from './TransactionFlow3D';
+import { useHopPlayer } from '../../../store/hopPlayerStore';
 import { LENGTH, WIDTH } from '../../../engine/world/vehicles';
 
 /** The cash-in-transit run to the vault and its crew on foot (citRun.ts says where everything is, sim/citCrew.ts when). */
@@ -232,6 +234,8 @@ function BayStation() {
   const selected = useBankStore((s) => s.selection.kind === 'bay');
   // The bay is highlighted only while Flow 09 (cash in transit) is the lit flow.
   const lit = useBankStore((s) => s.scope === 'beginner' && s.flow === CIT_FLOW);
+  // While the run's step badge stands at the bay it names the bay itself: the label gives way, so the two never stack.
+  const stepHere = useHopPlayer(citBadgeAtBay);
   const [hover, setHover] = useState(false);
   useEffect(
     () => () => {
@@ -264,7 +268,7 @@ function BayStation() {
         }}
         onPointerOut={() => point(false)}
       />
-      <Html position={[0, 3, 0]} center zIndexRange={[12, 0]}>
+      {!stepHere && <Html position={[0, 3, 0]} center zIndexRange={[12, 0]}>
         <button
           type="button"
           onClick={() => bankStore.getState().select({ kind: 'bay' })}
@@ -277,7 +281,7 @@ function BayStation() {
         >
           🚚 {m('bay')}
         </button>
-      </Html>
+      </Html>}
     </group>
   );
 }

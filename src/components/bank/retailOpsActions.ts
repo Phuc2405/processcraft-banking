@@ -20,7 +20,8 @@ import { hopPlayerStore } from '../../store/hopPlayerStore';
 import { demoLocked, destroyAllActiveEntities, preScenarioReset } from './DemoSession';
 import { simulateFlow } from '../../store/academySync';
 import { academyStore } from '../../store/academyStore';
-import type { FlowId } from '../../types/viewport';
+import { CIT_FLOW, type FlowId } from '../../types/viewport';
+import type { CitDemo } from '../../sim/citEngine';
 import type { Customer } from '../../sim/types';
 
 /** The bank's time for a journal of the retail book. */
@@ -298,5 +299,12 @@ function aimAt(id: DemoActionId): void {
 export function focusChild(id: DemoActionId): void {
   if (demoLocked()) return;
   aimAt(id);
+  showLitInfo();
+}
+
+/** A CIT child picked in the dock's Flow 09 dropdown: the same as the top menu's pick (map, dim mask, menu title and sheet follow it). */
+export function focusCitChild(kind: CitDemo): void {
+  if (demoLocked()) return;
+  bankStore.getState().selectSubProcess(kind, CIT_FLOW);
   showLitInfo();
 }

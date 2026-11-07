@@ -8,7 +8,7 @@ import { shiftQueueStore, useShiftQueue } from '../../store/shiftQueueStore';
 import { flowText, GUIDED_FLOWS } from '../../sim/guidedFlows';
 import type { PresetVariant } from '../../sim/presets';
 import { cassetteStatus } from '../../sim/retailOps';
-import { activeFlowOf, citChildOf, useBankStore } from '../../store/bankStore';
+import { activeFlowOf, bankStore, citChildOf, useBankStore } from '../../store/bankStore';
 import { formatAud } from '../../engine/money';
 import { retailOpsStore, useRetailOpsStore } from '../../store/retailOpsStore';
 import { childFocusStore, useChildFocusId, useChildPlaces } from '../../store/childFocusStore';
@@ -17,11 +17,11 @@ import { ScenarioPicker } from './ScenarioPicker';
 import { RunOrCancel, useDemoLocked } from './DemoSession';
 import { retailOpsMessages } from './retailOps.messages';
 import { focusChild, opsStamp, runDemo, showLitInfo } from './retailOpsActions';
-import { topBand, useInspectorCovers, useMeasuredBox, useRightInset, useTopBand } from './ViewportControls';
+import { topBand, useDemoDockInset, useInspectorCovers, useMeasuredBox, useTopBand } from './ViewportControls';
 import { dockLayout } from './dockOverflow';
 import { refillAtmByCit } from '../ops/citActions';
 import { LessonLink } from '../ops/LessonLink';
-import { CitDemoPicker, CitDockButton } from '../ops/CitPanel';
+import { CitDockPicker } from '../ops/CitPanel';
 import { CIT_FLOW } from '../../types/viewport';
 import { CIT_INFO_KEYS } from '../../data/subProcessKeys';
 import { CIT_SHEETS } from '../../data/subProcessCitSheets';
@@ -93,13 +93,15 @@ function DemoSelector({ actions }: { actions: readonly DemoAction[] }) {
   );
 }
 
-/** "ℹ️ Process info": brings the drawer back on the lit sheet once it was closed (it hides while the sheet is open). */
+/**
+ * "ℹ️ Process info": opens or closes the drawer on the lit sheet. Always drawn with the same label, so opening or closing the drawer
+ * never changes the bar's width.
+ */
 function InfoButton({ compact }: { compact: boolean }) {
   const m = useMessages(retailOpsMessages);
   const open = useBankStore((s) => s.selection.kind === 'subprocess');
-  if (open) return null;
   return (
-    <button type="button" onClick={showLitInfo} title={m('processInfoHint')} aria-label={m('processInfo')} data-testid="dock-info" className="shrink-0 whitespace-nowrap rounded-lg border border-sky-400/50 bg-sky-500/15 px-2.5 py-1.5 text-[12px] font-semibold text-sky-100 transition hover:bg-sky-500/25">
+    <button type="button" onClick={() => (open ? bankStore.getState().clearSelection() : showLitInfo())} aria-pressed={open} title={m('processInfoHint')} aria-label={m('processInfo')} data-testid="dock-info" className={`shrink-0 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[12px] font-semibold transition ${open ? 'border-sky-400/70 bg-sky-500/25 text-sky-50' : 'border-sky-400/50 bg-sky-500/15 text-sky-100 hover:bg-sky-500/25'}`}>
       <span aria-hidden="true">ℹ️</span>
       {compact ? null : <> {m('processInfo')}</>}
     </button>
@@ -120,30 +122,34 @@ function ShowAllDesks({ compact }: { compact: boolean }) {
   );
 }
 
-/** The buttons pressed outside their shift that the learner chose to wait with: each runs by itself when its window opens. */
-function WaitingChips() {
+const shiftTime = (shift: 'day' | 'eod'): string => (shift === 'day' ? '09:00' : '23:00');
+
+/**
+ * "⏳ Waiting for the shift": the buttons pressed outside their shift that wait to run by themselves when it opens. One chip inside
+ * the bar's row (never a row of its own): it names the next one (an ellipsis when tight, every one in its tooltip) and "+N" others.
+ */
+function WaitingChip() {
   const m = useMessages(retailOpsMessages);
   const waiting = useShiftQueue((s) => s.waiting);
-  if (!waiting.length) return null;
+  const [next, ...rest] = waiting;
+  if (!next) return null;
+  const label = demoActionById(next.id).label();
+  const all = waiting.map((w) => `${demoActionById(w.id).label()} · ${shiftTime(w.shift)}`).join('\n');
   return (
-    <div className="flex w-full min-w-0 flex-wrap items-center gap-1.5" role="status" data-testid="shift-waiting">
-      <span className="whitespace-nowrap text-[10.5px] font-bold uppercase tracking-wider text-amber-300">⏳ {m('shiftWaitingTitle')}</span>
-      {waiting.map((w) => {
-        const label = demoActionById(w.id).label();
-        return (
-          <span key={w.id} className="flex min-w-0 max-w-[16rem] items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/10 py-0.5 pl-2 pr-1 text-[11px] font-semibold text-amber-100" data-testid={`shift-waiting-${w.id}`} data-shift={w.shift}>
-            <span className="min-w-0 truncate" title={label}>
-              {label} · {w.shift === 'day' ? '09:00' : '23:00'}
-            </span>
-            <button type="button" onClick={() => shiftQueueStore.getState().unqueue(w.id)} aria-label={m('shiftWaitingRemove', { label })} title={m('shiftWaitingRemove', { label })} className="grid h-4 w-4 shrink-0 place-items-center rounded-full text-[12px] leading-none text-amber-200 hover:bg-amber-400/20">
-              ×
-            </button>
-          </span>
-        );
-      })}
-    </div>
+    <span role="status" title={`⏳ ${m('shiftWaitingTitle')}\n${all}`} data-testid="shift-waiting" className="flex min-w-[4.5rem] max-w-[16rem] shrink items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/10 py-0.5 pl-2 pr-1 text-[11px] font-semibold text-amber-100">
+      <span className="min-w-0 truncate" data-testid={`shift-waiting-${next.id}`} data-shift={next.shift}>
+        ⏳ <span className="font-bold uppercase tracking-wider text-amber-300">{m('shiftWaitingTitle')}</span> · {label} · {shiftTime(next.shift)}
+      </span>
+      {rest.length > 0 && <span className="shrink-0 tabular-nums text-amber-300">+{rest.length}</span>}
+      <button type="button" onClick={() => shiftQueueStore.getState().unqueue(next.id)} aria-label={m('shiftWaitingRemove', { label })} title={m('shiftWaitingRemove', { label })} className="grid h-4 w-4 shrink-0 place-items-center rounded-full text-[12px] leading-none text-amber-200 hover:bg-amber-400/20">
+        ×
+      </button>
+    </span>
   );
 }
+
+/** Room the inline layout keeps for what may join the row (the info toggle, the reset, a waiting chip), so none of them can ever push the pills onto a second row. */
+export const DOCK_EXTRAS_PX = 300;
 
 function PresetDockView() {
   const m = useMessages(retailOpsMessages);
@@ -153,8 +159,7 @@ function PresetDockView() {
   // Flow 09's dock is the CIT dispatch: the picked child's own run (top menu → Flow 09 → child), else the scenario dropdown.
   const citPicked = useBankStore(citChildOf);
   const solid = useBankStore((s) => s.viewMode === '3d');
-  const running = useBankStore((s) => s.presetTrace !== null && !s.presetTrace.done);
-  const right = useRightInset();
+  const right = useDemoDockInset();
   const shortMap = useTopBand((s) => s.shortMap);
   const mapW = useTopBand((s) => s.mapW);
   const vault = useRetailOpsStore((s) => s.book.vaultPrompt);
@@ -180,8 +185,8 @@ function PresetDockView() {
   const citSheet = cit ? CIT_SHEETS.find((c) => c.key === CIT_INFO_KEYS[cit]) : undefined;
   const title = citSheet ? pick(citSheet.title, locale) : group ? pick(group.title, locale) : `${f.code}. ${ft.title}`;
   const free = mapW > 0 ? mapW - right - 24 : 1280;
-  // One row only: what the title, the lesson link and the padding leave of the free width must hold every pill, or the whole area is a dropdown.
-  const budget = free - Math.round(title.length * 6.2 + 24) - 30 - 32;
+  // One row only: what the title, the lesson link, the padding and the extras leave of the free width must hold every pill, or the whole area is a dropdown.
+  const budget = free - Math.round(title.length * 6.2 + 24) - 30 - 32 - DOCK_EXTRAS_PX;
   const windowW = typeof window === 'undefined' ? Infinity : window.innerWidth;
   const compact = dockIsCompact(mapW - right, shortMap, windowW);
   const dropdown = !citFlow && (compact || dockLayout(actions.map((a) => ({ id: a.id, variant: a.variant, text: `${a.icon} ${a.label()}` })), budget, windowW) === 'dropdown');
@@ -190,7 +195,7 @@ function PresetDockView() {
     <div
       ref={box}
       style={{ left: `calc(50% - ${Math.round(right / 2)}px)`, maxWidth: `calc(100% - ${right + 24}px)`, ...(compact ? { width: `calc(100% - ${right + 24}px)` } : dropdown ? { width: `min(760px, calc(100% - ${right + 24}px))` } : {}) }}
-      className={`absolute bottom-0 z-20 flex flex-col ${dropdown ? '' : 'w-max'} -translate-x-1/2 gap-1.5 rounded-t-2xl transition-[left] duration-200 ease-out border border-b-0 border-slate-800 px-3 py-2 shadow-2xl ${solid ? 'bg-slate-900/95' : 'bg-slate-950/90 backdrop-blur-md'}`}
+      className={`absolute bottom-0 z-20 flex h-12 flex-nowrap items-center ${dropdown ? '' : 'w-max'} -translate-x-1/2 rounded-t-2xl border border-b-0 border-slate-800 px-3 shadow-2xl ${solid ? 'bg-slate-900/95' : 'bg-slate-950/90 backdrop-blur-md'}`}
       role="toolbar"
       aria-label={tr({ en: `${ft.title} actions`, vi: `Thao tác ${ft.title}` })}
       data-testid="preset-dock"
@@ -200,19 +205,16 @@ function PresetDockView() {
       data-compact={compact}
       data-layout={dropdown ? 'dropdown' : 'inline'}
     >
-      <WaitingChips />
-      {/* One row: the title gives way first (an ellipsis, its full text the tooltip), then the scenario name; the buttons never shrink. */}
-      <div className={`flex min-w-0 items-center gap-2 ${dropdown ? '' : 'flex-wrap'}`} data-testid="preset-dock-row">
+      {/* One row, never wrapped: the title gives way first (an ellipsis, its full text the tooltip), then the waiting chip and the scenario name; the buttons never shrink. */}
+      <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-2" data-testid="preset-dock-row">
       {!compact && (
         <button type="button" onClick={showLitInfo} title={title} data-testid="preset-dock-title" className={`mr-1 min-w-0 truncate text-left text-[10.5px] font-bold uppercase tracking-wider hover:underline ${dropdown ? 'max-w-[28%] shrink' : 'max-w-[22rem]'}`} style={{ color: f.accent }}>
           {title}
         </button>
       )}
       <LessonLink lessonKey={cit ? CIT_INFO_KEYS[cit] : lesson} className="text-[13px]" />
-      {cit ? (
-        <CitDockButton kind={cit} />
-      ) : citFlow ? (
-        <CitDemoPicker />
+      {citFlow ? (
+        <CitDockPicker />
       ) : dropdown ? (
         // Keyed by the list: another flow starts from its own first scenario.
         <DemoSelector key={`${flow}-${sub ?? ''}`} actions={actions} />
@@ -233,12 +235,8 @@ function PresetDockView() {
       )}
       {/* Beside a dropdown the reset takes its short label, so the scenario's own name keeps the room. */}
       {!citFlow && <ShowAllDesks compact={compact || dropdown} />}
+      <WaitingChip />
       <InfoButton compact={compact || dropdown} />
-      {running && !compact && !dropdown && (
-        <span className="whitespace-nowrap text-[11px] text-slate-400" role="status" data-testid="preset-running">
-          {tr({ en: 'Payment on its way…', vi: 'Giao dịch đang di chuyển…' })}
-        </span>
-      )}
       </div>
     </div>
   );

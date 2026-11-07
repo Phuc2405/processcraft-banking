@@ -1,3 +1,4 @@
+import { litHover } from '../../../sim/hoverStrategy';
 import { useActiveChildId } from '../../../store/childFocusStore';
 import { Html } from '@react-three/drei';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
@@ -299,7 +300,8 @@ export const VaultCashStreams3D = memo(function VaultCashStreams3D() {
   // On a demo's stage only its own route shows: no hover lighting, no wire or stream off it (as on the 2D map).
   const isolated = useStageIsolated();
   const pointer = useWireHover();
-  const hover = isolated ? null : pointer;
+  // In a sub-process the hover only opens the station's card (sim/hoverStrategy.ts): its gold wires stay as the scenario left them.
+  const hover = isolated ? null : litHover(pointer, flow);
   const demo = useActiveChildId();
   const route = useMemo(() => litWires(flow, child, hover, group, demo), [flow, child, hover, group, demo]);
   const shown = (w: CashWire): boolean => !isolated || (route?.has(w) ?? false);

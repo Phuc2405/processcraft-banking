@@ -92,7 +92,7 @@ describe('2. the CIT demo scenario dropdown', () => {
     const html = renderToStaticMarkup(createElement(SubProcessInfoView, { info: subProcessInfo('flow-9'), liveStr: 0.5 }));
     expect(html).not.toContain('data-testid="cit-demo-picker"');
     for (const k of CIT_DEMOS) expect(html).not.toContain(`data-testid="cit-demo-${k}"`);
-    expect(src('components/bank/PresetDock.tsx')).toContain('<CitDemoPicker />');
+    expect(src('components/bank/PresetDock.tsx')).toContain('<CitDockPicker />');
     expect(src('components/ops/LoadingBayPanel.tsx')).toContain('<CitDemoPicker');
     expect(src('components/ops/CitPanel.tsx')).not.toContain('export function CitDemoButtons');
     // One dropdown component behind the payment dock and the CIT picker.

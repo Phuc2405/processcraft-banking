@@ -100,6 +100,10 @@ interface FlowFocus {
 const flowDim = (flow: FlowFocus | null, lit: boolean): string => (flow && !lit ? 'bk-flow-dim' : '');
 /** A place inside the lit scope that the picked child does not cross: soft-dimmed to CHILD_DIM (35%), still there and clickable. */
 const childDimmed = (flow: FlowFocus | null, place: PlaceId): boolean => !!flow && flow.scope.places.has(place) && childOpacity(place, flow.child) < 1;
+/** A card's border inside a lit flow: the flow's glow on the child's route; off it a plain border (no glow, no status colour); else its own. */
+const glowRing = (flow: FlowFocus | null, place: PlaceId, flowLit: boolean, own: string): string => (childDimmed(flow, place) ? 'border-slate-700/80' : flowLit ? 'bk-flow-lit' : own);
+/** In a sub-process the hover only opens the card (sim/hoverStrategy.ts): no border lights under the pointer. */
+const hoverRing = (flow: FlowFocus | null, ring: string): string => (flow ? '' : ring);
 const childStyle = (flow: FlowFocus | null, place: PlaceId): CSSProperties | undefined => (childDimmed(flow, place) ? { opacity: CHILD_DIM } : undefined);
 const flowVar = (flow: FlowFocus | null): CSSProperties | undefined => (flow ? ({ ['--flow' as string]: flow.accent } as CSSProperties) : undefined);
 
@@ -211,7 +215,7 @@ const StpNodeCard = memo(function StpNodeCard({ sv, selected, focus, flow, flowH
         aria-label={label}
         data-testid="station-STP_ENGINE"
         data-stp-on={on}
-        className={`absolute inset-0 rounded-xl border border-dashed bg-gradient-to-br from-violet-950/80 to-[#0b1120] transition hover:border-violet-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${lit && focus ? 'bk-spot-lit' : flowLit ? 'bk-flow-lit' : on ? 'border-violet-400/70' : 'border-slate-600'} ${flowHere ? 'bk-flow-here' : ''} ${selected ? 'ring-2 ring-sky-400' : ''}`}
+        className={`absolute inset-0 rounded-xl border border-dashed bg-gradient-to-br from-violet-950/80 to-[#0b1120] transition ${hoverRing(flow, 'hover:border-violet-300')} focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${lit && focus ? 'bk-spot-lit' : glowRing(flow, 'STP_ENGINE', flowLit, on ? 'border-violet-400/70' : 'border-slate-600')} ${flowHere ? 'bk-flow-here' : ''} ${selected ? 'ring-2 ring-sky-400' : ''}`}
       />
       {sv.served > 0 && on && <span key={tick} aria-hidden="true" className="bk-stp-pulse pointer-events-none absolute inset-0 rounded-xl" />}
       <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-1.5">
@@ -315,7 +319,7 @@ const StationCard = memo(function StationCard({
         data-testid={`station-${id}`}
         data-status={sv.status}
         data-heat={heat ?? undefined}
-        className={`absolute inset-0 rounded-xl border bg-gradient-to-b from-slate-900 to-[#0b1120] transition hover:border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${lit && focus ? 'bk-spot-lit' : flowLit ? 'bk-flow-lit' : border} ${flowHere || visited ? 'bk-flow-here' : ''} ${selected ? 'ring-2 ring-sky-400' : ''} ${pulse}`}
+        className={`absolute inset-0 rounded-xl border bg-gradient-to-b from-slate-900 to-[#0b1120] transition ${hoverRing(flow, 'hover:border-slate-400')} focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${lit && focus ? 'bk-spot-lit' : glowRing(flow, id, flowLit, border)} ${flowHere || visited ? 'bk-flow-here' : ''} ${selected ? 'ring-2 ring-sky-400' : ''} ${pulse}`}
       />
       <div className="pointer-events-none absolute inset-0 flex flex-col p-1.5">
         {/* Fixed rows: a two-line title box, the art and the count, and the staff row pinned to the bottom. */}
@@ -502,13 +506,13 @@ function ExternalNode({ id, focus, flow, flowHere, terms }: { id: ExternalId; fo
   );
   const flowLit = flow ? flow.scope.places.has(id) : false;
   const style: CSSProperties = { left: box.cx - box.w / 2, top: box.cy - box.h / 2, width: box.w, height: box.h, ...neon(focus), ...flowVar(flow), ...childStyle(flow, id) };
-  const klass = `group absolute z-20 hover:z-[45] has-[:focus-visible]:z-[45] rounded-xl border bg-gradient-to-b p-2 text-left ${lit && focus ? 'bk-spot-lit' : flowLit ? 'bk-flow-lit' : theme.border} ${theme.bg} ${dimClass(focus, lit)} ${flowDim(flow, flowLit)} ${here ? 'bk-spot-here' : ''} ${flowHere ? 'bk-flow-here' : ''}`;
+  const klass = `group absolute z-20 hover:z-[45] has-[:focus-visible]:z-[45] rounded-xl border bg-gradient-to-b p-2 text-left ${lit && focus ? 'bk-spot-lit' : glowRing(flow, id, flowLit, theme.border)} ${theme.bg} ${dimClass(focus, lit)} ${flowDim(flow, flowLit)} ${here ? 'bk-spot-here' : ''} ${flowHere ? 'bk-flow-here' : ''}`;
   if (id === 'CUSTOMER_OTP') {
     return (
       <button
         type="button"
         onClick={() => (focus ? spotlightFocus(id) : startSpotlight('B'))}
-        className={`${klass} transition hover:border-violet-300`}
+        className={`${klass} transition ${hoverRing(flow, 'hover:border-violet-300')}`}
         style={style}
         data-testid="external-CUSTOMER_OTP-box"
         data-place={id}

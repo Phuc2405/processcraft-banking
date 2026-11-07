@@ -136,7 +136,7 @@ function crewFigure(role: 'custodian' | 'guard', flow: CrewFlow, p: CrewPoint): 
 
 /** Which turn a drive along `path` takes over the next few metres from `d`: 1 left, -1 right, 0 (nearly) straight on. */
 export function turnAhead(path: readonly V2[], d: number, look: number = CIT_RUN.signal): -1 | 0 | 1 {
-  const len = pathLength(path);
+  const len = routeLen(path);
   const at = (s: number): number => {
     const [ax, az] = pointAlongPath(path, Math.min(len, s + 0.05));
     const [bx, bz] = pointAlongPath(path, Math.max(0, s - 0.05));
@@ -145,6 +145,14 @@ export function turnAhead(path: readonly V2[], d: number, look: number = CIT_RUN
   const turn = wrap(at(Math.min(len - 0.06, d + look)) - at(Math.max(0.06, d)));
   return Math.abs(turn) < 0.5 ? 0 : turn > 0 ? 1 : -1;
 }
+
+/** A route's length, measured once: the van's routes are fixed arrays, read every frame and every walker check while it drives. */
+const ROUTE_LEN = new WeakMap<readonly V2[], number>();
+const routeLen = (path: readonly V2[]): number => {
+  let n = ROUTE_LEN.get(path);
+  if (n === undefined) ROUTE_LEN.set(path, (n = pathLength(path)));
+  return n;
+};
 
 export class CitRun {
   phase: CitPhase = 'away';
@@ -199,7 +207,7 @@ export class CitRun {
         break;
       case 'arrive':
         // Stopped in the bay: the rear doors and the shutter open and the crew steps out in the same instant.
-        if (this.t >= driveTime(pathLength(this.routes.arrive))) this.next('load');
+        if (this.t >= driveTime(routeLen(this.routes.arrive))) this.next('load');
         break;
       case 'load':
         if (this.t >= loadS(this.flow)) this.next('close');
@@ -231,7 +239,7 @@ export class CitRun {
   }
 
   private departS(): number {
-    return driveTime(pathLength(this.routes.reverse)) + driveTime(pathLength(this.routes.depart));
+    return driveTime(routeLen(this.routes.reverse)) + driveTime(routeLen(this.routes.depart));
   }
 
   private next(phase: CitPhase): void {
@@ -289,12 +297,26 @@ export class CitRun {
     return Math.abs(a.along) < LENGTH.cit / 2 + CIT_YIELD.wait && a.side < WIDTH.cit / 2 + CIT_YIELD.wait;
   }
 
+  /** The last pose and the state it was computed from: the renderers and every walker's yield check share one pose per tick. */
+  private memo: { phase: CitPhase; t: number; flow: CrewFlow; leg: string | null; st: number; pose: CitPose } | null = null;
+
+  /** Where the van, its crew and the vault's staff are now. The same object until the run moves on (do not mutate it). */
   pose(): CitPose {
+    const m = this.memo;
+    const leg = this.staff?.leg ?? null;
+    const st = this.staff?.t ?? -1;
+    if (m && m.phase === this.phase && m.t === this.t && m.flow === this.flow && m.leg === leg && m.st === st) return m.pose;
+    const pose = this.computePose();
+    this.memo = { phase: this.phase, t: this.t, flow: this.flow, leg, st, pose };
+    return pose;
+  }
+
+  private computePose(): CitPose {
     const { x, z } = LOADING_BAY;
     const staff = this.staffFigure();
     const still = (doors: number, shutter: number, crew: CrewFigure[] = [], vaultPulse: CrewFlow | null = null, signal: CitPose['signal'] = 0): CitPose => ({ phase: this.phase, x, z, yaw: 0, doors, shutter, signal, reversing: false, crew: staff ? [...crew, staff] : crew, vaultPulse });
     const on = (path: readonly V2[], t: number, back: boolean, signal: boolean): CitPose => {
-      const len = pathLength(path);
+      const len = routeLen(path);
       const d = len * ease(Math.min(1, t / driveTime(len)));
       const [px, pz] = pointAlongPath(path, d);
       const [ax, az] = pointAlongPath(path, Math.min(len, d + 0.05));
@@ -326,7 +348,7 @@ export class CitRun {
         return still(k, k, [], null, k === 0 ? turnAhead(this.routes.depart, 0, 4) || 1 : 0);
       }
       case 'depart': {
-        const tr = driveTime(pathLength(this.routes.reverse));
+        const tr = driveTime(routeLen(this.routes.reverse));
         if (this.t < tr) return { ...on(this.routes.reverse, this.t, true, false), signal: turnAhead(this.routes.depart, 0, 4) || 1 };
         return on(this.routes.depart, this.t - tr, false, true);
       }

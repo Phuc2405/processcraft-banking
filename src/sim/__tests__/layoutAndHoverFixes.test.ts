@@ -134,7 +134,10 @@ describe('3. reading stays open during a demo; only run triggers and the flow sw
     expect(html).toContain('data-testid="demo-cancel"');
     // The dock's own scenario selector is read-only while a demo runs (it would switch the running case); the drawer's pickers only navigate.
     expect(src('components/bank/PresetDock.tsx')).toMatch(/ScenarioPicker[^\n]*disabled=\{locked\}/);
-    expect(src('components/ops/CitPanel.tsx')).not.toMatch(/ScenarioPicker[^\n]*disabled=\{locked\}/);
+    // The CIT dock picker aims the map too, so it locks like the payment one; the bay's and the vault's CIT picker only navigate.
+    const cit = src('components/ops/CitPanel.tsx');
+    expect(cit.slice(cit.indexOf('export function CitDockPicker'), cit.indexOf('export function CitDemoPicker'))).toMatch(/ScenarioPicker[^\n]*disabled=\{locked\}/);
+    expect(cit.slice(cit.indexOf('export function CitDemoPicker'))).not.toMatch(/ScenarioPicker[^\n]*disabled=\{locked\}/);
     expect(src('components/bank/WelcomeModal.tsx')).toContain("mode.id === 'academy' ? () => mode.pick(actions)");
     // The top flow switcher stays locked.
     expect(src('components/bank/SubProcessMenu.tsx')).toContain('disabled={locked}');

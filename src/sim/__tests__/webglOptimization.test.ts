@@ -240,8 +240,9 @@ describe('a demo run lights only its own path, on both maps', () => {
     // The scenario's whole flow is not lit, only the path.
     const flowWide = litLanes(null, 1, null, null);
     expect(lit.lanes.size).toBeLessThanOrEqual(flowWide.lanes.size);
-    // Pointing at a desk still wins.
-    expect(litLanes('CORE_LEDGER' as PlaceId, 1, null, path).pulses).toBe(true);
+    // Pointing at a desk in a sub-process never re-lights the lanes: the run's own path stays the lit one (hoverStrategy).
+    expect(litLanes('CORE_LEDGER' as PlaceId, 1, null, path)).toEqual(litLanes(null, 1, null, path));
+    expect(litLanes('CORE_LEDGER' as PlaceId, null, null, path).pulses).toBe(true);
   });
 });
 

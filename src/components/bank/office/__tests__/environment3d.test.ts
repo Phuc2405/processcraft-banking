@@ -512,8 +512,10 @@ describe('focus in 3D: a pointed-at desk and a guided scenario', () => {
     expect(lit.dim).toBe(0.1);
     expect(DIM.flow).toBe(0.1);
     expect([...lit.lanes].sort()).toEqual([...flowScope(flow).wires].sort());
-    // A pointed-at desk wins over the scenario; nothing in focus leaves everything as it is.
-    expect(litLanes('SEC_FDS', flow).dim).toBe(LANE_DIM);
+    // In the Full process scope a pointed-at desk lights its own lanes; in a sub-process the hover only opens its card (hoverStrategy).
+    expect(litLanes('SEC_FDS', null).dim).toBe(LANE_DIM);
+    expect(litLanes('SEC_FDS', flow)).toEqual(litLanes(null, flow));
+    expect(deskFocus('SEC_FDS', 'SEC_FDS', flow)).toBe(deskFocus('SEC_FDS', null, flow));
     expect(LANE_DIM).toBe(0.15);
     expect(litLanes(null, null).lanes.size).toBe(0);
     expect(deskFocus('SEC_FDS', null, null)).toBe(1);
@@ -535,8 +537,8 @@ describe('focus in 3D: a pointed-at desk and a guided scenario', () => {
     }
     expect(FLOW_BADGE_DIM).toBe(0.1);
     expect(badgeOpacity('faded')).toBe(0.1);
-    // A pointed-at desk still wins.
-    expect(badgeFocus(LANE_LABELS[0]!, LANE_LABELS[0]!.from, FLOW_IDS[0]!)).toBe('lit');
+    // Pointing at a desk inside a sub-process leaves the scenario's badges as they are (the hover only opens the card).
+    expect(badgeFocus(LANE_LABELS[0]!, LANE_LABELS[0]!.from, FLOW_IDS[0]!)).toBe(badgeFocus(LANE_LABELS[0]!, null, FLOW_IDS[0]!));
   });
 
   it('runs pulses along a lit lane, evenly spaced and looping', () => {

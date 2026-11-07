@@ -1,3 +1,4 @@
+import { litHover } from '../../sim/hoverStrategy';
 import { useActiveChildId } from '../../store/childFocusStore';
 import { memo, useMemo } from 'react';
 import { CASH_WIRES, litWires, routeDirs, type CashWire } from '../../sim/cashWires';
@@ -27,7 +28,8 @@ export const CashLines2D = memo(function CashLines2D() {
   // On a demo's stage only its own route is lit: hovering a station never lights another wire.
   const isolated = useStageIsolated();
   const pointer = useWireHover();
-  const hover = isolated ? null : pointer;
+  // In a sub-process the hover only opens the station's card (sim/hoverStrategy.ts): its gold wires stay as the scenario left them.
+  const hover = isolated ? null : litHover(pointer, flow);
   const group = useBankStore(demoGroupOf);
   const demo = useActiveChildId();
   const route = useMemo(() => litWires(flow, child, hover, group, demo), [flow, child, hover, group, demo]);

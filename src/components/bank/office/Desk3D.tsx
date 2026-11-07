@@ -6,7 +6,9 @@ import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { Group, Mesh } from 'three';
 import { STATIONS, type StationId } from '../../../sim/topology';
-import { bankStore, useBankStore } from '../../../store/bankStore';
+import { activeFlowOf, bankStore, useBankStore } from '../../../store/bankStore';
+import { useOffBrightPath } from '../../../store/childFocusStore';
+import { litHover } from '../../../sim/hoverStrategy';
 import { useDeskVisited } from '../../../store/deskVisitStore';
 import { pickPlace, useTourLit } from './tourHooks';
 import { useTerms } from '../useTerms';
@@ -79,10 +81,15 @@ function DeskBody({ id, accent }: { id: StationId; accent: string }) {
   const staff = useBankStore((s) => s.view.stations[id].workers.length);
   // While a demo runs only its case is worked at the desks (DemoSession.deskView).
   const workingKey = useDeskViewOf((v) => v.stations[id].workers.map((w) => (w.working ? '1' : '0')).join(''));
-  const status = useDeskViewOf((v) => v.stations[id].status);
+  const live = useDeskViewOf((v) => v.stations[id].status);
+  // Off the lit scenario's path, the desk's lamp, status strip and screens stop glowing: only the scenario's own desks read as active.
+  const quiet = useOffBrightPath(id);
+  const status = quiet ? 'IDLE' : live;
   const selected = useBankStore((s) => s.selection.kind === 'station' && s.selection.id === id);
   const setHoverPlace = useBankStore((s) => s.setHoverPlace);
-  const [hover, setHover] = useState(false);
+  const [pointed, setHover] = useState(false);
+  // In a sub-process the hover only opens the desk's card (sim/hoverStrategy.ts): no outline lights under the pointer.
+  const hover = useBankStore((s) => litHover(pointed ? id : null, activeFlowOf(s)) !== null);
 
   const body = useMemo(() => merge(deskSolid(id, staff, accent)), [id, staff, accent]);
   const lights = useMemo(
@@ -130,13 +137,13 @@ function DeskBody({ id, accent }: { id: StationId; accent: string }) {
   return (
     <group name={`desk-${id}`}>
       <mesh geometry={body} material={solid} castShadow receiveShadow />
-      <mesh geometry={lights} material={glow} />
-      {/* the desk's state, along the front edge of the top */}
-      <mesh position={[0, SURFACE - 0.035, COUNTER.d / 2 + 0.056]}>
+      <mesh geometry={lights} material={glow} visible={!quiet} />
+      {/* the desk's state, along the front edge of the top; keyed by colour, so a faded (cloned) material never keeps the old one */}
+      <mesh key={hex} position={[0, SURFACE - 0.035, COUNTER.d / 2 + 0.056]}>
         <boxGeometry args={[COUNTER.w - 0.3, 0.035, 0.014]} />
         <meshBasicMaterial color={hex} toneMapped={false} />
       </mesh>
-      <Lamp status={status} />
+      <Lamp key={hex} status={status} />
       {/* a soft smudge under the desk */}
       <mesh position={[wing ? 0.35 : 0, 0.02, wing ? -0.5 : 0]} rotation={[-Math.PI / 2, 0, 0]} material={blobMaterial()}>
         <planeGeometry args={[COUNTER.w + 1.6, COUNTER.d + (wing ? WING.len : 0) + 1.5]} />
@@ -407,7 +414,8 @@ export const pinTop = (id: StationId): number => (isMachine(id) ? 2.55 : isPodiu
 /** The floating badge above a desk: its name and how many are waiting. Its hover card is the scene's one StationTooltip3D. */
 export function DeskPin({ id, height }: { id: StationId; height?: number }) {
   // The same status stream the 2D desk cards read (SimulationEngine.desks).
-  const { status, waiting: queueLength, working } = useDeskStatus(id);
+  const { status: live, waiting: queueLength, working } = useDeskStatus(id);
+  const status = useOffBrightPath(id) ? 'IDLE' : live;
   const selected = useBankStore((s) => s.selection.kind === 'station' && s.selection.id === id);
   const always = useBankStore((s) => s.labelMode === 'always');
   const hovered = useBankStore((s) => s.hoverPlace === id);

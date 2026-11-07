@@ -11,6 +11,7 @@ import { useMessages } from '../../utils/i18nHelper';
 import { retailOpsMessages } from './retailOps.messages';
 import { RetailOpsSection } from './RetailOpsDock';
 import { useTerms } from './useTerms';
+import { RunResultToggle } from './RunResultToggle';
 
 /** The inspector for a payment the learner sent with a preset action. */
 
@@ -141,6 +142,7 @@ export function TransactionPanel({ id }: { id: string }) {
         )}
       </header>
       <div className="bk-scroll min-h-0 flex-1 overflow-y-auto p-3.5">
+        <RunResultToggle view="result" txId={id} className="mb-3" />
         {!trace ? (
           <p className="text-[12.5px] leading-relaxed text-slate-400">{t('This payment is not part of the bank any more: the day was replayed or a new day began. Send another with the buttons at the bottom of the map.')}</p>
         ) : (

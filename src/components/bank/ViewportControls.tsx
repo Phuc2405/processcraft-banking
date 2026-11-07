@@ -114,6 +114,15 @@ export function useRightInset(): number {
   return useBankStore((s) => ZOOM_TOOLBAR_GUTTER + (s.selection.kind !== 'none' ? s.inspectorWidth : 0));
 }
 
+/**
+ * What the bottom demo bar keeps clear of at the map's right edge: the zoom toolbar and the drawer's lane, open or not (whenever the
+ * map is wide enough to hold the drawer), so opening or closing the drawer never moves the bar or re-lays its row.
+ */
+export function useDemoDockInset(): number {
+  const mapW = useTopBand((s) => s.mapW);
+  return useBankStore((s) => ZOOM_TOOLBAR_GUTTER + (inspectorCoversMap(mapW, s.inspectorWidth, true) ? 0 : s.inspectorWidth));
+}
+
 const SHORT_MAP_PX = 420;
 
 /** The least map a floating control needs beside the open inspector. With less, the inspector covers the map and the controls wait. */

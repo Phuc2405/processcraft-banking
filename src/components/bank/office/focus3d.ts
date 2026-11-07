@@ -5,6 +5,7 @@ import type { FlowId } from '../../../types/viewport';
 import { LANES, type V2 } from '../../../engine/plan/layout3d';
 import { pathLength, pointAlongPath } from '../../../engine/plan/path';
 import { childOpacity } from '../../../store/childFocusStore';
+import { litHover } from '../../../sim/hoverStrategy';
 
 /** What the 3D office brings forward and what it lets fade, and the staff walking home. */
 
@@ -47,8 +48,9 @@ export function neighbours(place: PlaceId): ReadonlySet<PlaceId> {
   return out;
 }
 
-/** The opacity a desk (or kiosk) is drawn at: full when it is in focus, faded otherwise. A pointed-at desk wins over a scenario, which wins over its picked child. */
-export function deskFocus(place: PlaceId, hover: PlaceId | null, flow: FlowId | null, sub: FocusSub | null = null, child: ReadonlySet<PlaceId> | null = null): number {
+/** The opacity a desk (or kiosk) is drawn at: full when it is in focus, faded otherwise. In the Full process scope a pointed-at desk wins; in a sub-process the hover only opens its card (sim/hoverStrategy.ts), and the scenario wins over its picked child. */
+export function deskFocus(place: PlaceId, pointer: PlaceId | null, flow: FlowId | null, sub: FocusSub | null = null, child: ReadonlySet<PlaceId> | null = null): number {
+  const hover = litHover(pointer, flow);
   if (hover) return neighbours(hover).has(place) ? 1 : DIM.hover;
   // Inside the sub-process, a desk the picked child scenario does not cross is soft-dimmed (CHILD_DIM), never hidden.
   if (flow) return focusScope(flow, sub).places.has(place) ? childOpacity(place, child) : DIM.flow;
@@ -59,7 +61,8 @@ export function deskFocus(place: PlaceId, hover: PlaceId | null, flow: FlowId | 
  * The lanes lit now and how much the others fade: the pointed-at desk's own; else, while the learner's payment runs, only the wires
  * it has crossed and is crossing (its orb is then the one moving light, so `pulses` is off); else the guided scenario's.
  */
-export function litLanes(hover: PlaceId | null, flow: FlowId | null, sub: FocusSub | null = null, path: LivePath | null = null, child: ReadonlySet<PlaceId> | null = null): { lanes: ReadonlySet<string>; dim: number; pulses: boolean } {
+export function litLanes(pointer: PlaceId | null, flow: FlowId | null, sub: FocusSub | null = null, path: LivePath | null = null, child: ReadonlySet<PlaceId> | null = null): { lanes: ReadonlySet<string>; dim: number; pulses: boolean } {
+  const hover = litHover(pointer, flow);
   if (hover) return { lanes: new Set(LANES.filter((l) => l.from === hover || l.to === hover).map((l) => l.id)), dim: LANE_DIM, pulses: true };
   if (path) return { lanes: new Set(LANES.filter((l) => path.all.has(l.id)).map((l) => l.id)), dim: DIM.flow, pulses: false };
   if (flow && child) {
@@ -74,7 +77,8 @@ export function litLanes(hover: PlaceId | null, flow: FlowId | null, sub: FocusS
 export type BadgeFocus = 'lit' | 'dim' | 'plain' | 'faded';
 
 /** How a lane's condition badge shows. */
-export function badgeFocus(l: { id?: string; from: PlaceId; to: PlaceId }, hover: PlaceId | null, flow: FlowId | null = null, sub: FocusSub | null = null): BadgeFocus {
+export function badgeFocus(l: { id?: string; from: PlaceId; to: PlaceId }, pointer: PlaceId | null, flow: FlowId | null = null, sub: FocusSub | null = null): BadgeFocus {
+  const hover = litHover(pointer, flow);
   if (hover !== null) return l.from === hover || l.to === hover ? 'lit' : 'dim';
   if (flow !== null) return l.id !== undefined && focusScope(flow, sub).wires.has(l.id) ? 'plain' : 'faded';
   return 'plain';

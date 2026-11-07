@@ -7,6 +7,8 @@
  * 3. The dock: the reset hides while a demo runs, the waiting shift sits on its own row, long names truncate, the selector is read-only.
  * 4. Flow 09 in 3D: the SBV step badge follows the van (step 2 once the crew meets it, step 3 once it pulls away) and stays in the lot.
  * 5. The shift-prompt buttons wrap inside themselves; the map legend keeps the wheel; Flow 04's suspense switch.
+ * 6. V8: the dock is one fixed row that the drawer never moves; the bottom, top and right always name the same scenario (Flow 09
+ *    too); in a sub-process the hover only opens the card; the SOP / run-result toggle; the SBV step badges never stack.
  */
 
 import { createElement } from 'react';
@@ -18,17 +20,26 @@ import { PresetDock } from '../../../components/bank/PresetDock';
 import { ShiftPrompt } from '../../../components/bank/ShiftPrompt';
 import { topBand } from '../../../components/bank/ViewportControls';
 import { citSource } from '../../../components/bank/hopDriver';
-import { executeDemo, focusChild, litInfoKey, showLitInfo } from '../../../components/bank/retailOpsActions';
+import { executeDemo, focusChild, focusCitChild, litInfoKey, showLitInfo } from '../../../components/bank/retailOpsActions';
 import { cancelDemo, demoLocked } from '../../../components/bank/DemoSession';
-import { badgeXZ, OFFSITE, OFFSITE_BADGE } from '../../../components/bank/office/TransactionFlow3D';
-import { litLanes } from '../../../components/bank/office/focus3d';
+import { badgeXZ, CIT_BADGE_LIFT_PX, citBadgeAtBay, OFFSITE, OFFSITE_BADGE } from '../../../components/bank/office/TransactionFlow3D';
+import { badgeFocus, deskFocus, litLanes } from '../../../components/bank/office/focus3d';
+import { SubProcessMenu } from '../../../components/bank/SubProcessMenu';
+import { TransactionPanel } from '../../../components/bank/TransactionPanel';
+import { CitRun } from '../../../engine/world/citRun';
+import { citRoutes } from '../../../engine/world/parking';
+import { LANE_LABELS } from '../../../engine/plan/layout3d';
+import { CIT_FLOW } from '../../../types/viewport';
+import { hoverStrategy, litHover } from '../../hoverStrategy';
+import { demoActionById } from '../../demoActions';
+import { focusScope } from '../../demoGroups';
 import { EodSuspenseToggle, SubProcessInfoView } from '../../../components/ops/SubProcessInfoDrawer';
 import { eodSheet } from '../../../data/subProcessEodSheets';
 import { glLine } from '../../../data/subProcessModel';
 import { subProcessInfo } from '../../../data/subProcessRegistry';
 import { LOT } from '../../../engine/world/parking';
 import { setActiveLocale } from '../../../i18n/localeCore';
-import { activeFlowOf, bankStore, focusSubOf } from '../../../store/bankStore';
+import { activeFlowOf, activeScopeOf, bankStore, citChildOf, focusSubOf } from '../../../store/bankStore';
 import { CHILD_DIM, childFocusStore } from '../../../store/childFocusStore';
 import { demoSessionStore } from '../../../store/demoSessionStore';
 import { eodCaseStore } from '../../../store/eodCaseStore';
@@ -177,18 +188,17 @@ describe('3. the dock while a demo runs, waits or has a long name', () => {
     expect(dock()).toContain('data-testid="show-all-desks"');
   });
 
-  it('puts "⏳ Waiting for Scheduled Shift" on its own row above the controls, so nothing collides', () => {
+  it('keeps "⏳ Waiting for the shift" inside the one row: a chip that truncates, never a second row', () => {
     bankStore.getState().setScope('beginner');
     focusChild('teller-51');
     shiftQueueStore.setState({ waiting: [{ id: 'teller-51', shift: 'day' }] });
     const out = dock();
-    const waiting = out.indexOf('data-testid="shift-waiting"');
     const row = out.indexOf('data-testid="preset-dock-row"');
-    expect(waiting).toBeGreaterThan(-1);
-    expect(row).toBeGreaterThan(waiting);
-    expect(out).toMatch(/class="[^"]*flex-col[^"]*"[^>]*data-testid="preset-dock"/);
-    // The waiting row is complete before the controls row opens.
-    expect(out.slice(waiting, row)).not.toContain('data-testid="demo-run"');
+    const waiting = out.indexOf('data-testid="shift-waiting"');
+    expect(row).toBeGreaterThan(-1);
+    expect(waiting).toBeGreaterThan(row);
+    expect(out).toMatch(/data-testid="shift-waiting" class="[^"]*min-w-\[4\.5rem\][^"]*shrink/);
+    expect(out).not.toMatch(/class="[^"]*flex-col[^"]*"[^>]*data-testid="preset-dock"/);
   });
 
   it('truncates a long scenario name with an ellipsis; the buttons never shrink', () => {
@@ -331,5 +341,179 @@ describe('5. modal buttons, the legend wheel and Flow 04’s suspense switch', (
     executeDemo('atm-61');
     expect(html(createElement(EodSuspenseToggle))).toMatch(/<button[^>]*disabled=""[^>]*data-testid="eod-suspense-switch"/);
     cancelDemo();
+  });
+});
+
+describe('6. V8: one-row dock, three-way sync, hover strategy, result toggle, SBV badges', () => {
+  const shell = (out: string): string => /<div[^>]*data-testid="preset-dock"[^>]*>/.exec(out)![0];
+  type ChildId = Parameters<typeof focusChild>[0];
+
+  it('the dock is one fixed-height row that never wraps, while idle, running or finished', () => {
+    bankStore.getState().setScope('beginner');
+    focusChild('atm-61');
+    const rows = (): string => html(createElement(PresetDock));
+    const check = (out: string): void => {
+      expect(shell(out)).toMatch(/class="[^"]*\bh-12\b[^"]*\bflex-nowrap\b/);
+      expect(shell(out)).not.toContain('flex-col');
+      expect(out).toContain('class="flex min-w-0 flex-1 flex-nowrap items-center gap-2" data-testid="preset-dock-row"');
+    };
+    check(rows());
+    bankStore.getState().skipTo(10 * 60);
+    executeDemo('atm-61');
+    check(rows());
+    cancelDemo();
+    check(rows());
+    // "Payment on its way…" is gone: the Cancel button already says a run is going.
+    expect(src('components/bank/PresetDock.tsx')).not.toContain('preset-running');
+  });
+
+  it('closing the drawer never moves the dock or re-lays its row; the info button keeps its width', () => {
+    bankStore.getState().setScope('beginner');
+    focusChild('atm-61');
+    topBand.setState({ mapW: 1600, shortMap: false });
+    const open = html(createElement(PresetDock));
+    expect(bankStore.getState().selection.kind).toBe('subprocess');
+    bankStore.getState().clearSelection();
+    const closed = html(createElement(PresetDock));
+    expect(shell(closed)).toBe(shell(open));
+    const info = (out: string): string => /<button[^>]*data-testid="dock-info"[^>]*>[\s\S]*?<\/button>/.exec(out)![0].replace(/aria-pressed="[^"]*"|class="[^"]*"/g, '');
+    expect(info(closed)).toBe(info(open));
+    expect(open).toMatch(/aria-pressed="true"[^>]*data-testid="dock-info"/);
+    expect(closed).toMatch(/aria-pressed="false"[^>]*data-testid="dock-info"/);
+  });
+
+  it('a pick in the bottom selector names the same scenario in the top menu and the drawer, in every flow 01-08', () => {
+    bankStore.getState().setScope('beginner');
+    for (const g of DEMO_GROUPS) {
+      const id = groupMembers(g.id)[0]!.def.id as ChildId;
+      focusChild(id);
+      const s = bankStore.getState();
+      expect(s.selection, g.id).toEqual({ kind: 'subprocess', key: litInfoKey(s.flow, s.subProcess) });
+      expect(childFocusStore.getState().id).toBe(id);
+      expect(html(createElement(SubProcessMenu))).toContain(`data-flow="${demoActionById(id).flow}"`);
+    }
+  });
+
+  it('Flow 09: a CIT pick in the dock is the top menu’s pick: menu title, drawer sheet and the dim mask all follow', () => {
+    bankStore.getState().setScope('beginner');
+    bankStore.getState().setActiveFlow(CIT_FLOW);
+    topBand.setState({ mapW: 0, shortMap: true });
+    expect(html(createElement(PresetDock))).toContain('data-testid="cit-dock-select"');
+    focusCitChild('SBV');
+    let s = bankStore.getState();
+    expect(citChildOf(s)).toBe('SBV');
+    expect(s.selection).toEqual({ kind: 'subprocess', key: '09-cit-sbv' });
+    expect(activeScopeOf(s)).toBe(focusScope(CIT_FLOW, 'SBV'));
+    expect(html(createElement(PresetDock))).toMatch(/data-testid="cit-dock-select" data-picked="SBV"/);
+    const sbvTitle = /data-testid="flow-menu-title">([^<]*)</.exec(html(createElement(SubProcessMenu)))![1];
+    focusCitChild('ATM');
+    s = bankStore.getState();
+    expect(s.selection).toEqual({ kind: 'subprocess', key: '09-cit-atm' });
+    expect(activeScopeOf(s)).toBe(focusScope(CIT_FLOW, 'ATM'));
+    expect(activeScopeOf(s)).not.toBe(focusScope(CIT_FLOW, 'SBV'));
+    expect(/data-testid="flow-menu-title">([^<]*)</.exec(html(createElement(SubProcessMenu)))![1]).not.toBe(sbvTitle);
+    // Read-only while a demo runs, like the payment dock's selector.
+    expect(src('components/ops/CitPanel.tsx')).toMatch(/testId="cit-dock" disabled=\{locked\}/);
+  });
+
+  it('hover strategy: in a sub-process pointing at a desk lights nothing (card only); in the full process it lights its desk and wires', () => {
+    expect(hoverStrategy(null)).toBe('highlight');
+    expect(hoverStrategy(3)).toBe('tooltip-only');
+    expect(litHover('LEDGER_DEBIT', 3)).toBeNull();
+    expect(litHover('LEDGER_DEBIT', null)).toBe('LEDGER_DEBIT');
+    const child = childPlaces('atm-jam-200', DEFAULT_STP)!;
+    for (const p of ['LEDGER_DEBIT', 'EOD_BATCH', 'OUT_APPROVED'] as const) {
+      // Hovering an off-route desk of the jammed withdrawal changes neither the desks' fade nor the lanes.
+      expect(deskFocus(p, p, 3, 'cassette-jam', child)).toBe(deskFocus(p, null, 3, 'cassette-jam', child));
+      expect(litLanes(p, 3, 'cassette-jam', null, child)).toEqual(litLanes(null, 3, 'cassette-jam', null, child));
+    }
+    for (const l of LANE_LABELS.slice(0, 5)) expect(badgeFocus(l, l.from, 3)).toBe(badgeFocus(l, null, 3));
+    // Full process: the hovered desk's own lanes light.
+    expect(litLanes('LEDGER_DEBIT', null).lanes.size).toBeGreaterThan(0);
+    // The gold cash wires and the 3D outline follow the same strategy; the hover card still reads the raw hover.
+    for (const f of ['components/bank/CashLines2D.tsx', 'components/bank/office/VaultCash3D.tsx']) expect(src(f)).toContain('litHover(pointer, flow)');
+    expect(src('components/bank/office/Desk3D.tsx')).toContain('litHover(pointed ? id : null, activeFlowOf(s))');
+    expect(src('index.css')).not.toContain('.bk-flow-dim:hover');
+  });
+
+  it('2D: inside a sub-process no card lights under the pointer, and an off-route card loses its glow and status border', () => {
+    bankStore.getState().setScope('beginner');
+    focusChild('atm-withdraw-100');
+    const out = html(createElement(BankMap));
+    expect(out).not.toContain('hover:border-slate-400');
+    const vault = /<div[^>]*data-place="MAIN_CASH_VAULT"[^>]*>[\s\S]*?data-testid="station-MAIN_CASH_VAULT"[^>]*>/.exec(out)?.[0] ?? '';
+    expect(vault).toContain('data-child-dim="true"');
+    expect(vault).not.toContain('bk-flow-lit');
+    bankStore.getState().setScope('advanced');
+    expect(html(createElement(BankMap))).toContain('hover:border-slate-400');
+  });
+
+  it('3D: off-route desks and gates stop glowing (lamp, strip, screens) and fade to 0.35 with the rest', () => {
+    const desk = src('components/bank/office/Desk3D.tsx');
+    expect(desk).toContain("const status = quiet ? 'IDLE' : live;");
+    expect(desk).toContain('material={glow} visible={!quiet}');
+    const kiosk = src('components/bank/office/Dressing.tsx');
+    expect(kiosk).toContain('useFocusFade(root, id);');
+    expect(kiosk).toContain('material={glow} visible={!quiet}');
+    const child = childPlaces('atm-jam-200', DEFAULT_STP)!;
+    const group = demoActionById('atm-jam-200').group as Parameters<typeof groupScope>[0];
+    const off = [...groupScope(group).places].filter((p) => !child.has(p));
+    expect(off.length).toBeGreaterThan(0);
+    for (const p of off) expect(deskFocus(p, null, 3, group, child), p).toBe(CHILD_DIM);
+    // The Approved gate is off the jam's route: faded (outside the sub-process, even further), its lights out.
+    expect(child.has('OUT_APPROVED')).toBe(false);
+    expect(deskFocus('OUT_APPROVED', null, 3, group, child)).toBeLessThanOrEqual(CHILD_DIM);
+    expect(deskFocus('ATM_CASH', null, 3, group, child)).toBe(1);
+  });
+
+  it('the drawer toggles between the SOP sheet and the run result; a new pick shows its own sheet, the last result one click away', () => {
+    bankStore.getState().setScope('beginner');
+    focusChild('atm-61');
+    const sop = (): string => html(createElement(SubProcessInfoView, { info: subProcessInfo('atm-napas'), liveStr: 0.5 }));
+    expect(sop()).not.toContain('data-testid="run-result-toggle"');
+    bankStore.getState().skipTo(10 * 60);
+    executeDemo('atm-61');
+    const tx = bankStore.getState().presetTxId!;
+    expect(bankStore.getState().selection).toEqual({ kind: 'transaction', id: tx });
+    expect(demoSessionStore.getState().last).toMatchObject({ kind: 'payment', id: tx });
+    const result = html(createElement(TransactionPanel, { id: tx }));
+    expect(result).toMatch(/data-testid="run-result-toggle" data-view="result"/);
+    expect(result).toMatch(/aria-pressed="true"[^>]*data-testid="show-result"/);
+    expect(sop()).toMatch(/data-testid="run-result-toggle" data-view="sop"/);
+    // The same scenario is focused: no note.
+    expect(sop()).not.toContain('data-testid="run-result-note"');
+    // The run ends; another scenario is picked: its sheet replaces the result, and the toggle says whose result it keeps.
+    hopPlayerStore.getState().reset();
+    bankStore.setState({ presetTrace: { ...bankStore.getState().presetTrace!, done: true } });
+    demoSessionStore.getState().finish();
+    focusChild('atm-withdraw-100');
+    expect(bankStore.getState().selection).toEqual({ kind: 'subprocess', key: 'atm-napas' });
+    expect(sop()).toContain('data-testid="run-result-note"');
+    expect(html(createElement(TransactionPanel, { id: tx }))).toContain('data-testid="show-sop"');
+    // Any other payment's panel (one picked on the map) has no toggle.
+    expect(html(createElement(TransactionPanel, { id: 'tx-other' }))).not.toContain('data-testid="run-result-toggle"');
+  });
+
+  it('SBV in 3D: the step badge stands in screen pixels above the van marker, and the bay label gives way under it', () => {
+    expect(CIT_BADGE_LIFT_PX).toBeGreaterThanOrEqual(48);
+    const session = { kind: 'cit', stops: [{ place: null, cit: 'VAULT' }, { place: null, cit: 'BAY' }, { place: null, cit: 'SBV' }] } as never;
+    expect(citBadgeAtBay({ session, play: { index: 1, phase: 'stop' } })).toBe(true);
+    expect(citBadgeAtBay({ session, play: { index: 1, phase: 'travel' } })).toBe(false);
+    expect(citBadgeAtBay({ session, play: { index: 2, phase: 'final' } })).toBe(false);
+    expect(citBadgeAtBay({ session: null, play: null })).toBe(false);
+    expect(src('components/bank/office/LoadingBay3D.tsx')).toContain('{!stepHere && <Html position={[0, 3, 0]}');
+    expect(src('components/bank/office/TransactionFlow3D.tsx')).toContain("lift={session.kind === 'cit' ? CIT_BADGE_LIFT_PX : 0}");
+  });
+
+  it('SBV in 3D: the van computes one pose per tick, shared by the renderers and every walker check', () => {
+    const run = new CitRun(citRoutes());
+    run.call('OUT');
+    run.step(0.1, true);
+    const a = run.pose();
+    expect(run.pose()).toBe(a);
+    for (let i = 0; i < 5; i++) run.inPath([0, 0]);
+    expect(run.pose()).toBe(a);
+    run.step(0.1, true);
+    expect(run.pose()).not.toBe(a);
   });
 });

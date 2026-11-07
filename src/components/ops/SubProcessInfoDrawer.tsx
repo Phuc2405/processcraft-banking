@@ -24,6 +24,7 @@ import { citMessages } from './cit.messages';
 import { slaTelemetry, type SlaTelemetry } from '../../sim/sheetTelemetry';
 import { subProcessInfoMessages } from './subProcessInfo.messages';
 import { LessonLink } from './LessonLink';
+import { RunResultToggle } from '../bank/RunResultToggle';
 
 /** The right-side sub-process fact sheet, hosted by the inspector drawer (selection kind 'subprocess'). Content: data/subProcessRegistry.ts. */
 
@@ -224,6 +225,7 @@ export function SubProcessInfoView({ info, liveStr, liveSla = null }: { info: Su
         </div>
       </header>
       <div className="bk-scroll min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain p-3" data-testid="inspector-body">
+        <RunResultToggle view="sop" />
         {parent ? <ChildSheetPicker flow={info.flow} /> : <RunScenario infoKey={info.key} />}
         {info.key === '09-cit-sbv' && <SbvCaseToggle />}
         {info.key === 'flow-4' && <EodSuspenseToggle />}

@@ -21,6 +21,8 @@ export interface StageHold {
 
 interface DemoSessionState {
   active: DemoRun | null;
+  /** The last demo started, kept after it ends: the drawer's "📊 Run result" toggle reopens its result. */
+  last: DemoRun | null;
   /** A demo just ended (done or cancelled): the stage stays clean (no one else's customers) until the bank plays on. */
   held: StageHold | null;
   /** The "cancel this demo?" dialog is open. */
@@ -38,9 +40,10 @@ interface DemoSessionState {
 
 export const demoSessionStore = createStore<DemoSessionState>((set, get) => ({
   active: null,
+  last: null,
   held: null,
   confirming: false,
-  start: (run) => set({ active: run, confirming: false, held: null }),
+  start: (run) => set({ active: run, last: run, confirming: false, held: null }),
   finish: (at) => {
     if (get().active || get().confirming) set({ active: null, confirming: false, held: get().active && at ? at : get().held });
   },

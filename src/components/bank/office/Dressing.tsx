@@ -7,6 +7,8 @@ import { memo, useEffect, useMemo, useRef, type DependencyList } from 'react';
 import { CanvasTexture, SRGBColorSpace, type BufferGeometry, type Group, type Mesh } from 'three';
 import type { ExternalId } from '../../../sim/topology';
 import { bankStore, useBankStore } from '../../../store/bankStore';
+import { useOffBrightPath } from '../../../store/childFocusStore';
+import { useFocusFade } from './useFocusFade';
 import { useTourLit } from './tourHooks';
 import { useTerms } from '../useTerms';
 import { ball, blob, box, cyl, merge, ring, rope, shade, tint, xform, type Part, type V3 } from './kit';
@@ -499,10 +501,14 @@ const Kiosk = memo(function Kiosk({ id }: { id: ExternalId }) {
   const blocks = Math.min(9, Math.ceil(Math.sqrt(count)));
   const body = useMerged(() => kioskParts(id, pose.w, pose.d, blocks).body, [id, pose.w, pose.d, blocks]);
   const lights = useMerged(() => kioskParts(id, pose.w, pose.d, blocks).lights, [id, pose.w, pose.d, blocks]);
+  // A gate off the lit scenario's path fades with the desks and its lights go out (the Approved gate of a jammed withdrawal).
+  const root = useRef<Group>(null);
+  useFocusFade(root, id);
+  const quiet = useOffBrightPath(id);
   return (
-    <group position={[pose.x, 0, pose.z]} name={`office-kiosk-body-${id}`}>
+    <group ref={root} position={[pose.x, 0, pose.z]} name={`office-kiosk-body-${id}`}>
       <mesh geometry={body} material={solid} castShadow receiveShadow />
-      <mesh geometry={lights} material={glow} />
+      <mesh geometry={lights} material={glow} visible={!quiet} />
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} material={blobMaterial()}>
         <planeGeometry args={[pose.w + 1.2, pose.d + 1.2]} />
       </mesh>

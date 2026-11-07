@@ -23,6 +23,7 @@ export const src = (path: string): string => readFileSync(join(__dirname, '../..
 export function freshBank(): void {
   demoSessionStore.getState().finish();
   demoSessionStore.getState().release();
+  demoSessionStore.setState({ last: null });
   hopPlayerStore.getState().reset();
   bankStore.getState().pause();
   bankStore.getState().resetDay();

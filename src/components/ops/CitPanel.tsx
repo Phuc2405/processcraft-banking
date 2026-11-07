@@ -27,13 +27,14 @@ import {
   type SbvMode,
   type SbvReason,
 } from '../../sim/citEngine';
-import { useBankStore } from '../../store/bankStore';
+import { citChildOf, useBankStore } from '../../store/bankStore';
 import { citStore, useCitStore } from '../../store/citStore';
 import { citDemoBlock, dispatchCitDemo, type CitDemoBlock } from './citActions';
 import { pick, useLocale, useMessages } from '../../utils/i18nHelper';
 import { SectionTitle } from '../bank/ui';
 import { ScenarioPicker } from '../bank/ScenarioPicker';
-import { RunOrCancel } from '../bank/DemoSession';
+import { RunOrCancel, useDemoLocked } from '../bank/DemoSession';
+import { focusCitChild } from '../bank/retailOpsActions';
 import { LessonLink } from './LessonLink';
 import { CIT_INFO_KEYS } from '../../data/subProcessKeys';
 import { citMessages } from './cit.messages';
@@ -201,6 +202,24 @@ export function CitDockButton({ kind }: { kind: CitDemo }) {
       </RunOrCancel>
       {block === 'busy' && <CitBusyBadge stage={stage} van={van} />}
     </>
+  );
+}
+
+/**
+ * Flow 09's dock: the CIT dropdown bound to the lit CIT child (bankStore.subProcess), so a pick here is the top menu's pick: the menu
+ * title, the drawer's sheet and the map's dim mask all follow it. Its Run button is that child's own (CitDockButton); read-only while a
+ * demo runs, like the payment dock's selector.
+ */
+export function CitDockPicker() {
+  const m = useMessages(citMessages);
+  const child = useBankStore(citChildOf);
+  const locked = useDemoLocked();
+  const picked: CitDemo = child ?? 'ATM';
+  const items = CIT_DEMOS.map((kind) => ({ id: kind, icon: DEMO_ICON[kind], label: m(`demoOption_${kind}`), hint: m(`demoHint_${kind}`), dot: 'bg-cyan-400' }));
+  return (
+    <ScenarioPicker items={items} picked={picked} onPick={(id) => focusCitChild(id as CitDemo)} label={m('pickScenario')} testId="cit-dock" disabled={locked}>
+      <CitDockButton kind={picked} />
+    </ScenarioPicker>
   );
 }
 

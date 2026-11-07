@@ -136,7 +136,7 @@ describe('CIT: the dock, the toast, the drawer and the lessons', () => {
       expect(CIT_INFO_KEYS[kind]).toBe(key);
       expect(citMessages.messages[`dock_${kind}`].vi).toBe(label);
     }
-    expect(src('components/bank/PresetDock.tsx')).toContain('<CitDockButton kind={cit} />');
+    expect(src('components/ops/CitPanel.tsx')).toContain('<CitDockButton kind={picked} />');
   });
 
   it('calls a till run an internal transfer, never a van dispatch', () => {

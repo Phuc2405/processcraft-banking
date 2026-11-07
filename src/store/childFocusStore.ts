@@ -3,7 +3,7 @@ import { createStore } from 'zustand/vanilla';
 import { demoActionById, type DemoActionId } from '../sim/demoActions';
 import { childPlaces, groupOf } from '../sim/demoGroups';
 import type { PlaceId } from '../sim/topology';
-import { activeFlowOf, bankStore, useBankStore, type BankState } from './bankStore';
+import { activeFlowOf, activeScopeOf, bankStore, useBankStore, type BankState } from './bankStore';
 import { eodCaseStore, useEodCase } from './eodCaseStore';
 
 /**
@@ -63,4 +63,16 @@ export function useChildPlaces(): ReadonlySet<PlaceId> | null {
   const id = useChildFocusId();
   const suspense = useEodCase((s) => s.suspense);
   return useBankStore((s) => activeChildPlaces(s, id, suspense));
+}
+
+/**
+ * Whether a place is off the bright path of the lit sub-process (outside its scope, or inside it but off the picked child's route):
+ * its status lamp, status strip and screens stop glowing, so only the scenario's own desks read as active.
+ */
+export function useOffBrightPath(place: PlaceId): boolean {
+  const child = useChildPlaces();
+  return useBankStore((s) => {
+    const scope = activeScopeOf(s);
+    return !!scope && (!scope.places.has(place) || (!!child && !child.has(place)));
+  });
 }

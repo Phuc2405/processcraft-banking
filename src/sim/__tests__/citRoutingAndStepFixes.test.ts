@@ -60,7 +60,8 @@ describe('Flow 09: the CIT domain', () => {
     expect(cit.map((c) => c.flow)).toEqual([9, 9, 9, 9]);
     const dock = src('components/bank/PresetDock.tsx');
     expect(dock).toContain('useBankStore(citChildOf)');
-    expect(dock).toContain('<CitDockButton kind={cit} />');
+    expect(dock).toContain('<CitDockPicker />');
+    expect(src('components/ops/CitPanel.tsx')).toContain('<CitDockButton kind={picked} />');
   });
 });
 

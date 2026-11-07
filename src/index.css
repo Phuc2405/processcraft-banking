@@ -713,16 +713,13 @@ body,
   animation: bk-slide-down-kf 220ms ease-out both;
 }
 
-/* Outside the active guided flow: 15% and grey, but still there to point at. Hovering one brings it halfway back. */
+/* Outside the active guided flow: 15% and grey, but still there to point at. Hovering one opens its card only (sim/hoverStrategy.ts). */
 .bk-flow-dim {
   opacity: 0.15;
   filter: grayscale(1);
   transition:
     opacity 400ms ease,
     filter 400ms ease;
-}
-.bk-flow-dim:hover {
-  opacity: 0.55;
 }
 
 .bk-flow-lit {
