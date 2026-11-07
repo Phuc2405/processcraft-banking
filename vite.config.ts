@@ -21,9 +21,8 @@ export default defineConfig({
             { name: 'vendor', test: /node_modules[\\/](react|react-dom|scheduler|zustand|use-sync-external-store|@xyflow|classcat|d3-[a-z]+)[\\/]/ },
             { name: 'i18n-vi', test: /[\\/]src[\\/](i18n[\\/](academyVi|challengeVi|catalogVi|feedVi|notesVi|reportVi|factsVi|simVi|viDictionary)\.ts|sim[\\/](learningVi|lessonExtras)\.ts)$/ },
             { name: 'workspace-copy', test: /[\\/]src[\\/]components[\\/]bank[\\/]analystWorkspace\.messages\.ts$/ },
-            // The demo pipeline (every Run button, Ctrl+K, the Academy and registry links) and the retail-ops book it drives: one
-            // chunk of their own (Rolldown's manualChunks), so the app chunk stays under 1 MB.
-            { name: 'retail-ops', test: /[\\/]src[\\/](components[\\/]bank[\\/]retailOpsActions|sim[\\/]retailOps|store[\\/]retailOpsStore)\.ts$/ },
+            // No group may hold both a leaf module and code that imports half the app: that makes a chunk cycle, and a chunk can
+            // then run before one it needs (a 'retail-ops' group of sim/retailOps + retailOpsActions blanked the page this way).
           ],
         },
       },

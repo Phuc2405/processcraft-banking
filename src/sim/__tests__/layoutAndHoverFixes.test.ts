@@ -141,10 +141,10 @@ describe('3. reading stays open during a demo; only run triggers and the flow sw
 });
 
 describe('4. the retail-ops chunk', () => {
-  it('splits retailOpsActions into its own chunk without swallowing its dependencies', () => {
+  it('keeps no retail-ops group: it put sim/retailOps in one chunk with retailOpsActions, a chunk cycle that blanked the page', () => {
     const vite = src('../vite.config.ts');
     expect(vite).toContain('includeDependenciesRecursively: false');
-    expect(vite).toMatch(/name: 'retail-ops', test: \/[^\n]*retailOpsActions/);
+    expect(vite).not.toMatch(/name: 'retail-ops'/);
   });
 });
 
